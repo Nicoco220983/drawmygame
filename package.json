@@ -1,0 +1,15 @@
+{
+  "name": "drawmygame",
+  "version": "0.1.0",
+  "description": "DrawMyGame MySimpleApp module",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Nicolas CARREZ",
+  "license": "MIT",
+  "dependencies": {
+    "mysimplegame": "/root/msa/mysimplegame"
+  }
+}

@@ -1,0 +1,690 @@
+<html>
+<head>
+	<title>Draw My Game</title>
+	<script src="mysimplegame/mysimplegame-core.js"></script>
+	<script src="mysimplegame/mysimplegame-dynamic.js"></script>
+	<script src="mysimplegame/mysimplegame-mapper.js"></script>
+	<script src="mysimplegame/mysimplegame-map-collision.js"></script>
+	<script src="mysimplegame/lib/nico/nico.js"></script>
+	<script src="mysimplegame/lib/spiky_ball/spiky_ball.js"></script>
+	<style>
+	body {
+		padding: 0;
+		margin: 0;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* HEADER */
+
+	#header {
+		text-align: center;
+		font-size: 24px;
+		font-family: "Brush Script MT", "Brush Script Std", cursive;
+	}
+
+	/* TABS */
+
+	#tabs {
+		display: flex;
+		flex-direction: row;
+	}
+	.tab {
+		flex: 1;
+		height: 50px;
+		/* border */
+		border: 1px solid #555;
+		border-bottom: 0;
+		border-radius: 15px 15px 0px 0px;
+		box-shadow: 5px -2px 6px rgba(0, 0, 0, 0.5);
+		/* text */
+		font-weight: bold;
+		font-size: 30px;
+		text-shadow: 1px 1px 0 rgba(200,200,200,0.6),
+					-1px -1px 0 rgba(50,50,50,0.6);
+	}
+	#tab_draw {
+		z-index: 1.1;
+		background: linear-gradient(#7B7, #9E9 80%);
+		color: #595;
+	}
+	#tab_play {
+		z-index: 1.2;
+		background: linear-gradient(#77B, #99E 80%);
+		color: #559;
+	}
+	#tab_share {
+		z-index: 1.3;
+		background: linear-gradient(#B77, #E99 80%);
+		color: #955;
+	}
+	.tab.selected {
+		z-index: 2;
+	}
+	.tab:not(.selected) {
+		border-bottom: 1px solid #555;
+		cursor: pointer;
+	}
+	.tab:not(.selected):hover {
+		webkit-filter: brightness(80%); /* Safari */
+		filter: brightness(80%);
+	}
+
+	/* PAGES */
+
+	.page {
+		z-index: 3;
+		padding: 30px;
+		flex: 1;
+		text-align: center;
+	}
+	#page_draw {
+		background: linear-gradient(#9E9, white 200px);
+	}
+	#page_play {
+		background: linear-gradient(#99E, white 200px);
+	}
+	#page_share {
+		background: linear-gradient(#E99, white 200px);
+		padding-left: 100px;
+		padding-right: 100px;
+	}
+
+	/* BUTTONS */
+
+	.buttons {
+		margin: 10px;
+	}
+
+	.buttons button {
+		height: 30px;
+		min-width: 30px;
+		margin: 1px;
+		border: 1px solid black;
+		border-radius: 5px;
+		background: white;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center center;
+		cursor: pointer;
+	}
+
+	.buttons button.selected {
+		box-shadow: 0px 0px 5px 3px rgba(0, 0, 255, 0.5);
+	}
+
+	/* DRAW ELEMS */
+
+	#page_draw .elem {
+		position: absolute;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center center;
+	}
+
+	/* OTHER */
+
+	.url {
+		font-size: 16px;
+		font-weight: bold;
+		width: 100%;
+		min-height: 100px;
+		resize: vertical;
+	}
+	.canvas canvas {
+		box-shadow: 1px 1px 12px rgba(0, 0, 0, 0.5);
+	}
+	</style>
+</head>
+<body>
+	<div id="header"><h1>Draw My Game</h1></div>
+ 	<div id="tabs">
+		<button id="tab_draw" class="tab">Draw</button>
+		<button id="tab_play" class="tab">Play</button>
+		<button id="tab_share" class="tab">Share</button>
+	</div> 
+	<div id="page_draw" class="page">
+		<div class="canvas" style="display:inline-block; position:relative"></div>
+		<div class="buttons">
+			<div><button id="btn_clear">Clear</button></div>
+		</div>
+	</div>
+	<div id="page_play" class="page">
+		<div class="canvas"></div>
+		<div class="buttons">
+			<div><button id="btn_restart">Restart</button></div>
+		</div>
+	</div>
+	<div id="page_share" class="page">
+		<p>Copy this URL:</p>
+		<textarea class="url"></textarea>
+		<p>and send it to your friends, for them to play your game !</p>
+	</div>
+</body>
+<script>
+var libDir = "mysimplegame/lib"
+
+var Elem = MSG.Elem
+
+// default vals
+var defWidth = 600
+var defHeight = 400
+
+// constants
+var SOLID = "S" // TODO: rm
+var WALL = 0
+var WallsDesc = {
+	solid: { color: "black" }
+}
+
+var ELEM = 1
+var ElemsDesc = {
+	nico: { hero:true, src:"nico/nico.js", width:20, height:30, cls:"Nico", img:"nico/sprites/standing/1.png" },
+	bsball: { src:"spiky_ball/spiky_ball.js", width:25, height:25, cls:"BouncingSpikyBall", img:"spiky_ball/sprite.png" }
+}
+
+// global vars
+var Ctx = {}
+
+// main ///////////////////////////////
+
+var main = function(){
+
+	// tabs
+	Q("#tab_draw").onclick = showDrawPage
+	Q("#tab_play").onclick = showPlayPage
+	Q("#tab_share").onclick = showSharePage
+
+	// game buttons
+/*
+	Q("#redraw").onclick = () => initDraw()
+	Q("#replay").onclick = initGame
+	Q("#send").onclick = () => console.log(parseGame(formatGame(GameDesc)))
+	// draw buttons
+	Q("#play").onclick = initGameFromDraw
+*/
+	initDrawButtons()
+
+	if(initCtxFromUrl()) showPlayPage()
+	else showDrawPage()
+}
+
+// Context ///////////////////////////////
+
+var initCtxFromUrl = function(){
+	if(Ctx && Ctx.desc) return true
+
+	Ctx = {}
+
+	// parse url
+	var ctx = parseGameFromUrl()
+	if(ctx===null) return false
+
+	Ctx = ctx
+
+	return true
+}
+
+var initCtxFromDraw = function(){
+	if(Ctx && Ctx.desc) return true
+
+	var drawCan = initDrawCan()
+	var walls = MSG.Mapper.map(drawCan)
+
+	var els = Qall("#page_draw .elem")
+	var elems = []
+	for(var el of els)
+		elems.push({ key:el.key, x:el.x, y:el.y })
+
+	Ctx = {
+		desc: {
+			width: drawCan.width,
+			height: drawCan.height,
+			walls: walls,
+			elems: elems
+		}
+	}
+
+	initCtxUrlHash()
+
+	return true
+}
+
+var initCtxUrlHash = function(){
+	initCtxFromDraw()
+	if(!Ctx.urlHash) Ctx.urlHash = formatGame(Ctx.desc)
+	window.location.hash = Ctx.urlHash
+}
+
+// Draw ///////////////////////////////
+
+var DrawButtonsDesc = [
+	Object.keys(WallsDesc)
+		.map( k => { return { type:WALL, key:k } }),
+	Object.keys(ElemsDesc)
+		.filter( k => ElemsDesc[k].hero )
+		.map( k => { return { type:ELEM, key:k } }),
+	Object.keys(ElemsDesc)
+		.filter( k => !ElemsDesc[k].hero )
+		.map( k => { return { type:ELEM, key:k } })
+]
+
+var initDrawButtons = function(){
+	var clearBtn = Q("#btn_clear")
+	clearBtn.onclick = clearDrawCan
+	var btnDiv = Q("#page_draw .buttons")
+	for(var lineDesc of DrawButtonsDesc){
+		var div = document.createElement("div")
+		btnDiv.appendChild(div)
+		for(var btnDesc of lineDesc){
+			var button = document.createElement("button")
+			div.appendChild(button)
+			button.desc = btnDesc
+			button.title = btnDesc.key
+			// wall
+			if(btnDesc.type === WALL){
+				var wallDesc = WallsDesc[btnDesc.key]
+				button.style.background = wallDesc.color
+			}
+			// elem
+			if(btnDesc.type === ELEM){
+				var elDesc = ElemsDesc[btnDesc.key]
+				button.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.img + "')"
+			}
+			// default selection
+			if(btnDesc.type === WALL && btnDesc.key === "solid")
+				selectDrawButton(button)
+			// onclick
+			button.onclick = function(){
+				selectDrawButton(this)
+			}
+		}
+	}
+}
+
+var SelectedDrawButton = null
+var selectDrawButton = function(button){
+	if(SelectedDrawButton)
+		SelectedDrawButton.classList.remove("selected")
+	SelectedDrawButton = button
+	SelectedDrawButton.classList.add("selected")
+}
+
+var initDrawCan = function(){
+	var can = Q("#page_draw canvas")
+	if(can) return can
+	// create canvas
+	var can = document.createElement("canvas")
+	var desc = Ctx && Ctx.desc
+	can.width = desc ? desc.width : defWidth
+	can.height = desc ? desc.height : defHeight
+	// border
+	can.style.border = "1px solid black"
+	// fill white
+	var ctx = can.getContext("2d")
+	ctx.fillStyle="white"
+	ctx.fillRect(0,0,can.width,can.height)
+	// draw walls
+	if(desc && desc.walls)
+		MSG.Mapper.drawWalls(can, desc.walls, {fill:"black"})
+	// insert in draw page
+	var canDiv = Q("#page_draw .canvas")
+	canDiv.innerHTML = ""
+	canDiv.appendChild(can)
+	// add elems
+	if(desc && desc.elems){
+		for(var el of desc.elems)
+			drawCanAddElem(el.key, el.x, el.y)
+	}
+	return can
+}
+
+var clearDrawCan = function(){
+	var can = Q("#page_draw canvas")
+	// fill white
+	var ctx = can.getContext("2d")
+	ctx.fillStyle="white"
+	ctx.fillRect(0,0,can.width,can.height)
+	// remove all elems
+	var elems = Qall(".elem")
+	for(var i=0, len=elems.length; i<len; ++i)
+		elems[i].remove()
+	// clear Context
+	Ctx = null
+	// clear url
+	window.location.hash = ""
+}
+
+var showDrawPage = function(){
+	var drawCan = initDrawCan()
+
+	// init listerners (if necessary)
+	if(!drawCan.hasDrawListeners){
+		drawCan.hasDrawListeners
+
+		var drawCtx = drawCan.getContext("2d")
+
+		var _drawingWall=false
+		var _prevX=null
+		var _prevY=null
+
+		var getMouseX = evt => (evt.layerX-evt.target.offsetLeft)
+		var getMouseY = evt => (evt.layerY-evt.target.offsetTop)
+
+		drawCan.onmousedown = function(evt){
+			if(SelectedDrawButton.desc.type === WALL){
+				_drawingWall=true
+				drawLine(getMouseX(evt), getMouseY(evt))
+			}
+		}
+		drawCan.onmousemove = function(evt) {
+			if(_drawingWall){
+				drawLine(getMouseX(evt), getMouseY(evt))
+				// make current game obsolete
+				Ctx=null
+			}
+		}
+		document.body.onmouseup = function(){
+			_drawingWall=false
+			_prevX=null
+			_prevY=null
+		}
+		drawCan.onmouseup = function(evt){
+			if(SelectedDrawButton){
+				var btnDesc = SelectedDrawButton.desc
+				if(btnDesc.type === ELEM){
+					drawCanAddElem(btnDesc.key, getMouseX(evt), getMouseY(evt))
+					// make current game obsolete
+					Ctx=null
+				}
+			}
+		}
+		var drawLine = function(x, y){
+			if(_prevX!==null && _prevY!==null) {
+				drawCtx.fillStyle = "black"
+				drawCtx.lineWidth=15
+				drawCtx.lineCap='round'
+				drawCtx.beginPath()
+				drawCtx.moveTo(_prevX,_prevY)
+				drawCtx.lineTo(x,y)
+				drawCtx.stroke()
+			}
+			_prevX=x
+			_prevY=y
+		}
+	}
+
+	showPage("draw")
+	drawCan.focus()
+}
+
+var drawCanAddElem = function(elKey, elX, elY){
+	var elDesc = ElemsDesc[elKey]
+	var elem = document.createElement("div")
+	elem.classList.add("elem")
+	elem.key = elKey
+	elem.style.width = elDesc.width +"px"
+	elem.style.height = elDesc.height +"px"
+	elem.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.img + "')"
+	elem.x = elX
+	elem.style.left = Math.floor(elX-elDesc.width/2) +"px"
+	elem.y = elY
+	elem.style.top = Math.floor(elY-elDesc.height/2) +"px"
+	if(elDesc.hero){
+		var prevHero = Q("#page_draw #hero")
+		if(prevHero) prevHero.remove()
+		elem.id = "hero"
+	}
+	Q("#page_draw .canvas").appendChild(elem)
+}
+
+
+// Play ///////////////////////////////
+
+var showPlayPage = function(){
+
+	initCtxFromDraw()
+
+	if(!Ctx.game){
+
+		// create game
+		var gameDiv = Q("#page_play .canvas")
+		gameDiv.innerHTML = ""
+		var Game = MSG.Game.new({
+				width: Ctx.desc.width,
+				height: Ctx.desc.height
+			})
+		var scene = MSG.Scene.new().addTo(Game)
+		scene.sprite = initDrawCan()
+		Game.act({keydown:"Space"}, function(){ this.switchPause() })
+/*
+		var drawCan = initDrawCan(),
+			backCan = scene.backgroundCanvas,
+			backCtx = backCan.getContext("2d")
+		if(drawCan) backCtx.drawImage(drawCan, 0, 0)
+*/
+		// walls mapCollider
+		var walls = Ctx.desc.walls || []
+		var WallsMapCollider = MSG.MapCollider.new({
+			maps: [walls],
+			rebounce: false,
+			friction: true,
+			updASpd: false
+		})
+
+		// elems
+		var elems = Ctx.desc.elems || []
+		for(var el of elems)
+			addElem(el, WallsMapCollider, scene)
+
+		// start game
+		Ctx.game = Game.startNew(gameDiv)
+
+		// buttons
+		Q("#btn_restart").onclick = restartGame
+	}
+
+	showPage("play")
+	Q("#page_play canvas").focus()
+}
+
+var addElem = function(el, mapCollider, scene) {
+	var desc = ElemsDesc[el.key]
+	var elem = MSG[desc.cls]
+		.new({x:el.x, y:el.y})
+		.add(mapCollider)
+		.addTo(scene)
+	if(desc.hero)
+		elem.act("remove", restartGame)
+	return elem
+}
+
+var restartGame = function(){
+	if(Ctx.game)
+		Ctx.game.restart()
+}
+
+
+// Share ///////////////////////////////
+
+var showSharePage = function(){
+
+	initCtxUrlHash()
+
+	var urlInput = Q("#page_share .url")
+	urlInput.innerHTML = window.location.href
+
+	showPage("share")
+	urlInput.select()
+	document.execCommand("Copy")
+}
+
+
+// DOM ///////////////////////////////
+
+var showPage = function(key){
+	Qall(".tab").forEach(tab => tab.classList.remove("selected"))
+	Qall(".page").forEach(page => page.style.display = "none")
+	Q("#tab_"+key).classList.add("selected")
+	Q("#page_"+key).style.display = null
+}
+
+var Q = function(q){
+	return document.body.querySelector(q)
+}
+var Qall = function(q){
+	return document.body.querySelectorAll(q)
+}
+
+var createWhiteCanvas = function(width, height){
+	var can = document.createElement("canvas")
+	can.width = width
+	can.height = height
+	var ctx = can.getContext("2d")
+	ctx.fillStyle="white"
+	ctx.fillRect(0,0,width,height)
+	return can
+}
+
+
+// format & parse ///////////////////////////////
+
+var formatGame = function(desc){
+	var obj = exportGame(desc)
+	var json = JSON.stringify(obj)
+	var json2 = json.replace(/"/g, '')
+					.replace(/:/g, '=').replace(/,/g, '&')
+					.replace(/\[/g, '(').replace(/\]/g, ')')
+					.replace(/{/g, '(*').replace(/}/g, '*)')
+	return "v=1&g="+json2
+}
+
+var exportGame = function(desc){
+	var out = {}
+	out.w = desc.width
+	out.h = desc.height
+	var maps = out.maps = {}
+	maps[SOLID] = exportWalls(desc.walls, desc.width)
+	out.elems = exportElems(desc.elems, desc.width)
+	return out
+}
+
+var exportWalls = function(walls, width){
+	var out = []
+	if(!walls) return out
+	var toN = (x, y) => x + (y*width)
+	var prevX=null, prevY=null
+	for(var w=0, len=walls.length; w<len; ++w) {
+		var end1=walls[w].end1, x1=end1.x, y1=end1.y,
+			end2=walls[w].end2, x2=end2.x, y2=end2.y
+		if(x1!==prevX || y1!==prevY){
+			if(prevX!==null) out.push('_')
+			out.push(toN(x1, y1))
+		}
+		out.push(toN(x2, y2))
+		prevX=x2; prevY=y2
+	}
+	return out
+}
+
+var exportElems = function(elems, width){
+	var out = {}
+	if(!elems) return out
+	var toN = (x, y) => x + (y*width)
+	for(var el of elems){
+		var key = el.key
+		var keyElems = out[key]
+		if(!keyElems) keyElems = out[key] = []
+		keyElems.push(toN(el.x, el.y))
+	}
+	return out
+}
+
+var parseGameFromUrl = function(){
+	var urlHash = window.location.hash
+	if(urlHash.length<=1) return null
+	return parseGame(urlHash.substr(1))
+}
+
+var parseGame = function(urlHash){
+	// determine version
+	var gameIdx=urlHash.indexOf("&")
+	var versionStr=(gameIdx==-1) ? urlHash : urlHash.substr(0, gameIdx),
+		versionArr=versionStr.split('=')
+	if(versionArr.length!=2 || versionArr[0]!='v') return null
+	version=versionArr[1]
+	// call matching parser
+	var gameUrl=null
+	if(version==="1") gameUrl=parseGame_v1(urlHash)
+	if(gameUrl===null) return null
+	// import
+	return importGame(urlHash, gameUrl)
+}
+
+var parseGame_v1 = function(urlHash){
+	var json = urlHash.replace(/\(\*/g, '{').replace(/\*\)/g, '}')
+					.replace(/\(/g, '[').replace(/\)/g, ']')
+					.replace(/=/g, ':').replace(/&/g, ',')
+					.replace(/([a-zA-Z_]+)/g, '"$1"')
+	json = '{'+json+'}'
+	return JSON.parse(json).g
+}
+
+var importGame = function(urlHash, gameUrl){
+	return {
+		urlHash: urlHash,
+		desc: {
+			width: gameUrl.w,
+			height: gameUrl.h,
+			walls: importWalls(gameUrl.maps[SOLID], gameUrl.w),
+			elems: importElems(gameUrl.elems, gameUrl.w)
+		}
+	}
+}
+
+var importWalls = function(wallsUrl, width){
+	var res=[], prevX=null, prevY=null
+	for(var i=0, len=wallsUrl.length; i<len; ++i){
+		var n=wallsUrl[i]
+		if(n==='_') {
+			prevX=null; prevY=null
+		} else {
+			var x=n%width, y=(n-x)/width
+			if(prevX!==null){
+				var wall = MSG.Wall.new({
+					end1: {x:prevX, y:prevY},
+					end2: {x:x, y:y}
+				})
+				wall.compAng()
+				res.push(wall)
+			}
+			prevX=x; prevY=y
+		}
+	}
+	return res
+}
+
+var importElems = function(elemsUrl, width){
+	var res=[]
+	if(!elemsUrl) return res
+	for(var key in elemsUrl){
+		keyElems = elemsUrl[key]
+		for(var el of keyElems){
+			var n=el
+			var x=n%width, y=(n-x)/width
+			res.push({key:key, x:x, y:y})
+		}
+	}
+	return res
+}
+
+
+// imports ///////////////////////////////
+
+var atan2=Math.atan2,
+	PI=Math.PI, PI_2=2*PI
+
+main()
+</script>
+</html>
