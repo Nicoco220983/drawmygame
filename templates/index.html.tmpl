@@ -3,10 +3,9 @@
 	<title>Draw My Game</title>
 	<script src="mysimplegame/mysimplegame-core.js"></script>
 	<script src="mysimplegame/mysimplegame-dynamic.js"></script>
+	<script src="mysimplegame/mysimplegame-collision.js"></script>
 	<script src="mysimplegame/mysimplegame-mapper.js"></script>
 	<script src="mysimplegame/mysimplegame-map-collision.js"></script>
-	<script src="mysimplegame/lib/nico/nico.js"></script>
-	<script src="mysimplegame/lib/spiky_ball/spiky_ball.js"></script>
 	<style>
 	body {
 		padding: 0;
@@ -124,6 +123,17 @@
 		background-position: center center;
 	}
 
+	/* DRAW BUTTONS */
+
+	#tab_draw_btns {
+		border-spacing: 0;
+	}
+
+	#tab_draw_btns tr td:first-child {
+		font-size: 14px;
+		text-align: right;
+	}
+
 	/* OTHER */
 
 	.url {
@@ -149,6 +159,16 @@
 		<div class="canvas" style="display:inline-block; position:relative"></div>
 		<div class="buttons">
 			<div><button id="btn_clear">Clear</button></div>
+			<br/>
+			<center><table id="tab_draw_btns">
+				<tr><td>Walls:</td><td id="btns_draw_walls"></td><tr>
+				<tr><td>Heroes:</td><td id="btns_draw_heroes"></td><tr>
+				<tr><td>Enemies:</td><td id="btns_draw_enemies"></td><tr>
+				<tr><td>Items:</td><td id="btns_draw_items"></td><tr>
+				<tr><td>Tools:</td><td>
+					<button id="btn_draw_rm" style="background-image:url('/img/scissors.png')"></button>
+				</td></tr>
+			</table></center>
 		</div>
 	</div>
 	<div id="page_play" class="page">
@@ -176,14 +196,12 @@ var defHeight = 400
 var SOLID = "S" // TODO: rm
 var WALL = 0
 var WallsDesc = {
+	void: { color: "white" },
 	solid: { color: "black" }
 }
 
 var ELEM = 1
-var ElemsDesc = {
-	nico: { hero:true, src:"nico/nico.js", width:20, height:30, cls:"Nico", img:"nico/sprites/standing/1.png" },
-	bsball: { src:"spiky_ball/spiky_ball.js", width:25, height:25, cls:"BouncingSpikyBall", img:"spiky_ball/sprite.png" }
-}
+var ElemsDesc = {{{descs}}}
 
 // global vars
 var Ctx = {}
@@ -198,13 +216,6 @@ var main = function(){
 	Q("#tab_share").onclick = showSharePage
 
 	// game buttons
-/*
-	Q("#redraw").onclick = () => initDraw()
-	Q("#replay").onclick = initGame
-	Q("#send").onclick = () => console.log(parseGame(formatGame(GameDesc)))
-	// draw buttons
-	Q("#play").onclick = initGameFromDraw
-*/
 	initDrawButtons()
 
 	if(initCtxFromUrl()) showPlayPage()
@@ -213,43 +224,53 @@ var main = function(){
 
 // Context ///////////////////////////////
 
-var initCtxFromUrl = function(){
-	if(Ctx && Ctx.desc) return true
-
+var clearCtx = function(){
 	Ctx = {}
+}
+
+var initCtxFromUrl = function(){
+	if(Ctx.initialised) return true
+	Ctx.initialised = true
 
 	// parse url
 	var ctx = parseGameFromUrl()
 	if(ctx===null) return false
 
-	Ctx = ctx
+	Object.assign(Ctx, ctx)
 
 	return true
 }
 
 var initCtxFromDraw = function(){
-	if(Ctx && Ctx.desc) return true
+	if(Ctx.initialised) return true
+	Ctx.initialised = true
 
+	initCtxFromDrawQuick()
+
+	// map walls (slow)
 	var drawCan = initDrawCan()
-	var walls = MSG.Mapper.map(drawCan)
-
-	var els = Qall("#page_draw .elem")
-	var elems = []
-	for(var el of els)
-		elems.push({ key:el.key, x:el.x, y:el.y })
-
-	Ctx = {
-		desc: {
-			width: drawCan.width,
-			height: drawCan.height,
-			walls: walls,
-			elems: elems
-		}
-	}
+	Ctx.desc.walls = MSG.map(drawCan)
 
 	initCtxUrlHash()
 
 	return true
+}
+
+var initCtxFromDrawQuick = function(){
+	if(Ctx.desc) return
+
+	var drawCan = initDrawCan()
+
+	var els = Qall("#page_draw .elem")
+	var elems = []
+	for(var el of els)
+		elems.push({ key:el._key, x:el._x, y:el._y })
+
+	Ctx.desc = {
+		width: drawCan.width,
+		height: drawCan.height,
+		elems: elems
+	}
 }
 
 var initCtxUrlHash = function(){
@@ -259,21 +280,58 @@ var initCtxUrlHash = function(){
 }
 
 // Draw ///////////////////////////////
-
+/*
 var DrawButtonsDesc = [
 	Object.keys(WallsDesc)
 		.map( k => { return { type:WALL, key:k } }),
 	Object.keys(ElemsDesc)
-		.filter( k => ElemsDesc[k].hero )
+		.filter( k => ElemsDesc[k].teams[0]==="hero" )
 		.map( k => { return { type:ELEM, key:k } }),
 	Object.keys(ElemsDesc)
-		.filter( k => !ElemsDesc[k].hero )
+		.filter( k => ElemsDesc[k].teams[0]==="enemy" )
+		.map( k => { return { type:ELEM, key:k } }),
+	Object.keys(ElemsDesc)
+		.filter( k => ElemsDesc[k].teams[0]==="item" )
 		.map( k => { return { type:ELEM, key:k } })
 ]
-
+*/
 var initDrawButtons = function(){
+	// clear button
 	var clearBtn = Q("#btn_clear")
 	clearBtn.onclick = clearDrawCan
+	// walls buttons
+	var wallBtnsTr = Q("#btns_draw_walls")
+	for(var key in WallsDesc){
+		var wallDesc = WallsDesc[key]
+		var btn = document.createElement("button")
+		btn.desc = { key:key, type:WALL }
+		btn.title = key
+		btn.style.background = wallDesc.color
+		wallBtnsTr.appendChild(btn)
+		btn.onclick = selectThisDrawButton
+		// default selection
+		if(key === "solid") selectDrawButton(btn)
+	}
+	// elems buttons
+	var heroesBtnsTr = Q("#btns_draw_heroes"),
+		enemiesBtnsTr = Q("#btns_draw_enemies"),
+		itemsBtnsTr = Q("#btns_draw_items")
+	for(var key in ElemsDesc){
+		var elDesc = ElemsDesc[key]
+		var btn = document.createElement("button")
+		btn.desc = { key:key, type:ELEM }
+		btn.title = elDesc.title || elDesc.cls
+		btn.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.dir +"/"+ elDesc.img + "')"
+		var team = ElemsDesc[key].teams[0]
+		if(team==="hero") heroesBtnsTr.appendChild(btn)
+		else if(team==="enemy") enemiesBtnsTr.appendChild(btn)
+		else if(team==="item") itemsBtnsTr.appendChild(btn)
+		btn.onclick = selectThisDrawButton
+	}
+	// tools button
+	Q("#btn_draw_rm").onclick = selectThisDrawButton
+}
+/*
 	var btnDiv = Q("#page_draw .buttons")
 	for(var lineDesc of DrawButtonsDesc){
 		var div = document.createElement("div")
@@ -291,7 +349,8 @@ var initDrawButtons = function(){
 			// elem
 			if(btnDesc.type === ELEM){
 				var elDesc = ElemsDesc[btnDesc.key]
-				button.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.img + "')"
+				button.title = elDesc.title
+				button.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.dir +"/"+ elDesc.img + "')"
 			}
 			// default selection
 			if(btnDesc.type === WALL && btnDesc.key === "solid")
@@ -303,7 +362,7 @@ var initDrawButtons = function(){
 		}
 	}
 }
-
+*/
 var SelectedDrawButton = null
 var selectDrawButton = function(button){
 	if(SelectedDrawButton)
@@ -311,13 +370,21 @@ var selectDrawButton = function(button){
 	SelectedDrawButton = button
 	SelectedDrawButton.classList.add("selected")
 }
+var selectThisDrawButton = function(){
+	selectDrawButton(this)
+}
 
 var initDrawCan = function(){
-	var can = Q("#page_draw canvas")
+	var can = Ctx.drawCan
 	if(can) return can
+	var can = Q("#page_draw .canvas canvas")
+	if(can){
+		Ctx.drawCan = can
+		return can
+	}
 	// create canvas
 	var can = document.createElement("canvas")
-	var desc = Ctx && Ctx.desc
+	var desc = Ctx.desc
 	can.width = desc ? desc.width : defWidth
 	can.height = desc ? desc.height : defHeight
 	// border
@@ -328,7 +395,7 @@ var initDrawCan = function(){
 	ctx.fillRect(0,0,can.width,can.height)
 	// draw walls
 	if(desc && desc.walls)
-		MSG.Mapper.drawWalls(can, desc.walls, {fill:"black"})
+		MSG.drawWalls(can, desc.walls, {fill:"black"})
 	// insert in draw page
 	var canDiv = Q("#page_draw .canvas")
 	canDiv.innerHTML = ""
@@ -338,6 +405,46 @@ var initDrawCan = function(){
 		for(var el of desc.elems)
 			drawCanAddElem(el.key, el.x, el.y)
 	}
+	// add to Ctx
+	Ctx.drawCan = can
+	return can
+}
+
+var initLoadingCan = function(drawCan){
+	var can = Ctx.loadingCan
+	if(can) return can
+	// create canvas
+	var drawCan = initDrawCan()
+	var can = document.createElement("canvas")
+	can.width = drawCan.width
+	can.height = drawCan.height
+	// fill with drawCan
+	var ctx = can.getContext("2d")
+	ctx.drawImage(drawCan, 0, 0)
+	// add elems
+	var elems = Ctx.desc && Ctx.desc.elems
+	if(elems){
+		for(var el of elems){
+			var elDesc = ElemsDesc[el.key]
+			var elImg = initElemImg(el.key)
+			ctx.drawImage(elImg,
+				el.x-elDesc.width/2, el.y-elDesc.height/2,
+				elDesc.width, elDesc.height)
+		}
+	}
+	// add grey fade
+	ctx.fillStyle = "black"
+	ctx.globalAlpha = 0.1
+	ctx.fillRect(0, 0, can.width, can.height)
+	// add text
+	ctx.globalAlpha = 1
+	ctx.font = "30px Arial"
+	var txt = "Animating..."
+	ctx.fillText(txt,
+		(can.width-ctx.measureText(txt).width)/2,
+		(can.height-30)/2)
+	// add to Ctx
+	Ctx.loadingCan = can
 	return can
 }
 
@@ -352,7 +459,7 @@ var clearDrawCan = function(){
 	for(var i=0, len=elems.length; i<len; ++i)
 		elems[i].remove()
 	// clear Context
-	Ctx = null
+	clearCtx()
 	// clear url
 	window.location.hash = ""
 }
@@ -362,7 +469,7 @@ var showDrawPage = function(){
 
 	// init listerners (if necessary)
 	if(!drawCan.hasDrawListeners){
-		drawCan.hasDrawListeners
+		drawCan.hasDrawListeners = true
 
 		var drawCtx = drawCan.getContext("2d")
 
@@ -383,7 +490,7 @@ var showDrawPage = function(){
 			if(_drawingWall){
 				drawLine(getMouseX(evt), getMouseY(evt))
 				// make current game obsolete
-				Ctx=null
+				clearCtx()
 			}
 		}
 		document.body.onmouseup = function(){
@@ -397,13 +504,16 @@ var showDrawPage = function(){
 				if(btnDesc.type === ELEM){
 					drawCanAddElem(btnDesc.key, getMouseX(evt), getMouseY(evt))
 					// make current game obsolete
-					Ctx=null
+					clearCtx()
 				}
 			}
 		}
 		var drawLine = function(x, y){
 			if(_prevX!==null && _prevY!==null) {
-				drawCtx.fillStyle = "black"
+				var key = SelectedDrawButton.desc.key,
+					desc = WallsDesc[key],
+					color = desc.color
+				drawCtx.strokeStyle = color
 				drawCtx.lineWidth=15
 				drawCtx.lineCap='round'
 				drawCtx.beginPath()
@@ -422,88 +532,233 @@ var showDrawPage = function(){
 
 var drawCanAddElem = function(elKey, elX, elY){
 	var elDesc = ElemsDesc[elKey]
-	var elem = document.createElement("div")
+	var elem = initElemImg(elKey).cloneNode()
 	elem.classList.add("elem")
-	elem.key = elKey
-	elem.style.width = elDesc.width +"px"
-	elem.style.height = elDesc.height +"px"
-	elem.style.backgroundImage = "url('"+ libDir +"/"+ elDesc.img + "')"
-	elem.x = elX
+	elem._key = elKey
+	elem._x = elX
 	elem.style.left = Math.floor(elX-elDesc.width/2) +"px"
-	elem.y = elY
+	elem._y = elY
 	elem.style.top = Math.floor(elY-elDesc.height/2) +"px"
-	if(elDesc.hero){
+	if(elDesc.teams[0]==="hero"){
 		var prevHero = Q("#page_draw #hero")
 		if(prevHero) prevHero.remove()
 		elem.id = "hero"
 	}
+	elem.onclick = drawElemOnClick
 	Q("#page_draw .canvas").appendChild(elem)
 }
 
+var initElemImg = function(elKey){
+	var elDesc = ElemsDesc[elKey]
+	if(elDesc.imgEl) return elDesc.imgEl
+	var imgEl = elDesc.imgEl = document.createElement("img")
+	imgEl.style.width = elDesc.width +"px"
+	imgEl.style.height = elDesc.height +"px"
+	imgEl.src = libDir +'/'+ elDesc.dir +"/"+ elDesc.img
+	return imgEl
+}
+
+var drawElemOnClick = function(){
+	if(SelectedDrawButton.id === "btn_draw_rm")
+		this.remove()
+}
 
 // Play ///////////////////////////////
 
 var showPlayPage = function(){
 
-	initCtxFromDraw()
-
 	if(!Ctx.game){
+		createGameCanvas()
+		showPage("play")
+		setTimeout(() => createGame(_showPlayPage2))
+	} else {
+		showPage("play")
+		_showPlayPage2()
+	}
+}
+var _showPlayPage2 = function(){
+	var canvas = Q("#page_play canvas")
+	if(canvas) canvas.focus()
+}
 
-		// create game
-		var gameDiv = Q("#page_play .canvas")
-		gameDiv.innerHTML = ""
-		var Game = MSG.Game.new({
-				width: Ctx.desc.width,
-				height: Ctx.desc.height
-			})
-		var scene = MSG.Scene.new().addTo(Game)
-		scene.sprite = initDrawCan()
-		Game.act({keydown:"Space"}, function(){ this.switchPause() })
-/*
-		var drawCan = initDrawCan(),
-			backCan = scene.backgroundCanvas,
-			backCtx = backCan.getContext("2d")
-		if(drawCan) backCtx.drawImage(drawCan, 0, 0)
-*/
-		// walls mapCollider
-		var walls = Ctx.desc.walls || []
-		var WallsMapCollider = MSG.MapCollider.new({
-			maps: [walls],
-			rebounce: false,
-			friction: true,
-			updASpd: false
-		})
+var createGameCanvas = function(){
+	initCtxFromDrawQuick()
+	var gameDiv = Q("#page_play .canvas")
+	gameDiv.innerHTML = ""
+	var gameCan = document.createElement("canvas")
+	gameCan.width = Ctx.desc.width
+	gameCan.height = Ctx.desc.height
+	gameDiv.appendChild(gameCan)
+	var loadingCan = initLoadingCan()
+	gameCan.getContext("2d").drawImage(loadingCan,0,0)
+}
 
-		// elems
-		var elems = Ctx.desc.elems || []
-		for(var el of elems)
-			addElem(el, WallsMapCollider, scene)
+var createGame = function(next){
 
-		// start game
-		Ctx.game = Game.startNew(gameDiv)
-
-		// buttons
-		Q("#btn_restart").onclick = restartGame
+	var nbLoad = 2
+	var onLoad = () => {
+		if(--nbLoad===0){
+			_createGame()
+			next()
+		}
 	}
 
-	showPage("play")
-	Q("#page_play canvas").focus()
+	// import elems scripts
+	initCtxFromDrawQuick()
+	var elems = Ctx.desc.elems || []
+	importElemsScripts(elems, onLoad)
+
+	// init full ctx
+	initCtxFromDraw()
+	onLoad()
+}
+
+var _createGame = function(){
+
+	var drawCan = initDrawCan()
+	var loadingCan = initLoadingCan()
+
+	// create game
+	var gameCan = Q("#page_play canvas")
+	var game = Ctx.game = new MSG.Game(gameCan)
+		.act("start", function(){ this.canvas.focus() })
+		.act("blur", function(){ var scn=this.mainScene; if(scn) scn.tryPause() })
+
+	// walls mapCollider
+	var walls = Ctx.desc.walls || []
+	var wallsMapCollider = new MSG.MapCollider(walls, {
+		rebounce: false,
+		friction: true,
+		updASpd: false
+	})
+
+	// scene
+	var elems = Ctx.desc.elems || []
+	game.Scene = class extends MSG.Scene {
+		constructor(game){
+			super(game)
+			this.sprite = drawCan
+			for(var el of elems)
+				addElem(el, wallsMapCollider, this)
+			this.tryPause = SceneTryPause
+			this.act({keydown:"Space"}, SceneTryPause)
+				.act("start", function(){ if(!this.game.hasFocus()) this.tryPause() })
+				.act("victory", victoryGame)
+		}
+	}
+	game.mainScene = new game.Scene(game)
+
+	// loading scene
+	game.LoadingScene = class extends MSG.Scene {
+		constructor(game){
+			super(game)
+			this.sprite = loadingCan
+		}
+	}
+
+	// buttons
+	Q("#btn_restart").onclick = restartGame
+}
+
+var importElemsScripts = function(elems, next){
+	var nbLoad = 1
+	var onLoad =  () => {
+		if(--nbLoad === 0)
+			next()
+	}
+	for(var el of elems){
+		var desc = ElemsDesc[el.key] 
+		if(!desc.imported){
+			desc.imported = true
+			nbLoad++
+			importScript(libDir+'/'+desc.dir+'/'+desc.src, onLoad)
+		}
+	}
+	onLoad()
 }
 
 var addElem = function(el, mapCollider, scene) {
 	var desc = ElemsDesc[el.key]
-	var elem = MSG[desc.cls]
-		.new({x:el.x, y:el.y})
-		.add(mapCollider)
-		.addTo(scene)
-	if(desc.hero)
-		elem.act("remove", restartGame)
+	// create elem
+	var elem = new MSG[desc.cls](scene, {x:el.x, y:el.y})
+	elem.teams = desc.teams
+	if(desc.teams[0] === "hero"){
+		elem.act("remove", failGame)
+			.act("damaged", failGame)
+			.add(HeroCatchItemAction)
+	}
+	if(desc.teams[0]==="enemy"){
+		elem.targets = ["hero"]
+	}
+	if(desc.collideWalls)
+		elem.add(mapCollider)
+	scene.preload(elem)
 	return elem
 }
 
+var PauseScene = class extends MSG.MenuScene {
+	constructor(scene){
+		super(scene.game, { color:"grey", title:"PAUSE", text:"Click to continue"})
+		this.tgtScene = scene
+		this.act("click", PauseSceneUnpause)
+		this.act({keydown:"Space"}, PauseSceneUnpause)
+	}
+}
+var PauseSceneUnpause = function(){
+	this.tgtScene.pause(false)
+	this.remove()
+}
+var SceneTryPause = function(){
+	if(!this.paused){
+		this.pause()
+		new PauseScene(this)
+	}
+} 
+
+var FailScene = class extends MSG.MenuScene {
+	constructor(game){
+		super(game, { color:"red", title:"You died !", text:"Click to restart"})
+		this.act("click", restartGame)
+	}
+}
+
+var failGame = function(){
+	var game = Ctx.game
+	if(game){
+		game.pause()
+		new FailScene(Ctx.game)
+	}
+}
+
+var VictoryScene = class extends MSG.MenuScene {
+	constructor(game){
+		super(game, { color:"blue", title:"Victory !", text:"Click to restart"})
+		this.act("click", restartGame)
+	}
+}
+
+var victoryGame = function(){
+	var game = Ctx.game
+	if(game){
+		game.pause()
+		new VictoryScene(Ctx.game)
+	}
+}
+
 var restartGame = function(){
-	if(Ctx.game)
-		Ctx.game.restart()
+	var game = Ctx.game
+	if(game){
+		game.clear()
+		game.canvas.focus()
+		game.mainScene = new game.Scene(game)
+	}
+}
+
+var HeroCatchItemAction = new MSG.Action(function(){
+	checkCollision(this, "item", HeroCatchItem)
+})
+var HeroCatchItem = function(self, el){
+	el.trigger("catched", self)
 }
 
 
@@ -577,8 +832,9 @@ var exportWalls = function(walls, width){
 	var toN = (x, y) => x + (y*width)
 	var prevX=null, prevY=null
 	for(var w=0, len=walls.length; w<len; ++w) {
-		var end1=walls[w].end1, x1=end1.x, y1=end1.y,
-			end2=walls[w].end2, x2=end2.x, y2=end2.y
+		var wall=walls[w],
+			x1=wall.x1, y1=wall.y1,
+			x2=wall.x2, y2=wall.y2
 		if(x1!==prevX || y1!==prevY){
 			if(prevX!==null) out.push('_')
 			out.push(toN(x1, y1))
@@ -653,11 +909,7 @@ var importWalls = function(wallsUrl, width){
 		} else {
 			var x=n%width, y=(n-x)/width
 			if(prevX!==null){
-				var wall = MSG.Wall.new({
-					end1: {x:prevX, y:prevY},
-					end2: {x:x, y:y}
-				})
-				wall.compAng()
+				var wall = new MSG.Wall(prevX, prevY, x, y)
 				res.push(wall)
 			}
 			prevX=x; prevY=y
@@ -681,10 +933,23 @@ var importElems = function(elemsUrl, width){
 }
 
 
+// various ///////////////////////////////
+
+var importScript = function(src, next) {
+		var dom = document.createElement("script")
+		dom.type = "application/javascript"
+		dom.src = src
+		dom.onload = next
+		dom.onerror = next
+		document.head.appendChild(dom)
+}
+
 // imports ///////////////////////////////
 
 var atan2=Math.atan2,
 	PI=Math.PI, PI_2=2*PI
+
+var checkCollision = MSG.checkCollision
 
 main()
 </script>
