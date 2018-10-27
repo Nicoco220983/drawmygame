@@ -38,9 +38,7 @@ dmg.app.use(Msa.bodyParser.text())
 dmg.app.use(Msa.bodyParser.json())
 dmg.app.use(Msa.bodyParser.urlencoded({extended:false}))
 
-dmg.app.use(Msa.modulesRouter)
-
-dmg.app.get('*', msaMain.get)
+dmg.app.use(msaMain.msaModsMdw)
 
 dmg.app.get('/', (req, res, next) => {
 	res.setHeader('content-type', 'text/html')
