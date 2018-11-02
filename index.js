@@ -1,5 +1,3 @@
-var dmg = module.exports = Msa.module("")
-
 // imports
 const msaMain = require("../msa-main")
 const { join, relative, dirname } = require('path')
@@ -13,7 +11,7 @@ const readFilePrm = promisify(fs.readFile)
 
 // init
 var html
-var init = async function(){
+const init = async function(){
 	// get dmg elems
 	const files = await globPrm(join(__dirname, "static/mysimplegame/lib/*/drawmygame.json"))
 	var descs = {}
@@ -33,19 +31,21 @@ var init = async function(){
 }
 init()
 
-// import some middlewares
-dmg.app.use(Msa.bodyParser.text())
-dmg.app.use(Msa.bodyParser.json())
-dmg.app.use(Msa.bodyParser.urlencoded({extended:false}))
+const Dmg = class extends msaMain.constructor {
 
-dmg.app.use(msaMain.msaModsMdw)
+	initDefaultRouteMdw() {
+		this.app.get('/', (req, res, next) => {
+			res.setHeader('content-type', 'text/html')
+			res.send(html)
+		})
+	}
 
-dmg.app.get('/', (req, res, next) => {
-	res.setHeader('content-type', 'text/html')
-	res.send(html)
-})
+	initEndMdws() {
+		this.app.get('/refresh', async (req, res, next) => {
+			await init()
+			res.sendStatus(200)
+		})
+	}
+}
 
-dmg.app.get('/refresh', async (req, res, next) => {
-	await init()
-  res.sendStatus(200)
-})
+module.exports = new Dmg()
