@@ -1,5 +1,5 @@
 // imports
-const msaMain = require("../msa-main")
+const msaApp = require("../msa-app")
 const { join, relative, dirname } = require('path')
 const { promisify } = require('util')
 const fs = require('fs')
@@ -31,7 +31,7 @@ const init = async function(){
 }
 init()
 
-const Dmg = class extends msaMain.constructor {
+const Dmg = class extends msaApp.constructor {
 
 	initDefaultRouteMdw() {
 		this.app.get('/', (req, res, next) => {
