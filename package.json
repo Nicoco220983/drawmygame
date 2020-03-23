@@ -10,8 +10,14 @@
   "author": "Nicolas CARREZ",
   "license": "MIT",
   "dependencies": {
-    "glob": "^7.1.3",
+    "@mysimpleapp/msa-app": "^0.1.6",
+    "glob": "^7.1.6",
     "mustache": "^2.3.0",
-    "mysimplegame": "/home/nico/dev/mysimplegame"
+    "mysimplegame": "https://github.com/Nicoco220983/mysimplegame"
+  },
+  "msaDependencies": {
+    "utils": "@mysimpleapp/msa-utils",
+    "user": "@mysimpleapp/msa-user",
+    "params": "@mysimpleapp/msa-params"
   }
 }
