@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DrawMyGame</title>
+    <style>
+        html, body {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+        }
+        body, flexcol, flexrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5em;
+        }
+        body, flexcol {
+            flex-direction: column;
+        }
+        flexrow {
+            flex-direction: row;
+        }
+        .fill {
+            flex: 1;
+        }
+        /* #aspect_ratio_wrapper {
+            outline: 1px solid lightgrey;
+            width: 500px;
+            height: 500px;
+        } */
+    </style>
+</head>
+<body style="padding: 1em; gap: 1em; justify-content: start">
+    <flexrow>
+        <flexrow>Box size: <input id="map_box_size" type="number"></flexrow>
+        <flexrow>Width: <input id="map_nb_cols" type="number"></flexrow>
+        <flexrow>Height: <input id="map_nb_rows" type="number"></flexrow>
+    </flexrow>
+    <flexrow>
+        <button id="mode_move">Move</button>
+        <button id="mode_wall">Wall</button>
+    </flexrow>
+    <flexrow>
+        <button id="mode_nico">Nico</button>
+        <button id="mode_zombi">Zombi</button>
+    </flexrow>
+    <flexrow>
+        <button id="game_start">START !</button>
+    </flexrow>
+    <flexcol id="builder_wrapper"></flexcol>
+    <flexcol id="game_wrapper" style="display: none"></flexcol>
+<script type="module">
+const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
+import Two from './static/two.min.mjs'
+import * as utils from './static/utils.mjs'
+const { Group, GameAudio, addTo, urlAbsPath, addToLoads, checkAllLoadsDone, checkHit } = utils
+
+const FPS = 60  // hardcoded in Twojs
+const BACKGROUND_COLOR = "#f9f9f9"
+const CANVAS_MAX_WIDTH = 800
+const CANVAS_MAX_HEIGHT = 600
+const MAP_BOX_DEFAULT_SIZE = 20
+const MAP_DEFAULT_NB_COLS = 50
+const MAP_DEFAULT_NB_ROWS = 50
+const GRAVITY = 1000
+
+const builderWrapperEl = document.getElementById("builder_wrapper")
+const gameWrapperEl = document.getElementById("game_wrapper")
+let gameBuilder = null, game = null
+
+let mode, modeKey
+document.getElementById("mode_move").onclick = () => setMode('move')
+document.getElementById("mode_wall").onclick = () => setMode('wall')
+document.getElementById("mode_nico").onclick = () => setMode('entity', 'nico')
+document.getElementById("mode_zombi").onclick = () => setMode('entity', 'zombi')
+function setMode(iMode, iModeKey) {
+    mode = iMode
+    modeKey = iModeKey
+    if(mode == "move") gameBuilder.renderer.domElement.style.cursor = "move"
+    if(mode == "wall") gameBuilder.renderer.domElement.style.cursor = "cell"
+    if(mode == "entity") gameBuilder.renderer.domElement.style.cursor = "cell"
+}
+
+let mapBoxSize, mapNbCols, mapNbRows, mapWidth, mapHeight
+const mapBoxSizeEl = document.getElementById("map_box_size")
+const mapNbColsEl = document.getElementById("map_nb_cols")
+const mapNbRowsEl = document.getElementById("map_nb_rows")
+mapBoxSizeEl.value = MAP_BOX_DEFAULT_SIZE
+mapNbColsEl.value = MAP_DEFAULT_NB_COLS
+mapNbRowsEl.value = MAP_DEFAULT_NB_ROWS
+function syncSize() {
+    mapBoxSize = parseInt(mapBoxSizeEl.value)
+    mapNbCols = parseInt(mapNbColsEl.value)
+    mapNbRows = parseInt(mapNbRowsEl.value)
+    mapWidth = mapBoxSize * mapNbCols
+    mapHeight = mapBoxSize * mapNbRows
+    if(gameBuilder) gameBuilder.syncSize()
+}
+syncSize()
+mapNbColsEl.onchange = mapNbRowsEl.onchange = syncSize
+
+document.getElementById("game_start").onclick = () => startGame()
+
+const Entities = {
+    "nico": { "img": "nico.png", "scale": 50 / 300 },
+    "zombi": { "img": "zombi.png", "scale": 50 / 175 },
+}
+
+class Entity extends Two.Group {
+    constructor(x, y) {
+        super()
+        this.translation.x = x
+        this.translation.y = y
+        this.speedX = 0
+        this.speedY = 0
+    }
+}
+
+
+// BUILDER //////////////////////////
+
+class GameBuilder extends Two {
+
+    constructor(builderWrapperEl) {
+        super({
+            type: Two.Types.canvas,
+            width: CANVAS_MAX_WIDTH,
+            height: CANVAS_MAX_HEIGHT,
+        })
+        this.renderer.domElement.style.outline = "2px solid grey"
+        this.appendTo(builderWrapperEl)
+       //utils.fitTwoToEl(this, builderWrapperEl, { background: BACKGROUND_COLOR })
+
+        this.pointer = utils.newPointer(this)
+        this.pointer.prevIsDown = false
+
+        this.sceneGroup = addTo(this, new Two.Group())
+        this.setMainScene(new BuilderScene(this))
+
+        this.bind("update", (frameCount, timeDelta) => {
+            const time = frameCount / FPS
+            this.mainScene.update(time)
+            this.pointer.prevIsDown = this.pointer.isDown
+        })
+        
+        this.play()
+    }
+
+    setMainScene(scn) {
+        if(this.mainScene !== undefined) this.mainScene.remove()
+        this.mainScene = addTo(this.sceneGroup, scn)
+    }
+
+    syncSize() {
+        const width = min(mapWidth, CANVAS_MAX_WIDTH)
+        const height = min(mapHeight, CANVAS_MAX_HEIGHT)
+        this.renderer.setSize(width, height)
+        this.mainScene.syncSize()
+    }
+}
+
+class CommonScene extends Two.Group {
+    constructor(game) {
+        super()
+        this.game = game
+        this.map = []
+        this.walls = addTo(this, new Two.Group())
+        this.grid = addTo(this, new Two.Group())
+        this.entities = addTo(this, new Two.Group())
+    }
+
+    addWall(boxX, boxY, key) {
+        let wall
+        if(key == "W") {
+            wall = addTo(this.walls, new Two.Rectangle(
+                (boxX + .5) * mapBoxSize,
+                (boxY + .5) * mapBoxSize,
+                mapBoxSize,
+                mapBoxSize,
+            ))
+        }
+        wall.noStroke()
+        wall.fill = "black"
+        wall.boxX = boxX
+        wall.boxY = boxY
+        wall.key = key
+        return wall
+    }
+
+    addEntity(x, y, key) {
+        const def = Entities[key]
+        const ent = addTo(this.entities, new Entity(x, y))
+        const img = addTo(ent, new Two.Sprite(
+            `static/assets/${def.img}`
+        ))
+        if(def.scale) img.scale = def.scale
+        ent.key = key
+        return ent
+    }
+}
+
+class BuilderScene extends CommonScene {
+    constructor(game) {
+        super(game)
+        this.syncSize()
+    }
+
+    syncSize() {
+        this.syncGrid()
+        this.syncMap()
+    }
+
+    syncGrid() {
+        this.grid.children.forEach(e => e.remove())
+        const addLine = (x1, x2, y1, y2) => {
+            const line = addTo(this.grid, new Two.Line(x1, x2, y1, y2))
+            line.linewidth = 1
+            line.stroke = "lightgrey"
+            line.noFill()
+        }
+        for(let x=1; x<mapNbCols; ++x) addLine(mapBoxSize*x, 0, mapBoxSize*x, mapHeight)
+        for(let y=1; y<mapNbRows; ++y) addLine(0, mapBoxSize*y, mapWidth, mapBoxSize*y)
+    }
+
+    syncMap() {
+        for(let x=0; x<mapNbCols; ++x) {
+            if(this.map.length == x) this.map.push([])
+            const col = this.map[x]
+            for(let y=0; y<mapNbRows; ++y) if(col.length == y) col.push(null)
+        }
+    }
+
+    update(time) {
+        if(mode == "move") this.updateMove()
+        else if(mode == "wall") this.updateWall()
+        else if(mode == "entity") this.updateEntity()
+    }
+
+    updateMove() {
+        const { pointer } = this.game
+        if(pointer.isDown) {
+            if(!this.moveOrig) this.moveOrig = {
+                pointerX: pointer.x,
+                pointerY: pointer.y,
+                thisX: this.translation.x,
+                thisY: this.translation.y,
+            }
+            this.translation.x = this.moveOrig.thisX + pointer.x - this.moveOrig.pointerX
+            this.translation.x = min(0, max(this.game.width - mapWidth, this.translation.x))
+            this.translation.y = this.moveOrig.thisY + pointer.y - this.moveOrig.pointerY
+            this.translation.y = min(0, max(this.game.height - mapHeight, this.translation.y))
+        } else {
+            this.moveOrig = null
+        }
+    }
+
+    updateWall() {
+        const { pointer } = this.game
+        if(pointer.isDown) {
+            const boxX = floor((pointer.x - this.translation.x) / mapBoxSize)
+            const boxY = floor((pointer.y - this.translation.y) / mapBoxSize)
+
+            const prevBox = this.map[boxX][boxY]
+            if(this.currentWallKey === null) this.currentWallKey = prevBox ? 0 : "W"
+            // case delete
+            if(this.currentWallKey === 0) {
+                if(prevBox !== null) {
+                    prevBox.remove()
+                    this.map[boxX][boxY] = null
+                }
+                return
+            }
+            // case new box
+            if(prevBox !== null && this.currentWallKey == prevBox.key) return
+            this.map[boxX][boxY] = this.addWall(boxX, boxY, this.currentWallKey)
+        } else {
+            this.currentWallKey = null
+        }
+    }
+
+    updateEntity() {
+        const { pointer } = this.game
+        if(pointer.isDown && !pointer.prevIsDown) {
+            this.addEntity(
+                pointer.x - this.translation.x,
+                pointer.y - this.translation.y,
+                modeKey,
+            )
+        }
+    }
+}
+
+
+// GAME //////////////////////////
+
+class Game extends Two {
+
+    constructor(builderWrapperEl, map, entities) {
+        super({
+            type: Two.Types.canvas,
+            width: min(mapWidth, CANVAS_MAX_WIDTH),
+            height: min(mapHeight, CANVAS_MAX_HEIGHT),
+        })
+        this.renderer.domElement.style.outline = "2px solid grey"
+        this.appendTo(builderWrapperEl)
+
+        this.map = map
+        this.entities = entities
+
+        this.sceneGroup = addTo(this, new Two.Group())
+        this.setMainScene(new GameScene(this))
+
+        this.bind("update", (frameCount, timeDelta) => {
+            const time = frameCount / FPS
+            this.mainScene.update(time)
+        })
+        
+        this.play()
+    }
+
+    setMainScene(scn) {
+        if(this.mainScene !== undefined) this.mainScene.remove()
+        this.mainScene = addTo(this.sceneGroup, scn)
+    }
+}
+
+class GameScene extends CommonScene {
+    constructor(game) {
+        super(game)
+        this.initWalls()
+        this.initEntities()
+    }
+
+    initWalls() {
+        const { map } = this.game
+        for(let boxX=0; boxX<mapNbCols; ++boxX) for(let boxY=0; boxY<mapNbRows; ++boxY) {
+            const wall = map[boxX][boxY]
+            if(wall) this.addWall(boxX, boxY, wall.key)
+        }
+    }
+
+    initEntities() {
+        this.game.entities.forEach(e => this.addEntity(e.translation.x, e.translation.y, e.key))
+    }
+
+    update(time) {
+        this.applyPhysics(time)
+    }
+
+    applyPhysics(time) {
+        const { map } = this.game
+        for(let ent of this.entities.children) {
+            // gravity
+            ent.speedY -= GRAVITY / FPS
+            // speed & collisions
+            const entX = ent.translation.x, entY = ent.translation.y
+            const rect = ent.getBoundingClientRect()
+            const entW = rect.width/2, entH = rect.height/2
+            const dx = ent.speedX / FPS, dy = ent.speedY / FPS
+            if(dx > 0) {
+                let blocked = false
+                const bx1 = max(0, min(mapNbCols, ceil(entX / mapBoxSize)))
+                const bx2 = max(0, min(mapNbCols, floor((entX + entW + dx) / mapBoxSize)))
+                for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
+                    const ddx = max(0, (bx * mapBoxSize) - (entX + entW))
+                    const ddy = dy * ddx / dx
+                    const by1 = max(0, min(mapNbRows, floor((entY-entH+ddy) / mapBoxSize)))
+                    const by2 = max(0, min(mapNbRows, floor((entY+entH+ddy) / mapBoxSize)))
+                    for(let by=by1; !blocked && by<=by2; ++by) {
+                        blocked = (map[bx][by] !== null)
+                    }
+                    if(blocked) ent.translation.x += ddx
+                }
+                if(!blocked) ent.translation.x += dx
+            }
+            else if(dx < 0) {
+                let blocked = false
+                const bx1 = max(0, min(mapNbCols, floor(entX / mapBoxSize) - 1))
+                const bx2 = max(0, min(mapNbCols, ceil((entX - entW + dx) / mapBoxSize) - 1))
+                for(let bx=bx1; !blocked && bx>=bx2; --bx) {
+                    const ddx = min(0, ((bx+1) * mapBoxSize) - (entX - entW))
+                    const ddy = dy * ddx / dx
+                    const by1 = max(0, min(mapNbRows, floor((entY-entH+ddy) / mapBoxSize)))
+                    const by2 = max(0, min(mapNbRows, floor((entY+entH+ddy) / mapBoxSize)))
+                    for(let by=by1; !blocked && by<=by2; ++by) {
+                        blocked = (map[bx][by] !== null)
+                    }
+                    if(blocked) ent.translation.x += ddx
+                }
+                if(!blocked) ent.translation.x += dx
+            }
+            if(dy > 0) {
+                let blocked = false
+                const by1 = max(0, min(mapNbRows, ceil(entY / mapBoxSize)))
+                const by2 = max(0, min(mapNbRows, floor((entY + entH + dy) / mapBoxSize)))
+                for(let by=by1; !blocked && by<=by2; ++by) {
+                    const ddy = max(0, (by * mapBoxSize) - (entY + entH))
+                    const ddx = dx * ddy / dy
+                    const bx1 = max(0, min(mapNbCols, floor((entX-entW+ddx) / mapBoxSize)))
+                    const bx2 = max(0, min(mapNbCols, floor((entX+entW+ddx) / mapBoxSize)))
+                    for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
+                        blocked = (map[bx][by] !== null)
+                    }
+                    if(blocked) ent.translation.y += ddy
+                }
+                if(!blocked) ent.translation.y += dy
+            }
+            else if(dy < 0) {
+                let blocked = false
+                const by1 = max(0, min(mapNbRows, floor(entY / mapBoxSize) - 1))
+                const by2 = max(0, min(mapNbRows, ceil((entY - entH + dy) / mapBoxSize) - 1))
+                for(let by=by1; !blocked && by>=by2; --by) {
+                    const ddy = min(0, ((by+1) * mapBoxSize) - (entY - entH))
+                    const ddx = dx * ddy / dy
+                    const bx1 = max(0, min(mapNbCols, floor((entX-entW+ddx) / mapBoxSize)))
+                    const bx2 = max(0, min(mapNbCols, floor((entX+entW+ddx) / mapBoxSize)))
+                    for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
+                        blocked = (map[bx][by] !== null)
+                    }
+                    if(blocked) ent.translation.y += ddy
+                }
+                if(!blocked) ent.translation.y += dy
+            }
+        }
+    }
+}
+
+function showBuilder() {
+    gameWrapperEl.style.display = "none"
+    if(!gameBuilder) gameBuilder = new GameBuilder(builderWrapperEl)
+    builderWrapperEl.style.display = ""
+}
+
+function startGame() {
+    builderWrapperEl.style.display = "none"
+    if(game) {
+        game.remove()
+        game = null
+    }
+    game = new Game(gameWrapperEl, gameBuilder.mainScene.map, gameBuilder.mainScene.entities.children)
+    gameWrapperEl.style.display = ""
+}
+
+showBuilder()
+setMode("move")
+</script>
+</body>
+</html> 

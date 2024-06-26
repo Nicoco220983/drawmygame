@@ -1,23 +1,22 @@
 {
   "name": "drawmygame",
-  "version": "0.1.0",
-  "description": "DrawMyGame MySimpleApp module",
-  "main": "index.js",
+  "version": "0.0.1",
+  "description": "Draw your own games",
+  "main": "server.mjs",
   "scripts": {
-    "postinstall": "node scripts/postinstall.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Nicolas CARREZ",
-  "license": "MIT",
-  "dependencies": {
-    "@mysimpleapp/msa-app": "^0.1.6",
-    "glob": "^7.1.6",
-    "mustache": "^2.3.0",
-    "mysimplegame": "https://github.com/Nicoco220983/mysimplegame"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nicoco220983/drawmygame.git"
   },
-  "msaDependencies": {
-    "utils": "@mysimpleapp/msa-utils",
-    "user": "@mysimpleapp/msa-user",
-    "params": "@mysimpleapp/msa-params"
+  "author": "nicolas.carrez@gmail.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nicoco220983/drawmygame/issues"
+  },
+  "homepage": "https://github.com/Nicoco220983/drawmygame#readme",
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
