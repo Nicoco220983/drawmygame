@@ -53,7 +53,7 @@
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import Two from './static/two.min.mjs'
 import * as utils from './static/utils.mjs'
-const { Group, GameAudio, addTo, urlAbsPath, addToLoads, checkAllLoadsDone, checkHit } = utils
+const { Group, GameAudio, addTo, urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo } = utils
 
 const FPS = 60  // hardcoded in Twojs
 const BACKGROUND_COLOR = "#f9f9f9"
@@ -100,21 +100,6 @@ syncSize()
 mapNbColsEl.onchange = mapNbRowsEl.onchange = syncSize
 
 document.getElementById("game_start").onclick = () => startGame()
-
-const Entities = {
-    "nico": { "img": "nico.png", "scale": 50 / 300 },
-    "zombi": { "img": "zombi.png", "scale": 50 / 175 },
-}
-
-class Entity extends Two.Group {
-    constructor(x, y) {
-        super()
-        this.translation.x = x
-        this.translation.y = y
-        this.speedX = 0
-        this.speedY = 0
-    }
-}
 
 
 // BUILDER //////////////////////////
@@ -188,12 +173,8 @@ class CommonScene extends Two.Group {
     }
 
     addEntity(x, y, key) {
-        const def = Entities[key]
-        const ent = addTo(this.entities, new Entity(x, y))
-        const img = addTo(ent, new Two.Sprite(
-            `static/assets/${def.img}`
-        ))
-        if(def.scale) img.scale = def.scale
+        const cls = Entities[key]
+        const ent = addTo(this.entities, new cls(this, x, y))
         ent.key = key
         return ent
     }
@@ -295,14 +276,14 @@ class BuilderScene extends CommonScene {
 
 class Game extends Two {
 
-    constructor(builderWrapperEl, map, entities) {
+    constructor(gameWrapperEl, map, entities) {
         super({
             type: Two.Types.canvas,
             width: min(mapWidth, CANVAS_MAX_WIDTH),
             height: min(mapHeight, CANVAS_MAX_HEIGHT),
         })
         this.renderer.domElement.style.outline = "2px solid grey"
-        this.appendTo(builderWrapperEl)
+        this.appendTo(gameWrapperEl)
 
         this.map = map
         this.entities = entities
@@ -314,6 +295,10 @@ class Game extends Two {
             const time = frameCount / FPS
             this.mainScene.update(time)
         })
+
+        this.keysPressed = {}
+        document.addEventListener('keydown', evt => {this.keysPressed[evt.key] = true})
+        document.addEventListener('keyup', evt => delete this.keysPressed[evt.key])
         
         this.play()
     }
@@ -345,79 +330,99 @@ class GameScene extends CommonScene {
 
     update(time) {
         this.applyPhysics(time)
+        this.entities.children.forEach(e => e.update(time))
     }
 
     applyPhysics(time) {
         const { map } = this.game
+        const { getHitBox } = utils
         for(let ent of this.entities.children) {
             // gravity
-            ent.speedY -= GRAVITY / FPS
+            ent.speedY += GRAVITY / FPS
             // speed & collisions
-            const entX = ent.translation.x, entY = ent.translation.y
-            const rect = ent.getBoundingClientRect()
-            const entW = rect.width/2, entH = rect.height/2
+            //const entX = ent.translation.x, entY = ent.translation.y
+            //const rect = ent.getBoundingClientRect()
+            //const entW = rect.width/2, entH = rect.height/2
+            const { left: entX, top: entY, width: entW, height: entH } = getHitBox(ent)
             const dx = ent.speedX / FPS, dy = ent.speedY / FPS
+            ent.speedResX = 0; ent.speedResY = 0
             if(dx > 0) {
                 let blocked = false
-                const bx1 = max(0, min(mapNbCols, ceil(entX / mapBoxSize)))
-                const bx2 = max(0, min(mapNbCols, floor((entX + entW + dx) / mapBoxSize)))
+                const bx1 = max(0, min(mapNbCols-1, ceil((entX + entW/2) / mapBoxSize)))
+                const bx2 = max(0, min(mapNbCols-1, floor((entX + entW + dx) / mapBoxSize)))
                 for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
                     const ddx = max(0, (bx * mapBoxSize) - (entX + entW))
                     const ddy = dy * ddx / dx
-                    const by1 = max(0, min(mapNbRows, floor((entY-entH+ddy) / mapBoxSize)))
-                    const by2 = max(0, min(mapNbRows, floor((entY+entH+ddy) / mapBoxSize)))
+                    const by1 = max(0, min(mapNbRows-1, floor((entY+ddy+1) / mapBoxSize)))
+                    const by2 = max(0, min(mapNbRows-1, floor((entY+entH+ddy-1) / mapBoxSize)))
                     for(let by=by1; !blocked && by<=by2; ++by) {
                         blocked = (map[bx][by] !== null)
                     }
-                    if(blocked) ent.translation.x += ddx
+                    if(blocked) {
+                        ent.translation.x += ddx
+                        ent.speedX = 0
+                        ent.speedResX = ddx - dx
+                    }
                 }
                 if(!blocked) ent.translation.x += dx
             }
             else if(dx < 0) {
                 let blocked = false
-                const bx1 = max(0, min(mapNbCols, floor(entX / mapBoxSize) - 1))
-                const bx2 = max(0, min(mapNbCols, ceil((entX - entW + dx) / mapBoxSize) - 1))
+                const bx1 = max(0, min(mapNbCols-1, floor((entX + entW/2) / mapBoxSize) - 1))
+                const bx2 = max(0, min(mapNbCols-1, ceil((entX + dx) / mapBoxSize) - 1))
                 for(let bx=bx1; !blocked && bx>=bx2; --bx) {
-                    const ddx = min(0, ((bx+1) * mapBoxSize) - (entX - entW))
+                    const ddx = min(0, ((bx+1) * mapBoxSize) - entX)
                     const ddy = dy * ddx / dx
-                    const by1 = max(0, min(mapNbRows, floor((entY-entH+ddy) / mapBoxSize)))
-                    const by2 = max(0, min(mapNbRows, floor((entY+entH+ddy) / mapBoxSize)))
+                    const by1 = max(0, min(mapNbRows-1, floor((entY+ddy+1) / mapBoxSize)))
+                    const by2 = max(0, min(mapNbRows-1, floor((entY+entH+ddy-1) / mapBoxSize)))
                     for(let by=by1; !blocked && by<=by2; ++by) {
                         blocked = (map[bx][by] !== null)
                     }
-                    if(blocked) ent.translation.x += ddx
+                    if(blocked) {
+                        ent.translation.x += ddx
+                        ent.speedX = 0
+                        ent.speedResX = ddx - dx
+                    }
                 }
                 if(!blocked) ent.translation.x += dx
             }
             if(dy > 0) {
                 let blocked = false
-                const by1 = max(0, min(mapNbRows, ceil(entY / mapBoxSize)))
-                const by2 = max(0, min(mapNbRows, floor((entY + entH + dy) / mapBoxSize)))
+                const by1 = max(0, min(mapNbRows-1, ceil((entY + entH/2) / mapBoxSize)))
+                const by2 = max(0, min(mapNbRows-1, floor((entY + entH + dy) / mapBoxSize)))
                 for(let by=by1; !blocked && by<=by2; ++by) {
                     const ddy = max(0, (by * mapBoxSize) - (entY + entH))
                     const ddx = dx * ddy / dy
-                    const bx1 = max(0, min(mapNbCols, floor((entX-entW+ddx) / mapBoxSize)))
-                    const bx2 = max(0, min(mapNbCols, floor((entX+entW+ddx) / mapBoxSize)))
+                    const bx1 = max(0, min(mapNbCols-1, floor((entX+ddx+1) / mapBoxSize)))
+                    const bx2 = max(0, min(mapNbCols-1, floor((entX+entW+ddx-1) / mapBoxSize)))
                     for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
                         blocked = (map[bx][by] !== null)
                     }
-                    if(blocked) ent.translation.y += ddy
+                    if(blocked) {
+                        ent.translation.y += ddy
+                        ent.speedY = 0
+                        ent.speedResY = ddy - dy
+                    }
                 }
                 if(!blocked) ent.translation.y += dy
             }
             else if(dy < 0) {
                 let blocked = false
-                const by1 = max(0, min(mapNbRows, floor(entY / mapBoxSize) - 1))
-                const by2 = max(0, min(mapNbRows, ceil((entY - entH + dy) / mapBoxSize) - 1))
+                const by1 = max(0, min(mapNbRows-1, floor((entY + entH/2) / mapBoxSize) - 1))
+                const by2 = max(0, min(mapNbRows-1, ceil((entY + dy) / mapBoxSize) - 1))
                 for(let by=by1; !blocked && by>=by2; --by) {
-                    const ddy = min(0, ((by+1) * mapBoxSize) - (entY - entH))
+                    const ddy = min(0, ((by+1) * mapBoxSize) - entY)
                     const ddx = dx * ddy / dy
-                    const bx1 = max(0, min(mapNbCols, floor((entX-entW+ddx) / mapBoxSize)))
-                    const bx2 = max(0, min(mapNbCols, floor((entX+entW+ddx) / mapBoxSize)))
+                    const bx1 = max(0, min(mapNbCols-1, floor((entX+ddx+1) / mapBoxSize)))
+                    const bx2 = max(0, min(mapNbCols-1, floor((entX+entW+ddx-1) / mapBoxSize)))
                     for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
                         blocked = (map[bx][by] !== null)
                     }
-                    if(blocked) ent.translation.y += ddy
+                    if(blocked) {
+                        ent.translation.y += ddy
+                        ent.speedY = 0
+                        ent.speedResY = ddy - dy
+                    }
                 }
                 if(!blocked) ent.translation.y += dy
             }
@@ -440,6 +445,102 @@ function startGame() {
     game = new Game(gameWrapperEl, gameBuilder.mainScene.map, gameBuilder.mainScene.entities.children)
     gameWrapperEl.style.display = ""
 }
+
+// ENTITIES ///////////////////////////////////
+
+const Entities = {}
+
+class Entity extends Two.Group {
+    constructor(scn, x, y) {
+        super()
+        this.scene = scn
+        this.game = scn.game
+        this.translation.x = x
+        this.translation.y = y
+        this.speedX = 0
+        this.speedY = 0
+        this.speedResX = 0
+        this.speedResY = 0
+    }
+}
+
+class Nico extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.scale = new Two.Vector(1, 1)
+        this.img = addTo(this, new Two.Sprite(
+            "static/assets/nico_full.png",
+            0, 0,
+            4, 1,
+        ))
+        this.img.index = 0
+        this.img.scale = 50 / 148
+    }
+
+    update(time) {
+        // controls
+        const { keysPressed } = this.game
+        if(keysPressed["ArrowRight"]) this.speedX = sumTo(this.speedX, 1000 / FPS, 300)
+        else if(keysPressed["ArrowLeft"]) this.speedX = sumTo(this.speedX, 1000 / FPS, -300)
+        else this.speedX = sumTo(this.speedX, 1000 / FPS, 0)
+        if(this.speedResY < 0 && keysPressed["ArrowUp"]) this.speedY -= 500
+        // display
+        if(this.speedX > 0) this.scale.x = 1
+        else if(this.speedX < 0) this.scale.x = -1
+        if(this.speedResY == 0) this.img.index = 1
+        else if(this.speedX == 0) this.img.index = 0
+        else this.img.index = floor(1 + (time * 6) % 3)
+    }
+
+    getHitBox() {
+        return {
+            left: this.translation.x - 20,
+            width: 40,
+            top: this.translation.y - 25,
+            height: 50,
+        }
+    }
+}
+Entities["nico"] = Nico
+
+
+class Zombi extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.scale = new Two.Vector(1, 1)
+        this.img = addTo(this, new Two.Sprite(
+            "static/assets/zombi.png",
+            0, 0,
+            8, 1,
+        ))
+        this.img.scale = 60 / 180
+        this.dir = 1
+    }
+
+    update(time) {
+        this.img.index = floor((time * 6) % 8)
+        if(this.speedResX * this.dir < 0) this.dir *= -1
+        if(this.speedResY < 0) {
+            const { left, width, top, height } = this.getHitBox()
+            const wallAheadBy = ceil((top + height - 1) / mapBoxSize)
+            const wallAheadBx = (this.dir > 0) ? ceil((left + width / 2) / mapBoxSize) : floor((left + width / 2) / mapBoxSize)
+            if(this.game.map[wallAheadBx][wallAheadBy] === null) this.dir *= -1
+            this.speedX = this.dir * 2000 / FPS
+        }
+        this.scale.x = this.dir
+    }
+
+    getHitBox() {
+        return {
+            left: this.translation.x - 10,
+            width: 20,
+            top: this.translation.y - 30,
+            height: 60,
+        }
+    }
+}
+Entities["zombi"] = Zombi
+
 
 showBuilder()
 setMode("move")

@@ -1,4 +1,5 @@
 const { assign } = Object
+const { min, max } = Math
 
 import Two from './two.min.mjs'
 
@@ -210,6 +211,14 @@ function checkHit(obj1, obj2) {
 }
 
 
+function sumTo(val, dv, target) {
+    // dv should always be > 0
+    if(val == target) return target
+    else if(target > val) return min(val + dv, target)
+    else return max(val - dv, target)
+}
+
+
 export {
     Group,
     GameAudio,
@@ -225,4 +234,6 @@ export {
     addCanvas,
     checkAllLoadsDone,
     checkHit,
+    getHitBox,
+    sumTo,
 }
