@@ -3,12 +3,15 @@
 import { join, dirname } from "path"
 // import fs from "fs"
 import { fileURLToPath } from "url"
-// import crypto from "crypto"
+import crypto from "crypto"
 import { networkInterfaces } from "os"
 // import path from "path"
 
 import express from "express"
-// import { WebSocketServer } from 'ws'
+import bodyParser from 'body-parser'
+import { WebSocketServer } from 'ws'
+
+// import { Game } from './static/game.mjs'
 
 // import Consts from './static/consts.mjs'
 
@@ -18,6 +21,11 @@ const DIRNAME = dirname(fileURLToPath(import.meta.url))
 
 // const games = initGames()
 
+const octetStreamParser = bodyParser.raw({
+  inflate: false,
+  type: "application/octet-stream",
+  limit: "2mb",
+})
 
 class GameServer {
 
@@ -34,14 +42,35 @@ class GameServer {
       res.sendFile(join(DIRNAME, 'static/index.html'));
     })
 
-    // this.app.get("/", (req, res) => {
-    //   res.redirect(`/r/${this.generateRoomId()}`)
-    // })
+    this.app.post("/newroom", (req, res) => {
+      const roomId = this.newRoom()
+      res.json({ roomId })
+      // res.redirect(`/r/${this.generateRoomId()}`)
+    })
 
-    // this.app.get("/r/:roomId", (req, res) => {
-    //   const { roomId } = req.params
-    //   res.sendFile(join(DIRNAME, "static/room.html"))
-    // })
+    this.app.get("/r/:roomId", (req, res) => {
+      res.sendFile(join(DIRNAME, "static/room.html"))
+    })
+
+    this.app.get("/room/:roomId/map", (req, res) => {
+      const { roomId } = req.params
+      const room = this.rooms[roomId]
+      if(!room || !room.map) return res.sendStatus(404)
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': room.map.length
+      })
+      res.end(room.map)
+    })
+
+    this.app.post("/room/:roomId/map", octetStreamParser, (req, res) => {
+      const { roomId } = req.params
+      const room = this.rooms[roomId]
+      if(room === undefined) return res.sendStatus(404)
+      room.map = Buffer.from(req.body)
+      this.startGame(room)
+      res.end()
+    })
 
     // this.app.get("/r/:roomId/p", (req, res) => {
     //   const { roomId } = req.params
@@ -63,53 +92,60 @@ class GameServer {
 
   serve() {
     this.server = this.app.listen(this.port)
-    // this.startWebocketServer()
+    this.startWebocketServer()
   }
 
-  // startWebocketServer() {
+  startWebocketServer() {
 
-  //   this.websocketServer = new WebSocketServer({ server: this.server })
+    this.websocketServer = new WebSocketServer({ server: this.server })
 
-  //   this.websocketServer.on('connection', ws => {
+    this.websocketServer.on('connection', ws => {
 
-  //     ws.id = this.generateClientId()
-  //     console.log(`Client '${ws.id}' connected`)
+      ws.id = this.generateClientId()
+      console.log(`Client '${ws.id}' connected`)
     
-  //     ws.on('message', (data, isBinary) => {
-  //       const msg = isBinary ? data : data.toString()
-  //       const key = msg.substring(0, Consts.MSG_KEY_LENGTH)
-  //       const body = msg.substring(Consts.MSG_KEY_LENGTH)
-  //       if(key === Consts.MSG_KEYS.JOYPAD_INPUT) this.onJoypadInput(ws, body)
-  //       else if(key === Consts.MSG_KEYS.GAME_INPUT) this.onGameInput(ws, body)
-  //       else if(key === Consts.MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
-  //       else if(key === Consts.MSG_KEYS.IDENTIFY_GAME) this.onIdentifyGame(ws, JSON.parse(body))
-  //       else if(key === Consts.MSG_KEYS.IDENTIFY_PLAYER) this.onIdentifyPlayer(ws, JSON.parse(body))
-  //       else if(key === Consts.MSG_KEYS.START_GAME) this.onStartGame(ws, JSON.parse(body))
-  //       else if(key === Consts.MSG_KEYS.DISCONNECT_PLAYER) this.onDisconnectPlayer(ws, body)
-  //       else console.warn("Unknown websocket key", key)
-  //     })
+      ws.on('message', (data, isBinary) => {
+        const msg = isBinary ? data : data.toString()
+        const key = msg.substring(0, Consts.MSG_KEY_LENGTH)
+        const body = msg.substring(Consts.MSG_KEY_LENGTH)
+        if(key === Consts.MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
+        //else if(key === Consts.MSG_KEYS.GAME_INPUT) this.onGameInput(ws, body)
+        // else if(key === Consts.MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
+        // else if(key === Consts.MSG_KEYS.IDENTIFY_GAME) this.onIdentifyGame(ws, JSON.parse(body))
+        else if(key === Consts.MSG_KEYS.IDENTIFY) this.handleIdentify(ws, JSON.parse(body))
+        else if(key === Consts.MSG_KEYS.START_GAME) this.handleStartGame(ws, JSON.parse(body))
+        else if(key === Consts.MSG_KEYS.DISCONNECT_PLAYER) this.handleDisconnectPlayer(ws, body)
+        else console.warn("Unknown websocket key", key)
+      })
     
-  //     ws.on('error', console.error)
+      ws.on('error', console.error)
     
-  //     ws.on('close', () => {
-  //       console.log(`Client '${ws.id}' disconnected`)
-  //       this.onClientDeconnection(ws)
-  //     })
-  //   })
-  // }
+      ws.on('close', () => {
+        console.log(`Client '${ws.id}' disconnected`)
+        this.onClientDeconnection(ws)
+      })
+    })
+  }
 
-  // generateClientId() {
-  //   return crypto.randomBytes(8).toString("hex")
-  // }
+  generateClientId() {
+    return crypto.randomBytes(8).toString("hex")
+  }
 
-  // generateRoomId() {
-  //   let it = 1
-  //   while(true) {
-  //     const roomId = PROD ? floor(random() * 1000).toString() : it.toString()
-  //     if(this.rooms[roomId] === undefined) return roomId
-  //     it++
-  //   }
-  // }
+  newRoom() {
+    let it = 1
+    while(true) {
+      const roomId = this.generateRoomId(it)
+      if(this.rooms[roomId] === undefined) {
+        this.rooms[roomId] = new Room(roomId)
+        return roomId
+      }
+      it++
+    }
+  }
+
+  generateRoomId(numTry) {
+    return PROD ? floor(random() * 1000).toString() : numTry.toString()
+  }
 
   // onIdentifyGame(ws, kwargs) {
   //   ws.type = "game"
@@ -120,49 +156,62 @@ class GameServer {
   //   console.log(`Room '${roomId}' created`)
   // }
 
-  // onIdentifyPlayer(ws, kwargs) {
-  //   if(!ws.room) {
-  //     // first player connection
-  //     ws.type = "player"
-  //     const { roomId, id: playerId } = kwargs
-  //     const room = this.rooms[roomId]
-  //     if(!room || room.closed) { ws.close(); return }
-  //     ws.room = room
-  //     room.playerWebsockets[ws.id] = ws
-  //     console.log(`Player '${ws.id}' connected to room '${roomId}' as '${playerId}'`)
-  //     ws.send(Consts.MSG_KEYS.IDENTIFY_PLAYER + JSON.stringify({
-  //       name: `Player${playerId}`,
-  //       color: "blue"
-  //     }))
-  //     if(room.gameKey) {
-  //       ws.send(Consts.MSG_KEYS.START_GAME + JSON.stringify({
-  //         gameKey: room.gameKey
-  //       }))
-  //       if(room.gameState) ws.send(Consts.MSG_KEYS.GAME_STATE + room.gameState)
-  //     }
-  //   } else {
-  //     // player chose its name and color
-  //     const { room } = ws
-  //     if(!room || room.closed) { ws.close(); return }
-  //     if(kwargs.name) ws.name = kwargs.name
-  //     if(kwargs.color) ws.color = kwargs.color
-  //     const msg = Consts.MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
-  //     room.sendToGame(msg)
-  //     room.sendToPlayers(msg)
-  //   }
-  // }
+  handleIdentify(ws, kwargs) {
+    if(ws.room) return
+    // ws.type = "player"
+    const { roomId, id: playerId, name, color } = kwargs
+    let room
+    if(!roomId) {
+      roomId = generateRoomId()
+      room = this.rooms[roomId] = new Room(roomId)
+    } else {
+      room = this.rooms[roomId]
+    }
+    if(!room || room.closed) { ws.close(); return }
+    ws.room = room
+    ws.playerId = playerId
+    ws.playerName = name
+    ws.playerColor = color
+    room.playerWebsockets[ws.id] = ws
+    console.log(`Player '${ws.id}' connected to room '${roomId}' as '${playerId}'`)
+    // ws.send(Consts.MSG_KEYS.IDENTIFY_PLAYER + JSON.stringify({
+    //   name: `Player${playerId}`,
+    //   color: "blue"
+    // }))
+    // if(room.gameKey) {
+    //   ws.send(Consts.MSG_KEYS.START_GAME + JSON.stringify({
+    //     gameKey: room.gameKey
+    //   }))
+    //   if(room.gameState) ws.send(Consts.MSG_KEYS.GAME_STATE + room.gameState)
+    // }
+    // } else {
+    //   // player chose its name and color
+    //   const { room } = ws
+    //   if(!room || room.closed) { ws.close(); return }
+    //   if(kwargs.name) ws.name = kwargs.name
+    //   if(kwargs.color) ws.color = kwargs.color
+    //   const msg = Consts.MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
+    //   room.sendToGame(msg)
+    //   room.sendToPlayers(msg)
+    // }
+  }
 
-  // onStartGame(ws, kwargs) {
-  //   const { gameKey } = kwargs
+  // handleStartGame(ws, kwargs) {
+  //   const { map } = kwargs
   //   const { room } = ws
   //   if(!room || room.closed) { ws.close(); return }
-  //   room.gameKey = gameKey
-  //   room.gameState = null
-  //   console.log(`Game of room '${room.id}' set to '${gameKey}'`)
-  //   room.sendToPlayers(Consts.MSG_KEYS.START_GAME + JSON.stringify({
-  //     gameKey
-  //   }))
+  //   // room.gameKey = gameKey
+  //   // room.gameState = null
+  //   room.game = new Game(null, map)
+  //   // console.log(`Game of room '${room.id}' set to '${gameKey}'`)
+  //   // room.sendToPlayers(Consts.MSG_KEYS.START_GAME + JSON.stringify({
+  //   //   gameKey
+  //   // }))
   // }
+
+  startGame(room) {
+    room.game = new Game(null, room.map)
+  }
 
   // onClientDeconnection(ws) {
   //   const { room } = ws
@@ -210,44 +259,43 @@ class GameServer {
 }
 
 
-// class Room {
+class Room {
 
-//   constructor(id, gameWs) {
-//     this.id = id
-//     this.numPlayer = 1
-//     this.gameWebsocket = gameWs
-//     this.playerWebsockets = {}
-//     this.gameKey = null
-//     this.gameState = null
-//   }
+  constructor(id) {
+    this.id = id
+    this.numPlayer = 1
+    this.websockets = {}
+    // this.gameKey = null
+    // this.gameState = null
+  }
 
-//   generatePlayerId() {
-//     const res = this.numPlayer.toString()
-//     this.numPlayer += 1
-//     return res
-//   }
+  generatePlayerId() {
+    const res = this.numPlayer.toString()
+    this.numPlayer += 1
+    return res
+  }
 
-//   sendToGame(msg) {
-//     this.gameWebsocket.send(msg)
-//   }
+  // sendToGame(msg) {
+  //   this.gameWebsocket.send(msg)
+  // }
 
-//   sendToPlayers(msg) {
-//     for(const jpws of Object.values(this.playerWebsockets)) {
-//       jpws.send(msg)
-//     }
-//   }
+  // sendToPlayers(msg) {
+  //   for(const jpws of Object.values(this.playerWebsockets)) {
+  //     jpws.send(msg)
+  //   }
+  // }
 
-//   exportPlayers() {
-//     const res = {}
-//     const { playerWebsockets } = this
-//     for(const jpWs of Object.values(playerWebsockets)) {
-//       const { name, color } = jpWs
-//       if(!name) continue
-//       res[jpWs.id] = { name, color }
-//     }
-//     return res
-//   }
-// }
+  // exportPlayers() {
+  //   const res = {}
+  //   const { playerWebsockets } = this
+  //   for(const jpWs of Object.values(playerWebsockets)) {
+  //     const { name, color } = jpWs
+  //     if(!name) continue
+  //     res[jpWs.id] = { name, color }
+  //   }
+  //   return res
+  // }
+}
 
 
 // function initGames() {

@@ -11,23 +11,23 @@ class Group extends Two.Group {
 }
 
 
-class GameAudio extends Audio {
-  constructor(src, kwargs) {
-    super(src)
-    this.preload = "auto"
-    assign(this, kwargs)
-    this.oncanplaythrough = () => this.loaded = true
-  }
-  play(kwargs) {
-    this.loop = (kwargs && kwargs.loop) === true
-    super.play()
-  }
-  replay() {
-    this.pause()
-    this.currentTime = 0
-    this.play()
-  }
-}
+// class GameAudio extends Audio {
+//   constructor(src, kwargs) {
+//     super(src)
+//     this.preload = "auto"
+//     assign(this, kwargs)
+//     this.oncanplaythrough = () => this.loaded = true
+//   }
+//   play(kwargs) {
+//     this.loop = (kwargs && kwargs.loop) === true
+//     super.play()
+//   }
+//   replay() {
+//     this.pause()
+//     this.currentTime = 0
+//     this.play()
+//   }
+// }
 
 
 function addTo(group, obj) {
@@ -66,9 +66,9 @@ function fitTwoToEl(two, wrapperEl, kwargs) {
 }
 
 
-function newPointer(two) {
+function newPointer(game) {
 
-    const el = two.renderer.domElement
+    const el = game.canvas
 
     const pointer = {
         isDown: false,
@@ -79,8 +79,8 @@ function newPointer(two) {
         const rect = el.getBoundingClientRect()
         assign(pointer, {
             isDown: isDown === null ? pointer.isDown : isDown,
-            x: pos ? (pos.clientX - rect.left) * two.width / rect.width : null,
-            y: pos ? (pos.clientY - rect.top) * two.height / rect.height : null,
+            x: pos ? (pos.clientX - rect.left) * el.width / rect.width : null,
+            y: pos ? (pos.clientY - rect.top) * el.height / rect.height : null,
         })
     }
 
@@ -221,7 +221,7 @@ function sumTo(val, dv, target) {
 
 export {
     Group,
-    GameAudio,
+    // GameAudio,
     addTo,
     urlAbsPath,
     fitTwoToEl,

@@ -41,13 +41,16 @@
         <button id="mode_wall">Wall</button>
     </flexrow>
     <flexrow>
+        <button id="mode_erase">Erase</button>
         <button id="mode_nico">Nico</button>
         <button id="mode_zombi">Zombi</button>
+        <button id="mode_star">Star</button>
     </flexrow>
     <flexrow>
         <button id="game_draw">DRAW</button>
         <button id="game_start">PLAY !</button>
         <button id="game_share">SHARE</button>
+        <button id="game_multi">PLAY MULTI !</button>
     </flexrow>
     <flexrow id="game_url" style="display: none">
         <flexcol>
@@ -59,42 +62,32 @@
     <flexcol id="builder_wrapper"></flexcol>
     <flexcol id="game_wrapper" style="display: none"></flexcol>
 <script type="module">
-const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
-import Two from './static/two.min.mjs'
-import * as utils from './static/utils.mjs'
-const { Group, GameAudio, addTo, urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo } = utils
+import { GameMap, GameBuilder, Game } from './static/game.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
-
-const FPS = 60  // hardcoded in Twojs
-const BACKGROUND_COLOR = "#f9f9f9"
-const CANVAS_MAX_WIDTH = 800
-const CANVAS_MAX_HEIGHT = 600
-const MAP_BOX_DEFAULT_SIZE = 20
-const MAP_DEFAULT_NB_COLS = 50
-const MAP_DEFAULT_NB_ROWS = 50
-const GRAVITY = 1000
 
 const builderWrapperEl = document.getElementById("builder_wrapper")
 const gameWrapperEl = document.getElementById("game_wrapper")
 let map = null, gameBuilder = null, game = null
 
-let mode, modeKey
 document.getElementById("mode_move").onclick = () => setMode('move')
 document.getElementById("mode_wall").onclick = () => setMode('wall')
+document.getElementById("mode_erase").onclick = () => setMode('erase')
 document.getElementById("mode_nico").onclick = () => setMode('entity', 'nico')
 document.getElementById("mode_zombi").onclick = () => setMode('entity', 'zombi')
-function setMode(iMode, iModeKey) {
-    mode = iMode
-    modeKey = iModeKey
+document.getElementById("mode_star").onclick = () => setMode('entity', 'star')
+function setMode(mode, modeKey) {
+    gameBuilder.mode = mode
+    gameBuilder.modeKey = modeKey
     if(gameBuilder) gameBuilder.syncMode()
 }
 
 document.getElementById("game_draw").onclick = showBuilder
 document.getElementById("game_start").onclick = startGame
 document.getElementById("game_share").onclick = async () => {
-    const mapStr = await map.export()
+    const mapStr = await map.exportAsSafeBase64()
+    console.log(`Map export size: ${mapStr.length}`)
     const valEl = document.getElementById("game_url_val")
     valEl.value = `${window.location.origin}?map=${mapStr}`
     document.getElementById("game_url").style.display = ""
@@ -104,141 +97,18 @@ document.getElementById("game_share").onclick = async () => {
         navigator.clipboard.writeText(valEl.value)
         document.getElementById("game_url_copied").style.display = ""
     }
-
 }
-
-// main
-async function main() {
-    map = new Map()
-    if(urlParams.has("map")) await map.import(urlParams.get("map"))
-    map.syncSize()
-    syncInputElSize()
-    if(urlParams.has("map")) {
-        startGame()
-    } else {
-        showBuilder()
-        setMode("move")
-    }
-}
-
-// MAP
-
-class Map {
-    constructor() {
-        this.boxSize = MAP_BOX_DEFAULT_SIZE
-        this.nbCols = MAP_DEFAULT_NB_COLS
-        this.nbRows = MAP_DEFAULT_NB_ROWS
-        this.walls = []
-        this.entities = []
-        this.syncSize()
-    }
-
-    syncSize() {
-        this.width = this.boxSize * this.nbCols
-        this.height = this.boxSize * this.nbRows
-        this.syncMap()
-    }
-
-    syncMap() {
-        const { nbRows, nbCols, walls } = this
-        for(let x=0; x<nbCols; ++x) {
-            if(walls.length == x) walls.push([])
-            const col = walls[x]
-            for(let y=0; y<nbRows; ++y) if(col.length == y) col.push(null)
-        }
-    }
-
-    async export() {
-        let wallsStr = ""
-        for(let bx=0; bx<this.nbCols; ++bx) for(let by=0; by<this.nbRows; ++by) {
-            wallsStr += this.walls[bx][by] || " "
-        }
-        const outObj = {
-            bs: this.boxSize,
-            nc: this.nbCols,
-            nr: this.nbRows,
-            w: wallsStr,
-            e: this.entities
-        }
-        const outStr = JSON.stringify(outObj)
-        const outBin = await compress(outStr)
-        const outSB64 = await binToSafeB64(outBin)
-        console.log(`Map export size: ${outSB64.length}`)
-        return outSB64
-    }
-
-    async import(inSB64) {
-        const inBin = await safeB64ToBin(inSB64)
-        const inStr = await decompress(inBin)
-        const inObj = JSON.parse(inStr)
-        this.boxSize = inObj.bs
-        this.nbCols = inObj.nc
-        this.nbRows = inObj.nr
-        this.walls = []
-        const inObjWalls = inObj.w, nbBox = this.nbCols * this.nbRows, nbRows = this.nbRows
-        let col
-        for(let i=0; i<nbBox; ++i) {
-            if(i % nbRows == 0) {
-                col = []
-                this.walls.push(col)
-            }
-            let key = inObjWalls[i]
-            if(key === " ") key = null
-            col.push(key)
-        }
-        this.entities = inObj.e
-    }
-}
-
-async function compress(str) {
-  const stream = new Blob([str]).stream()
-  const compressedStream = stream.pipeThrough(new CompressionStream("gzip"))
-  const chunks = []
-  for await (const chunk of compressedStream) chunks.push(chunk)
-  return await concatUint8Arrays(chunks)
-}
-
-async function decompress(compressedBytes) {
-  const stream = new Blob([compressedBytes]).stream()
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"))
-  const chunks = [];
-  for await (const chunk of decompressedStream) chunks.push(chunk)
-  const stringBytes = await concatUint8Arrays(chunks)
-  return new TextDecoder().decode(stringBytes)
-}
-
-async function concatUint8Arrays(uint8arrays) {
-  const blob = new Blob(uint8arrays)
-  const buffer = await blob.arrayBuffer()
-  return new Uint8Array(buffer)
-}
-
-const BIN_AS_B64_DATA_URL_PREFIX = "data:application/octet-stream;base64,"
-
-function binToSafeB64(bytes) {
-    return new Promise((ok, ko) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-            const dataUrlSplit = reader.result.split(',')
-            if(!reader.result.startsWith(BIN_AS_B64_DATA_URL_PREFIX)) ko("Invalid binary encoding")
-            else ok(encodeURIComponent(reader.result.substring(BIN_AS_B64_DATA_URL_PREFIX.length)))
-        }
-        reader.readAsDataURL(new Blob([bytes]))
+document.getElementById("game_multi").onclick = async () => {
+    const res = await fetch("/newroom", { method: "POST" })
+    const { roomId } = await res.json()
+    const mapBin = await map.exportAsBinary()
+    await fetch(`/room/${roomId}/map`, {
+        method: "POST",
+        body: new Blob([mapBin], {type: 'application/octet-stream'}),
     })
+    // window.location = `${window.location.origin}/r/${roomId}`
 }
 
-function safeB64ToBin(sb64) {
-    return new Promise((ok, ko) => {
-        const b64 = decodeURIComponent(sb64)
-        fetch(`${BIN_AS_B64_DATA_URL_PREFIX}${b64}`).then(async res => {
-            const reader = new FileReader()
-            reader.onload = () => ok(reader.result)
-            reader.readAsArrayBuffer(await res.blob())
-        })
-    })
-}
-
-let boxSize, nbCols, nbRows, mapWidth, mapHeight
 const boxSizeEl = document.getElementById("map_box_size")
 const nbColsEl = document.getElementById("map_nb_cols")
 const nbRowsEl = document.getElementById("map_nb_rows")
@@ -256,556 +126,26 @@ function updSize() {
 }
 nbColsEl.onchange = nbRowsEl.onchange = updSize
 
+// main
 
-// BUILDER //////////////////////////
-
-class GameBuilder extends Two {
-
-    constructor(builderWrapperEl, map) {
-        super({
-            type: Two.Types.canvas,
-            width: CANVAS_MAX_WIDTH,
-            height: CANVAS_MAX_HEIGHT,
-        })
-        this.renderer.domElement.style.outline = "2px solid grey"
-        this.appendTo(builderWrapperEl)
-       //utils.fitTwoToEl(this, builderWrapperEl, { background: BACKGROUND_COLOR })
-
-        this.map = map
-
-        this.syncMode()
-        this.syncSize()
-
-        this.pointer = utils.newPointer(this)
-        this.pointer.prevIsDown = false
-
-        this.sceneGroup = addTo(this, new Two.Group())
-        this.setMainScene(new BuilderScene(this))
-
-        this.bind("update", (frameCount, timeDelta) => {
-            const time = frameCount / FPS
-            this.mainScene.update(time)
-            this.pointer.prevIsDown = this.pointer.isDown
-        })
-        
-        this.play()
-    }
-
-    setMainScene(scn) {
-        if(this.mainScene !== undefined) this.mainScene.remove()
-        this.mainScene = addTo(this.sceneGroup, scn)
-    }
-
-    syncMode() {
-        if(mode == "move") this.renderer.domElement.style.cursor = "move"
-        if(mode == "wall") this.renderer.domElement.style.cursor = "cell"
-        if(mode == "entity") this.renderer.domElement.style.cursor = "cell"
-    }
-
-    syncSize() {
-        const width = min(this.map.width, CANVAS_MAX_WIDTH)
-        const height = min(this.map.height, CANVAS_MAX_HEIGHT)
-        this.renderer.setSize(width, height)
-        if(this.mainScene) this.mainScene.syncSize()
+async function main() {
+    map = new GameMap()
+    if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
+    map.syncSize()
+    syncInputElSize()
+    if(urlParams.has("map")) {
+        startGame()
+    } else {
+        showBuilder()
+        setMode("move")
     }
 }
-
-class CommonScene extends Two.Group {
-    constructor(game) {
-        super()
-        this.game = game
-        this.walls = addTo(this, new Two.Group())
-        this.grid = addTo(this, new Two.Group())
-        this.entities = addTo(this, new Two.Group())
-        this.initWalls()
-        this.initEntities()
-    }
-
-    initWalls() {
-        const { nbCols, nbRows, walls } = this.game.map
-        for(let boxX=0; boxX<nbCols; ++boxX) for(let boxY=0; boxY<nbRows; ++boxY) {
-            const wall = walls[boxX][boxY]
-            if(wall) this.addWall(boxX, boxY, wall)
-        }
-    }
-
-    initEntities() {
-        this.game.map.entities.forEach(e => this.addEntity(e.x, e.y, e.key))
-    }
-
-    addWall(boxX, boxY, key) {
-        const { boxSize } = this.game.map
-        let wall
-        if(key == "W") {
-            wall = addTo(this.walls, new Two.Rectangle(
-                (boxX + .5) * boxSize,
-                (boxY + .5) * boxSize,
-                boxSize,
-                boxSize,
-            ))
-        }
-        wall.noStroke()
-        wall.fill = "black"
-        wall.boxX = boxX
-        wall.boxY = boxY
-        wall.key = key
-        return wall
-    }
-
-    addEntity(x, y, key) {
-        const cls = Entities[key]
-        const ent = addTo(this.entities, new cls(this, x, y))
-        ent.key = key
-        return ent
-    }
-}
-
-class BuilderScene extends CommonScene {
-    constructor(game) {
-        super(game)
-        this.syncSize()
-    }
-
-    syncSize() {
-        this.syncGrid()
-    }
-
-    syncGrid() {
-        this.grid.children.forEach(e => e.remove())
-        const addLine = (x1, x2, y1, y2) => {
-            const line = addTo(this.grid, new Two.Line(x1, x2, y1, y2))
-            line.linewidth = 1
-            line.stroke = "lightgrey"
-            line.noFill()
-        }
-        const { nbCols, nbRows, boxSize, width, height } = this.game.map
-        for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
-        for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
-    }
-
-    update(time) {
-        if(mode == "move") this.updateMove()
-        else if(mode == "wall") this.updateWall()
-        else if(mode == "entity") this.updateEntity()
-    }
-
-    updateMove() {
-        const { pointer } = this.game
-        if(pointer.isDown) {
-            if(!this.moveOrig) this.moveOrig = {
-                pointerX: pointer.x,
-                pointerY: pointer.y,
-                thisX: this.translation.x,
-                thisY: this.translation.y,
-            }
-            this.translation.x = this.moveOrig.thisX + pointer.x - this.moveOrig.pointerX
-            this.translation.x = min(0, max(this.game.width - mapWidth, this.translation.x))
-            this.translation.y = this.moveOrig.thisY + pointer.y - this.moveOrig.pointerY
-            this.translation.y = min(0, max(this.game.height - mapHeight, this.translation.y))
-        } else {
-            this.moveOrig = null
-        }
-    }
-
-    updateWall() {
-        const { pointer } = this.game
-        const { boxSize, walls } = this.game.map
-        if(pointer.isDown) {
-            const boxX = floor((pointer.x - this.translation.x) / boxSize)
-            const boxY = floor((pointer.y - this.translation.y) / boxSize)
-
-            const prevBox = walls[boxX][boxY]
-            if(this.currentWallKey === null) this.currentWallKey = prevBox ? 0 : "W"
-            // case delete
-            if(this.currentWallKey === 0) {
-                if(prevBox !== null) {
-                    prevBox.remove()
-                    walls[boxX][boxY] = null
-                }
-                return
-            }
-            // case new box
-            if(prevBox !== null && this.currentWallKey == prevBox.key) return
-            this.addWall(boxX, boxY, this.currentWallKey)
-            walls[boxX][boxY] = this.currentWallKey
-        } else {
-            this.currentWallKey = null
-        }
-    }
-
-    updateEntity() {
-        const { pointer } = this.game
-        if(pointer.isDown && !pointer.prevIsDown) {
-            const x = pointer.x - this.translation.x
-            const y = pointer.y - this.translation.y
-            const ent = this.addEntity(x, y, modeKey)
-            ent.mapRef = { x, y, key: modeKey }
-            this.game.map.entities.push(ent.mapRef)
-        }
-    }
-}
-
-
-// GAME //////////////////////////
-
-class Game extends Two {
-
-    constructor(gameWrapperEl, map) {
-        super({
-            type: Two.Types.canvas,
-            width: min(map.width, CANVAS_MAX_WIDTH),
-            height: min(map.height, CANVAS_MAX_HEIGHT),
-        })
-        this.renderer.domElement.style.outline = "2px solid grey"
-        this.appendTo(gameWrapperEl)
-
-        this.map = map
-
-        this.sceneGroup = addTo(this, new Two.Group())
-        this.setMainScene(new GameScene(this))
-
-        this.bind("update", (frameCount, timeDelta) => {
-            const time = frameCount / FPS
-            this.mainScene.update(time)
-        })
-
-        this.keysPressed = {}
-        document.addEventListener('keydown', evt => {this.keysPressed[evt.key] = true})
-        document.addEventListener('keyup', evt => delete this.keysPressed[evt.key])
-        
-        this.play()
-    }
-
-    setMainScene(scn) {
-        if(this.mainScene !== undefined) this.mainScene.remove()
-        this.mainScene = addTo(this.sceneGroup, scn)
-    }
-}
-
-class GameScene extends CommonScene {
-    constructor(game) {
-        super(game)
-        for(let ent of this.entities.children) if(ent instanceof Hero) this.initHero(ent)
-        this.step = "GAME"
-    }
-
-    initHero(hero) {
-        this.hero = hero
-        this.hearts = []
-        for(let i=0; i<hero.life; ++i)
-            this.hearts.push(addTo(this, new Heart(i)))
-    }
-
-    syncHearts() {
-        for(let i=0; i<this.hearts.length; ++i) {
-            const heart = this.hearts[i]
-            heart.setFull(this.hero.life > i)
-        }
-
-    }
-
-    update(time) {
-        this.applyPhysics(time)
-        this.entities.children.forEach(e => e.update(time))
-    }
-
-    applyPhysics(time) {
-        const { nbRows, nbCols, boxSize, walls } = this.game.map
-        const { getHitBox } = utils
-        for(let ent of this.entities.children) {
-            // gravity
-            ent.speedY += GRAVITY / FPS
-            // speed & collisions
-            //const entX = ent.translation.x, entY = ent.translation.y
-            //const rect = ent.getBoundingClientRect()
-            //const entW = rect.width/2, entH = rect.height/2
-            const { left: entX, top: entY, width: entW, height: entH } = getHitBox(ent)
-            const dx = ent.speedX / FPS, dy = ent.speedY / FPS
-            ent.speedResX = 0; ent.speedResY = 0
-            if(dx > 0) {
-                let blocked = false
-                if(ent.stoppedByWalls) {
-                    const bx1 = max(0, min(nbCols-1, ceil((entX + entW/2) / boxSize)))
-                    const bx2 = max(0, min(nbCols-1, floor((entX + entW + dx) / boxSize)))
-                    for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
-                        const ddx = max(0, (bx * boxSize) - (entX + entW))
-                        const ddy = dy * ddx / dx
-                        const by1 = max(0, min(nbRows-1, floor((entY+ddy+1) / boxSize)))
-                        const by2 = max(0, min(nbRows-1, floor((entY+entH+ddy-1) / boxSize)))
-                        for(let by=by1; !blocked && by<=by2; ++by) {
-                            blocked = (walls[bx][by] !== null)
-                        }
-                        if(blocked) {
-                            ent.translation.x += ddx
-                            ent.speedX = 0
-                            ent.speedResX = ddx - dx
-                        }
-                    }
-                }
-                if(!blocked) ent.translation.x += dx
-            }
-            else if(dx < 0) {
-                let blocked = false
-                if(ent.stoppedByWalls) {
-                    const bx1 = max(0, min(nbCols-1, floor((entX + entW/2) / boxSize) - 1))
-                    const bx2 = max(0, min(nbCols-1, ceil((entX + dx) / boxSize) - 1))
-                    for(let bx=bx1; !blocked && bx>=bx2; --bx) {
-                        const ddx = min(0, ((bx+1) * boxSize) - entX)
-                        const ddy = dy * ddx / dx
-                        const by1 = max(0, min(nbRows-1, floor((entY+ddy+1) / boxSize)))
-                        const by2 = max(0, min(nbRows-1, floor((entY+entH+ddy-1) / boxSize)))
-                        for(let by=by1; !blocked && by<=by2; ++by) {
-                            blocked = (walls[bx][by] !== null)
-                        }
-                        if(blocked) {
-                            ent.translation.x += ddx
-                            ent.speedX = 0
-                            ent.speedResX = ddx - dx
-                        }
-                    }
-                }
-                if(!blocked) ent.translation.x += dx
-            }
-            if(dy > 0) {
-                let blocked = false
-                if(ent.stoppedByWalls) {
-                    const by1 = max(0, min(nbRows-1, ceil((entY + entH/2) / boxSize)))
-                    const by2 = max(0, min(nbRows-1, floor((entY + entH + dy) / boxSize)))
-                    for(let by=by1; !blocked && by<=by2; ++by) {
-                        const ddy = max(0, (by * boxSize) - (entY + entH))
-                        const ddx = dx * ddy / dy
-                        const bx1 = max(0, min(nbCols-1, floor((entX+ddx+1) / boxSize)))
-                        const bx2 = max(0, min(nbCols-1, floor((entX+entW+ddx-1) / boxSize)))
-                        for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
-                            blocked = (walls[bx][by] !== null)
-                        }
-                        if(blocked) {
-                            ent.translation.y += ddy
-                            ent.speedY = 0
-                            ent.speedResY = ddy - dy
-                        }
-                    }
-                }
-                if(!blocked) ent.translation.y += dy
-            }
-            else if(dy < 0) {
-                let blocked = false
-                if(ent.stoppedByWalls) {
-                    const by1 = max(0, min(nbRows-1, floor((entY + entH/2) / boxSize) - 1))
-                    const by2 = max(0, min(nbRows-1, ceil((entY + dy) / boxSize) - 1))
-                    for(let by=by1; !blocked && by>=by2; --by) {
-                        const ddy = min(0, ((by+1) * boxSize) - entY)
-                        const ddx = dx * ddy / dy
-                        const bx1 = max(0, min(nbCols-1, floor((entX+ddx+1) / boxSize)))
-                        const bx2 = max(0, min(nbCols-1, floor((entX+entW+ddx-1) / boxSize)))
-                        for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
-                            blocked = (walls[bx][by] !== null)
-                        }
-                        if(blocked) {
-                            ent.translation.y += ddy
-                            ent.speedY = 0
-                            ent.speedResY = ddy - dy
-                        }
-                    }
-                }
-                if(!blocked) ent.translation.y += dy
-            }
-        }
-    }
-
-    setStepGameOver() {
-        if(this.step == "GAMEOVER") return
-        this.step = "GAMEOVER"
-        addTo(this, new Two.Text(
-            "GAME OVER",
-            game.width/2 - this.translation.x, game.height/2 - this.translation.y,
-            { size: 50 }
-        ))
-    }
-}
-
-// ENTITIES ///////////////////////////////////
-
-const Entities = {}
-
-class Entity extends Two.Group {
-    constructor(scn, x, y) {
-        super()
-        this.scene = scn
-        this.game = scn.game
-        this.translation.x = x
-        this.translation.y = y
-        this.speedX = 0
-        this.speedY = 0
-        this.speedResX = 0
-        this.speedResY = 0
-        this.stoppedByWalls = true
-    }
-}
-
-class Hero extends Entity {
-    constructor(...args) {
-        super(...args)
-        this.life = 3
-        this.damageLastTime = -3
-    }
-
-    update(time) {
-        this.time = time
-        if(this.life == 0 || this.isDamageable()) this.opacity = 1
-        else this.opacity = floor(time * 100) % 2
-        if(this.life == 0) this.rotation += 4 * PI / FPS
-    }
-
-    isDamageable(force) {
-        return (this.damageLastTime + 3) < this.time
-    }
-
-    damage(val, damager, force) {
-        if(this.life == 0) return
-        if(!force && !this.isDamageable()) return
-        this.life = max(0, this.life - val)
-        this.scene.syncHearts()
-        if(this.life == 0) {
-            this.kill(damager)
-            this.scene.setStepGameOver()
-        } else {
-            this.damageLastTime = this.time
-            if(damager) {
-                this.speedY = -200
-                this.speedX = 200 * ((this.translation.x > damager.translation.x) ? 1 : -1)
-            }
-        }
-    }
-
-    kill(damager) {
-        if(damager) {
-            this.speedY = -500
-            this.speedX = 100 * ((damager && this.translation.x < damager.translation.x) ? -1 : 1)
-        }
-        this.stoppedByWalls = false
-    }
-}
-
-class Nico extends Hero {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.initPos = { x, y }
-        this.scale = new Two.Vector(1, 1)
-        this.img = addTo(this, new Two.Sprite(
-            "static/assets/nico_full.png",
-            0, 0,
-            4, 1,
-        ))
-        this.img.index = 0
-        this.img.scale = 50 / 148
-    }
-
-    update(time) {
-        super.update(time)
-        // controls
-        if(this.life > 0) {
-            const { keysPressed } = this.game
-            if(keysPressed["ArrowRight"]) this.speedX = sumTo(this.speedX, 1000 / FPS, 300)
-            else if(keysPressed["ArrowLeft"]) this.speedX = sumTo(this.speedX, 1000 / FPS, -300)
-            else this.speedX = sumTo(this.speedX, 1000 / FPS, 0)
-            if(this.speedResY < 0 && keysPressed["ArrowUp"]) this.speedY -= 500
-        }
-        // display
-        if(this.speedX > 0) this.scale.x = 1
-        else if(this.speedX < 0) this.scale.x = -1
-        if(this.speedResY == 0) this.img.index = 1
-        else if(this.speedX == 0) this.img.index = 0
-        else this.img.index = floor(1 + (time * 6) % 3)
-        // fall
-        if(this.position.y > this.game.map.height + 100) {
-            this.damage(1, null, true)
-            if(this.life > 0) this.respawn()
-        }
-    }
-
-    getHitBox() {
-        return {
-            left: this.translation.x - 20,
-            width: 40,
-            top: this.translation.y - 25,
-            height: 50,
-        }
-    }
-
-    respawn() {
-        this.translation.x = this.initPos.x
-        this.translation.y = this.initPos.y
-        this.speedX = 0
-        this.speedY = 0
-    }
-}
-Entities["nico"] = Nico
-
-
-class Zombi extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.scale = new Two.Vector(1, 1)
-        this.img = addTo(this, new Two.Sprite(
-            "static/assets/zombi.png",
-            0, 0,
-            8, 1,
-        ))
-        this.img.scale = 60 / 180
-        this.dir = 1
-    }
-
-    update(time) {
-        const { nbRows, nbCols, boxSize, walls } = this.game.map
-        // move
-        if(this.speedResX * this.dir < 0) this.dir *= -1
-        if(this.speedResY < 0) {
-            const { left, width, top, height } = this.getHitBox()
-            const wallAheadBy = ceil((top + height - 1) / boxSize)
-            const wallAheadBx = (this.dir > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
-            if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dir *= -1
-            this.speedX = this.dir * 2000 / FPS
-        }
-        // anim
-        this.img.index = floor((time * 6) % 8)
-        this.scale.x = this.dir
-        // attack
-        const { hero } = this.scene
-        if(hero && utils.checkHit(this, hero)) hero.damage(1, this)
-    }
-
-    getHitBox() {
-        return {
-            left: this.translation.x - 10,
-            width: 20,
-            top: this.translation.y - 30,
-            height: 60,
-        }
-    }
-}
-Entities["zombi"] = Zombi
-
-
-class Heart extends Two.Sprite {
-    constructor(num) {
-        super(
-            "static/assets/heart.png",
-            25 + 35 * num, 25,
-            2, 1,
-        )
-        this.scale = 30 / 50
-    }
-    setFull(isFull) {
-        this.index = isFull ? 0 : 1
-    }
-}
-
 
 function showBuilder() {
     gameWrapperEl.style.display = "none"
     if(game) game.playing = false
     if(!gameBuilder) gameBuilder = new GameBuilder(builderWrapperEl, map)
+    gameBuilder.play()
     builderWrapperEl.style.display = ""
 }
 
@@ -817,6 +157,7 @@ function startGame() {
         game = null
     }
     game = new Game(gameWrapperEl, map)
+    game.play()
     gameWrapperEl.style.display = ""
 }
 
