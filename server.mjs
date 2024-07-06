@@ -11,7 +11,7 @@ import express from "express"
 import bodyParser from 'body-parser'
 import { WebSocketServer } from 'ws'
 
-// import { Game } from './static/game.mjs'
+import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 
 // import Consts from './static/consts.mjs'
 
@@ -55,19 +55,19 @@ class GameServer {
     this.app.get("/room/:roomId/map", (req, res) => {
       const { roomId } = req.params
       const room = this.rooms[roomId]
-      if(!room || !room.map) return res.sendStatus(404)
+      if(!room || !room.mapBuf) return res.sendStatus(404)
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Length': room.map.length
+        'Content-Length': room.mapBuf.length
       })
-      res.end(room.map)
+      res.end(room.mapBuf)
     })
 
     this.app.post("/room/:roomId/map", octetStreamParser, (req, res) => {
       const { roomId } = req.params
       const room = this.rooms[roomId]
       if(room === undefined) return res.sendStatus(404)
-      room.map = Buffer.from(req.body)
+      room.mapBuf = req.body
       this.startGame(room)
       res.end()
     })
@@ -100,21 +100,18 @@ class GameServer {
     this.websocketServer = new WebSocketServer({ server: this.server })
 
     this.websocketServer.on('connection', ws => {
-
-      ws.id = this.generateClientId()
-      console.log(`Client '${ws.id}' connected`)
     
       ws.on('message', (data, isBinary) => {
         const msg = isBinary ? data : data.toString()
-        const key = msg.substring(0, Consts.MSG_KEY_LENGTH)
-        const body = msg.substring(Consts.MSG_KEY_LENGTH)
-        if(key === Consts.MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
-        //else if(key === Consts.MSG_KEYS.GAME_INPUT) this.onGameInput(ws, body)
-        // else if(key === Consts.MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
-        // else if(key === Consts.MSG_KEYS.IDENTIFY_GAME) this.onIdentifyGame(ws, JSON.parse(body))
-        else if(key === Consts.MSG_KEYS.IDENTIFY) this.handleIdentify(ws, JSON.parse(body))
-        else if(key === Consts.MSG_KEYS.START_GAME) this.handleStartGame(ws, JSON.parse(body))
-        else if(key === Consts.MSG_KEYS.DISCONNECT_PLAYER) this.handleDisconnectPlayer(ws, body)
+        const key = msg.substring(0, MSG_KEY_LENGTH)
+        const body = msg.substring(MSG_KEY_LENGTH)
+        if(key === MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
+        //else if(key === MSG_KEYS.GAME_INPUT) this.onGameInput(ws, body)
+        // else if(key === MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
+        else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
+        else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
+        // else if(key === MSG_KEYS.START_GAME) this.handleStartGame(ws, JSON.parse(body))
+        // else if(key === MSG_KEYS.DISCONNECT_PLAYER) this.handleDisconnectPlayer(ws, body)
         else console.warn("Unknown websocket key", key)
       })
     
@@ -147,42 +144,38 @@ class GameServer {
     return PROD ? floor(random() * 1000).toString() : numTry.toString()
   }
 
-  // onIdentifyGame(ws, kwargs) {
-  //   ws.type = "game"
-  //   const roomId = kwargs.id
-  //   ws.room = this.rooms[roomId] = new Room(
-  //     roomId, ws
-  //   )
-  //   console.log(`Room '${roomId}' created`)
-  // }
-
-  handleIdentify(ws, kwargs) {
-    if(ws.room) return
-    // ws.type = "player"
-    const { roomId, id: playerId, name, color } = kwargs
-    let room
-    if(!roomId) {
-      roomId = generateRoomId()
-      room = this.rooms[roomId] = new Room(roomId)
-    } else {
-      room = this.rooms[roomId]
-    }
+  handleIdentifyClient(ws, kwargs) {
+    const { roomId } = kwargs
+    const room = ws.room = this.rooms[roomId]
     if(!room || room.closed) { ws.close(); return }
-    ws.room = room
-    ws.playerId = playerId
+    ws.id = this.generateClientId()
+    room.websockets[ws.id] = ws
+    const suggestedName = room.nextPlayerName()
+    ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+      id: ws.id,
+      name: suggestedName,
+    }))
+    console.log(`Client '${ws.id}' connected`)
+  }
+
+  handleJoinGame(ws, kwargs) {
+    const { room } = ws
+    if(!room || room.closed) { ws.close(); return }
+    const { name, color } = kwargs
     ws.playerName = name
     ws.playerColor = color
-    room.playerWebsockets[ws.id] = ws
-    console.log(`Player '${ws.id}' connected to room '${roomId}' as '${playerId}'`)
-    // ws.send(Consts.MSG_KEYS.IDENTIFY_PLAYER + JSON.stringify({
+    if(room.game) room.game.addPlayer(ws.id, { name, color })
+    console.log(`Client '${ws.id}' joined game as '${name}'`)
+
+    // ws.send(MSG_KEYS.IDENTIFY_PLAYER + JSON.stringify({
     //   name: `Player${playerId}`,
     //   color: "blue"
     // }))
     // if(room.gameKey) {
-    //   ws.send(Consts.MSG_KEYS.START_GAME + JSON.stringify({
+    //   ws.send(MSG_KEYS.START_GAME + JSON.stringify({
     //     gameKey: room.gameKey
     //   }))
-    //   if(room.gameState) ws.send(Consts.MSG_KEYS.GAME_STATE + room.gameState)
+    //   if(room.gameState) ws.send(MSG_KEYS.GAME_STATE + room.gameState)
     // }
     // } else {
     //   // player chose its name and color
@@ -190,10 +183,17 @@ class GameServer {
     //   if(!room || room.closed) { ws.close(); return }
     //   if(kwargs.name) ws.name = kwargs.name
     //   if(kwargs.color) ws.color = kwargs.color
-    //   const msg = Consts.MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
+    //   const msg = MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
     //   room.sendToGame(msg)
     //   room.sendToPlayers(msg)
     // }
+  }
+
+  handlePlayerInput(ws, data) {
+    const { room } = ws
+    if(!room || room.closed) { ws.close(); return }
+    const { game } = room
+    if(game) game.setInputState(data)
   }
 
   // handleStartGame(ws, kwargs) {
@@ -204,13 +204,19 @@ class GameServer {
   //   // room.gameState = null
   //   room.game = new Game(null, map)
   //   // console.log(`Game of room '${room.id}' set to '${gameKey}'`)
-  //   // room.sendToPlayers(Consts.MSG_KEYS.START_GAME + JSON.stringify({
+  //   // room.sendToPlayers(MSG_KEYS.START_GAME + JSON.stringify({
   //   //   gameKey
   //   // }))
   // }
 
-  startGame(room) {
-    room.game = new Game(null, room.map)
+  async startGame(room) {
+    const map = new GameMap()
+    const mapBin = new Uint8Array(room.mapBuf)
+    await map.importFromBinary(mapBin)
+    room.game = new Game(null, map, {
+      sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr)
+    })
+    room.game.play()
   }
 
   // onClientDeconnection(ws) {
@@ -224,7 +230,7 @@ class GameServer {
   //   } else if(ws.type === "player") {
   //     delete room.playerWebsockets[ws.id]
   //     console.log(`Player '${ws.id}' left the room '${room.id}'`)
-  //     const msg = Consts.MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
+  //     const msg = MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
   //     room.sendToGame(msg)
   //     room.sendToPlayers(msg)
   //   }
@@ -233,20 +239,20 @@ class GameServer {
   // onJoypadInput(ws, body) {
   //   const { room } = ws
   //   if(!room || room.closed) { ws.close(); return }
-  //   room.sendToGame(Consts.MSG_KEYS.JOYPAD_INPUT + ws.id + ':' + body)
+  //   room.sendToGame(MSG_KEYS.JOYPAD_INPUT + ws.id + ':' + body)
   // }
 
   // onGameInput(ws, body) {
   //   const { room } = ws
   //   if(!room || room.closed) { ws.close(); return }
-  //   room.sendToPlayers(Consts.MSG_KEYS.GAME_INPUT + body)
+  //   room.sendToPlayers(MSG_KEYS.GAME_INPUT + body)
   // }
 
   // onGameState(ws, body) {
   //   const { room } = ws
   //   if(!room || room.closed) { ws.close(); return }
   //   room.gameState = body
-  //   room.sendToPlayers(Consts.MSG_KEYS.GAME_STATE + body)
+  //   room.sendToPlayers(MSG_KEYS.GAME_STATE + body)
   // }
 
   // onDisconnectPlayer(ws, playerId) {
@@ -257,6 +263,15 @@ class GameServer {
   //   playerWs.close()
   // }
 }
+
+// function toArrayBuffer(buffer) {
+//   const arrayBuffer = new ArrayBuffer(buffer.length)
+//   const view = new Uint8Array(arrayBuffer)
+//   for (let i = 0; i < buffer.length; ++i) {
+//     view[i] = buffer[i]
+//   }
+//   return arrayBuffer
+// }
 
 
 class Room {
@@ -269,10 +284,17 @@ class Room {
     // this.gameState = null
   }
 
-  generatePlayerId() {
-    const res = this.numPlayer.toString()
+  nextPlayerName() {
+    const res = `Player${this.numPlayer}`
     this.numPlayer += 1
     return res
+  }
+
+  sendAll(msg) {
+    const { websockets } = this
+    for(const wsId in websockets) {
+      websockets[wsId].send(msg)
+    }
   }
 
   // sendToGame(msg) {

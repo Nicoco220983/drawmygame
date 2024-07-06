@@ -106,7 +106,7 @@ document.getElementById("game_multi").onclick = async () => {
         method: "POST",
         body: new Blob([mapBin], {type: 'application/octet-stream'}),
     })
-    // window.location = `${window.location.origin}/r/${roomId}`
+    window.location = `${window.location.origin}/r/${roomId}`
 }
 
 const boxSizeEl = document.getElementById("map_box_size")

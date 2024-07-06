@@ -11,6 +11,19 @@ const MAP_DEFAULT_NB_COLS = 50
 const MAP_DEFAULT_NB_ROWS = 50
 const GRAVITY = 1000
 
+export const MSG_KEY_LENGTH = 3
+export const MSG_KEYS = {
+  JOIN_GAME: 'JOI',
+  IDENTIFY_CLIENT: 'IDC',
+  GAME_STATE: 'STT',
+  PLAYER_INPUT: 'INP',
+//   GAME_OVER: 'GOV',
+}
+
+const IS_SERVER_ENV = (typeof window === 'undefined')
+const SEND_STATE_PERIOD = 1
+const SEND_INPUT_STATE_PERIOD = .1
+
 
 // MAP
 
@@ -135,8 +148,8 @@ function safeB64ToBin(sb64) {
     })
 }
 
-// GAME UTILS ///////////////////////
 
+// GAME UTILS ///////////////////////
 
 function range(start, end) {
     const res = []
@@ -161,6 +174,8 @@ function waitLoads() {
     return Promise.all(Loads.map(_waitLoad))
 }
 
+class None {}
+const Image = (!IS_SERVER_ENV && window.Image) || None
 class Img extends Image {
     constructor(src) {
         super()
@@ -178,7 +193,7 @@ class SpriteSheet {
         this.nbRows = nbRows
         this.frames = []
         assign(this, kwargs)
-        this.load()
+        if(!IS_SERVER_ENV) this.load()
     }
     async load() {
         if (this.loaded) return
@@ -223,6 +238,7 @@ class Sprite {
         return resImg
     }
 }
+
 
 // BUILDER //////////////////////////
 
@@ -273,6 +289,18 @@ class Entity {
     remove() {
         this.removed = true
     }
+
+    toState() {
+        const state = this.state ||= {}
+        state.x = this.x
+        state.y = this.y
+        return state
+    }
+
+    fromState(state) {
+        this.x = state.x
+        this.y = state.y
+    }
 }
 
 Entity.spriteFit = function() {
@@ -314,6 +342,7 @@ Entity.spriteFitHeight = function() {
 }
 
 function newTextCanvas(text, kwargs) {
+    if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
     ctx.fillStyle = "black"
@@ -344,29 +373,76 @@ class Text extends Entity {
     }
 }
 
-class Group extends Array {
+// class Group extends Array {
+
+//     constructor(scn) {
+//         super()
+//         this.x = 0
+//         this.y = 0
+//         this.scene = scn
+//         this.game = scn.game
+//     }
+
+//     add(item) {
+//         this.push(item)
+//         return item
+//     }
+
+//     cleanRemoved() {
+//         let j = 0
+//         this.forEach((item, i) => {
+//             if(item.removed) return
+//             if(i !== j) this[j] = item
+//             j++
+//         })
+//         this.length = j
+//     }
+
+//     update(time) {
+//         this.forEach(ent => ent.update(time))
+//     }
+
+//     drawTo(gameCtx) {
+//         this.cleanRemoved()
+//         const x = ~~this.x, y = ~~this.y
+//         gameCtx.translate(x, y)
+//         this.forEach(ent => ent.drawTo(gameCtx))
+//         gameCtx.translate(-x, -y)
+//     }
+// }
+
+class Group {
 
     constructor(scn) {
-        super()
         this.x = 0
         this.y = 0
         this.scene = scn
         this.game = scn.game
+        this.items = {}
+        this.lastAutoId = -1
     }
 
-    add(item) {
-        this.push(item)
+    nextAutoId() {
+        this.lastAutoId += 1
+        return this.lastAutoId
+    }
+
+    add(arg1, arg2) {
+        let id, item
+        if(arg2 === undefined) { id = this.nextAutoId(); item = arg1 }
+        else { id = arg1; item = arg2 }
+        this.items[id] = item
         return item
     }
 
+    forEach(next) {
+        const { items } = this
+        for(let key in items) next(items[key])
+    }
+
     cleanRemoved() {
-        let j = 0
-        this.forEach((item, i) => {
-            if(item.removed) return
-            if(i !== j) this[j] = item
-            j++
-        })
-        this.length = j
+        const { items } = this
+        for(let key in items) if(items[key].removed) delete items[key]
     }
 
     update(time) {
@@ -380,17 +456,49 @@ class Group extends Array {
         this.forEach(ent => ent.drawTo(gameCtx))
         gameCtx.translate(-x, -y)
     }
+
+    toState() {
+        const { items } = this
+        const res = {}
+        for(let key in items) res[key] = items[key].toState()
+        return res
+    }
+
+    fromState(state) {
+        const { items } = this
+        for(let key in state) items[key].fromState(state[key])
+        for(let key in items) if(!state[key]) items[key].remove()
+    }
+
+    getInputState() {
+        const res = {}
+        const { items } = this
+        for(let key in items) {
+            const item = items[key]
+            const inputState = item.getInputState && item.getInputState()
+            res[key] = inputState
+        }
+        return res
+    }
+
+    setInputState(inputState) {
+        const { items } = this
+        for(let key in inputState) items[key].setInputState(inputState[key])
+    }
 }
 
-class CommonGame {
+class GameCommon {
 
     constructor(wrapperEl, map) {
-        this.canvas = document.createElement("canvas")
-        this.offscreenCanvas = document.createElement("canvas")
-        assign(this.canvas.style, {
-            outline: "2px solid grey"
-        })
-        wrapperEl.appendChild(this.canvas)
+        this.isServerEnv = IS_SERVER_ENV
+        if(!this.isServerEnv) {
+            this.canvas = document.createElement("canvas")
+            this.offscreenCanvas = document.createElement("canvas")
+            assign(this.canvas.style, {
+                outline: "2px solid grey"
+            })
+            wrapperEl.appendChild(this.canvas)
+        }
 
         this.game = this
         this.map = map
@@ -403,19 +511,12 @@ class CommonGame {
         this.mainScene = scn
     }
 
-    play() {
-        const beginTime = Date.now() / 1000
-        setInterval(() => {
-            this.update(Date.now() / 1000 - beginTime)
-            this.draw()
-        }, 1000 / FPS)
-    }
-
     update(time) {
         this.mainScene.update(time)
     }
 
     draw() {
+        if(this.isServerEnv) return
         const bkgCtx = this.offscreenCanvas.getContext("2d")
         bkgCtx.fillStyle = "white"
         bkgCtx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height)
@@ -432,13 +533,15 @@ class CommonGame {
         const width = min(this.map.width, CANVAS_MAX_WIDTH)
         const height = min(this.map.height, CANVAS_MAX_HEIGHT)
         assign(this, { width, height })
-        assign(this.canvas, { width, height })
-        assign(this.offscreenCanvas, { width, height })
+        if(!this.isServerEnv) {
+            assign(this.canvas, { width, height })
+            assign(this.offscreenCanvas, { width, height })
+        }
         if(this.mainScene) this.mainScene.syncSize()
     }
 }
 
-export class GameBuilder extends CommonGame {
+export class GameBuilder extends GameCommon {
 
     constructor(wrapperEl, map) {
         super(wrapperEl, map)
@@ -453,6 +556,14 @@ export class GameBuilder extends CommonGame {
         this.setMainScene(new BuilderScene(this))
     }
 
+    play() {
+        const beginTime = Date.now() / 1000
+        setInterval(() => {
+            this.update(Date.now() / 1000 - beginTime)
+            this.draw()
+        }, 1000 / FPS)
+    }
+
     update(time) {
         super.update(time)
         this.pointer.prevIsDown = this.pointer.isDown
@@ -465,7 +576,7 @@ export class GameBuilder extends CommonGame {
     }
 }
 
-class CommonScene {
+class SceneCommon {
 
     constructor(game) {
         this.game = game
@@ -528,7 +639,7 @@ class Wall extends Entity {
     }
 }
 
-class BuilderScene extends CommonScene {
+class BuilderScene extends SceneCommon {
 
     syncSize() {
         super.syncSize()
@@ -615,13 +726,13 @@ class BuilderScene extends CommonScene {
         if(pointer.isDown && !pointer.prevIsDown) {
             const x = pointer.x - this.x
             const y = pointer.y - this.y
-            for(let ent of this.entities) {
+            this.entities.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
                     ent.remove()
                     map.entities.splice(map.entities.indexOf(ent.mapRef), 1)
                 }
-            }
+            })
         }
     }
 
@@ -646,24 +757,82 @@ class BuilderScene extends CommonScene {
 
 // GAME //////////////////////////
 
-export class Game extends CommonGame {
+export class Game extends GameCommon {
 
-    constructor(wrapperEl, map) {
+    constructor(wrapperEl, map, kwargs) {
         super(wrapperEl, map)
+
+        this.players = {}
 
         this.setMainScene(new GameScene(this))
 
+        this.sendState = (kwargs && kwargs.sendState) || null
+        this.lastSendStateTime = -SEND_STATE_PERIOD
+
+        this.sendInputState = (kwargs && kwargs.sendInputState) || null
+        this.lastSendInputStateTime = -SEND_INPUT_STATE_PERIOD
+
         this.keysPressed = {}
-        document.addEventListener('keydown', evt => {this.keysPressed[evt.key] = true})
-        document.addEventListener('keyup', evt => delete this.keysPressed[evt.key])
+        if(!this.isServerEnv) {
+            document.addEventListener('keydown', evt => {this.keysPressed[evt.key] = true})
+            document.addEventListener('keyup', evt => delete this.keysPressed[evt.key])
+        }    
+    }
+
+    play() {
+        const beginTime = Date.now() / 1000
+        setInterval(() => {
+            const time = Date.now() / 1000 - beginTime
+            this.update(time)
+            if(this.sendState && time > this.lastSendStateTime + SEND_STATE_PERIOD) {
+                this.sendState(this.toState())
+                this.lastSendStateTime = time
+            }
+            if(this.sendInputState) {
+                const inputStateStr = this.getInputState()
+                if(this.prevInputStateStr || time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD) {
+                    this.sendInputState(inputStateStr)
+                    this.prevInputStateStr = inputStateStr
+                    this.lastSendInputStateTime = time
+                }
+            }
+            this.draw()
+        }, 1000 / FPS)
+    }
+
+    addPlayer(wsId, kwargs) {
+        this.players[wsId] = kwargs
+    }
+
+    toState() {
+        const state = this.state ||= {}
+        state.players = this.players
+        state.main = this.mainScene.toState()
+        return JSON.stringify(state)
+    }
+
+    fromState(stateStr) {
+        const state = JSON.parse(stateStr)
+        this.mainScene.fromState(state.main)
+    }
+
+    getInputState() {
+        const inputState = this.inputState ||= {}
+        inputState.main = this.mainScene.getInputState()
+        return JSON.stringify(inputState)
+    }
+
+    setInputState(inputStateStr) {
+        const inputState = JSON.parse(inputStateStr)
+        this.mainScene.setInputState(inputState.main)
     }
 }
 
-export class GameScene extends CommonScene {
+export class GameScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.notifs = new Group(this)
-        for(let ent of this.entities) if(ent instanceof Hero) this.initHero(ent)
+        this.entities.forEach(ent => { if(ent instanceof Hero) this.initHero(ent) })
         this.step = "GAME"
     }
 
@@ -676,11 +845,9 @@ export class GameScene extends CommonScene {
 
     syncHearts() {
         if(!this.hearts) return
-        for(let i=0; i<this.hearts.length; ++i) {
-            const heart = this.hearts[i]
-            heart.setFull(this.hero.life > i)
-        }
-
+        this.hearts.forEach(heart => {
+            heart.setFull(heart.num < this.hero.life)
+        })
     }
 
     update(time) {
@@ -698,7 +865,7 @@ export class GameScene extends CommonScene {
     applyPhysics(time) {
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         const { getHitBox } = utils
-        for(let ent of this.entities) {
+        this.entities.forEach(ent => {
             // gravity
             if(ent.undergoGravity) ent.speedY += GRAVITY / FPS
             // speed & collisions
@@ -793,7 +960,7 @@ export class GameScene extends CommonScene {
                 }
                 if(!blocked) ent.y += dy
             }
-        }
+        })
     }
 
     setStepGameOver() {
@@ -817,6 +984,26 @@ export class GameScene extends CommonScene {
             { font: "100px serif" },
         ))
     }
+
+    toState() {
+        const state = this.state ||= {}
+        state.entities = this.entities.toState()
+        return state
+    }
+
+    fromState(state) {
+        this.entities.fromState(state.entities)
+    }
+
+    getInputState() {
+        const inputState = this.inputState ||= {}
+        inputState.entities = this.entities.getInputState()
+        return inputState
+    }
+
+    setInputState(inputState) {
+        this.entities.setInputState(inputState.entities)
+    }
 }
 
 // ENTITIES ///////////////////////////////////
@@ -831,6 +1018,19 @@ class DynamicEntity extends Entity {
         this.speedResX = this.speedResY = 0
         this.undergoGravity = true
         this.undergoWalls = true
+    }
+
+    toState() {
+        const state = super.toState()
+        state.speedX = this.speedX
+        state.speedY = this.speedY
+        return state
+    }
+
+    fromState(state) {
+        super.fromState(state)
+        this.speedX = state.speedX
+        this.speedY = state.speedY
     }
 }
 
@@ -876,6 +1076,25 @@ class Hero extends DynamicEntity {
         }
         this.undergoWalls = false
     }
+
+    toState() {
+        const state = super.toState()
+        state.life = this.life
+        return state
+    }
+
+    fromState(state) {
+        super.fromState(state)
+        this.life = state.life
+    }
+
+    getInputState() {
+        return this.inputState
+    }
+
+    setInputState(inputState) {
+        this.inputState = inputState
+    }
 }
 
 const NicoSpriteSheet = new SpriteSheet("/static/assets/nico_full.png", 4, 1)
@@ -894,14 +1113,9 @@ class Nico extends Hero {
 
     update(time) {
         super.update(time)
-        // controls
-        if(this.life > 0) {
-            const { keysPressed } = this.game
-            if(keysPressed["ArrowRight"]) this.speedX = sumTo(this.speedX, 1000 / FPS, 300)
-            else if(keysPressed["ArrowLeft"]) this.speedX = sumTo(this.speedX, 1000 / FPS, -300)
-            else this.speedX = sumTo(this.speedX, 1000 / FPS, 0)
-            if(this.speedResY < 0 && keysPressed["ArrowUp"]) this.speedY -= 500
-        }
+        // inputs
+        this.updateInputState(time)
+        this.applyInputState(time)
         // display
         if(this.speedX > 0) this.dirX = 1
         else if(this.speedX < 0) this.dirX = -1
@@ -913,6 +1127,25 @@ class Nico extends Hero {
             this.damage(1, null, true)
             if(this.life > 0) this.respawn()
         }
+    }
+
+    updateInputState(time) {
+        if(this.game.isServerEnv || this.life <= 0) return
+        const { keysPressed } = this.game
+        this.inputState ||= {}
+        if(keysPressed["ArrowRight"]) this.inputState.walkX = 1
+        else if(keysPressed["ArrowLeft"]) this.inputState.walkX = -1
+        else this.inputState.walkX = 0
+        this.inputState.jump = (this.speedResY < 0 && keysPressed["ArrowUp"])
+    }
+
+    applyInputState(time) {
+        const { inputState } = this
+        if(!inputState) return
+        if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000/FPS, 300)
+        else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000/FPS, -300)
+        else this.speedX = sumTo(this.speedX, 500, 0)
+        if(inputState.jump) this.speedY = -500
     }
 
     getHitBox() {
@@ -929,6 +1162,17 @@ class Nico extends Hero {
         this.y = this.initPos.y
         this.speedX = 0
         this.speedY = 0
+    }
+
+    toState() {
+        const state = super.toState()
+        state.dirX = this.dirX
+        return state
+    }
+
+    fromState(state) {
+        super.fromState(state)
+        this.dirX = state.dirX
     }
 }
 Entities["nico"] = Nico
@@ -981,6 +1225,7 @@ const HeartSprites = range(0, 2).map(i => new Sprite(HeartSpriteSheet.getFrame(i
 class Heart extends Entity {
     constructor(scn, num) {
         super(scn, 25 + 35 * num, 25)
+        this.num = num
         this.width = this.height = 30
         this.sprite = HeartSprites[0]
     }

@@ -1,14 +1,16 @@
 const { assign } = Object
 const { min, max } = Math
 
-import Two from './two.min.mjs'
+const IS_SERVER_ENV = (typeof window === 'undefined')
+
+// import Two from './two.min.mjs'
 
 
-class Group extends Two.Group {
-    update(time) {
-        this.children.forEach(s => s.update && s.update(time))
-    }
-}
+// class Group extends Two.Group {
+//     update(time) {
+//         this.children.forEach(s => s.update && s.update(time))
+//     }
+// }
 
 
 // class GameAudio extends Audio {
@@ -114,6 +116,7 @@ function checkAllLoadsDone() {
 }
 
 function newCanvas(width, height, color) {
+    if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     canvas.width = width
     canvas.height = height
@@ -126,6 +129,7 @@ function newCanvas(width, height, color) {
 }
 
 function newCanvasFromSrc(src) {
+    if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     const img = document.createElement("img")
     img.onload = () => {
@@ -220,7 +224,7 @@ function sumTo(val, dv, target) {
 
 
 export {
-    Group,
+    // Group,
     // GameAudio,
     addTo,
     urlAbsPath,

@@ -31,9 +31,14 @@
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
+    <flexrow>
+        <input id="player_name" type="text">
+        <input id="player_color" type="color">
+        <button id="join">Join</button>
+    </flexrow>
     <flexcol id="game_wrapper"></flexcol>
 <script type="module">
-import { GameMap, Game } from '../static/game.mjs'
+import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -41,15 +46,43 @@ const urlParams = new URLSearchParams(urlQueryStr)
 const locPathnames = location.pathname.split('/')
 const roomId = locPathnames[locPathnames.length-1]
 
+document.getElementById("join").onclick = joinGame
+
 const gameWrapperEl = document.getElementById("game_wrapper")
 const map = new GameMap()
-let game = null
+let game = null, ws = null
 
 // main
 
 async function main() {
     await getMap() 
+    await connectToRoom()
     startGame()
+}
+
+
+function connectToRoom() {
+    return new Promise((ok, ko) => {
+        const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
+        ws = new WebSocket(`${socketProtocol}://${window.location.host}`)
+        ws.addEventListener('open', () => {
+            console.log('Connected to server !')
+            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId }))
+            ok()
+        })
+        ws.addEventListener('message', evt => {
+            const key = evt.data.substring(0, MSG_KEY_LENGTH)
+            const data = evt.data.substring(MSG_KEY_LENGTH)
+            if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data)
+            else if(key === MSG_KEYS.GAME_STATE) handleGameState(ws, data)
+            // else if(key === MSG_KEYS.GAME_OVER) onGameOver()
+        })
+        ws.addEventListener('close', () => {
+            console.log('Disconnected from server.')
+            // newDisconnectedForm(parentEl)
+        })
+        ws.addEventListener('error', console.error)
+    })
 }
 
 async function getMap() {
@@ -60,11 +93,36 @@ async function getMap() {
 
 function startGame() {
     if(game) {
-        game.playing = false
+        game.stop()
         gameWrapperEl.innerHTML = ""
-        game = null
     }
-    game = new Game(gameWrapperEl, map)
+    game = new Game(gameWrapperEl, map, {
+        sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr)
+    })
+    game.play()
+}
+
+function handleIdentifyClient(ws, data) {
+    const { id, name } = JSON.parse(data)
+    ws.id = id
+    ws.playerName = name
+    document.getElementById("player_name").value = name
+    console.log(`Identified as '${id}'.`)
+}
+
+function joinGame() {
+    if(!ws) return
+    const playerName = document.getElementById("player_name").value
+    const playrColor = document.getElementById("player_color").value
+    ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
+        name: playerName,
+        color: playrColor,
+    }))
+    console.log(`Joined as '${playerName}'.`)
+}
+
+function handleGameState(ws, data) {
+    game.fromState(data)
 }
 
 main()
