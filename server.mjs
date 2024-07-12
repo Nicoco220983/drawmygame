@@ -193,7 +193,7 @@ class GameServer {
     const { room } = ws
     if(!room || room.closed) { ws.close(); return }
     const { game } = room
-    if(game) game.setInputState(data)
+    if(game) game.setPlayerInputState(ws.id, data)
   }
 
   // handleStartGame(ws, kwargs) {
@@ -213,7 +213,7 @@ class GameServer {
     const map = new GameMap()
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
-    room.game = new Game(null, map, {
+    room.game = new Game(null, map, null, {
       sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr)
     })
     room.game.play()

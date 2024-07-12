@@ -62,7 +62,8 @@
     <flexcol id="builder_wrapper"></flexcol>
     <flexcol id="game_wrapper" style="display: none"></flexcol>
 <script type="module">
-import { GameMap, GameBuilder, Game } from './static/game.mjs'
+import { GameMap, Game } from './static/game.mjs'
+import { GameBuilder } from './static/builder.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -143,7 +144,7 @@ async function main() {
 
 function showBuilder() {
     gameWrapperEl.style.display = "none"
-    if(game) game.playing = false
+    if(game) game.stop()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderWrapperEl, map)
     gameBuilder.play()
     builderWrapperEl.style.display = ""
@@ -152,11 +153,16 @@ function showBuilder() {
 function startGame() {
     builderWrapperEl.style.display = "none"
     if(game) {
-        game.playing = false
+        game.stop()
         gameWrapperEl.innerHTML = ""
-        game = null
     }
-    game = new Game(gameWrapperEl, map)
+    const playerId = 0
+    game = new Game(gameWrapperEl, map, playerId)
+    game.addPlayer(playerId, {
+        name: null,
+        color: "blue",
+    })
+    game.showJoypadScene()
     game.play()
     gameWrapperEl.style.display = ""
 }

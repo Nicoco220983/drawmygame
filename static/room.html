@@ -68,12 +68,11 @@ function connectToRoom() {
         ws.addEventListener('open', () => {
             console.log('Connected to server !')
             ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId }))
-            ok()
         })
         ws.addEventListener('message', evt => {
             const key = evt.data.substring(0, MSG_KEY_LENGTH)
             const data = evt.data.substring(MSG_KEY_LENGTH)
-            if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data)
+            if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
             else if(key === MSG_KEYS.GAME_STATE) handleGameState(ws, data)
             // else if(key === MSG_KEYS.GAME_OVER) onGameOver()
         })
@@ -96,18 +95,19 @@ function startGame() {
         game.stop()
         gameWrapperEl.innerHTML = ""
     }
-    game = new Game(gameWrapperEl, map, {
+    game = new Game(gameWrapperEl, map, ws.id, {
         sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr)
     })
     game.play()
 }
 
-function handleIdentifyClient(ws, data) {
+function handleIdentifyClient(ws, data, next) {
     const { id, name } = JSON.parse(data)
     ws.id = id
     ws.playerName = name
     document.getElementById("player_name").value = name
     console.log(`Identified as '${id}'.`)
+    next()
 }
 
 function joinGame() {
@@ -122,7 +122,7 @@ function joinGame() {
 }
 
 function handleGameState(ws, data) {
-    game.fromState(data)
+    game.setState(data)
 }
 
 main()
