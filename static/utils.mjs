@@ -2,6 +2,7 @@ const { assign } = Object
 const { min, max } = Math
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
+const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 // import Two from './two.min.mjs'
 
@@ -65,6 +66,36 @@ function fitTwoToEl(two, wrapperEl, kwargs) {
         height: "100%",
         backgroundColor,
     })
+}
+
+
+export class Touches extends Array {
+    constructor(game) {
+        super()
+        const el = game.canvas
+
+        const _updTouches = (evtTouches) => {
+            this.length = 0
+            const rect = el.getBoundingClientRect()
+            for(let evtTouch of evtTouches) {
+                this.push({
+                    x: (evtTouch.clientX - rect.left) * el.width / rect.width,
+                    y: (evtTouch.clientY - rect.top) * el.height / rect.height,
+                })
+            }
+        }
+
+        if(HAS_TOUCH) {
+            el.addEventListener("touchmove", evt => _updTouches(evt.touches))
+            el.addEventListener("touchstart", evt => _updTouches(evt.touches))
+            document.addEventListener("touchend", evt => _updTouches(evt.touches))
+        } else {
+            let isDown = false
+            el.addEventListener("mousemove", evt => _updTouches(isDown ? [evt] : []))
+            el.addEventListener("mousedown", evt => { isDown = true; _updTouches([evt]) })
+            document.addEventListener("mouseup", evt => { isDown = false; _updTouches([]) })
+        }
+    }
 }
 
 

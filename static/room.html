@@ -36,6 +36,10 @@
         <input id="player_color" type="color">
         <button id="join">Join</button>
     </flexrow>
+    <flexrow>
+        <input id="show_game" type="checkbox">Show Game
+        <input id="show_joypad" type="checkbox">Show Joypad
+    </flexrow>
     <flexcol id="game_wrapper"></flexcol>
 <script type="module">
 import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
@@ -51,6 +55,16 @@ document.getElementById("join").onclick = joinGame
 const gameWrapperEl = document.getElementById("game_wrapper")
 const map = new GameMap()
 let game = null, ws = null
+
+const showGameEl = document.getElementById("show_game")
+showGameEl.onchange = () => game.showGameScene(showGameEl.checked)
+const showJoypadEl = document.getElementById("show_joypad")
+showJoypadEl.onchange = () => game.showJoypadScene(showJoypadEl.checked)
+function syncShows() {
+    if(!game) return
+    showGameEl.checked = Boolean(game.mainScene)
+    showJoypadEl.checked = Boolean(game.joypadScene)
+}
 
 // main
 
@@ -122,7 +136,7 @@ function joinGame() {
 }
 
 function handleGameState(ws, data) {
-    game.setState(data)
+    game.receiveState(data)
 }
 
 main()

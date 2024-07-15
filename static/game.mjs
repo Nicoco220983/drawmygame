@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, Touches } = utils
 
 export const FPS = 60
 const CANVAS_MAX_WIDTH = 800
@@ -22,7 +22,7 @@ export const MSG_KEYS = {
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
 const SEND_STATE_PERIOD = 1
-const SEND_INPUT_STATE_PERIOD = .1
+const SEND_INPUT_STATE_PERIOD = .5
 
 
 // MAP
@@ -227,7 +227,7 @@ class SpriteSheet {
         const frames = this.frames
         while (frames.length <= num) {
             const can = newCanvas(0, 0)
-            can._loading = true
+            if(can) can._loading = true
             frames.push(can)
         }
         return frames[num]
@@ -301,6 +301,17 @@ export class Entity {
             top: y - height/2,
             height,
         }
+    }
+
+    checkHitTouches() {
+        let { left, width, top, height } = this.getHitBox()
+        left += this.scene.x
+        top += this.scene.y
+        for(let touch of this.game.touches) {
+            const { x: touchX, y: touchY } = touch
+            if(left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
+        }
+        return false
     }
 
     remove() {
@@ -384,6 +395,7 @@ class Text extends Entity {
     }
 
     updateText(text) {
+        if(this.game.isServerEnv) return
         const canvas = newTextCanvas(text, this.textArgs)
         this.width = canvas.width
         this.height = canvas.height
@@ -477,7 +489,7 @@ export class GameCommon {
         }
 
         this.game = this
-        this.map = map
+        this.initMap(map)
 
         this.syncSize()
     }
@@ -488,38 +500,58 @@ export class GameCommon {
         this.pointer.prevIsDown = false
     }
 
-    setMainScene(scn) {
-        if(this.mainScene !== undefined) this.mainScene.remove()
-        this.mainScene = scn
+    initTouches() {
+        if(this.touches) return
+        this.touches = new Touches(this)
+    }
+
+    initMap(map) {
+        this.map = map
+        this.map.entities.forEach(mapEnt => {
+            const { key } = mapEnt
+            const cls = Entities[key]
+            if(cls.prototype instanceof Hero) this.mapHero = mapEnt
+        })
     }
 
     update(time) {
-        this.mainScene.update(time)
+        if(this.mainScene) this.mainScene.update(time)
         if(this.joypadScene) this.joypadScene.update(time)
     }
 
     draw() {
         if(this.isServerEnv) return
-        this.mainScene.draw()
+        if(this.mainScene) this.mainScene.draw()
         if(this.joypadScene) this.joypadScene.draw()
         const ctx = this.canvas.getContext("2d")
-        ctx.drawImage(this.mainScene.canvas, 0, 0)
-        if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.gameCanvasHeight)
+        if(this.mainScene) ctx.drawImage(this.mainScene.canvas, 0, this.mainScene.y)
+        if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.joypadScene.y)
     }
 
     syncSize() {
-        this.gameCanvasWidth = this.joypadCanvasWidth = min(this.map.width, CANVAS_MAX_WIDTH)
-        this.gameCanvasHeight = min(this.map.height, CANVAS_MAX_HEIGHT)
-        this.joypadCanvasHeight = 200;
+        const width = min(this.map.width, CANVAS_MAX_WIDTH)
+        if(this.mainScene) this.mainScene.setPosAndSize(
+            0,
+            0,
+            width,
+            min(this.map.height, CANVAS_MAX_HEIGHT),
+        )
+        if(this.joypadScene) this.joypadScene.setPosAndSize(
+            0,
+            this.mainScene ? this.mainScene.height : 0,
+            width,
+            200,
+        )
         assign(this, {
-            width: this.gameCanvasWidth,
-            height: this.gameCanvasHeight + (this.joypadScene ? this.joypadCanvasHeight : 0)
+            width,
+            height: (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0)
         })
         if(!this.isServerEnv) {
-            assign(this.canvas, { width: this.width, height: this.height })
+            assign(this.canvas, {
+                width: this.width,
+                height: this.height
+            })
         }
-        if(this.mainScene) this.mainScene.syncSize()
-        if(this.joypadScene) this.joypadScene.syncSize()
     }
 }
 
@@ -529,24 +561,23 @@ export class SceneCommon {
         this.game = game
         this.x = 0
         this.y = 0
+        this.width = 100
+        this.height = 100
         this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
-        this.syncSize()
         this.walls = new Group(this)
         this.entities = new Group(this)
         this.initWalls()
         this.initEntities()
     }
 
-    syncSize() {
-        const { width, height } = this.game.map
-        this.width = width
-        this.height = height
+    setPosAndSize(x, y, width, height) {
+        assign(this, { x, y, width, height })
         if(this.canvas) {
-            this.canvas.width = this.game.gameCanvasWidth
-            this.canvas.height = this.game.gameCanvasHeight
+            this.canvas.width = width
+            this.canvas.height = height
         }
     }
 
@@ -628,7 +659,7 @@ export class Game extends GameCommon {
         this.players = {}
         this.localPlayerId = playerId
 
-        this.setMainScene(new GameScene(this))
+        this.showGameScene(true)
 
         this.sendState = (kwargs && kwargs.sendState) || null
         this.lastSendStateTime = -SEND_STATE_PERIOD
@@ -649,24 +680,14 @@ export class Game extends GameCommon {
         const beginTime = now()
         this.gameLoop = setInterval(() => {
             const time = now() - beginTime
+            let inputState = null
+            if(!this.isServerEnv) {
+                inputState = this.getInputState()
+                if(!this.sendInputState) this.setLocalHeroInputState(inputState)
+            }
             this.update(time)
-            if(this.sendState) {
-                if(time > this.lastSendStateTime + SEND_STATE_PERIOD) {
-                    this.sendState(this.getState(true))
-                    this.lastSendStateTime = time
-                } else {
-                    const stateStr = this.getState(false)
-                    if(stateStr) this.sendState(stateStr)
-                }
-            }
-            if(this.sendInputState) {
-                const inputStateStr = this.getLocalPlayerInputState()
-                if(this.prevInputStateStr != inputStateStr || (inputStateStr && time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
-                    this.sendInputState(inputStateStr)
-                    this.prevInputStateStr = inputStateStr
-                    this.lastSendInputStateTime = time
-                }
-            }
+            if(this.sendState) this.getAndMaySendState(time)
+            if(this.sendInputState) this.getAndMaySendInputState(inputState, time)
             this.draw()
         }, 1000 / FPS)
     }
@@ -678,7 +699,7 @@ export class Game extends GameCommon {
 
     addPlayer(playerId, kwargs) {
         this.players[playerId] = kwargs
-        this.mainScene.addPlayer(playerId)
+        if(this.mainScene) this.mainScene.addPlayer(playerId)
     }
 
     isKeyPressed(key) {
@@ -692,39 +713,77 @@ export class Game extends GameCommon {
     getState(isFull) {
         const state = this.state ||= {}
         state._full = isFull
-        const players = state.players = this.players
+        const players = state.players = isFull ? this.players : null
         const main = state.main = this.mainScene.getState(isFull)
         return (isFull || players || main) ? JSON.stringify(state) : null
     }
 
-    setState(stateStr) {
+    receiveState(stateStr) {
+        console.log("TMP receiveState", stateStr)
         const state = JSON.parse(stateStr)
         if(state.players || state._full) this.players = state.players
-        this.mainScene.setState(state ? state.main : null, state ? state._full : false)
+        if(this.mainScene) this.mainScene.setState(state ? state.main : null, state ? state._full : false)
     }
 
-    getLocalPlayerInputState() {
-        const hero = this.mainScene.getHero(this.localPlayerId)
-        if(!hero) return null
-        const inputState = hero.getInputState()
-        return inputState ? JSON.stringify(inputState) : ""
+    getAndMaySendState(time) {
+        if(time > this.lastSendStateTime + SEND_STATE_PERIOD) {
+            this.sendState(this.getState(true))
+            this.lastSendStateTime = time
+        } else {
+            const stateStr = this.getState(false)
+            if(stateStr) this.sendState(stateStr)
+        }
     }
 
-    setPlayerInputState(playerId, inputStateStr) {
+    getInputState() {
+        const { mapHero } = this
+        if(!mapHero) return null
+        const heroCls = Entities[mapHero.key]
+        return heroCls.getInputState(this)
+    }
+
+    getAndMaySendInputState(inputState, time) {
+        const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
+        if(this.prevInputStateStr != inputStateStr || (inputStateStr && time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
+            console.log("TMP sendInputState", inputStateStr)
+            this.sendInputState(inputStateStr)
+            this.prevInputStateStr = inputStateStr
+            this.lastSendInputStateTime = time
+        }
+    }
+
+    setLocalHeroInputState(inputState) {
+        const hero = this.mainScene && this.mainScene.getHero(this.localPlayerId)
+        if(hero) hero.setInputState(inputState)
+    }
+
+    receivePlayerInputState(playerId, inputStateStr) {
         const hero = this.mainScene.getHero(playerId)
         if(!hero) return
         const inputState = inputStateStr ? JSON.parse(inputStateStr) : null
         hero.setInputState(inputState)
     }
 
-    async showJoypadScene() {
-        const joypadMod = await import("./joypad.mjs")
-        if(this.joypadScene) return
-        this.initPointer()
-        const { JoypadScene } = joypadMod
-        this.joypadScene = new JoypadScene(this)
-        const localHero = this.mainScene.getHero(this.localPlayerId)
-        if(localHero) localHero.initJoypadButtons(this.joypadScene)
+    showGameScene(val) {
+        if(val == Boolean(this.mainScene)) return
+        this.mainScene = val ? new GameScene(this) : null
+        this.syncSize()
+    }
+
+    async showJoypadScene(val) {
+        if(val == Boolean(this.joypadScene)) return
+        if(val) {
+            const joypadMod = await import("./joypad.mjs")
+            if(this.joypadScene) return
+            this.initPointer()
+            this.initTouches()
+            const { JoypadScene } = joypadMod
+            this.joypadScene = new JoypadScene(this)
+            const localHero = this.mainScene.getHero(this.localPlayerId)
+            if(localHero) localHero.initJoypadButtons(this.joypadScene)
+        } else {
+            this.joypadScene = null
+        }
         this.syncSize()
     }
 }
@@ -742,18 +801,27 @@ export class GameScene extends SceneCommon {
         this.game.map.entities.forEach(mapEnt => {
             const { x, y, key } = mapEnt
             const cls = Entities[key]
-            if(cls.prototype instanceof Hero) this.mapHero = mapEnt
-            else this.addEntity(x, y, key)
+            if(!(cls.prototype instanceof Hero)) this.addEntity(x, y, key)
         })
     }
 
     addPlayer(playerId) {
-        if(!this.mapHero) return
-        const { x, y, key } = this.mapHero
+        const { mapHero } = this.game
+        if(!mapHero) return
+        const { x, y, key } = mapHero
         const cls = Entities[key]
         const heroId = this.entities.nextAutoId()
         this.entities.add(heroId, new cls(this, x, y))
         this.game.players[playerId].heroId = heroId
+    }
+
+    rmPlayer(playerId) {
+        const { heroId } = this.game.players[playerId]
+        if(heroId && this.mainScene) {
+            const hero = this.mainScene.getHero(hero)
+            hero.remove()
+        }
+        delete this.game.players[playerId]
     }
 
     getHero(playerId) {
@@ -918,7 +986,7 @@ export class GameScene extends SceneCommon {
         this.notifs.add(new Text(
             this,
             "GAME OVER",
-            this.game.width/2, this.game.height/2,
+            this.width/2, this.height/2,
             { font: "100px serif" },
         ))
     }
@@ -929,7 +997,7 @@ export class GameScene extends SceneCommon {
         this.notifs.add(new Text(
             this,
             "VICTORY !",
-            this.game.width/2, this.game.height/2,
+            this.width/2, this.height/2,
             { font: "100px serif" },
         ))
     }
@@ -1027,12 +1095,14 @@ export class Hero extends DynamicEntity {
     getState() {
         const state = super.getState()
         state.life = this.life
+        state.inputState = this.inputState
         return state
     }
 
     setState(state) {
         super.setState(state)
         this.life = state.life
+        this.inputState = state.inputState
     }
 
     getInputState() {
@@ -1044,6 +1114,7 @@ export class Hero extends DynamicEntity {
     setInputState(inputState) {
         this.inputState = inputState
         this.inputStateTime = now()
+        this._isStateToSend = true
     }
 
     initJoypadButtons(joypadScn) {}
@@ -1066,7 +1137,7 @@ class Nico extends Hero {
     update(time) {
         super.update(time)
         // inputs
-        this.updateInputState(time)
+        // this.updateInputState(time)
         this.applyInputState(time)
         // display
         if(this.speedX > 0) this.dirX = 1
@@ -1081,22 +1152,29 @@ class Nico extends Hero {
         }
     }
 
-    updateInputState(time) {
-        if(this.game.isServerEnv || !this.isLocalHero() || this.life <= 0) return
-        const { game } = this
-        const inputState = {}
+    static getInputState(game) {
+        // if(this.game.isServerEnv || !this.isLocalHero() || this.life <= 0) return
+        // const { game } = this
+        // const inputState = {}
+        // if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
+        // else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
+        // if(this.speedResY < 0 && game.isKeyPressed("ArrowUp")) inputState.jump = true
+        // this.setInputState(inputState)
+        const inputState = this._inputState ||= {}
         if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
         else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
-        if(this.speedResY < 0 && game.isKeyPressed("ArrowUp")) inputState.jump = true
-        this.setInputState(inputState)
+        else delete inputState.walkX
+        if(game.isKeyPressed("ArrowUp")) inputState.jump = true
+        else delete inputState.jump
+        return inputState
     }
 
     applyInputState(time) {
-        const inputState = this.getInputState()
+        const { inputState } = this
         if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 500, 0)
         else if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000/FPS, 300)
         else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000/FPS, -300)
-        if(inputState && inputState.jump) this.speedY = -500
+        if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
     }
 
     getHitBox() {
@@ -1172,7 +1250,7 @@ class Zombi extends Enemy {
         this.sprite = ZombiSprites[floor((time * 6) % 8)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(utils.checkHit(this, hero)) hero.damage(1, this)
+            if(checkHit(this, hero)) hero.damage(1, this)
         })
     }
 
@@ -1217,7 +1295,7 @@ class Star extends Entity {
     }
     update(time) {
         this.scene.getTeam("hero").forEach(hero => {
-            if(utils.checkHit(this, hero)) {
+            if(checkHit(this, hero)) {
                 this.remove()
                 this.scene.nbStars -= 1
                 if(this.scene.nbStars == 0) this.scene.setStepVictory()
