@@ -23,11 +23,6 @@
         .fill {
             flex: 1;
         }
-        /* #aspect_ratio_wrapper {
-            outline: 1px solid lightgrey;
-            width: 500px;
-            height: 500px;
-        } */
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
@@ -59,8 +54,11 @@
         </flexcol>
         <textarea id="game_url_val" style="width: 500px; height: 50px"></textarea>
     </flexrow>
-    <flexcol id="builder_wrapper"></flexcol>
-    <flexcol id="game_wrapper" style="display: none"></flexcol>
+    <flexrow>
+        <button id="fullscreen">Fullscreen</button>
+    </flexrow>
+    <flexcol id="builder"></flexcol>
+    <flexcol id="game" style="display: none"></flexcol>
 <script type="module">
 import { GameMap, Game } from './static/game.mjs'
 import { GameBuilder } from './static/builder.mjs'
@@ -68,8 +66,8 @@ import { GameBuilder } from './static/builder.mjs'
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
 
-const builderWrapperEl = document.getElementById("builder_wrapper")
-const gameWrapperEl = document.getElementById("game_wrapper")
+const builderParentEl = document.getElementById("builder")
+const gameParentEl = document.getElementById("game")
 let map = null, gameBuilder = null, game = null
 
 document.getElementById("mode_move").onclick = () => setMode('move')
@@ -127,6 +125,11 @@ function updSize() {
 }
 nbColsEl.onchange = nbRowsEl.onchange = updSize
 
+const fullscreenEl = document.getElementById("fullscreen")
+fullscreenEl.onclick = () => {
+    if(game) game.requestFullscreen()
+}
+
 // main
 
 async function main() {
@@ -143,28 +146,31 @@ async function main() {
 }
 
 function showBuilder() {
-    gameWrapperEl.style.display = "none"
-    if(game) game.stop()
-    if(!gameBuilder) gameBuilder = new GameBuilder(builderWrapperEl, map)
+    gameParentEl.style.display = "none"
+    if(game) {
+        game.stop()
+        game = null
+    }
+    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, map)
     gameBuilder.play()
-    builderWrapperEl.style.display = ""
+    builderParentEl.style.display = ""
 }
 
 function startGame() {
-    builderWrapperEl.style.display = "none"
+    builderParentEl.style.display = "none"
     if(game) {
         game.stop()
-        gameWrapperEl.innerHTML = ""
+        gameParentEl.innerHTML = ""
     }
     const playerId = 0
-    game = new Game(gameWrapperEl, map, playerId)
+    game = new Game(gameParentEl, map, playerId)
     game.addPlayer(playerId, {
         name: null,
         color: "blue",
     })
-    game.showJoypadScene(true)
+    // game.showJoypadScene(true)
     game.play()
-    gameWrapperEl.style.display = ""
+    gameParentEl.style.display = ""
 }
 
 main()

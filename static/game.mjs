@@ -478,14 +478,15 @@ export class Group {
 
 export class GameCommon {
 
-    constructor(wrapperEl, map) {
+    constructor(parentEl, map) {
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
+            this.parentEl = parentEl
             this.canvas = document.createElement("canvas")
             assign(this.canvas.style, {
                 outline: "2px solid grey"
             })
-            wrapperEl.appendChild(this.canvas)
+            parentEl.appendChild(this.canvas)
         }
 
         this.game = this
@@ -540,18 +541,24 @@ export class GameCommon {
             0,
             this.mainScene ? this.mainScene.height : 0,
             width,
-            200,
+            floor(width * 9 / 16),
         )
-        assign(this, {
-            width,
-            height: (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0)
-        })
+        const height = (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0)
+        assign(this, { width, height })
         if(!this.isServerEnv) {
-            assign(this.canvas, {
-                width: this.width,
-                height: this.height
+            assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
+            assign(this.canvas, { width, height })
+            const gameIsMoreLandscapeThanScreen = ((width / window.innerWidth) / (height / window.innerHeight)) >= 1
+            assign(this.canvas.style, {
+                width: gameIsMoreLandscapeThanScreen ? "100%" : null,
+                height: gameIsMoreLandscapeThanScreen ? null : "100%",
+                aspectRatio: width / height,
             })
         }
+    }
+
+    requestFullscreen() {
+        this.parentEl.requestFullscreen()
     }
 }
 
@@ -651,8 +658,8 @@ class Wall extends Entity {
 
 export class Game extends GameCommon {
 
-    constructor(wrapperEl, map, playerId, kwargs) {
-        super(wrapperEl, map)
+    constructor(parentEl, map, playerId, kwargs) {
+        super(parentEl, map)
 
         this.pointer = null
 
@@ -700,6 +707,15 @@ export class Game extends GameCommon {
     addPlayer(playerId, kwargs) {
         this.players[playerId] = kwargs
         if(this.mainScene) this.mainScene.addPlayer(playerId)
+    }
+
+    rmPlayer(playerId) {
+        const { heroId } = this.players[playerId]
+        if(heroId && this.mainScene) {
+            const hero = this.mainScene.getHero(hero)
+            hero.remove()
+        }
+        delete this.players[playerId]
     }
 
     isKeyPressed(key) {
@@ -813,15 +829,6 @@ export class GameScene extends SceneCommon {
         const heroId = this.entities.nextAutoId()
         this.entities.add(heroId, new cls(this, x, y))
         this.game.players[playerId].heroId = heroId
-    }
-
-    rmPlayer(playerId) {
-        const { heroId } = this.game.players[playerId]
-        if(heroId && this.mainScene) {
-            const hero = this.mainScene.getHero(hero)
-            hero.remove()
-        }
-        delete this.game.players[playerId]
     }
 
     getHero(playerId) {

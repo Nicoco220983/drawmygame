@@ -23,11 +23,6 @@
         .fill {
             flex: 1;
         }
-        /* #aspect_ratio_wrapper {
-            outline: 1px solid lightgrey;
-            width: 500px;
-            height: 500px;
-        } */
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
@@ -39,8 +34,9 @@
     <flexrow>
         <input id="show_game" type="checkbox">Show Game
         <input id="show_joypad" type="checkbox">Show Joypad
+        <button id="fullscreen">Fullscreen</button>
     </flexrow>
-    <flexcol id="game_wrapper"></flexcol>
+    <flexcol id="game"></flexcol>
 <script type="module">
 import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
@@ -52,7 +48,7 @@ const roomId = locPathnames[locPathnames.length-1]
 
 document.getElementById("join").onclick = joinGame
 
-const gameWrapperEl = document.getElementById("game_wrapper")
+const gameParentEl = document.getElementById("game")
 const map = new GameMap()
 let game = null, ws = null
 
@@ -66,12 +62,18 @@ function syncShows() {
     showJoypadEl.checked = Boolean(game.joypadScene)
 }
 
+const fullscrenEl = document.getElementById("fullscreen")
+fullscrenEl.onclick = () => {
+    if(game) game.requestFullscreen()
+}
+
 // main
 
 async function main() {
     await getMap() 
     await connectToRoom()
     startGame()
+    syncShows()
 }
 
 
@@ -107,9 +109,9 @@ async function getMap() {
 function startGame() {
     if(game) {
         game.stop()
-        gameWrapperEl.innerHTML = ""
+        gameParentEl.innerHTML = ""
     }
-    game = new Game(gameWrapperEl, map, ws.id, {
+    game = new Game(gameParentEl, map, ws.id, {
         sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr)
     })
     game.play()
