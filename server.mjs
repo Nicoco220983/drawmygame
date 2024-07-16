@@ -133,19 +133,31 @@ class GameServer {
     while(room === null) {
       const roomId = this.generateRoomId(it)
       if(this.rooms[roomId] === undefined) {
-        room = this.rooms[roomId] = new Room(roomId)
+        room = new Room(this, roomId)
       }
       it++
     }
-    setTimeout(() => {
-      if(!room.hasClients()) this.closeRoom(room)
-    }, 60 * 1000)
-    console.log(`Room '${room.id}' has been created`)
     return room.id
+  }
+
+  closeRoom(room) {
+    for(let wsId in room.websockets) room.websockets[wsId].close()
+    if(room.game) room.game.stop()
+    delete this.rooms[room.id]
+    room.closed = true
+    console.log(`Room '${room.id}' has been closed`)
   }
 
   generateRoomId(numTry) {
     return PROD ? floor(random() * 1000).toString() : numTry.toString()
+  }
+
+  registerRoom(room) {
+    this.rooms[room.id] = room
+  }
+
+  deregisterRoom(room) {
+    delete this.rooms[room.id]
   }
 
   handleIdentifyClient(ws, kwargs) {
@@ -229,22 +241,7 @@ class GameServer {
   handleClientDeconnection(ws) {
     const { room } = ws
     if(!room) { ws.close(); return }
-    if(room.closed) { room.closeClient(ws); return }
-    delete room.websockets[ws.id]
-    console.log(`Player '${ws.id}' left the room '${room.id}'`)
-    if(room.hasClients()) {
-      if(room.game) room.game.rmPlayer(ws.id)
-    } else {
-      this.closeRoom(room)
-    }
-  }
-
-  closeRoom(room) {
-    for(let wsId in room.websockets) room.websockets[wsId].close()
-    if(room.game) room.game.stop()
-    delete this.rooms[room.id]
-    room.closed = true
-    console.log(`Room '${room.id}' has been closed`)
+    room.closeClient(ws)
   }
 
   // onJoypadInput(ws, body) {
@@ -287,12 +284,16 @@ class GameServer {
 
 class Room {
 
-  constructor(id) {
+  constructor(server, id) {
+    this.server = server
     this.id = id
     this.numPlayer = 1
     this.websockets = {}
     // this.gameKey = null
     // this.gameState = null
+    this.server.registerRoom(this)
+    this.initCloseCountdown()
+    console.log(`Room '${this.id}' has been created`)
   }
 
   attachClient(ws) {
@@ -304,6 +305,9 @@ class Room {
     delete this.websockets[ws.id]
     delete ws.room
     ws.close()
+    if(this.game) this.game.rmPlayer(ws.id)
+    if(!this.hasClients()) this.initCloseCountdown()
+    console.log(`Player '${ws.id}' left the room '${this.id}'`)
   }
 
   hasClients() {
@@ -322,6 +326,25 @@ class Room {
     for(const wsId in websockets) {
       websockets[wsId].send(msg)
     }
+  }
+
+  initCloseCountdown() {
+    if(this.closed) return
+    const closeCountdownStartTime = this.closeCountdownStartTime = Date.now()
+    setTimeout(() => {
+      if(closeCountdownStartTime != this.closeCountdownStartTime) return
+      if(this.hasClients()) return
+      this.close()
+    }, 60 * 1000)
+  }
+
+  close() {
+    if(this.closed) return
+    for(let wsId in this.websockets) this.websockets[wsId].close()
+    if(this.game) this.game.stop()
+    this.server.deregisterRoom(this)
+    this.closed = true
+    console.log(`Room '${this.id}' has been closed`)
   }
 
   // sendToGame(msg) {

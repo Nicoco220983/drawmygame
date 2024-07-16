@@ -411,12 +411,16 @@ export class Group {
         this.scene = scn
         this.game = scn.game
         this.items = {}
-        this.lastAutoId = -1
+        this.lastAutoId = 0
     }
 
     nextAutoId() {
         this.lastAutoId += 1
         return this.lastAutoId
+    }
+
+    get(entId) {
+        return this.items[entId]
     }
 
     add(arg1, arg2) {
@@ -438,6 +442,7 @@ export class Group {
     }
 
     update(time) {
+        this.cleanRemoved()
         this.forEach(ent => ent.update(time))
     }
 
@@ -705,15 +710,32 @@ export class Game extends GameCommon {
     }
 
     addPlayer(playerId, kwargs) {
-        this.players[playerId] = kwargs
-        if(this.mainScene) this.mainScene.addPlayer(playerId)
+        const player = this.players[playerId] = kwargs
+        if(this.mainScene) {
+            const heroId = this.mainScene.addHero()
+            if(heroId) player.heroId = heroId
+        }
+    }
+
+    getHero(playerId) {
+        const player = this.players[playerId]
+        if(!player) return null
+        const { heroId } = player
+        if(!heroId) return null
+        if(!this.mainScene) return null
+        return this.mainScene.getHero(heroId)
+    }
+
+    getLocalHero() {
+        return this.getHero(this.localPlayerId)
     }
 
     rmPlayer(playerId) {
-        const { heroId } = this.players[playerId]
+        const player = this.players[playerId]
+        if(!player) return
+        const { heroId } = player
         if(heroId && this.mainScene) {
-            const hero = this.mainScene.getHero(hero)
-            hero.remove()
+            this.mainScene.rmHero(heroId)
         }
         delete this.players[playerId]
     }
@@ -769,12 +791,12 @@ export class Game extends GameCommon {
     }
 
     setLocalHeroInputState(inputState) {
-        const hero = this.mainScene && this.mainScene.getHero(this.localPlayerId)
+        const hero = this.mainScene && this.getHero(this.localPlayerId)
         if(hero) hero.setInputState(inputState)
     }
 
     receivePlayerInputState(playerId, inputStateStr) {
-        const hero = this.mainScene.getHero(playerId)
+        const hero = this.getHero(playerId)
         if(!hero) return
         const inputState = inputStateStr ? JSON.parse(inputStateStr) : null
         hero.setInputState(inputState)
@@ -795,7 +817,7 @@ export class Game extends GameCommon {
             this.initTouches()
             const { JoypadScene } = joypadMod
             this.joypadScene = new JoypadScene(this)
-            const localHero = this.mainScene.getHero(this.localPlayerId)
+            const localHero = this.getHero(this.localPlayerId)
             if(localHero) localHero.initJoypadButtons(this.joypadScene)
         } else {
             this.joypadScene = null
@@ -821,27 +843,28 @@ export class GameScene extends SceneCommon {
         })
     }
 
-    addPlayer(playerId) {
+    addHero() {
         const { mapHero } = this.game
         if(!mapHero) return
         const { x, y, key } = mapHero
         const cls = Entities[key]
         const heroId = this.entities.nextAutoId()
         this.entities.add(heroId, new cls(this, x, y))
-        this.game.players[playerId].heroId = heroId
+        return heroId
     }
 
-    getHero(playerId) {
-        const player = this.game.players[playerId]
-        if(!player) return null
-        const { heroId } = player
-        if(heroId === undefined) return null
-        return this.entities.items[heroId]
+    getHero(heroId) {
+        return this.entities.get(heroId)
+    }
+
+    rmHero(heroId) {
+        const hero = this.entities.get(heroId)
+        if(hero) hero.remove()
     }
 
     initLocalHero() {
         if(this.localHero) return
-        const hero = this.getHero(this.game.localPlayerId)
+        const hero = this.game.getLocalHero()
         if(!hero) return
         this.localHero = hero
         this.hearts = new Group(this)
