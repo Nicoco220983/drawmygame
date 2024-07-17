@@ -135,16 +135,24 @@ class BuilderScene extends SceneCommon {
 
     addEntity(x, y, key) {
         const ent = super.addEntity(x, y, key)
-        if(ent instanceof Hero) this.entities.forEach(ent2 => {
-            if(ent2 != ent && ent2 instanceof Hero) this.removeEntity(ent2)
-        })
+        if(ent instanceof Hero) {
+            this.entities.forEach(ent2 => {
+                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntity(ent2)
+            })
+            ent.mapRef = { x, y, keys: [key] }
+            this.game.map.heros = [ent.mapRef]
+        } else {
+            ent.mapRef = { x, y, key }
+            this.game.map.entities.push(ent.mapRef)
+        }
         return ent
     }
 
     removeEntity(ent) {
         const { map } = this.game
         ent.remove()
-        map.entities.splice(map.entities.indexOf(ent.mapRef), 1)
+        if(ent instanceof Hero) map.hero = null
+        else map.entities.splice(map.entities.indexOf(ent.mapRef), 1)
     }
 
     removePointedEntity() {
@@ -169,9 +177,7 @@ class BuilderScene extends SceneCommon {
             const touch = touches[0]
             const x = touch.x - this.x
             const y = touch.y - this.y
-            const ent = this.addEntity(x, y, modeKey)
-            ent.mapRef = { x, y, key: modeKey }
-            this.game.map.entities.push(ent.mapRef)
+            this.addEntity(x, y, modeKey)
         }
     }
 

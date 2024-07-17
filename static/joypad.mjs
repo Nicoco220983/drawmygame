@@ -1,5 +1,5 @@
 import * as utils from './utils.mjs'
-import { Img, Sprite, Entity, Group } from "./game.mjs"
+import { Img, Sprite, Entity, Group, Entities } from "./game.mjs"
 
 
 export class JoypadScene {
@@ -14,6 +14,7 @@ export class JoypadScene {
             this.canvas = document.createElement("canvas")
         }
         this.buttons = new Group(this)
+        this.syncLocalPlayerButtons()
     }
 
     setPosAndSize(x, y, width, height) {
@@ -27,11 +28,13 @@ export class JoypadScene {
         }
         this.buttons.forEach(ent => ent.syncSize())
     }
-    
 
-    initButtons(hero) {
+    syncLocalPlayerButtons() {
         this.removeButtons()
-        hero.initJoypadButtons(this)
+        const localPlayer = this.game.players[this.game.localPlayerId]
+        if(!localPlayer) return
+        const heroCls = Entities[localPlayer.hero.key]
+        heroCls.initJoypadButtons(this)
     }
 
     removeButtons() {

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DrawMyGame</title>
+    <title>DrawMyGame Builder</title>
     <style>
         html, body {
             padding: 0;
@@ -26,6 +26,7 @@
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
+    <h1>DrawMyGame Builder</h1>
     <flexrow>
         <flexrow>Box size: <input id="map_box_size" type="number"></flexrow>
         <flexrow>Width: <input id="map_nb_cols" type="number"></flexrow>
@@ -105,7 +106,8 @@ document.getElementById("game_multi").onclick = async () => {
         method: "POST",
         body: new Blob([mapBin], {type: 'application/octet-stream'}),
     })
-    window.location = `${window.location.origin}/r/${roomId}`
+    // window.location = `${window.location.origin}/r/${roomId}`
+    window.open(`${window.location.origin}/r/${roomId}`, '_blank').focus();
 }
 
 const boxSizeEl = document.getElementById("map_box_size")
@@ -147,10 +149,7 @@ async function main() {
 
 function showBuilder() {
     gameParentEl.style.display = "none"
-    if(game) {
-        game.stop()
-        game = null
-    }
+    stopGame()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, map)
     gameBuilder.play()
     builderParentEl.style.display = ""
@@ -158,19 +157,25 @@ function showBuilder() {
 
 function startGame() {
     builderParentEl.style.display = "none"
-    if(game) {
-        game.stop()
-        gameParentEl.innerHTML = ""
+    if(!game) {
+        const playerId = 0
+        game = new Game(gameParentEl, map, playerId)
+        game.addPlayer(playerId, {
+            name: null,
+            color: "blue",
+        })
+        game.play()
+    } else {
+        game.restart()
     }
-    const playerId = 0
-    game = new Game(gameParentEl, map, playerId)
-    game.addPlayer(playerId, {
-        name: null,
-        color: "blue",
-    })
-    // game.showJoypadScene(true)
-    game.play()
     gameParentEl.style.display = ""
+}
+
+function stopGame() {
+    if(!game) return
+    game.stop()
+    gameParentEl.innerHTML = ""
+    game = null
 }
 
 main()

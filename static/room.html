@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DrawMyGame</title>
+    <title>DrawMyGame MultiPlayer Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <style>
         html, body {
             padding: 0;
@@ -26,10 +27,14 @@
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
+    <h1>DrawMyGame MultiPlayer Game</h1>
     <flexrow>
         <input id="player_name" type="text">
         <input id="player_color" type="color">
         <button id="join">Join</button>
+    </flexrow>
+    <flexrow>
+        <button id="restart">Restart</button>
     </flexrow>
     <flexrow>
         <input id="show_game" type="checkbox">Show Game
@@ -47,6 +52,8 @@ const locPathnames = location.pathname.split('/')
 const roomId = locPathnames[locPathnames.length-1]
 
 document.getElementById("join").onclick = joinGame
+
+document.getElementById("restart").onclick = restartGame
 
 const gameParentEl = document.getElementById("game")
 const map = new GameMap()
@@ -139,6 +146,10 @@ function joinGame() {
 
 function handleGameState(ws, data) {
     game.receiveState(data)
+}
+
+function restartGame() {
+    ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
 }
 
 main()

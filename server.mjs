@@ -41,6 +41,9 @@ class GameServer {
     this.app.get('/', (req, res) => {
       res.sendFile(join(DIRNAME, 'static/index.html'));
     })
+    this.app.get('/favicon.ico', (req, res) => {
+      res.sendFile(join(DIRNAME, 'static/favicon.ico'));
+    })
 
     this.app.post("/newroom", (req, res) => {
       const roomId = this.newRoom()
@@ -110,6 +113,7 @@ class GameServer {
         // else if(key === MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
+        else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
         // else if(key === MSG_KEYS.START_GAME) this.handleStartGame(ws, JSON.parse(body))
         // else if(key === MSG_KEYS.DISCONNECT_PLAYER) this.handleDisconnectPlayer(ws, body)
         else console.warn("Unknown websocket key", key)
@@ -213,6 +217,13 @@ class GameServer {
     if(room.closed) { room.closeClient(ws); return }
     const { game } = room
     if(game) game.receivePlayerInputState(ws.id, data)
+  }
+
+  handleGameInstruction(ws, data) {
+    const { room } = ws
+    if(!room) { ws.close(); return }
+    if(room.closed) { room.closeClient(ws); return }
+    if(data == "restart" && room.game) room.game.restart()
   }
 
   // handleStartGame(ws, kwargs) {

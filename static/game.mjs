@@ -17,6 +17,7 @@ export const MSG_KEYS = {
   IDENTIFY_CLIENT: 'IDC',
   GAME_STATE: 'STT',
   PLAYER_INPUT: 'INP',
+  GAME_INSTRUCTION: 'GMI',
 //   GAME_OVER: 'GOV',
 }
 
@@ -33,6 +34,7 @@ export class GameMap {
         this.nbCols = MAP_DEFAULT_NB_COLS
         this.nbRows = MAP_DEFAULT_NB_ROWS
         this.walls = []
+        this.heros = []
         this.entities = []
         this.syncSize()
     }
@@ -62,7 +64,8 @@ export class GameMap {
             nc: this.nbCols,
             nr: this.nbRows,
             w: wallsStr,
-            e: this.entities
+            h: this.heros,
+            e: this.entities,
         }
         const outStr = JSON.stringify(outObj)
         const outBin = await compress(outStr)
@@ -96,6 +99,7 @@ export class GameMap {
             if(key === " ") key = null
             col.push(key)
         }
+        this.heros = inObj.h
         this.entities = inObj.e
         this.syncSize()
     }
@@ -495,7 +499,7 @@ export class GameCommon {
         }
 
         this.game = this
-        this.initMap(map)
+        this.map = map
 
         this.syncSize()
     }
@@ -509,15 +513,6 @@ export class GameCommon {
     initTouches() {
         if(this.touches) return
         this.touches = new Touches(this)
-    }
-
-    initMap(map) {
-        this.map = map
-        this.map.entities.forEach(mapEnt => {
-            const { key } = mapEnt
-            const cls = Entities[key]
-            if(cls.prototype instanceof Hero) this.mapHero = mapEnt
-        })
     }
 
     update(time) {
@@ -581,6 +576,7 @@ export class SceneCommon {
         }
         this.walls = new Group(this)
         this.entities = new Group(this)
+        this.heros = {}
         this.initWalls()
         this.initEntities()
     }
@@ -615,6 +611,16 @@ export class SceneCommon {
         const cls = Entities[key]
         const ent = this.entities.add(new cls(this, x, y))
         return ent
+    }
+
+    syncHero(hero) {
+        if(hero.removed) {
+            delete this.heros[hero.playerId]
+            if(hero === this.localHero) delete this.localHero
+        } else {
+            this.heros[hero.playerId] = hero
+            if(hero.playerId === this.game.localPlayerId) this.localHero = hero
+        }
     }
 
     update(time) {
@@ -709,34 +715,39 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
+    showGameScene(val) {
+        if(val == Boolean(this.mainScene)) return
+        this.mainScene = val ? new GameScene(this) : null
+        this.syncSize()
+        for(let playerId in this.players) this.addHero(playerId)
+    }
+
+    restart() {
+        this.mainScene = null
+        this.showGameScene(true)
+        this.lastSendStateTime = -SEND_STATE_PERIOD
+    }
+
     addPlayer(playerId, kwargs) {
-        const player = this.players[playerId] = kwargs
-        if(this.mainScene) {
-            const heroId = this.mainScene.addHero()
-            if(heroId) player.heroId = heroId
+        if(this.players[playerId] !== undefined) return
+        const player = kwargs
+        if(!player.hero) {
+            const defaultHero = this.map.heros[0]
+            if(defaultHero) player.hero = {
+                x: defaultHero.x,
+                y: defaultHero.y,
+                key: defaultHero.keys[0],
+            }
         }
-    }
-
-    getHero(playerId) {
-        const player = this.players[playerId]
-        if(!player) return null
-        const { heroId } = player
-        if(!heroId) return null
-        if(!this.mainScene) return null
-        return this.mainScene.getHero(heroId)
-    }
-
-    getLocalHero() {
-        return this.getHero(this.localPlayerId)
+        this.players[playerId] = player
+        if(this.mainScene) this.mainScene.addHero(playerId)
+        if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
 
     rmPlayer(playerId) {
         const player = this.players[playerId]
         if(!player) return
-        const { heroId } = player
-        if(heroId && this.mainScene) {
-            this.mainScene.rmHero(heroId)
-        }
+        if(this.mainScene) this.mainScene.rmHero(playerId)
         delete this.players[playerId]
     }
 
@@ -759,7 +770,7 @@ export class Game extends GameCommon {
     receiveState(stateStr) {
         console.log("TMP receiveState", stateStr)
         const state = JSON.parse(stateStr)
-        if(state.players || state._full) this.players = state.players
+        if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(this.mainScene) this.mainScene.setState(state ? state.main : null, state ? state._full : false)
     }
 
@@ -774,9 +785,9 @@ export class Game extends GameCommon {
     }
 
     getInputState() {
-        const { mapHero } = this
-        if(!mapHero) return null
-        const heroCls = Entities[mapHero.key]
+        const localPlayer = this.players[this.localPlayerId]
+        if(!localPlayer) return
+        const heroCls = Entities[localPlayer.hero.key]
         return heroCls.getInputState(this)
     }
 
@@ -791,21 +802,15 @@ export class Game extends GameCommon {
     }
 
     setLocalHeroInputState(inputState) {
-        const hero = this.mainScene && this.getHero(this.localPlayerId)
+        const hero = this.mainScene && this.mainScene.getHero(this.localPlayerId)
         if(hero) hero.setInputState(inputState)
     }
 
     receivePlayerInputState(playerId, inputStateStr) {
-        const hero = this.getHero(playerId)
+        const hero = this.mainScene && this.mainScene.getHero(playerId)
         if(!hero) return
         const inputState = inputStateStr ? JSON.parse(inputStateStr) : null
         hero.setInputState(inputState)
-    }
-
-    showGameScene(val) {
-        if(val == Boolean(this.mainScene)) return
-        this.mainScene = val ? new GameScene(this) : null
-        this.syncSize()
     }
 
     async showJoypadScene(val) {
@@ -817,8 +822,6 @@ export class Game extends GameCommon {
             this.initTouches()
             const { JoypadScene } = joypadMod
             this.joypadScene = new JoypadScene(this)
-            const localHero = this.getHero(this.localPlayerId)
-            if(localHero) localHero.initJoypadButtons(this.joypadScene)
         } else {
             this.joypadScene = null
         }
@@ -839,38 +842,35 @@ export class GameScene extends SceneCommon {
         this.game.map.entities.forEach(mapEnt => {
             const { x, y, key } = mapEnt
             const cls = Entities[key]
-            if(!(cls.prototype instanceof Hero)) this.addEntity(x, y, key)
+            this.addEntity(x, y, key)
         })
     }
 
-    addHero() {
-        const { mapHero } = this.game
-        if(!mapHero) return
-        const { x, y, key } = mapHero
+    addHero(playerId) {
+        const player = this.game.players[playerId]
+        if(!player) return
+        const { x, y, key } = player.hero
         const cls = Entities[key]
         const heroId = this.entities.nextAutoId()
-        this.entities.add(heroId, new cls(this, x, y))
+        const hero = this.entities.add(heroId, new cls(this, x, y, playerId))
+        hero._isStateToSend = true
         return heroId
     }
 
-    getHero(heroId) {
-        return this.entities.get(heroId)
+    getHero(playerId) {
+        return this.heros[playerId]
     }
 
-    rmHero(heroId) {
-        const hero = this.entities.get(heroId)
+    rmHero(playerId) {
+        const hero = this.getHero(playerId)
         if(hero) hero.remove()
     }
 
-    initLocalHero() {
-        if(this.localHero) return
-        const hero = this.game.getLocalHero()
-        if(!hero) return
-        this.localHero = hero
+    setLocalHero(hero) {
+        super.setLocalHero(hero)
         this.hearts = new Group(this)
         for(let i=0; i<hero.life; ++i)
             this.hearts.add(new Heart(this, i))
-        if(this.game.joypadScene) hero.initJoypadButtons(this.game.joypadScene)
     }
 
     syncHearts() {
@@ -882,7 +882,6 @@ export class GameScene extends SceneCommon {
 
     update(time) {
         super.update(time)
-        this.initLocalHero()
         this.applyPhysics(time)
         this.entities.update(time)
     }
@@ -1045,7 +1044,7 @@ export class GameScene extends SceneCommon {
 
 // ENTITIES ///////////////////////////////////
 
-const Entities = {}
+export const Entities = {}
 Entities.register = function(key, cls) {
     cls.key = key
     this[key] = cls
@@ -1075,11 +1074,18 @@ class DynamicEntity extends Entity {
 }
 
 export class Hero extends DynamicEntity {
-    constructor(...args) {
-        super(...args)
+    constructor(scn, x, y, playerId) {
+        super(scn, x, y)
         this.team = "hero"
         this.life = 3
         this.damageLastTime = -3
+        this.setPlayerId(playerId)
+    }
+
+    setPlayerId(playerId) {
+        if(playerId === this.playerId) return
+        this.playerId = playerId
+        this.scene.syncHero(this)
     }
 
     isLocalHero() {
@@ -1124,6 +1130,7 @@ export class Hero extends DynamicEntity {
 
     getState() {
         const state = super.getState()
+        state.playerId = this.playerId
         state.life = this.life
         state.inputState = this.inputState
         return state
@@ -1131,6 +1138,7 @@ export class Hero extends DynamicEntity {
 
     setState(state) {
         super.setState(state)
+        this.setPlayerId(state.playerId)
         this.life = state.life
         this.inputState = state.inputState
     }
@@ -1147,7 +1155,12 @@ export class Hero extends DynamicEntity {
         this._isStateToSend = true
     }
 
-    initJoypadButtons(joypadScn) {}
+    static initJoypadButtons(joypadScn) {}
+
+    remove() {
+        super.remove()
+        this.scene.syncHero(this)
+    }
 }
 
 const NicoSpriteSheet = new SpriteSheet("/static/assets/nico_full.png", 4, 1)
@@ -1156,8 +1169,8 @@ const NicoRunningSprites = range(1, 4).map(i => new Sprite(NicoSpriteSheet.getFr
 const NicoJumpingSprite = new Sprite(NicoSpriteSheet.getFrame(1))
 
 class Nico extends Hero {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(scn, x, y, playerId) {
+        super(scn, x, y, playerId)
         this.width = 50
         this.height = 50
         this.initPos = { x, y }
@@ -1234,7 +1247,7 @@ class Nico extends Hero {
         this.dirX = state.dirX
     }
 
-    initJoypadButtons(joypadScn) {
+    static initJoypadButtons(joypadScn) {
         joypadScn.addButtons([
             { key: "ArrowLeft" },
             { key: "ArrowUp" },
@@ -1291,6 +1304,17 @@ class Zombi extends Enemy {
             top: this.y - 30,
             height: 60,
         }
+    }
+
+    getState() {
+        const state = super.getState()
+        state.dirX = this.dirX
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        this.dirX = state.dirX
     }
 }
 Entities.register("zombi", Zombi)
