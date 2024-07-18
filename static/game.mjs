@@ -265,13 +265,18 @@ export class Sprite {
 
 export class Entity {
 
+    static {
+        assign(this.prototype, {
+            width: 10,
+            height: 10,
+            dirX: 1,
+            dirY: 1,
+        })
+    }
+
     constructor(scn, x, y) {
         this.x = x
         this.y = y
-        this.width = 10
-        this.height = 10
-        this.dirX = 1
-        this.dirY = 1
         this.scene = scn
         this.game = scn.game
         this.spriteVisible = true
@@ -327,12 +332,16 @@ export class Entity {
         state.key = this.constructor.key
         state.x = this.x
         state.y = this.y
+        if(this.hasOwnProperty("dirX")) state.dirX = this.dirX
+        if(this.hasOwnProperty("dirY")) state.dirY = this.dirY
         return state
     }
 
     setState(state) {
         this.x = state.x
         this.y = state.y
+        if(state.dirX !== undefined) this.dirX = state.dirX
+        if(state.dirY !== undefined) this.dirY = state.dirY
     }
 }
 
@@ -1082,25 +1091,29 @@ Entities.register = function(key, cls) {
 }
 
 class DynamicEntity extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.speedX = this.speedY = 0
-        this.speedResX = this.speedResY = 0
-        this.undergoGravity = true
-        this.undergoWalls = true
+
+    static {
+        assign(this.prototype, {
+            speedX: 0,
+            speedY: 0,
+            speedResX: 0,
+            speedResY: 0,
+            undergoGravity: true,
+            undergoWalls: true,
+        })
     }
 
     getState() {
         const state = super.getState()
-        state.speedX = this.speedX
-        state.speedY = this.speedY
+        if(this.hasOwnProperty("speedX")) state.speedX = this.speedX
+        if(this.hasOwnProperty("speedY")) state.speedY = this.speedY
         return state
     }
 
     setState(state) {
         super.setState(state)
-        this.speedX = state.speedX
-        this.speedY = state.speedY
+        if(state.speedX !== undefined) this.speedX = state.speedX
+        if(state.speedY !== undefined) this.speedY = state.speedY
     }
 }
 
@@ -1267,17 +1280,6 @@ class Nico extends Hero {
         this.speedY = 0
     }
 
-    getState() {
-        const state = super.getState()
-        state.dirX = this.dirX
-        return state
-    }
-
-    setState(state) {
-        super.setState(state)
-        this.dirX = state.dirX
-    }
-
     static initJoypadButtons(joypadScn) {
         joypadScn.addButtons([
             { key: "ArrowLeft" },
@@ -1335,17 +1337,6 @@ class Zombi extends Enemy {
             top: this.y - 30,
             height: 60,
         }
-    }
-
-    getState() {
-        const state = super.getState()
-        state.dirX = this.dirX
-        return state
-    }
-
-    setState(state) {
-        super.setState(state)
-        this.dirX = state.dirX
     }
 }
 Entities.register("zombi", Zombi)
