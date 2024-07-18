@@ -498,6 +498,7 @@ export class GameCommon {
             parentEl.appendChild(this.canvas)
         }
 
+        this.time = 0
         this.game = this
         this.map = map
 
@@ -516,6 +517,7 @@ export class GameCommon {
     }
 
     update(time) {
+        this.time = time
         if(this.mainScene) this.mainScene.update(time)
         if(this.joypadScene) this.joypadScene.update(time)
     }
@@ -531,6 +533,7 @@ export class GameCommon {
 
     syncSize() {
         const width = min(this.map.width, CANVAS_MAX_WIDTH)
+        const height169 = floor(width * 9 / 16)
         if(this.mainScene) this.mainScene.setPosAndSize(
             0,
             0,
@@ -541,9 +544,9 @@ export class GameCommon {
             0,
             this.mainScene ? this.mainScene.height : 0,
             width,
-            floor(width * 9 / 16),
+            height169,
         )
-        const height = (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0)
+        const height = max(height169, (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -715,31 +718,33 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
-    showGameScene(val) {
+    showGameScene(val, scnId) {
         if(val == Boolean(this.mainScene)) return
-        this.mainScene = val ? new GameScene(this) : null
+        if(scnId === undefined) scnId = this.time
+        this.mainScene = val ? new GameScene(this, scnId) : null
         this.syncSize()
-        for(let playerId in this.players) this.addHero(playerId)
+        if(val) for(let playerId in this.players) this.mainScene.addHero(playerId)
     }
 
-    restart() {
+    restart(scnId) {
         this.mainScene = null
-        this.showGameScene(true)
+        this.showGameScene(true, scnId)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
 
     addPlayer(playerId, kwargs) {
-        if(this.players[playerId] !== undefined) return
-        const player = kwargs
-        if(!player.hero) {
-            const defaultHero = this.map.heros[0]
-            if(defaultHero) player.hero = {
-                x: defaultHero.x,
-                y: defaultHero.y,
-                key: defaultHero.keys[0],
+        if(this.players[playerId] === undefined) {
+            const player = kwargs
+            if(!player.hero) {
+                const defaultHero = this.map.heros[0]
+                if(defaultHero) player.hero = {
+                    x: defaultHero.x,
+                    y: defaultHero.y,
+                    key: defaultHero.keys[0],
+                }
             }
+            this.players[playerId] = player
         }
-        this.players[playerId] = player
         if(this.mainScene) this.mainScene.addHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
@@ -771,7 +776,11 @@ export class Game extends GameCommon {
         console.log("TMP receiveState", stateStr)
         const state = JSON.parse(stateStr)
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
-        if(this.mainScene) this.mainScene.setState(state ? state.main : null, state ? state._full : false)
+        if(this.mainScene) {
+            if(state.main && state.main.id !== undefined && state.main.id != this.mainScene.id)
+                this.restart(state.main.id)
+            this.mainScene.setState(state ? state.main : null, state ? state._full : false)
+        }
     }
 
     getAndMaySendState(time) {
@@ -830,12 +839,13 @@ export class Game extends GameCommon {
 }
 
 export class GameScene extends SceneCommon {
-    constructor(game) {
+    constructor(game, scnId) {
         super(game)
+        this.id = scnId
         this.notifs = new Group(this)
         // this.entities.forEach(ent => { if(ent instanceof Hero) this.initHero(ent) })
-        this.step = "GAME"
         this.time = 0
+        this.setStep("GAME")
     }
 
     initEntities() {
@@ -849,6 +859,7 @@ export class GameScene extends SceneCommon {
     addHero(playerId) {
         const player = this.game.players[playerId]
         if(!player) return
+        if(this.getHero(playerId)) return
         const { x, y, key } = player.hero
         const cls = Entities[key]
         const heroId = this.entities.nextAutoId()
@@ -1009,20 +1020,18 @@ export class GameScene extends SceneCommon {
         })
     }
 
-    setStepGameOver() {
-        if(this.step == "GAMEOVER") return
-        this.step = "GAMEOVER"
-        this.notifs.add(new Text(
-            this,
-            "GAME OVER",
-            this.width/2, this.height/2,
-            { font: "100px serif" },
-        ))
+    setStep(step) {
+        if(step == this.step) return
+        this.step = step
+        this.notifs.forEach(n => n.remove())
+        if(step == "GAME") this.setStepGame()
+        else if(step == "VICTORY") this.setStepVictory()
+        else if(step == "GAMEOVER") this.setStepGameOver()
     }
 
+    setStepGame() {}
+
     setStepVictory() {
-        if(this.step == "VICTORY") return
-        this.step = "VICTORY"
         this.notifs.add(new Text(
             this,
             "VICTORY !",
@@ -1031,13 +1040,27 @@ export class GameScene extends SceneCommon {
         ))
     }
 
+    setStepGameOver() {
+        this.notifs.add(new Text(
+            this,
+            "GAME OVER",
+            this.width/2, this.height/2,
+            { font: "100px serif" },
+        ))
+    }
+
     getState(isFull) {
         const state = this.state ||= {}
+        state.id = this.id
+        state.time = this.time
+        state.step = this.step
         const ent = state.entities = this.entities.getState(isFull)
         return ent ? state : null
     }
 
     setState(state, isFull) {
+        if(state && state.time !== undefined) this.time = state.time
+        if(state && state.step !== undefined) this.setStep(state.step)
         this.entities.setState(state ? state.entities : null, isFull)
     }
 }
