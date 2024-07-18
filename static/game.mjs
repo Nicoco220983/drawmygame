@@ -468,12 +468,12 @@ export class Group {
                 delete item._isStateToSend
             }
         }
-        return hasKeys(res) ? res : null
+        return (isFull || hasKeys(res)) ? res : null
     }
 
     setState(state, isFull) {
         const { items } = this
-        if(state) for(let key in state) {
+        for(let key in state) {
             let ent = items[key]
             if(!ent) {
                 const cls = Entities[state[key].key]
@@ -481,7 +481,7 @@ export class Group {
             }
             ent.setState(state[key], isFull)
         }
-        if(isFull) for(let key in items) if(!state || !state[key]) items[key].remove()
+        if(isFull) for(let key in items) if(!state[key]) items[key].remove()
     }
 }
 
@@ -765,21 +765,23 @@ export class Game extends GameCommon {
     }
 
     getState(isFull) {
-        const state = this.state ||= {}
-        state._full = isFull
-        const players = state.players = isFull ? this.players : null
-        const main = state.main = this.mainScene.getState(isFull)
-        return (isFull || players || main) ? JSON.stringify(state) : null
+        this.fullState ||= { _isFull: true }
+        this.partialState ||= {}
+        const state = isFull ? this.fullState : this.partialState
+        if(isFull) state.players = this.players
+        state.main = this.mainScene.getState(isFull)
+        return (isFull || state.main) ? JSON.stringify(state) : null
     }
 
     receiveState(stateStr) {
         console.log("TMP receiveState", stateStr)
         const state = JSON.parse(stateStr)
+        const isFull = state._full || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
-        if(this.mainScene) {
-            if(state.main && state.main.id !== undefined && state.main.id != this.mainScene.id)
+        if(state.main && this.mainScene) {
+            if(isFull && state.main.id != this.mainScene.id)
                 this.restart(state.main.id)
-            this.mainScene.setState(state ? state.main : null, state ? state._full : false)
+            this.mainScene.setState(state.main, isFull)
         }
     }
 
@@ -1050,18 +1052,24 @@ export class GameScene extends SceneCommon {
     }
 
     getState(isFull) {
-        const state = this.state ||= {}
-        state.id = this.id
-        state.time = this.time
-        state.step = this.step
+        this.fullState ||= {}
+        this.partialState ||= {}
+        const state = isFull ? this.fullState : this.partialState
+        if(isFull) {
+            state.id = this.id
+            state.time = this.time
+            state.step = this.step
+        }
         const ent = state.entities = this.entities.getState(isFull)
-        return ent ? state : null
+        return (isFull || ent) ? state : null
     }
 
     setState(state, isFull) {
-        if(state && state.time !== undefined) this.time = state.time
-        if(state && state.step !== undefined) this.setStep(state.step)
-        this.entities.setState(state ? state.entities : null, isFull)
+        if(isFull) {
+            this.time = state.time
+            this.setStep(state.step)
+        }
+        this.entities.setState(state.entities, isFull)
     }
 }
 
