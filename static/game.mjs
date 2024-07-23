@@ -7,8 +7,8 @@ export const FPS = 60
 const CANVAS_MAX_WIDTH = 800
 const CANVAS_MAX_HEIGHT = 600
 const MAP_BOX_DEFAULT_SIZE = 20
-const MAP_DEFAULT_NB_COLS = 50
-const MAP_DEFAULT_NB_ROWS = 50
+const MAP_DEFAULT_NB_COLS = 40
+const MAP_DEFAULT_NB_ROWS = 25
 const GRAVITY = 1000
 
 export const MSG_KEY_LENGTH = 3
@@ -580,6 +580,8 @@ export class SceneCommon {
         this.game = game
         this.x = 0
         this.y = 0
+        this.viewX = 0
+        this.viewY = 0
         this.width = 100
         this.height = 100
         this.pointer = null
@@ -599,6 +601,13 @@ export class SceneCommon {
             this.canvas.width = width
             this.canvas.height = height
         }
+    }
+
+    setView(viewX, viewY) {
+        const { width: mapWidth, height: mapHeight } = this.game.map
+        const { width, height } = this
+        this.viewX = max(0, min(mapWidth-width, viewX))
+        this.viewY = max(0, min(mapHeight-height, viewY))
     }
 
     initWalls() {
@@ -652,8 +661,10 @@ export class SceneCommon {
 
     draw() {
         const ctx = this.canvas.getContext("2d")
+        ctx.reset()
         ctx.fillStyle = "white"
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+        ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.drawTo(ctx)
     }
 }
@@ -906,6 +917,7 @@ export class GameScene extends SceneCommon {
         super.update(time)
         this.applyPhysics(time)
         this.entities.update(time)
+        this.updateView()
     }
 
     drawTo(ctx) {
@@ -1029,6 +1041,29 @@ export class GameScene extends SceneCommon {
                 if(!blocked) ent.y += dy
             }
         })
+    }
+
+    updateView() {
+        const { heros } = this
+        if(!hasKeys(heros)) return
+        if(this.localHero) {
+            this.setView(
+                this.localHero.x - this.width/2,
+                this.localHero.y - this.height/2,
+            )
+        } else {
+            let sumX = 0, sumY = 0, nbHeros = 0
+            for(let playerId in heros) {
+                const hero = heros[playerId]
+                sumX += hero.x
+                sumY += hero.y
+                nbHeros += 1
+            }
+            this.setView(
+                sumX / nbHeros - this.width/2,
+                sumY / nbHeros - this.height/2,
+            )
+        }
     }
 
     setStep(step) {

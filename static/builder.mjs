@@ -86,19 +86,19 @@ class BuilderScene extends SceneCommon {
     }
 
     updateMove() {
-        const { map, touches } = this.game
+        const { touches } = this.game
         if(touches.length > 0) {
             const touch = touches[0]
             if(!this.moveOrig) this.moveOrig = {
                 touchX: touch.x,
                 touchY: touch.y,
-                thisX: this.x,
-                thisY: this.y,
+                viewX: this.viewX,
+                viewY: this.viewY,
             }
-            this.x = this.moveOrig.thisX + touch.x - this.moveOrig.touchX
-            this.x = min(0, max(this.width - map.width, this.x))
-            this.y = this.moveOrig.thisY + touch.y - this.moveOrig.touchY
-            this.y = min(0, max(this.height - map.height, this.y))
+            this.setView(
+                this.moveOrig.viewX - (touch.x - this.moveOrig.touchX),
+                this.moveOrig.viewY - (touch.y - this.moveOrig.touchY),
+            )
         } else {
             this.moveOrig = null
         }
@@ -109,8 +109,8 @@ class BuilderScene extends SceneCommon {
         const { boxSize, walls } = this.game.map
         if(touches.length > 0) {
             const touch = touches[0]
-            const boxX = floor((touch.x - this.x) / boxSize)
-            const boxY = floor((touch.y - this.y) / boxSize)
+            const boxX = floor((touch.x + this.viewX) / boxSize)
+            const boxY = floor((touch.y + this.viewY) / boxSize)
 
             const prevWallKey = walls[boxX][boxY]
             if(this.currentWallKey === null) this.currentWallKey = prevWallKey ? 0 : "W"
@@ -159,8 +159,8 @@ class BuilderScene extends SceneCommon {
         const { touches, prevHasTouches } = this.game
         if(touches.length > 0 && !prevHasTouches) {
             const touch = touches[0]
-            const x = touch.x - this.x
-            const y = touch.y - this.y
+            const x = touch.x + this.viewX
+            const y = touch.y + this.viewY
             this.entities.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
@@ -175,8 +175,8 @@ class BuilderScene extends SceneCommon {
         const { modeKey } = this.game
         if(touches.length > 0 && !prevHasTouches) {
             const touch = touches[0]
-            const x = touch.x - this.x
-            const y = touch.y - this.y
+            const x = touch.x + this.viewX
+            const y = touch.y + this.viewY
             this.addEntity(x, y, modeKey)
         }
     }
