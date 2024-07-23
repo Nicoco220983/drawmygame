@@ -637,11 +637,15 @@ export class SceneCommon {
     syncHero(hero) {
         if(hero.removed) {
             delete this.heros[hero.playerId]
-            if(hero === this.localHero) delete this.localHero
+            if(hero === this.localHero) this.setLocalHero(null)
         } else {
             this.heros[hero.playerId] = hero
-            if(hero.playerId === this.game.localPlayerId) this.localHero = hero
+            if(hero !== this.localHero && hero.playerId === this.game.localPlayerId) this.setLocalHero(hero)
         }
+    }
+
+    setLocalHero(hero) {
+        this.localHero = hero
     }
 
     update(time) {
@@ -901,7 +905,8 @@ export class GameScene extends SceneCommon {
 
     setLocalHero(hero) {
         super.setLocalHero(hero)
-        this.hearts = new Group(this)
+        this.hearts ||= new Group(this)
+        this.hearts.forEach(h => h.remove())
         for(let i=0; i<hero.life; ++i)
             this.hearts.add(new Heart(this, i))
     }
