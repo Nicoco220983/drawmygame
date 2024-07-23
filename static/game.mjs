@@ -919,9 +919,12 @@ export class GameScene extends SceneCommon {
     }
 
     update(time) {
+        const { step } = this
         super.update(time)
-        this.applyPhysics(time)
-        this.entities.update(time)
+        if(step == "GAME" || step == "GAMEOVER") {
+            this.applyPhysics(time)
+            this.entities.update(time)
+        }
         this.updateView()
     }
 
@@ -1073,16 +1076,18 @@ export class GameScene extends SceneCommon {
 
     setStep(step) {
         if(step == this.step) return
+        if(step == "VICTORY" && this.step != "GAME") return
+        if(step == "GAMEOVER" && this.step != "GAME") return
         this.step = step
         this.notifs.forEach(n => n.remove())
-        if(step == "GAME") this.setStepGame()
-        else if(step == "VICTORY") this.setStepVictory()
-        else if(step == "GAMEOVER") this.setStepGameOver()
+        if(step == "GAME") this._setStepGame()
+        else if(step == "VICTORY") this._setStepVictory()
+        else if(step == "GAMEOVER") this._setStepGameOver()
     }
 
-    setStepGame() {}
+    _setStepGame() {}
 
-    setStepVictory() {
+    _setStepVictory() {
         this.notifs.add(new Text(
             this,
             "VICTORY !",
@@ -1091,7 +1096,7 @@ export class GameScene extends SceneCommon {
         ))
     }
 
-    setStepGameOver() {
+    _setStepGameOver() {
         this.notifs.add(new Text(
             this,
             "GAME OVER",
@@ -1194,7 +1199,7 @@ export class Hero extends DynamicEntity {
         this.scene.syncHearts()
         if(this.life == 0) {
             this.kill(damager)
-            this.scene.setStepGameOver()
+            this.scene.setStep("GAMEOVER")
         } else {
             this.damageLastTime = this.time
             if(damager) {
@@ -1414,7 +1419,7 @@ class Star extends Entity {
             if(checkHit(this, hero)) {
                 this.remove()
                 this.scene.nbStars -= 1
-                if(this.scene.nbStars == 0) this.scene.setStepVictory()
+                if(this.scene.nbStars == 0) this.scene.setStep("VICTORY")
             }
         })
     }
