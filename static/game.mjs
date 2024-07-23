@@ -918,6 +918,16 @@ export class GameScene extends SceneCommon {
         })
     }
 
+    killHero(hero) {
+        const { heros } = this
+        let nbHeroAlive = 0
+        for(let playerId in heros) {
+            const hero = heros[playerId]
+            if(hero.life > 0) nbHeroAlive += 1
+        }
+        if(nbHeroAlive == 0) this.setStep("GAMEOVER")
+    }
+
     update(time) {
         const { step } = this
         super.update(time)
@@ -1198,8 +1208,7 @@ export class Hero extends DynamicEntity {
         this.life = max(0, this.life - val)
         this.scene.syncHearts()
         if(this.life == 0) {
-            this.kill(damager)
-            this.scene.setStep("GAMEOVER")
+            this.scene.killHero(this)
         } else {
             this.damageLastTime = this.time
             if(damager) {
