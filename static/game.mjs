@@ -416,6 +416,17 @@ class Text extends Entity {
     }
 }
 
+class CenteredText extends Text {
+    constructor(scn, text, kwargs) {
+        super(scn, text, 0, 0, kwargs)
+    }
+    drawTo(ctx) {
+        this.x = this.scene.width / 2
+        this.y = this.scene.height / 2
+        super.drawTo(ctx)
+    }
+}
+
 export class Group {
 
     constructor(scn) {
@@ -451,7 +462,7 @@ export class Group {
 
     cleanRemoved() {
         const { items } = this
-        for(let key in items) if(items[key].removed) delete items[key]
+        for(let id in items) if(items[id].removed) delete items[id]
     }
 
     update(time) {
@@ -472,7 +483,7 @@ export class Group {
         const res = {}
         for(let key in items) {
             const item = items[key]
-            if(isFull || item._isStateToSend) {
+            if((isFull || item._isStateToSend) && !item.removed) {
                 res[key] = item.getState(isFull)
                 delete item._isStateToSend
             }
@@ -668,7 +679,6 @@ export class SceneCommon {
         ctx.reset()
         ctx.fillStyle = "white"
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
-        ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.drawTo(ctx)
     }
 }
@@ -800,7 +810,7 @@ export class Game extends GameCommon {
     receiveState(stateStr) {
         console.log("TMP receiveState", stateStr)
         const state = JSON.parse(stateStr)
-        const isFull = state._full || false
+        const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.main && this.mainScene) {
             if(isFull && state.main.id != this.mainScene.id)
@@ -868,10 +878,12 @@ export class GameScene extends SceneCommon {
     constructor(game, scnId) {
         super(game)
         this.id = scnId
+        this.step = "GAME"
         this.notifs = new Group(this)
+        this.initVictoryNotifs()
+        this.initGameOverNotifs()
         // this.entities.forEach(ent => { if(ent instanceof Hero) this.initHero(ent) })
         this.time = 0
-        this.setStep("GAME")
     }
 
     initEntities() {
@@ -925,7 +937,7 @@ export class GameScene extends SceneCommon {
             const hero = heros[playerId]
             if(hero.life > 0) nbHeroAlive += 1
         }
-        if(nbHeroAlive == 0) this.setStep("GAMEOVER")
+        if(this.step == "GAME" && nbHeroAlive == 0) this.step = "GAMEOVER"
     }
 
     update(time) {
@@ -939,10 +951,14 @@ export class GameScene extends SceneCommon {
     }
 
     drawTo(ctx) {
+        ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.walls.drawTo(ctx)
         this.entities.drawTo(ctx)
+        ctx.translate(~~this.viewX, ~~this.viewY)
         if(this.hearts) this.hearts.drawTo(ctx)
         this.notifs.drawTo(ctx)
+        if(this.step == "VICTORY") this.victoryNotifs.drawTo(ctx)
+        if(this.step == "GAMEOVER") this.gameOverNotifs.drawTo(ctx)
     }
 
     getTeam(team) {
@@ -1084,33 +1100,20 @@ export class GameScene extends SceneCommon {
         }
     }
 
-    setStep(step) {
-        if(step == this.step) return
-        if(step == "VICTORY" && this.step != "GAME") return
-        if(step == "GAMEOVER" && this.step != "GAME") return
-        this.step = step
-        this.notifs.forEach(n => n.remove())
-        if(step == "GAME") this._setStepGame()
-        else if(step == "VICTORY") this._setStepVictory()
-        else if(step == "GAMEOVER") this._setStepGameOver()
-    }
-
-    _setStepGame() {}
-
-    _setStepVictory() {
-        this.notifs.add(new Text(
+    initVictoryNotifs() {
+        this.victoryNotifs = new Group(this)
+        this.victoryNotifs.add(new CenteredText(
             this,
             "VICTORY !",
-            this.width/2, this.height/2,
             { font: "100px serif" },
         ))
     }
 
-    _setStepGameOver() {
-        this.notifs.add(new Text(
+    initGameOverNotifs() {
+        this.gameOverNotifs = new Group(this)
+        this.gameOverNotifs.add(new CenteredText(
             this,
             "GAME OVER",
-            this.width/2, this.height/2,
             { font: "100px serif" },
         ))
     }
@@ -1131,7 +1134,7 @@ export class GameScene extends SceneCommon {
     setState(state, isFull) {
         if(isFull) {
             this.time = state.time
-            this.setStep(state.step)
+            this.step = state.step
         }
         this.entities.setState(state.entities, isFull)
     }
@@ -1428,7 +1431,7 @@ class Star extends Entity {
             if(checkHit(this, hero)) {
                 this.remove()
                 this.scene.nbStars -= 1
-                if(this.scene.nbStars == 0) this.scene.setStep("VICTORY")
+                if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
             }
         })
     }
