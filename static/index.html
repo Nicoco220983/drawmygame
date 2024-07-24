@@ -158,7 +158,7 @@ function showBuilder() {
 function startGame() {
     builderParentEl.style.display = "none"
     if(!game) {
-        const playerId = 0
+        const playerId = "0"
         game = new Game(gameParentEl, map, playerId)
         game.addPlayer(playerId, {
             name: null,

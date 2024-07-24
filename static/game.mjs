@@ -882,14 +882,12 @@ export class GameScene extends SceneCommon {
         this.notifs = new Group(this)
         this.initVictoryNotifs()
         this.initGameOverNotifs()
-        // this.entities.forEach(ent => { if(ent instanceof Hero) this.initHero(ent) })
         this.time = 0
     }
 
     initEntities() {
         this.game.map.entities.forEach(mapEnt => {
             const { x, y, key } = mapEnt
-            const cls = Entities[key]
             this.addEntity(x, y, key)
         })
     }
@@ -930,14 +928,15 @@ export class GameScene extends SceneCommon {
         })
     }
 
-    killHero(hero) {
+    checkHeros() {
         const { heros } = this
-        let nbHeroAlive = 0
+        let nbHeros = 0, nbHerosAlive = 0
         for(let playerId in heros) {
             const hero = heros[playerId]
-            if(hero.life > 0) nbHeroAlive += 1
+            nbHeros += 1
+            if(hero.life > 0) nbHerosAlive += 1
         }
-        if(this.step == "GAME" && nbHeroAlive == 0) this.step = "GAMEOVER"
+        if(this.step == "GAME" && nbHeros > 0 && nbHerosAlive == 0) this.step = "GAMEOVER"
     }
 
     update(time) {
@@ -946,6 +945,7 @@ export class GameScene extends SceneCommon {
         if(step == "GAME" || step == "GAMEOVER") {
             this.applyPhysics(time)
             this.entities.update(time)
+            this.checkHeros()
         }
         this.updateView()
     }
@@ -1196,9 +1196,10 @@ export class Hero extends DynamicEntity {
 
     update(time) {
         this.time = time
+        this.undergoWalls = (this.life > 0)
+        if(this.life == 0) this.rotation += 4 * PI / FPS
         if(this.life == 0 || this.isDamageable()) this.spriteVisible = true
         else this.spriteVisible = floor(time * 100) % 2 == 0
-        if(this.life == 0) this.rotation += 4 * PI / FPS
     }
 
     isDamageable(force) {
@@ -1211,7 +1212,7 @@ export class Hero extends DynamicEntity {
         this.life = max(0, this.life - val)
         this.scene.syncHearts()
         if(this.life == 0) {
-            this.scene.killHero(this)
+            this.kill(damager)
         } else {
             this.damageLastTime = this.time
             if(damager) {
@@ -1224,9 +1225,8 @@ export class Hero extends DynamicEntity {
     kill(damager) {
         if(damager) {
             this.speedY = -500
-            this.speedX = 100 * ((damager && this.x < damager.x) ? -1 : 1)
+            this.speedX = 100 * ((this.x < damager.x) ? -1 : 1)
         }
-        this.undergoWalls = false
     }
 
     getState() {
@@ -1313,8 +1313,9 @@ class Nico extends Hero {
     }
 
     applyInputState(time) {
+        if(this.life == 0) return
         const { inputState } = this
-        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 500, 0)
+        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000/FPS, 0)
         else if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000/FPS, 300)
         else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000/FPS, -300)
         if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
