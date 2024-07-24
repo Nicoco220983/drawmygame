@@ -283,7 +283,7 @@ export class Entity {
         this.scaleSprite = Entity.spriteFit
     }
 
-    update(time) {}
+    update(dt) {}
 
     drawTo(ctx) {
         const img = this.getImg()
@@ -465,9 +465,9 @@ export class Group {
         for(let id in items) if(items[id].removed) delete items[id]
     }
 
-    update(time) {
+    update(dt) {
         this.cleanRemoved()
-        this.forEach(ent => ent.update(time))
+        this.forEach(ent => ent.update(dt))
     }
 
     drawTo(gameCtx) {
@@ -536,10 +536,10 @@ export class GameCommon {
         this.touches = new Touches(this)
     }
 
-    update(time) {
-        this.time = time
-        if(this.mainScene) this.mainScene.update(time)
-        if(this.joypadScene) this.joypadScene.update(time)
+    update(dt) {
+        this.time += dt
+        if(this.mainScene) this.mainScene.update(dt)
+        if(this.joypadScene) this.joypadScene.update(dt)
     }
 
     draw() {
@@ -595,6 +595,7 @@ export class SceneCommon {
         this.viewY = 0
         this.width = 100
         this.height = 100
+        this.time = 0
         this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
@@ -659,8 +660,8 @@ export class SceneCommon {
         this.localHero = hero
     }
 
-    update(time) {
-        this.time = time
+    update(dt) {
+        this.time += dt
         this.syncPointer()
     }
 
@@ -717,10 +718,7 @@ export class Game extends GameCommon {
         this.showGameScene(true)
 
         this.sendState = (kwargs && kwargs.sendState) || null
-        this.lastSendStateTime = -SEND_STATE_PERIOD
-
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
-        this.lastSendInputStateTime = -SEND_INPUT_STATE_PERIOD
 
         this.keyboardKeysPressed = {}
         this.joypadKeysPressed = {}
@@ -732,17 +730,19 @@ export class Game extends GameCommon {
 
     play() {
         if(this.gameLoop) return
-        const beginTime = now()
+        let prevTime = now()
         this.gameLoop = setInterval(() => {
-            const time = now() - beginTime
+            const nowTime = now()
+            const dt = nowTime - prevTime
+            prevTime = nowTime
             let inputState = null
             if(!this.isServerEnv) {
                 inputState = this.getInputState()
                 if(!this.sendInputState) this.setLocalHeroInputState(inputState)
             }
-            this.update(time)
-            if(this.sendState) this.getAndMaySendState(time)
-            if(this.sendInputState) this.getAndMaySendInputState(inputState, time)
+            this.update(dt)
+            if(this.sendState) this.getAndMaySendState()
+            if(this.sendInputState) this.getAndMaySendInputState(inputState)
             this.draw()
         }, 1000 / FPS)
     }
@@ -819,10 +819,11 @@ export class Game extends GameCommon {
         }
     }
 
-    getAndMaySendState(time) {
-        if(time > this.lastSendStateTime + SEND_STATE_PERIOD) {
+    getAndMaySendState() {
+        this.lastSendStateTime ||= -SEND_STATE_PERIOD
+        if(this.time > this.lastSendStateTime + SEND_STATE_PERIOD) {
             this.sendState(this.getState(true))
-            this.lastSendStateTime = time
+            this.lastSendStateTime = this.time
         } else {
             const stateStr = this.getState(false)
             if(stateStr) this.sendState(stateStr)
@@ -836,13 +837,14 @@ export class Game extends GameCommon {
         return heroCls.getInputState(this)
     }
 
-    getAndMaySendInputState(inputState, time) {
+    getAndMaySendInputState(inputState) {
+        this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
-        if(this.prevInputStateStr != inputStateStr || (inputStateStr && time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
+        if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
             console.log("TMP sendInputState", inputStateStr)
             this.sendInputState(inputStateStr)
             this.prevInputStateStr = inputStateStr
-            this.lastSendInputStateTime = time
+            this.lastSendInputStateTime = this.time
         }
     }
 
@@ -939,12 +941,12 @@ export class GameScene extends SceneCommon {
         if(this.step == "GAME" && nbHeros > 0 && nbHerosAlive == 0) this.step = "GAMEOVER"
     }
 
-    update(time) {
+    update(dt) {
         const { step } = this
-        super.update(time)
+        super.update(dt)
         if(step == "GAME" || step == "GAMEOVER") {
-            this.applyPhysics(time)
-            this.entities.update(time)
+            this.applyPhysics(dt)
+            this.entities.update(dt)
             this.checkHeros()
         }
         this.updateView()
@@ -976,15 +978,15 @@ export class GameScene extends SceneCommon {
         return teams[team]
     }
 
-    applyPhysics(time) {
+    applyPhysics(dt) {
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         const { getHitBox } = utils
         this.entities.forEach(ent => {
             // gravity
-            if(ent.undergoGravity) ent.speedY += GRAVITY / FPS
+            if(ent.undergoGravity) ent.speedY += GRAVITY * dt
             // speed & collisions
             const { left: entX, top: entY, width: entW, height: entH } = getHitBox(ent)
-            const dx = ent.speedX / FPS, dy = ent.speedY / FPS
+            const dx = ent.speedX * dt, dy = ent.speedY * dt
             ent.speedResX = 0; ent.speedResY = 0
             if(dx > 0) {
                 let blocked = false
@@ -1180,6 +1182,7 @@ export class Hero extends DynamicEntity {
         super(scn, x, y)
         this.team = "hero"
         this.life = 3
+        this.time = 0
         this.damageLastTime = -3
         if(playerId !== undefined) this.setPlayerId(playerId)
     }
@@ -1194,15 +1197,15 @@ export class Hero extends DynamicEntity {
         return this === this.scene.localHero
     }
 
-    update(time) {
-        this.time = time
+    update(dt) {
+        this.time += dt
         this.undergoWalls = (this.life > 0)
-        if(this.life == 0) this.rotation += 4 * PI / FPS
+        if(this.life == 0) this.rotation += 4 * PI * dt
         if(this.life == 0 || this.isDamageable()) this.spriteVisible = true
-        else this.spriteVisible = floor(time * 100) % 2 == 0
+        else this.spriteVisible = floor(this.time * 100) % 2 == 0
     }
 
-    isDamageable(force) {
+    isDamageable() {
         return (this.damageLastTime + 3) < this.time
     }
 
@@ -1212,7 +1215,7 @@ export class Hero extends DynamicEntity {
         this.life = max(0, this.life - val)
         this.scene.syncHearts()
         if(this.life == 0) {
-            this.kill(damager)
+            this.die(damager)
         } else {
             this.damageLastTime = this.time
             if(damager) {
@@ -1222,8 +1225,8 @@ export class Hero extends DynamicEntity {
         }
     }
 
-    kill(damager) {
-        if(damager) {
+    die(killer) {
+        if(killer) {
             this.speedY = -500
             this.speedX = 100 * ((this.x < damager.x) ? -1 : 1)
         }
@@ -1277,17 +1280,16 @@ class Nico extends Hero {
         this.sprite = NicoStandingSprite
     }
 
-    update(time) {
-        super.update(time)
+    update(dt) {
+        super.update(dt)
         // inputs
-        // this.updateInputState(time)
-        this.applyInputState(time)
+        this.applyInputState(dt)
         // display
         if(this.speedX > 0) this.dirX = 1
         else if(this.speedX < 0) this.dirX = -1
         if(this.speedResY == 0) this.sprite = NicoJumpingSprite
         else if(this.speedX == 0) this.sprite = NicoStandingSprite
-        else this.sprite = NicoRunningSprites[floor((time * 6) % 3)]
+        else this.sprite = NicoRunningSprites[floor((this.time * 6) % 3)]
         // fall
         if(this.y > this.game.map.height + 100) {
             this.damage(1, null, true)
@@ -1296,13 +1298,6 @@ class Nico extends Hero {
     }
 
     static getInputState(game) {
-        // if(this.game.isServerEnv || !this.isLocalHero() || this.life <= 0) return
-        // const { game } = this
-        // const inputState = {}
-        // if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
-        // else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
-        // if(this.speedResY < 0 && game.isKeyPressed("ArrowUp")) inputState.jump = true
-        // this.setInputState(inputState)
         const inputState = this._inputState ||= {}
         if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
         else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
@@ -1312,12 +1307,12 @@ class Nico extends Hero {
         return inputState
     }
 
-    applyInputState(time) {
+    applyInputState(dt) {
         if(this.life == 0) return
         const { inputState } = this
-        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000/FPS, 0)
-        else if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000/FPS, 300)
-        else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000/FPS, -300)
+        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
+        else if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000 * dt, 300)
+        else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000 * dt, -300)
         if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
     }
 
@@ -1370,7 +1365,8 @@ class Zombi extends Enemy {
         this.scaleSprite = Entity.spriteFitHeight
     }
 
-    update(time) {
+    update(dt) {
+        const { time } = this.scene
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         // move
         if(this.speedResX * this.dirX < 0) this.dirX *= -1
@@ -1379,7 +1375,7 @@ class Zombi extends Enemy {
             const wallAheadBy = ceil((top + height - 1) / boxSize)
             const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
             if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
-            this.speedX = this.dirX * 2000 / FPS
+            this.speedX = this.dirX * 2000 * dt
         }
         // anim
         this.sprite = ZombiSprites[floor((time * 6) % 8)]
@@ -1428,7 +1424,7 @@ class Star extends Entity {
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
     }
-    update(time) {
+    update(dt) {
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) {
                 this.remove()
