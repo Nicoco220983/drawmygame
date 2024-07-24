@@ -1181,7 +1181,7 @@ export class Hero extends DynamicEntity {
         this.team = "hero"
         this.life = 3
         this.damageLastTime = -3
-        this.setPlayerId(playerId)
+        if(playerId !== undefined) this.setPlayerId(playerId)
     }
 
     setPlayerId(playerId) {
@@ -1274,7 +1274,6 @@ class Nico extends Hero {
         super(scn, x, y, playerId)
         this.width = 50
         this.height = 50
-        this.initPos = { x, y }
         this.sprite = NicoStandingSprite
     }
 
@@ -1331,8 +1330,10 @@ class Nico extends Hero {
     }
 
     respawn() {
-        this.x = this.initPos.x
-        this.y = this.initPos.y
+        const player = this.game.players[this.playerId]
+        const { x, y } = player.hero
+        this.x = x
+        this.y = y
         this.speedX = 0
         this.speedY = 0
     }
