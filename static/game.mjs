@@ -898,7 +898,9 @@ export class GameScene extends SceneCommon {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
-        const { x, y, key } = player.hero
+        const { hero: heroDef } = player
+        if(!heroDef) return
+        const { x, y, key } = heroDef
         const cls = Entities[key]
         const heroId = this.entities.nextAutoId()
         const hero = this.entities.add(heroId, new cls(this, x, y, playerId))
@@ -1228,7 +1230,7 @@ export class Hero extends DynamicEntity {
     die(killer) {
         if(killer) {
             this.speedY = -500
-            this.speedX = 100 * ((this.x < damager.x) ? -1 : 1)
+            this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
         }
     }
 
@@ -1396,6 +1398,74 @@ class Zombi extends Enemy {
 }
 Entities.register("zombi", Zombi)
 
+
+const BatSpriteSheet = new SpriteSheet("/static/assets/bat.png", 4, 1)
+const BatSprites = range(0, 4).map(i => new Sprite(BatSpriteSheet.getFrame(i)))
+
+class Bat extends Enemy {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = 80
+        this.height = 40
+        this.sprite = BatSprites[0]
+        this.scaleSprite = Entity.spriteFitHeight
+        this.undergoGravity = false
+    }
+
+    update(dt) {
+        const { time } = this.scene
+        const { width } = this.game.map
+        // move
+        if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
+        this.speedX = this.dirX * 5000 * dt
+        // anim
+        this.sprite = BatSprites[floor((time * 6) % 4)]
+        // attack
+        this.scene.getTeam("hero").forEach(hero => {
+            if(checkHit(this, hero)) hero.damage(1, this)
+        })
+    }
+
+    getHitBox() {
+        return {
+            left: this.x - 30,
+            width: 60,
+            top: this.y - 10,
+            height: 20,
+        }
+    }
+}
+Entities.register("bat", Bat)
+
+
+const SpiderSprite = new Sprite(new Img("/static/assets/spider.png"))
+
+class Spider extends Enemy {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = 50
+        this.height = 50
+        this.sprite = SpiderSprite
+        this.scaleSprite = Entity.spriteFitHeight
+        this.undergoGravity = false
+    }
+
+    update(dt) {
+        const { time } = this.scene
+        const { height } = this.game.map
+        // move
+        let dirY = (this.speedY > 0) ? 1 : -1
+        if((this.speedResY * dirY < 0) || (this.y < 0 && dirY < 0) || (this.y > height && dirY > 0)) dirY *= -1
+        this.speedY = (dirY > 0 ? 10000 : -2000) * dt
+        // attack
+        this.scene.getTeam("hero").forEach(hero => {
+            if(checkHit(this, hero)) hero.damage(1, this)
+        })
+    }
+}
+Entities.register("spider", Spider)
+
+
 const HeartSpriteSheet = new SpriteSheet("/static/assets/heart.png", 2, 1)
 const HeartSprites = range(0, 2).map(i => new Sprite(HeartSpriteSheet.getFrame(i)))
 
@@ -1410,6 +1480,7 @@ class Heart extends Entity {
         this.sprite = HeartSprites[isFull ? 0 : 1]
     }
 }
+
 
 const StarImg = new Img("/static/assets/star.png")
 const StarSprite = new Sprite(StarImg)

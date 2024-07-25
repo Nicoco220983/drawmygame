@@ -40,6 +40,8 @@
         <button id="mode_erase">Erase</button>
         <button id="mode_nico">Nico</button>
         <button id="mode_zombi">Zombi</button>
+        <button id="mode_bat">Bat</button>
+        <button id="mode_spider">Spider</button>
         <button id="mode_star">Star</button>
     </flexrow>
     <flexrow>
@@ -76,6 +78,8 @@ document.getElementById("mode_wall").onclick = () => setMode('wall')
 document.getElementById("mode_erase").onclick = () => setMode('erase')
 document.getElementById("mode_nico").onclick = () => setMode('entity', 'nico')
 document.getElementById("mode_zombi").onclick = () => setMode('entity', 'zombi')
+document.getElementById("mode_bat").onclick = () => setMode('entity', 'bat')
+document.getElementById("mode_spider").onclick = () => setMode('entity', 'spider')
 document.getElementById("mode_star").onclick = () => setMode('entity', 'star')
 function setMode(mode, modeKey) {
     gameBuilder.mode = mode
