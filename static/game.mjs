@@ -1179,13 +1179,71 @@ class DynamicEntity extends Entity {
     }
 }
 
-export class Hero extends DynamicEntity {
+
+export class LivingEntity extends DynamicEntity {
+    constructor(scn, x, y, playerId) {
+        super(scn, x, y)
+        this.life = 1
+        this.time = 0
+        this.damageLastTime = -3
+    }
+
+    update(dt) {
+        this.time += dt
+        this.undergoWalls = (this.life > 0)
+        // if(this.life == 0) this.rotation += 4 * PI * dt
+        if(this.scene.step != "GAME" || this.life == 0 || this.isDamageable()) this.spriteVisible = true
+        else this.spriteVisible = floor(this.time * 100) % 2 == 0
+        if(this.rmTime && this.time > this.rmTime) this.remove()
+    }
+
+    isDamageable() {
+        return (this.damageLastTime + .5) < this.time
+    }
+
+    onDamage(val, damager, force) {
+        if(this.life == 0) return
+        if(!force && !this.isDamageable()) return
+        this.life = max(0, this.life - val)
+        // this.scene.syncHearts()
+        if(this.life == 0) {
+            this.onKill(damager)
+        } else {
+            this.damageLastTime = this.time
+            if(damager) {
+                this.speedY = -200
+                this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
+            }
+        }
+    }
+
+    onKill(killer) {
+        this.rmTime = this.time + 3
+        if(killer) {
+            this.speedY = -500
+            this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
+        }
+    }
+
+    getState() {
+        const state = super.getState()
+        state.life = this.life
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        this.life = state.life
+    }
+}
+
+
+export class Hero extends LivingEntity {
     constructor(scn, x, y, playerId) {
         super(scn, x, y)
         this.team = "hero"
         this.life = 3
         this.time = 0
-        this.damageLastTime = -3
         if(playerId !== undefined) this.setPlayerId(playerId)
     }
 
@@ -1199,45 +1257,18 @@ export class Hero extends DynamicEntity {
         return this === this.scene.localHero
     }
 
-    update(dt) {
-        this.time += dt
-        this.undergoWalls = (this.life > 0)
-        if(this.life == 0) this.rotation += 4 * PI * dt
-        if(this.life == 0 || this.isDamageable()) this.spriteVisible = true
-        else this.spriteVisible = floor(this.time * 100) % 2 == 0
-    }
-
     isDamageable() {
         return (this.damageLastTime + 3) < this.time
     }
 
-    damage(val, damager, force) {
-        if(this.life == 0) return
-        if(!force && !this.isDamageable()) return
-        this.life = max(0, this.life - val)
+    onDamage(val, damager, force) {
+        super.onDamage(val, damager, force)
         this.scene.syncHearts()
-        if(this.life == 0) {
-            this.die(damager)
-        } else {
-            this.damageLastTime = this.time
-            if(damager) {
-                this.speedY = -200
-                this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
-            }
-        }
-    }
-
-    die(killer) {
-        if(killer) {
-            this.speedY = -500
-            this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
-        }
     }
 
     getState() {
         const state = super.getState()
         state.playerId = this.playerId
-        state.life = this.life
         state.inputState = this.inputState
         return state
     }
@@ -1245,7 +1276,6 @@ export class Hero extends DynamicEntity {
     setState(state) {
         super.setState(state)
         this.setPlayerId(state.playerId)
-        this.life = state.life
         this.inputState = state.inputState
     }
 
@@ -1268,6 +1298,7 @@ export class Hero extends DynamicEntity {
         this.scene.syncHero(this)
     }
 }
+
 
 const NicoSpriteSheet = new SpriteSheet("/static/assets/nico_full.png", 4, 1)
 const NicoStandingSprite = new Sprite(NicoSpriteSheet.getFrame(0))
@@ -1294,7 +1325,7 @@ class Nico extends Hero {
         else this.sprite = NicoRunningSprites[floor((this.time * 6) % 3)]
         // fall
         if(this.y > this.game.map.height + 100) {
-            this.damage(1, null, true)
+            this.onDamage(1, null, true)
             if(this.life > 0) this.respawn()
         }
     }
@@ -1347,7 +1378,7 @@ class Nico extends Hero {
 Entities.register("nico", Nico)
 
 
-class Enemy extends DynamicEntity {
+class Enemy extends LivingEntity {
     constructor(...args) {
         super(...args)
         this.team = "enemy"
@@ -1383,7 +1414,7 @@ class Zombi extends Enemy {
         this.sprite = ZombiSprites[floor((time * 6) % 8)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.damage(1, this)
+            if(checkHit(this, hero)) hero.onDamage(1, this)
         })
     }
 
@@ -1422,7 +1453,7 @@ class Bat extends Enemy {
         this.sprite = BatSprites[floor((time * 6) % 4)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.damage(1, this)
+            if(checkHit(this, hero)) hero.onDamage(1, this)
         })
     }
 
@@ -1459,7 +1490,7 @@ class Spider extends Enemy {
         this.speedY = (dirY > 0 ? 10000 : -2000) * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.damage(1, this)
+            if(checkHit(this, hero)) hero.onDamage(1, this)
         })
     }
 }
