@@ -39,10 +39,13 @@
     <flexrow>
         <button id="mode_erase">Erase</button>
         <button id="mode_nico">Nico</button>
+        <button id="mode_sword">Sword</button>
+        <button id="mode_star">Star</button>
+    </flexrow>
+    <flexrow>
         <button id="mode_zombi">Zombi</button>
         <button id="mode_bat">Bat</button>
         <button id="mode_spider">Spider</button>
-        <button id="mode_star">Star</button>
     </flexrow>
     <flexrow>
         <button id="game_draw">DRAW</button>
@@ -77,6 +80,7 @@ document.getElementById("mode_move").onclick = () => setMode('move')
 document.getElementById("mode_wall").onclick = () => setMode('wall')
 document.getElementById("mode_erase").onclick = () => setMode('erase')
 document.getElementById("mode_nico").onclick = () => setMode('entity', 'nico')
+document.getElementById("mode_sword").onclick = () => setMode('entity', 'sword')
 document.getElementById("mode_zombi").onclick = () => setMode('entity', 'zombi')
 document.getElementById("mode_bat").onclick = () => setMode('entity', 'bat')
 document.getElementById("mode_spider").onclick = () => setMode('entity', 'spider')

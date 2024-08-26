@@ -1257,6 +1257,11 @@ export class Hero extends LivingEntity {
         return this === this.scene.localHero
     }
 
+    update(dt) {
+        super.update(dt)
+        this.updateExtras(dt)
+    }
+
     isDamageable() {
         return (this.damageLastTime + 3) < this.time
     }
@@ -1293,6 +1298,20 @@ export class Hero extends LivingEntity {
 
     static initJoypadButtons(joypadScn) {}
 
+    addExtra(extra) {
+        const extras = this.extras ||= []
+        extras.push(extra)
+    }
+
+    updateExtras(dt) {
+        const extras = this.extras
+        if(!extras) return
+        for(let key in extras) {
+            const extra = extras[key]
+            extra.update(dt)
+        }
+    }
+
     remove() {
         super.remove()
         this.scene.syncHero(this)
@@ -1308,8 +1327,7 @@ const NicoJumpingSprite = new Sprite(NicoSpriteSheet.getFrame(1))
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
         super(scn, x, y, playerId)
-        this.width = 50
-        this.height = 50
+        this.width = this.height = 50
         this.sprite = NicoStandingSprite
     }
 
@@ -1474,8 +1492,7 @@ const SpiderSprite = new Sprite(new Img("/static/assets/spider.png"))
 class Spider extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
-        this.width = 50
-        this.height = 50
+        this.width = this.height = 45
         this.sprite = SpiderSprite
         this.scaleSprite = Entity.spriteFitHeight
         this.undergoGravity = false
@@ -1513,12 +1530,77 @@ class Heart extends Entity {
 }
 
 
+const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
+
+class SwordItem extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+        this.sprite = SwordSprite
+        this.respawnDur = 2
+        this.addLastTime = -this.respawnDur
+    }
+    update(dt) {
+        this.spriteVisible = (this.scene.time >= this.addLastTime + this.respawnDur)
+        if(!this.spriteVisible) return
+        for(let hero of this.scene.getTeam("hero")) {
+            if(checkHit(this, hero)) {
+                this.addTo(hero)
+                break
+            }
+        }
+    }
+    addTo(hero) {
+        const sword = this.scene.entities.add(new SwordExtra(hero))
+        hero.addExtra(sword)
+        this.addLastTime = this.scene.time
+    }
+}
+Entities.register("sword", SwordItem)
+
+
+class Extra extends Entity {
+    constructor(owner, x, y) {
+        const scn = owner.scene
+        super(scn, x, y)
+        this.owner = owner
+    }
+}
+
+
+class SwordExtra extends Extra {
+    constructor(owner) {
+        super(owner, 0, 0)
+        this.isMainExtra = true
+        this.width = this.height = 40
+        this.sprite = SwordSprite
+        this.syncPos()
+        this.removeSimilarExtras()
+    }
+    update(dt) {
+        this.syncPos()
+    }
+    syncPos() {
+        const { x, y, dirX } = this.owner
+        this.x = x + ((dirX > 0) ? 20 : -20)
+        this.y = y
+        this.dirX = dirX
+    }
+    removeSimilarExtras() {
+        if(!this.owner.extras) return
+        for(let extra2 of this.owner.extras) {
+            if(extra2.isMainExtra) extra2.remove()
+        }
+    }
+}
+
+
 const StarImg = new Img("/static/assets/star.png")
 const StarSprite = new Sprite(StarImg)
 
 class Star extends Entity {
-    constructor(...args) {
-        super(...args)
+    constructor(scn, x, y) {
+        super(scn, x, y)
         this.sprite = StarSprite
         this.width = this.height = 30
         this.undergoGravity = false
