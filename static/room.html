@@ -60,9 +60,15 @@ const map = new GameMap()
 let game = null, ws = null
 
 const showGameEl = document.getElementById("show_game")
-showGameEl.onchange = () => game.showGameScene(showGameEl.checked)
+showGameEl.onchange = () => {
+    game.showGameScene(showGameEl.checked)
+    ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId, isGame: showGameEl.checked }))
+}
 const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.onchange = () => game.showJoypadScene(showJoypadEl.checked)
+showJoypadEl.onchange = () => {
+    game.showJoypadScene(showJoypadEl.checked)
+    ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId, isJoypad: showJoypadEl.checked }))
+}
 function syncShows() {
     if(!game) return
     showGameEl.checked = Boolean(game.mainScene)
@@ -90,7 +96,11 @@ function connectToRoom() {
         ws = new WebSocket(`${socketProtocol}://${window.location.host}`)
         ws.addEventListener('open', () => {
             console.log('Connected to server !')
-            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId }))
+            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+                roomId,
+                isGame: showGameEl.checked,
+                isJoypad: showJoypadEl.checked,
+            }))
         })
         ws.addEventListener('message', evt => {
             const key = evt.data.substring(0, MSG_KEY_LENGTH)

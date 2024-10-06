@@ -48,7 +48,6 @@ class GameServer {
     this.app.post("/newroom", (req, res) => {
       const roomId = this.newRoom()
       res.json({ roomId })
-      // res.redirect(`/r/${this.generateRoomId()}`)
     })
 
     this.app.get("/r/:roomId", (req, res) => {
@@ -165,18 +164,22 @@ class GameServer {
   }
 
   handleIdentifyClient(ws, kwargs) {
-    const { roomId } = kwargs
+    const { roomId, isGame, isJoypad } = kwargs
     const room = this.rooms[roomId]
     if(!room) { ws.close(); return }
     if(room.closed) { room.closeClient(ws); return }
-    ws.id = this.generateClientId()
-    room.attachClient(ws)
-    const suggestedName = room.nextPlayerName()
-    ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
-      id: ws.id,
-      name: suggestedName,
-    }))
-    console.log(`Client '${ws.id}' connected`)
+    if(ws.id === undefined) {
+      ws.id = this.generateClientId()
+      room.attachClient(ws)
+      const suggestedName = room.nextPlayerName()
+      ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+        id: ws.id,
+        name: suggestedName,
+      }))
+      console.log(`Client '${ws.id}' connected`)
+    }
+    if(isGame !== undefined) ws.isGame = isGame
+    if(isJoypad !== undefined) ws.isJoypad = isJoypad
   }
 
   handleJoinGame(ws, kwargs) {
@@ -244,7 +247,7 @@ class GameServer {
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
     room.game = new Game(null, map, null, {
-      sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr)
+      sendState: stateStr => room.sendToGames(MSG_KEYS.GAME_STATE + stateStr)
     })
     room.game.play()
   }
@@ -332,10 +335,19 @@ class Room {
     return res
   }
 
-  sendAll(msg) {
+  sendToGames(msg) {
     const { websockets } = this
     for(const wsId in websockets) {
-      websockets[wsId].send(msg)
+      const ws = websockets[wsId]
+      if(ws.isGame) ws.send(msg)
+    }
+  }
+
+  sendToJoypads(msg) {
+    const { websockets } = this
+    for(const wsId in websockets) {
+      const ws = websockets[wsId]
+      if(ws.isJoypad) ws.send(msg)
     }
   }
 
