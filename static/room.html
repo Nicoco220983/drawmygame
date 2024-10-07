@@ -37,7 +37,7 @@
         <button id="restart">Restart</button>
     </flexrow>
     <flexrow>
-        <input id="show_game" type="checkbox">Show Game
+        <input id="show_game" type="checkbox" checked="true">Show Game
         <input id="show_joypad" type="checkbox">Show Joypad
         <button id="fullscreen">Fullscreen</button>
     </flexrow>
@@ -69,11 +69,6 @@ showJoypadEl.onchange = () => {
     game.showJoypadScene(showJoypadEl.checked)
     ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId, isJoypad: showJoypadEl.checked }))
 }
-function syncShows() {
-    if(!game) return
-    showGameEl.checked = Boolean(game.mainScene)
-    showJoypadEl.checked = Boolean(game.joypadScene)
-}
 
 const fullscrenEl = document.getElementById("fullscreen")
 fullscrenEl.onclick = () => {
@@ -86,7 +81,6 @@ async function main() {
     await getMap() 
     await connectToRoom()
     startGame()
-    syncShows()
 }
 
 
@@ -107,6 +101,7 @@ function connectToRoom() {
             const data = evt.data.substring(MSG_KEY_LENGTH)
             if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
             else if(key === MSG_KEYS.GAME_STATE) handleGameState(ws, data)
+            else if(key === MSG_KEYS.JOYPAD_STATE) handleJoypadState(ws, data)
             // else if(key === MSG_KEYS.GAME_OVER) onGameOver()
         })
         ws.addEventListener('close', () => {
@@ -155,7 +150,11 @@ function joinGame() {
 }
 
 function handleGameState(ws, data) {
-    game.receiveState(data)
+    game.receiveGameState(data)
+}
+
+function handleJoypadState(ws, data) {
+    game.receiveJoypadState(data)
 }
 
 function restartGame() {

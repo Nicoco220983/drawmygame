@@ -247,7 +247,8 @@ class GameServer {
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
     room.game = new Game(null, map, null, {
-      sendState: stateStr => room.sendToGames(MSG_KEYS.GAME_STATE + stateStr)
+      sendGameState: stateStr => room.sendToGames(MSG_KEYS.GAME_STATE + stateStr),
+      sendJoypadState: stateStr => room.sendToJoypads(MSG_KEYS.JOYPAD_STATE + stateStr),
     })
     room.game.play()
   }

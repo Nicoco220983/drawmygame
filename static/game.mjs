@@ -15,7 +15,8 @@ export const MSG_KEY_LENGTH = 3
 export const MSG_KEYS = {
   JOIN_GAME: 'JOI',
   IDENTIFY_CLIENT: 'IDC',
-  GAME_STATE: 'STT',
+  GAME_STATE: 'GST',
+  JOYPAD_STATE: 'JST',
   PLAYER_INPUT: 'INP',
   GAME_INSTRUCTION: 'GMI',
 //   GAME_OVER: 'GOV',
@@ -717,7 +718,8 @@ export class Game extends GameCommon {
 
         this.showGameScene(true)
 
-        this.sendState = (kwargs && kwargs.sendState) || null
+        this.sendGameState = (kwargs && kwargs.sendGameState) || null
+        this.sendJoypadState = (kwargs && kwargs.sendJoypadState) || null
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
 
         this.keyboardKeysPressed = {}
@@ -741,7 +743,8 @@ export class Game extends GameCommon {
                 if(!this.sendInputState) this.setLocalHeroInputState(inputState)
             }
             this.update(dt)
-            if(this.sendState) this.getAndMaySendState()
+            if(this.sendGameState) this.getAndMaySendGameState()
+            if(this.sendJoypadState) this.getAndMaySendJoypadState()
             if(this.sendInputState) this.getAndMaySendInputState(inputState)
             this.draw()
         }, 1000 / FPS)
@@ -763,7 +766,8 @@ export class Game extends GameCommon {
     restart(scnId) {
         this.mainScene = null
         this.showGameScene(true, scnId)
-        this.lastSendStateTime = -SEND_STATE_PERIOD
+        this.lastSendGameStateTime = -SEND_STATE_PERIOD
+        this.lastSendJoypadStateTime = -SEND_STATE_PERIOD
     }
 
     addPlayer(playerId, kwargs) {
@@ -807,8 +811,8 @@ export class Game extends GameCommon {
         return (isFull || state.main) ? JSON.stringify(state) : null
     }
 
-    receiveState(stateStr) {
-        console.log("TMP receiveState", stateStr)
+    receiveGameState(stateStr) {
+        console.log("TMP receiveGameState", stateStr)
         const state = JSON.parse(stateStr)
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
@@ -819,14 +823,32 @@ export class Game extends GameCommon {
         }
     }
 
-    getAndMaySendState() {
-        this.lastSendStateTime ||= -SEND_STATE_PERIOD
-        if(this.time > this.lastSendStateTime + SEND_STATE_PERIOD) {
-            this.sendState(this.getState(true))
-            this.lastSendStateTime = this.time
+    getAndMaySendGameState() {
+        this.lastSendGameStateTime ||= -SEND_STATE_PERIOD
+        if(this.time > this.lastSendGameStateTime + SEND_STATE_PERIOD) {
+            this.sendGameState(this.getState(true))
+            this.lastSendGameStateTime = this.time
         } else {
             const stateStr = this.getState(false)
-            if(stateStr) this.sendState(stateStr)
+            if(stateStr) this.sendGameState(stateStr)
+        }
+    }
+
+    receiveJoypadState(stateStr) {
+        console.log("TMP receiveJoypadState", stateStr)
+        const state = JSON.parse(stateStr)
+        if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
+    }
+
+    getAndMaySendJoypadState() {
+        // TODO: to really code
+        this.lastSendJoypadStateTime ||= -SEND_STATE_PERIOD
+        if(this.time > this.lastSendJoypadStateTime + SEND_STATE_PERIOD) {
+            this.sendJoypadState(this.getState(true))
+            this.lastSendJoypadStateTime = this.time
+        } else {
+            const stateStr = this.getState(false)
+            if(stateStr) this.sendJoypadState(stateStr)
         }
     }
 
