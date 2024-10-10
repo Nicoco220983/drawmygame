@@ -760,7 +760,7 @@ export class Game extends GameCommon {
             }
             this.update(dt)
             if(this.sendState) this.getAndMaySendState()
-            if(this.sendInputState) this.getAndMaySendInputState(inputState)
+            if(this.sendInputState) this.maySendInputState(inputState)
             this.draw()
         }, 1000 / FPS)
     }
@@ -853,13 +853,12 @@ export class Game extends GameCommon {
     }
 
     getInputState() {
-        const localPlayer = this.players[this.localPlayerId]
-        if(!localPlayer) return
-        const heroCls = Entities[localPlayer.hero.key]
-        return heroCls.getInputState(this)
+        const hero = this.mainScene.getHero(this.localPlayerId)
+        if(!hero) return
+        return hero.getInputState()
     }
 
-    getAndMaySendInputState(inputState) {
+    maySendInputState(inputState) {
         this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
         if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
@@ -1291,7 +1290,7 @@ export class Hero extends LivingEntity {
         const state = super.getState()
         state.playerId = this.playerId
         state.inputState = this.inputState
-        if(this.extras) state.extras = this.extras.getState()
+        if(this.extras) state.extras = this.extras.getState(true)
         return state
     }
 
@@ -1306,13 +1305,16 @@ export class Hero extends LivingEntity {
     }
 
     getInputState() {
-        const { inputState, inputStateTime } = this
-        if(inputState && inputStateTime && now() < inputStateTime + SEND_INPUT_STATE_PERIOD * 2 && hasKeys(inputState))
-            return inputState
+        const inputState = this.inputState ||= {}
+        const extras = this.extras
+        if(extras) inputState.extras = extras.getInputState()
+        return inputState
     }
 
     setInputState(inputState) {
         this.inputState = inputState
+        const extras = this.extras
+        if(extras) extras.setInputState(inputState && inputState.extras)
         this.inputStateTime = now()
         this._isStateToSend = true
     }
@@ -1371,8 +1373,9 @@ class Nico extends Hero {
         }
     }
 
-    static getInputState(game) {
-        const inputState = this._inputState ||= {}
+    getInputState() {
+        const { game } = this
+        const inputState = super.getInputState()
         if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
         else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
         else delete inputState.walkX
@@ -1440,6 +1443,7 @@ class Zombi extends Enemy {
     }
 
     update(dt) {
+        super.update(dt)
         const { time } = this.scene
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         // move
@@ -1584,6 +1588,44 @@ class Extra extends Entity {
         super(scn, x, y)
         this.owner = owner
     }
+
+    getHitBox() {
+        const { x, y, width, height } = this
+        const { x: oX, y: oY } = this.owner
+        return {
+            left: x + oX - width/2,
+            width,
+            top: y + oY - height/2,
+            height,
+        }
+    }
+
+    getState() {
+        const state = this.state ||= {}
+        state.key = this.constructor.key
+        if(this.hasOwnProperty("x")) state.x = this.x
+        if(this.hasOwnProperty("y")) state.y = this.y
+        if(this.hasOwnProperty("dirX")) state.dirX = this.dirX
+        if(this.hasOwnProperty("dirY")) state.dirY = this.dirY
+        return state
+    }
+
+    setState(state) {
+        if(state.x !== undefined) this.x = state.x
+        if(state.y !== undefined) this.y = state.y
+        if(state.dirX !== undefined) this.dirX = state.dirX
+        if(state.dirY !== undefined) this.dirY = state.dirY
+    }
+
+    getInputState() {
+        const inputState = this.inputState ||= {}
+        return inputState
+    }
+    
+    setInputState(inputState) {
+        this.inputState = inputState
+        this.inputStateTime = now()
+    }
 }
 
 export const Extras = {}
@@ -1596,26 +1638,62 @@ class ExtraGroup extends Group {
     getClassDefs() {
         return Extras
     }
+
+    getInputState() {
+        const { items } = this
+        const res = {}
+        for(let key in items) {
+            const item = items[key]
+            if(!item.removed) res[key] = item.getInputState()
+        }
+        return hasKeys(res) ? res : null
+    }
+
+    setInputState(state) {
+        const { items } = this
+        for(let key in items) {
+            items[key].setInputState(state && state[key])
+        }
+    }
 }
 
 
+const SWORD_ATTACK_PERIOD = .5
+
+const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
+const SwordSlashSprites = range(0, 6).map(i => new Sprite(SwordSlashSpriteSheet.getFrame(i)))
+
 class SwordExtra extends Extra {
     constructor(owner) {
-        super(owner, 20, 0)
+        super(owner, 0, 0)
         this.isMainExtra = true
-        this.width = this.height = 40
-        this.sprite = SwordSprite
-        //this.syncPos()
+        this.lastAttackTime = -SWORD_ATTACK_PERIOD
+        this.syncSprite()
         this.removeSimilarExtras()
     }
     update(dt) {
-        //this.syncPos()
+        const { inputState } = this
+        if(inputState && inputState.attack && this.owner.time - this.lastAttackTime > SWORD_ATTACK_PERIOD) {
+            this.lastAttackTime = this.owner.time
+        }
+        this.syncSprite()
+        if(this.owner.time - this.lastAttackTime < SWORD_ATTACK_PERIOD) {
+            for(let enem of this.scene.getTeam("enemy")) {
+                if(checkHit(this, enem)) enem.onDamage(1, this.owner)
+            }
+        }
     }
-    syncPos() {
-        const { x, y, dirX } = this.owner
-        this.x = x + ((dirX > 0) ? 20 : -20)
-        this.y = y
-        this.dirX = dirX
+    syncSprite() {
+        const timeSinceLastAttack = this.owner.time - this.lastAttackTime
+        if(timeSinceLastAttack < SWORD_ATTACK_PERIOD) {
+            this.sprite = SwordSlashSprites[floor(timeSinceLastAttack/SWORD_ATTACK_PERIOD*6)]
+            this.x = 40
+            this.width = this.height = 60
+        } else {
+            this.sprite = SwordSprite
+            this.x = 25
+            this.width = this.height = 40
+        }
     }
     removeSimilarExtras() {
         if(!this.owner.extras) return
@@ -1623,7 +1701,24 @@ class SwordExtra extends Extra {
             if(extra2.isMainExtra) extra2.remove()
         })
     }
+    getState() {
+        const state = super.getState()
+        state.lat = this.lastAttackTime
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.lastAttackTime = state.lat
+    }
+    getInputState() {
+        const inputState = super.getInputState()
+        const { game } = this
+        if(game.isKeyPressed(" ")) inputState.attack = true
+        else delete inputState.attack
+        return inputState
+    }
 }
+Extras.register("sword", SwordExtra)
 
 
 const StarImg = new Img("/static/assets/star.png")

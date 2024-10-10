@@ -19,10 +19,10 @@ export class GameBuilder extends GameCommon {
         // this.initPointer()
         this.initTouches()
 
-        this.addBuilderScene()
+        this.initBuilderScene()
     }
 
-    addBuilderScene() {
+    initBuilderScene() {
         this.mainScene = new BuilderScene(this)
         this.syncSize()
     }
