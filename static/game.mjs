@@ -383,6 +383,12 @@ Entity.spriteFitHeight = function() {
     this.spriteHeight = height
 }
 
+export const Entities = {}
+Entities.register = function(key, cls) {
+    cls.key = key
+    this[key] = cls
+}
+
 function newTextCanvas(text, kwargs) {
     if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
@@ -429,11 +435,11 @@ class CenteredText extends Text {
 
 export class Group {
 
-    constructor(scn) {
+    constructor(owner) {
         this.x = 0
         this.y = 0
-        this.scene = scn
-        this.game = scn.game
+        this.owner = owner
+        this.game = owner.game
         this.items = {}
         this.lastAutoId = 0
     }
@@ -493,15 +499,24 @@ export class Group {
 
     setState(state, isFull) {
         const { items } = this
-        for(let key in state) {
-            let ent = items[key]
-            if(!ent) {
-                const cls = Entities[state[key].key]
-                ent = this.add(new cls(this.scene))
+        if(state) {
+            const ClassDefs = this.getClassDefs()
+            for(let key in state) {
+                let ent = items[key]
+                if(!ent) {
+                    const cls = ClassDefs[state[key].key]
+                    ent = this.add(new cls(this.owner))
+                }
+                ent.setState(state[key], isFull)
             }
-            ent.setState(state[key], isFull)
-        }
-        if(isFull) for(let key in items) if(!state[key]) items[key].remove()
+            if(isFull) for(let key in items) if(!state[key]) items[key].remove()
+        } else if(isFull) for(let key in items) items[key].remove()
+    }
+}
+
+class EntityGroup extends Group {
+    getClassDefs() {
+        return Entities
     }
 }
 
@@ -554,19 +569,21 @@ export class GameCommon {
     syncSize() {
         const width = min(this.map.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
-        if(this.mainScene) this.mainScene.setPosAndSize(
+        const mainSceneVisible = Boolean(this.mainScene) && this.mainScene.visible
+        const joypadSceneVisible = Boolean(this.joypadScene)
+        if(mainSceneVisible) this.mainScene.setPosAndSize(
             0,
             0,
             width,
             min(this.map.height, CANVAS_MAX_HEIGHT),
         )
-        if(this.joypadScene) this.joypadScene.setPosAndSize(
+        if(joypadSceneVisible) this.joypadScene.setPosAndSize(
             0,
-            this.mainScene ? this.mainScene.height : 0,
+            mainSceneVisible ? this.mainScene.height : 0,
             width,
             height169,
         )
-        const height = max(height169, (this.mainScene ? this.mainScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
+        const height = max(height169, (mainSceneVisible ? this.mainScene.height : 0) + (joypadSceneVisible ? this.joypadScene.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -595,13 +612,14 @@ export class SceneCommon {
         this.viewY = 0
         this.width = 100
         this.height = 100
+        this.visible = true
         this.time = 0
         this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
-        this.walls = new Group(this)
-        this.entities = new Group(this)
+        this.walls = new EntityGroup(this)
+        this.entities = new EntityGroup(this)
         this.heros = {}
         this.initWalls()
         this.initEntities()
@@ -715,7 +733,7 @@ export class Game extends GameCommon {
         this.players = {}
         this.localPlayerId = playerId
 
-        this.showGameScene(true)
+        this.initGameScene()
 
         this.sendState = (kwargs && kwargs.sendState) || null
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
@@ -752,17 +770,21 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
-    showGameScene(val, scnId) {
-        if(val == Boolean(this.mainScene)) return
+    initGameScene(scnId) {
         if(scnId === undefined) scnId = this.time
-        this.mainScene = val ? new GameScene(this, scnId) : null
+        this.mainScene = new GameScene(this, scnId)
         this.syncSize()
-        if(val) for(let playerId in this.players) this.mainScene.addHero(playerId)
+        for(let playerId in this.players) this.mainScene.addHero(playerId)
+    }
+
+    showGameScene(visible) {
+        if(visible == this.mainScene.visible) return
+        this.mainScene.visible = visible
+        this.syncSize()
     }
 
     restart(scnId) {
-        this.mainScene = null
-        this.showGameScene(true, scnId)
+        this.initGameScene(scnId)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
 
@@ -881,7 +903,7 @@ export class GameScene extends SceneCommon {
         super(game)
         this.id = scnId
         this.step = "GAME"
-        this.notifs = new Group(this)
+        this.notifs = new EntityGroup(this)
         this.initVictoryNotifs()
         this.initGameOverNotifs()
         this.time = 0
@@ -919,7 +941,7 @@ export class GameScene extends SceneCommon {
 
     setLocalHero(hero) {
         super.setLocalHero(hero)
-        this.hearts ||= new Group(this)
+        this.hearts ||= new EntityGroup(this)
         this.hearts.forEach(h => h.remove())
         for(let i=0; i<hero.life; ++i)
             this.hearts.add(new Heart(this, i))
@@ -1105,7 +1127,7 @@ export class GameScene extends SceneCommon {
     }
 
     initVictoryNotifs() {
-        this.victoryNotifs = new Group(this)
+        this.victoryNotifs = new EntityGroup(this)
         this.victoryNotifs.add(new CenteredText(
             this,
             "VICTORY !",
@@ -1114,7 +1136,7 @@ export class GameScene extends SceneCommon {
     }
 
     initGameOverNotifs() {
-        this.gameOverNotifs = new Group(this)
+        this.gameOverNotifs = new EntityGroup(this)
         this.gameOverNotifs.add(new CenteredText(
             this,
             "GAME OVER",
@@ -1145,12 +1167,6 @@ export class GameScene extends SceneCommon {
 }
 
 // ENTITIES ///////////////////////////////////
-
-export const Entities = {}
-Entities.register = function(key, cls) {
-    cls.key = key
-    this[key] = cls
-}
 
 class DynamicEntity extends Entity {
 
@@ -1259,7 +1275,7 @@ export class Hero extends LivingEntity {
 
     update(dt) {
         super.update(dt)
-        this.updateExtras(dt)
+        if(this.extras) this.extras.update(dt)
     }
 
     isDamageable() {
@@ -1275,6 +1291,7 @@ export class Hero extends LivingEntity {
         const state = super.getState()
         state.playerId = this.playerId
         state.inputState = this.inputState
+        if(this.extras) state.extras = this.extras.getState()
         return state
     }
 
@@ -1282,6 +1299,10 @@ export class Hero extends LivingEntity {
         super.setState(state)
         this.setPlayerId(state.playerId)
         this.inputState = state.inputState
+        if(this.extras || state.extras) {
+            this.extras ||= new ExtraGroup(this)
+            this.extras.setState(state.extras, true)
+        }
     }
 
     getInputState() {
@@ -1299,16 +1320,18 @@ export class Hero extends LivingEntity {
     static initJoypadButtons(joypadScn) {}
 
     addExtra(extra) {
-        const extras = this.extras ||= []
-        extras.push(extra)
+        const extras = this.extras ||= new ExtraGroup(this)
+        extras.add(extra)
     }
 
-    updateExtras(dt) {
-        const extras = this.extras
-        if(!extras) return
-        for(let key in extras) {
-            const extra = extras[key]
-            extra.update(dt)
+    drawTo(ctx) {
+        super.drawTo(ctx)
+        if(this.extras) {
+            ctx.translate(~~this.x, ~~this.y)
+            ctx.scale(this.dirX, this.dirY)
+            this.extras.drawTo(ctx)
+            ctx.scale(this.dirX, this.dirY)
+            ctx.translate(~~-this.x, ~~-this.y)
         }
     }
 
@@ -1545,15 +1568,11 @@ class SwordItem extends Entity {
         if(!this.spriteVisible) return
         for(let hero of this.scene.getTeam("hero")) {
             if(checkHit(this, hero)) {
-                this.addTo(hero)
+                hero.addExtra(new SwordExtra(hero))
+                this.addLastTime = this.scene.time
                 break
             }
         }
-    }
-    addTo(hero) {
-        const sword = this.scene.entities.add(new SwordExtra(hero))
-        hero.addExtra(sword)
-        this.addLastTime = this.scene.time
     }
 }
 Entities.register("sword", SwordItem)
@@ -1567,18 +1586,30 @@ class Extra extends Entity {
     }
 }
 
+export const Extras = {}
+Extras.register = function(key, cls) {
+    cls.key = key
+    this[key] = cls
+}
+
+class ExtraGroup extends Group {
+    getClassDefs() {
+        return Extras
+    }
+}
+
 
 class SwordExtra extends Extra {
     constructor(owner) {
-        super(owner, 0, 0)
+        super(owner, 20, 0)
         this.isMainExtra = true
         this.width = this.height = 40
         this.sprite = SwordSprite
-        this.syncPos()
+        //this.syncPos()
         this.removeSimilarExtras()
     }
     update(dt) {
-        this.syncPos()
+        //this.syncPos()
     }
     syncPos() {
         const { x, y, dirX } = this.owner
@@ -1588,9 +1619,9 @@ class SwordExtra extends Extra {
     }
     removeSimilarExtras() {
         if(!this.owner.extras) return
-        for(let extra2 of this.owner.extras) {
+        this.owner.extras.forEach(extra2 => {
             if(extra2.isMainExtra) extra2.remove()
-        }
+        })
     }
 }
 
