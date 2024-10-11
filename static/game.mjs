@@ -341,7 +341,9 @@ export class Entity {
         this.x = state.x
         this.y = state.y
         if(state.dirX !== undefined) this.dirX = state.dirX
+        else delete this.dirX
         if(state.dirY !== undefined) this.dirY = state.dirY
+        else delete this.dirY
     }
 }
 
@@ -1190,7 +1192,9 @@ class DynamicEntity extends Entity {
     setState(state) {
         super.setState(state)
         if(state.speedX !== undefined) this.speedX = state.speedX
+        else delete this.speedX
         if(state.speedY !== undefined) this.speedY = state.speedY
+        else delete this.speedY
     }
 }
 
@@ -1494,6 +1498,7 @@ class Bat extends Enemy {
     }
 
     update(dt) {
+        super.update(dt)
         const { time } = this.scene
         const { width } = this.game.map
         // move
@@ -1531,6 +1536,7 @@ class Spider extends Enemy {
     }
 
     update(dt) {
+        super.update(dt)
         const { time } = this.scene
         const { height } = this.game.map
         // move
@@ -1700,11 +1706,12 @@ class SwordExtra extends Extra {
         })
     }
     getState() {
-        const state = this.state ||= {}
+        const state = super.getState()
         state.lat = this.lastAttackTime
         return state
     }
     setState(state) {
+        super.setState(state)
         this.lastAttackTime = state.lat
     }
     getInputState() {
