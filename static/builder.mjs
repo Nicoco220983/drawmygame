@@ -152,11 +152,11 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    addEntity(x, y, key) {
-        const ent = super.addEntity(x, y, key)
+    addEntityInMap(x, y, key) {
+        const ent = this.addEntity(x, y, key)
         if(ent instanceof Hero) {
             this.entities.forEach(ent2 => {
-                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntity(ent2)
+                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntityFromMap(ent2)
             })
             ent.mapRef = { x, y, keys: [key] }
             this.game.map.heros = [ent.mapRef]
@@ -167,7 +167,7 @@ class BuilderScene extends SceneCommon {
         return ent
     }
 
-    removeEntity(ent) {
+    removeEntityFromMap(ent) {
         const { map } = this.game
         ent.remove()
         if(ent instanceof Hero) map.hero = null
@@ -183,7 +183,7 @@ class BuilderScene extends SceneCommon {
             this.entities.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    this.removeEntity(ent)
+                    this.removeEntityFromMap(ent)
                 }
             })
         }
@@ -196,7 +196,7 @@ class BuilderScene extends SceneCommon {
             const touch = touches[0]
             const x = touch.x + this.viewX
             const y = touch.y + this.viewY
-            this.addEntity(x, y, modeKey)
+            this.addEntityInMap(x, y, modeKey)
         }
     }
 
