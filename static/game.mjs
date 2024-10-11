@@ -1306,8 +1306,9 @@ export class Hero extends LivingEntity {
 
     getInputState() {
         const inputState = this.inputState ||= {}
-        const extras = this.extras
-        if(extras) inputState.extras = extras.getInputState()
+        const extrasState = this.extras && this.extras.getInputState()
+        if(extrasState && hasKeys(extrasState)) inputState.extras = extrasState
+        else delete inputState.extras
         return inputState
     }
 
@@ -1595,11 +1596,11 @@ class Extra extends Entity {
 
     getHitBox() {
         const { x, y, width, height } = this
-        const { x: oX, y: oY } = this.owner
+        const { x: oX, y: oY, dirX, dirY } = this.owner
         return {
-            left: x + oX - width/2,
+            left: (x * dirX) + oX - width/2,
             width,
-            top: y + oY - height/2,
+            top: (y * dirY) + oY - height/2,
             height,
         }
     }
@@ -1607,19 +1608,10 @@ class Extra extends Entity {
     getState() {
         const state = this.state ||= {}
         state.key = this.constructor.key
-        if(this.hasOwnProperty("x")) state.x = this.x
-        if(this.hasOwnProperty("y")) state.y = this.y
-        if(this.hasOwnProperty("dirX")) state.dirX = this.dirX
-        if(this.hasOwnProperty("dirY")) state.dirY = this.dirY
         return state
     }
 
-    setState(state) {
-        if(state.x !== undefined) this.x = state.x
-        if(state.y !== undefined) this.y = state.y
-        if(state.dirX !== undefined) this.dirX = state.dirX
-        if(state.dirY !== undefined) this.dirY = state.dirY
-    }
+    setState(state) {}
 
     getInputState() {
         const inputState = this.inputState ||= {}
@@ -1645,10 +1637,12 @@ class ExtraGroup extends Group {
 
     getInputState() {
         const { items } = this
+        if(!hasKeys(items)) return null
         const res = {}
         for(let key in items) {
             const item = items[key]
-            if(!item.removed) res[key] = item.getInputState()
+            let state = item.removed ? null : item.getInputState()
+            if(state && hasKeys(state)) res[key] = state
         }
         return hasKeys(res) ? res : null
     }
@@ -1706,12 +1700,11 @@ class SwordExtra extends Extra {
         })
     }
     getState() {
-        const state = super.getState()
+        const state = this.state ||= {}
         state.lat = this.lastAttackTime
         return state
     }
     setState(state) {
-        super.setState(state)
         this.lastAttackTime = state.lat
     }
     getInputState() {
