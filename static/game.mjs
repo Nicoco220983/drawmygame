@@ -1427,6 +1427,10 @@ class Enemy extends LivingEntity {
         super(...args)
         this.team = "enemy"
     }
+    onKill() {
+        this.scene.entities.add(new SmokeExplosion(this.scene, this.x, this.y))
+        this.remove()
+    }
 }
 
 
@@ -1745,3 +1749,22 @@ class Star extends Entity {
     }
 }
 Entities.register("star", Star)
+
+
+const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
+const SmokeExplosionSprites = range(0, 4).map(i => new Sprite(SmokeExplosionSpriteSheet.getFrame(i)))
+
+class SmokeExplosion extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 100
+        this.undergoGravity = false
+        this.undergoWalls = false
+        this.time = 0
+    }
+    update(dt) {
+        this.time += dt
+        if(this.time > .5) { this.remove(); return }
+        this.sprite = SmokeExplosionSprites[floor(this.time/.5*4)]
+    }
+}
