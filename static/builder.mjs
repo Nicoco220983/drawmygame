@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas } = utils
-import { GameCommon, SceneCommon, Entity, Sprite, Hero, now, FPS } from './game.mjs'
+import { GameCommon, SceneCommon, Entity, Entities, Sprite, Hero, now, FPS } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -55,6 +55,19 @@ export class GameBuilder extends GameCommon {
 
 
 class BuilderScene extends SceneCommon {
+    constructor(...args) {
+        super(...args)
+        this.initHeros()
+    }
+
+    initHeros() {
+        const mapHeros = this.game.map.heros
+        for(let heroDef of mapHeros) {
+            const { keys, x, y } = heroDef
+            const cls = Entities[keys[0]]
+            this.entities.add(new cls(this, x, y))
+        }
+    }
 
     setPosAndSize(x, y, width, height) {
         super.setPosAndSize(x, y, width, height)

@@ -1767,4 +1767,14 @@ class SmokeExplosion extends Entity {
         if(this.time > .5) { this.remove(); return }
         this.sprite = SmokeExplosionSprites[floor(this.time/.5*4)]
     }
+    getState() {
+        const state = super.getState()
+        state.time = this.time
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.time = state.time
+    }
 }
+Entities.register("smokee", Star)
