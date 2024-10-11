@@ -64,7 +64,7 @@
         <button id="fullscreen">Fullscreen</button>
     </flexrow>
     <flexcol id="builder"></flexcol>
-    <flexcol id="game" style="display: none"></flexcol>
+    <flexcol id="game" style="padding:1em; display: none"></flexcol>
 <script type="module">
 import { GameMap, Game } from './static/game.mjs'
 import { GameBuilder } from './static/builder.mjs'
@@ -91,8 +91,8 @@ function setMode(mode, modeKey) {
     if(gameBuilder) gameBuilder.syncMode()
 }
 
-document.getElementById("game_draw").onclick = showBuilder
-document.getElementById("game_start").onclick = startGame
+document.getElementById("game_draw").onclick = startAndShowBuilder
+document.getElementById("game_start").onclick = startAndShowGame
 document.getElementById("game_share").onclick = async () => {
     const mapStr = await map.exportAsSafeBase64()
     console.log(`Map export size: ${mapStr.length}`)
@@ -148,14 +148,14 @@ async function main() {
     map.syncSize()
     syncInputElSize()
     if(urlParams.has("map")) {
-        startGame()
+        startAndShowGame()
     } else {
-        showBuilder()
+        startAndShowBuilder()
         setMode("move")
     }
 }
 
-function showBuilder() {
+function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, map)
@@ -163,8 +163,13 @@ function showBuilder() {
     builderParentEl.style.display = ""
 }
 
-function startGame() {
+function stopBuilder() {
+    if(gameBuilder) gameBuilder.stop()
+}
+
+function startAndShowGame() {
     builderParentEl.style.display = "none"
+    stopBuilder()
     if(!game) {
         const playerId = "0"
         game = new Game(gameParentEl, map, playerId)
