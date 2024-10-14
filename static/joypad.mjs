@@ -1,5 +1,5 @@
 import * as utils from './utils.mjs'
-import { Img, Sprite, Entity, Group, Entities } from "./game.mjs"
+import { Img, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game.mjs"
 
 
 export class JoypadScene {
@@ -90,8 +90,8 @@ export class JoypadScene {
 }
 
 
-const ButtonImg = new Img("/static/assets/button.png")
-const ButtonSprite = new Sprite(ButtonImg)
+const ButtonSpriteSheet = new SpriteSheet("/static/assets/button.png", 2, 1)
+const ButtonSprites = range(0, 2).map(i => new Sprite(ButtonSpriteSheet.getFrame(i)))
 
 class Button extends Entity {
     constructor(scn, kwargs) {
@@ -102,7 +102,7 @@ class Button extends Entity {
         this.posY = kwargs.posY
         this.posHeight = kwargs.posHeight
         this.syncSize()
-        this.sprite = ButtonSprite
+        this.sprite = ButtonSprites[0]
     }
 
     syncSize() {
@@ -114,6 +114,8 @@ class Button extends Entity {
     }
 
     update(time) {
-        this.game.setJoypadKeyPressed(this.key, this.checkHitTouches())
+        const isDown = this.checkHitTouches()
+        this.game.setJoypadKeyPressed(this.key, isDown)
+        this.sprite = ButtonSprites[isDown ? 1 : 0]
     }
 }

@@ -159,7 +159,7 @@ export function now() {
     return Date.now() / 1000
 }
 
-function range(start, end) {
+export function range(start, end) {
     const res = []
     for(let i=start; i<end; ++i) res.push(i)
     return res
@@ -200,7 +200,7 @@ export class Img extends Image {
     }
 }
 
-class SpriteSheet {
+export class SpriteSheet {
     constructor(src, nbCols, nbRows, kwargs) {
         this.src = src
         this.nbCols = nbCols
@@ -832,7 +832,7 @@ export class Game extends GameCommon {
     }
 
     receiveState(stateStr) {
-        console.log("TMP receiveState", stateStr)
+        console.log("TMP receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
@@ -864,7 +864,7 @@ export class Game extends GameCommon {
         this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
         if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
-            console.log("TMP sendInputState", inputStateStr)
+            console.log("TMP sendInputState", this.time, inputStateStr)
             this.sendInputState(inputStateStr)
             this.prevInputStateStr = inputStateStr
             this.lastSendInputStateTime = this.time
@@ -877,6 +877,7 @@ export class Game extends GameCommon {
     }
 
     receivePlayerInputState(playerId, inputStateStr) {
+        console.log("TMP receivePlayerInputState", this.time, playerId, inputStateStr)
         const hero = this.mainScene && this.mainScene.getHero(playerId)
         if(!hero) return
         const inputState = inputStateStr ? JSON.parse(inputStateStr) : null

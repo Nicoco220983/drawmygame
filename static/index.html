@@ -184,6 +184,7 @@ function startAndShowGame() {
     if(!game) {
         const playerId = "0"
         game = new Game(gameParentEl, map, playerId)
+        // game.showJoypadScene(true)
         game.addPlayer(playerId, {
             name: null,
             color: "blue",
