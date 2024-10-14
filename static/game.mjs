@@ -463,6 +463,10 @@ export class Group {
         return item
     }
 
+    hasKeys() {
+        return hasKeys(this.items)
+    }
+
     forEach(next) {
         const { items } = this
         for(let key in items) next(items[key])
@@ -759,6 +763,8 @@ export class Game extends GameCommon {
             if(!this.isServerEnv) {
                 inputState = this.getInputState()
                 if(!this.sendInputState) this.setLocalHeroInputState(inputState)
+            } else {
+                this.setInputStateFromReceived()
             }
             this.update(dt)
             if(this.sendState) this.getAndMaySendState()
@@ -860,28 +866,63 @@ export class Game extends GameCommon {
         return hero.getInputState()
     }
 
-    maySendInputState(inputState) {
-        this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
-        const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
-        if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
-            console.log("TMP sendInputState", this.time, inputStateStr)
-            this.sendInputState(inputStateStr)
-            this.prevInputStateStr = inputStateStr
-            this.lastSendInputStateTime = this.time
-        }
-    }
-
     setLocalHeroInputState(inputState) {
         const hero = this.mainScene && this.mainScene.getHero(this.localPlayerId)
         if(hero) hero.setInputState(inputState)
     }
 
-    receivePlayerInputState(playerId, inputStateStr) {
-        console.log("TMP receivePlayerInputState", this.time, playerId, inputStateStr)
-        const hero = this.mainScene && this.mainScene.getHero(playerId)
-        if(!hero) return
-        const inputState = inputStateStr ? JSON.parse(inputStateStr) : null
-        hero.setInputState(inputState)
+    maySendInputState(inputState) {
+        this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
+        const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
+        if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
+            const inputStateWiTime = this.inputStateWiTime ||= {}
+            inputStateWiTime.t = this.time
+            if(inputState && hasKeys(inputState)) inputStateWiTime.i = inputState
+            else delete inputStateWiTime.i
+            const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
+            console.log("TMP sendInputState", this.time, inputStateWiTimeStr)
+            this.sendInputState(inputStateWiTimeStr)
+            this.prevInputStateStr = inputStateStr
+            this.lastSendInputStateTime = this.time
+        }
+    }
+
+    receivePlayerInputState(playerId, inputStateWiTimeStr) {
+        console.log("TMP receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
+        const receivedInputStates = this.receivedInputStates ||= {}
+        const playerReceivedInputStates = receivedInputStates[playerId] ||= []
+        const inputStateWiTime = JSON.parse(inputStateWiTimeStr)
+        inputStateWiTime.localTime = this.time
+        playerReceivedInputStates.push(inputStateWiTime)
+    }
+
+    setInputStateFromReceived() {
+        const receivedInputStates = this.receivedInputStates ||= {}
+        for(let playerId in receivedInputStates) {
+            const hero = this.mainScene && this.mainScene.getHero(playerId)
+            if(!hero) continue
+            const playerReceivedInputStates = receivedInputStates[playerId]
+            const nbStates = playerReceivedInputStates.length
+            if(nbStates == 0) continue
+            const playerInputStateWiTime = playerReceivedInputStates[0]
+            const inputState = playerInputStateWiTime.i
+            const stateHasKeys = (inputState && hasKeys(inputState))
+            if(!stateHasKeys) {
+                hero.setInputState(null)
+                playerReceivedInputStates.shift()
+            } else if(!playerInputStateWiTime.setDone) {
+                hero.setInputState(inputState)
+                playerInputStateWiTime.setDone = true
+                // clean inputState if too old (according to next inputState)
+                const playerNextInputStateWiTime = (nbStates > 1) ? playerReceivedInputStates[1] : null
+                if(playerNextInputStateWiTime) {
+                    const playerInputStateDur = playerNextInputStateWiTime.t - playerInputStateWiTime.t
+                    if(this.time > playerInputStateWiTime.localTime + playerInputStateDur) {
+                        playerReceivedInputStates.shift()
+                    }
+                }
+            }
+        }
     }
 
     async showJoypadScene(val) {
@@ -1294,8 +1335,12 @@ export class Hero extends LivingEntity {
     getState() {
         const state = super.getState()
         state.playerId = this.playerId
-        state.inputState = this.inputState
-        if(this.extras) state.extras = this.extras.getState(true)
+        const inputState = this.inputState
+        if(inputState && hasKeys(inputState)) state.inputState = inputState
+        else delete state.inputState
+        const extras = this.extras
+        if(extras && extras.hasKeys()) state.extras = this.extras.getState(true)
+        else delete state.extras
         return state
     }
 
