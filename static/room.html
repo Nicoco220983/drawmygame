@@ -65,7 +65,7 @@ const showJoypadEl = document.getElementById("show_joypad")
 showJoypadEl.onchange = () => game.showJoypadScene(showJoypadEl.checked)
 function syncShows() {
     if(!game) return
-    showGameEl.checked = Boolean(game.mainScene)
+    showGameEl.checked = game.gameScene.visible
     showJoypadEl.checked = Boolean(game.joypadScene)
 }
 

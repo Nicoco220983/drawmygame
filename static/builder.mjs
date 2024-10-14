@@ -16,14 +16,11 @@ export class GameBuilder extends GameCommon {
         self.modeKey = null
         this.syncMode()
 
-        // this.initPointer()
         this.initTouches()
-
-        this.initBuilderScene()
     }
 
-    initBuilderScene() {
-        this.mainScene = new BuilderScene(this)
+    initGameScene() {
+        this.gameScene = new BuilderScene(this)
         this.syncSize()
     }
 

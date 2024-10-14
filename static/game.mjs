@@ -543,8 +543,12 @@ export class GameCommon {
         this.game = this
         this.map = map
 
+        this.initGameScene()
         this.syncSize()
     }
+
+    // pure abstract
+    // initGameScene()
 
     initPointer() {
         if(this.pointer) return
@@ -559,37 +563,35 @@ export class GameCommon {
 
     update(dt) {
         this.time += dt
-        if(this.mainScene.visible) this.mainScene.update(dt)
+        if(this.gameScene.visible) this.gameScene.update(dt)
         if(this.joypadScene) this.joypadScene.update(dt)
     }
 
     draw() {
         if(this.isServerEnv) return
-        if(this.mainScene.visible) this.mainScene.draw()
+        if(this.gameScene.visible) this.gameScene.draw()
         if(this.joypadScene) this.joypadScene.draw()
         const ctx = this.canvas.getContext("2d")
-        if(this.mainScene.visible) ctx.drawImage(this.mainScene.canvas, 0, this.mainScene.y)
+        if(this.gameScene.visible) ctx.drawImage(this.gameScene.canvas, 0, this.gameScene.y)
         if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.joypadScene.y)
     }
 
     syncSize() {
         const width = min(this.map.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
-        const mainSceneVisible = Boolean(this.mainScene) && this.mainScene.visible
-        const joypadSceneVisible = Boolean(this.joypadScene)
-        if(mainSceneVisible) this.mainScene.setPosAndSize(
+        if(this.gameScene.visible) this.gameScene.setPosAndSize(
             0,
             0,
             width,
             min(this.map.height, CANVAS_MAX_HEIGHT),
         )
-        if(joypadSceneVisible) this.joypadScene.setPosAndSize(
+        if(this.joypadScene) this.joypadScene.setPosAndSize(
             0,
-            mainSceneVisible ? this.mainScene.height : 0,
+            this.gameScene.visible ? this.gameScene.height : 0,
             width,
             height169,
         )
-        const height = max(height169, (mainSceneVisible ? this.mainScene.height : 0) + (joypadSceneVisible ? this.joypadScene.height : 0))
+        const height = max(height169, (this.gameScene.isible ? this.gameScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -739,8 +741,6 @@ export class Game extends GameCommon {
         this.players = {}
         this.localPlayerId = playerId
 
-        this.initGameScene()
-
         this.sendState = (kwargs && kwargs.sendState) || null
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
 
@@ -780,14 +780,14 @@ export class Game extends GameCommon {
 
     initGameScene(scnId) {
         if(scnId === undefined) scnId = this.time
-        this.mainScene = new GameScene(this, scnId)
+        this.gameScene = new GameScene(this, scnId)
         this.syncSize()
-        for(let playerId in this.players) this.mainScene.addHero(playerId)
+        for(let playerId in this.players) this.gameScene.addHero(playerId)
     }
 
     showGameScene(visible) {
-        if(visible == this.mainScene.visible) return
-        this.mainScene.visible = visible
+        if(visible == this.gameScene.visible) return
+        this.gameScene.visible = visible
         this.syncSize()
     }
 
@@ -809,14 +809,14 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        this.mainScene.addHero(playerId)
+        this.gameScene.addHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
 
     rmPlayer(playerId) {
         const player = this.players[playerId]
         if(!player) return
-        this.mainScene.rmHero(playerId)
+        this.gameScene.rmHero(playerId)
         delete this.players[playerId]
     }
 
@@ -833,7 +833,7 @@ export class Game extends GameCommon {
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
         if(isFull) state.players = this.players
-        state.main = this.mainScene.getState(isFull)
+        state.main = this.gameScene.getState(isFull)
         return (isFull || state.main) ? JSON.stringify(state) : null
     }
 
@@ -843,9 +843,9 @@ export class Game extends GameCommon {
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.main) {
-            if(isFull && state.main.id != this.mainScene.id)
+            if(isFull && state.main.id != this.gameScene.id)
                 this.restart(state.main.id)
-            this.mainScene.setState(state.main, isFull)
+            this.gameScene.setState(state.main, isFull)
         }
     }
 
@@ -861,13 +861,13 @@ export class Game extends GameCommon {
     }
 
     getInputState() {
-        const hero = this.mainScene.getHero(this.localPlayerId)
+        const hero = this.gameScene.getHero(this.localPlayerId)
         if(!hero) return
         return hero.getInputState()
     }
 
     setLocalHeroInputState(inputState) {
-        const hero = this.mainScene.getHero(this.localPlayerId)
+        const hero = this.gameScene.getHero(this.localPlayerId)
         if(hero) hero.setInputState(inputState)
     }
 
@@ -899,7 +899,7 @@ export class Game extends GameCommon {
     setInputStateFromReceived() {
         const receivedInputStates = this.receivedInputStates ||= {}
         for(let playerId in receivedInputStates) {
-            const hero = this.mainScene.getHero(playerId)
+            const hero = this.gameScene.getHero(playerId)
             if(!hero) continue
             const playerReceivedInputStates = receivedInputStates[playerId]
             const nbStates = playerReceivedInputStates.length
