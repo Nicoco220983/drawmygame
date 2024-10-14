@@ -1,5 +1,5 @@
 const { assign } = Object
-const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
+const { abs, floor, ceil, round, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, Touches } = utils
 
@@ -559,16 +559,16 @@ export class GameCommon {
 
     update(dt) {
         this.time += dt
-        if(this.mainScene) this.mainScene.update(dt)
+        if(this.mainScene.visible) this.mainScene.update(dt)
         if(this.joypadScene) this.joypadScene.update(dt)
     }
 
     draw() {
         if(this.isServerEnv) return
-        if(this.mainScene) this.mainScene.draw()
+        if(this.mainScene.visible) this.mainScene.draw()
         if(this.joypadScene) this.joypadScene.draw()
         const ctx = this.canvas.getContext("2d")
-        if(this.mainScene) ctx.drawImage(this.mainScene.canvas, 0, this.mainScene.y)
+        if(this.mainScene.visible) ctx.drawImage(this.mainScene.canvas, 0, this.mainScene.y)
         if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.joypadScene.y)
     }
 
@@ -809,14 +809,14 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        if(this.mainScene) this.mainScene.addHero(playerId)
+        this.mainScene.addHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
 
     rmPlayer(playerId) {
         const player = this.players[playerId]
         if(!player) return
-        if(this.mainScene) this.mainScene.rmHero(playerId)
+        this.mainScene.rmHero(playerId)
         delete this.players[playerId]
     }
 
@@ -842,7 +842,7 @@ export class Game extends GameCommon {
         const state = JSON.parse(stateStr)
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
-        if(state.main && this.mainScene) {
+        if(state.main) {
             if(isFull && state.main.id != this.mainScene.id)
                 this.restart(state.main.id)
             this.mainScene.setState(state.main, isFull)
@@ -867,7 +867,7 @@ export class Game extends GameCommon {
     }
 
     setLocalHeroInputState(inputState) {
-        const hero = this.mainScene && this.mainScene.getHero(this.localPlayerId)
+        const hero = this.mainScene.getHero(this.localPlayerId)
         if(hero) hero.setInputState(inputState)
     }
 
@@ -899,7 +899,7 @@ export class Game extends GameCommon {
     setInputStateFromReceived() {
         const receivedInputStates = this.receivedInputStates ||= {}
         for(let playerId in receivedInputStates) {
-            const hero = this.mainScene && this.mainScene.getHero(playerId)
+            const hero = this.mainScene.getHero(playerId)
             if(!hero) continue
             const playerReceivedInputStates = receivedInputStates[playerId]
             const nbStates = playerReceivedInputStates.length
@@ -910,9 +910,11 @@ export class Game extends GameCommon {
             if(!stateHasKeys) {
                 hero.setInputState(null)
                 playerReceivedInputStates.shift()
-            } else if(!playerInputStateWiTime.setDone) {
-                hero.setInputState(inputState)
-                playerInputStateWiTime.setDone = true
+            } else {
+                if(!playerInputStateWiTime.setDone) {
+                    hero.setInputState(inputState)
+                    playerInputStateWiTime.setDone = true
+                }
                 // clean inputState if too old (according to next inputState)
                 const playerNextInputStateWiTime = (nbStates > 1) ? playerReceivedInputStates[1] : null
                 if(playerNextInputStateWiTime) {
