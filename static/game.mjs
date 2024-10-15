@@ -1582,7 +1582,7 @@ class Zombi extends Enemy {
             const wallAheadBy = ceil((top + height - 1) / boxSize)
             const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
             if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
-            this.speedX = this.dirX * 2000 * dt
+            this.speedX = this.dirX * 1000 * dt
         }
         // anim
         this.sprite = ZombiSprites[floor((time * 6) % 8)]
