@@ -1,4 +1,4 @@
-// const { floor, random } = Math
+const { floor, random } = Math
 
 import { join, dirname } from "path"
 // import fs from "fs"
