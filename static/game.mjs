@@ -1623,7 +1623,7 @@ class Bat extends Enemy {
         const { width } = this.game.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
-        this.speedX = this.dirX * 5000 * dt
+        this.speedX = this.dirX * 3000 * dt
         // anim
         this.sprite = BatSprites[floor((time * 6) % 4)]
         // attack
@@ -1662,7 +1662,7 @@ class Spider extends Enemy {
         // move
         let dirY = (this.speedY > 0) ? 1 : -1
         if((this.speedResY * dirY < 0) || (this.y < 0 && dirY < 0) || (this.y > height && dirY > 0)) dirY *= -1
-        this.speedY = (dirY > 0 ? 10000 : -2000) * dt
+        this.speedY = (dirY > 0 ? 5000 : -1000) * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.onDamage(1, this)
