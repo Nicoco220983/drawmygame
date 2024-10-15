@@ -47,6 +47,7 @@ import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
+const isDebugMode = urlParams.get("debug") == "1"
 
 const locPathnames = location.pathname.split('/')
 const roomId = locPathnames[locPathnames.length-1]
@@ -119,7 +120,8 @@ function startGame() {
         gameParentEl.innerHTML = ""
     }
     game = new Game(gameParentEl, map, ws.id, {
-        sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr)
+        sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr),
+        debug: isDebugMode,
     })
     game.play()
 }

@@ -71,6 +71,7 @@ import { GameBuilder } from './static/builder.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
+const isDebugMode = urlParams.get("debug") == "1"
 
 const builderParentEl = document.getElementById("builder")
 const gameParentEl = document.getElementById("game")
@@ -183,7 +184,9 @@ function startAndShowGame() {
     stopBuilder()
     if(!game) {
         const playerId = "0"
-        game = new Game(gameParentEl, map, playerId)
+        game = new Game(gameParentEl, map, playerId, {
+            debug: isDebugMode
+        })
         // game.showJoypadScene(true)
         game.addPlayer(playerId, {
             name: null,

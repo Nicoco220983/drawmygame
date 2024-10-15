@@ -528,7 +528,7 @@ class EntityGroup extends Group {
 
 export class GameCommon {
 
-    constructor(parentEl, map) {
+    constructor(parentEl, map, kwargs) {
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
             this.parentEl = parentEl
@@ -542,6 +542,7 @@ export class GameCommon {
         this.time = 0
         this.game = this
         this.map = map
+        this.isDebugMode = kwargs && kwargs.debug == true
 
         this.initGameScene()
         this.syncSize()
@@ -734,7 +735,7 @@ class Wall extends Entity {
 export class Game extends GameCommon {
 
     constructor(parentEl, map, playerId, kwargs) {
-        super(parentEl, map)
+        super(parentEl, map, kwargs)
 
         this.pointer = null
 
@@ -838,7 +839,7 @@ export class Game extends GameCommon {
     }
 
     receiveState(stateStr) {
-        console.log("TMP receiveState", this.time, stateStr)
+        if(this.isDebugMode) console.log("receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
@@ -880,7 +881,7 @@ export class Game extends GameCommon {
             if(inputState && hasKeys(inputState)) inputStateWiTime.i = inputState
             else delete inputStateWiTime.i
             const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
-            console.log("TMP sendInputState", this.time, inputStateWiTimeStr)
+            if(this.isDebugMode) console.log("sendInputState", this.time, inputStateWiTimeStr)
             this.sendInputState(inputStateWiTimeStr)
             this.prevInputStateStr = inputStateStr
             this.lastSendInputStateTime = this.time
@@ -888,7 +889,7 @@ export class Game extends GameCommon {
     }
 
     receivePlayerInputState(playerId, inputStateWiTimeStr) {
-        console.log("TMP receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
+        if(this.isDebugMode) console.log("receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
         const receivedInputStates = this.receivedInputStates ||= {}
         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
         const inputStateWiTime = JSON.parse(inputStateWiTimeStr)

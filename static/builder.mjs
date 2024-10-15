@@ -9,8 +9,8 @@ import { GameCommon, SceneCommon, Entity, Entities, Sprite, Hero, now, FPS } fro
 
 export class GameBuilder extends GameCommon {
 
-    constructor(parentEl, map) {
-        super(parentEl, map)
+    constructor(parentEl, map, kwargs) {
+        super(parentEl, map, kwargs)
         
         self.mode = 'move'
         self.modeKey = null

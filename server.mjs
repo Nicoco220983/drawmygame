@@ -18,6 +18,7 @@ import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 const PROD = ((process.env.MULTISTAR_ENV || "").toLowerCase() === "production") ? true : false
 const PORT = process.env.MULTISTAR_PORT || (PROD ? 8080 : 3000)
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
+const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
 // const games = initGames()
 
@@ -244,7 +245,8 @@ class GameServer {
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
     room.game = new Game(null, map, null, {
-      sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr)
+      sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr),
+      debug: IS_DEBUG_MODE,
     })
     room.game.play()
   }
