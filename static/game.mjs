@@ -1429,7 +1429,7 @@ export class Hero extends LivingEntity {
     }
 
     getInputState() {
-        const inputState = this.inputState ||= {}
+        const inputState = this._inputState ||= {}
         const extrasState = this.extras && this.extras.getInputState()
         if(extrasState && hasKeys(extrasState)) inputState.extras = extrasState
         else delete inputState.extras
@@ -1740,7 +1740,7 @@ class Extra extends Entity {
     setState(state) {}
 
     getInputState() {
-        const inputState = this.inputState ||= {}
+        const inputState = this._inputState ||= {}
         return inputState
     }
     
