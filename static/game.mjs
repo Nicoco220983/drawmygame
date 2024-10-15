@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, Touches } = utils
 
-export const FPS = 60
+export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
 const CANVAS_MAX_HEIGHT = 600
 const MAP_BOX_DEFAULT_SIZE = 20
@@ -577,8 +577,18 @@ export class GameCommon {
         if(this.joypadScene) this.joypadScene.update(dt)
     }
 
+    mayDraw() {
+        this.drawing ||= false
+        if(!this.drawing) {
+            this.drawing = true
+            window.requestAnimationFrame(() => {
+                this.draw()
+                this.drawing = false
+            })
+        }
+    }
+
     draw() {
-        if(this.isServerEnv) return
         if(this.gameScene.visible) this.gameScene.draw()
         if(this.joypadScene) this.joypadScene.draw()
         const ctx = this.canvas.getContext("2d")
@@ -788,7 +798,7 @@ export class Game extends GameCommon {
             if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
             if(this.sendInputState) this.maySendInputState(inputState)
-            this.draw()
+            if(!this.isServerEnv) this.mayDraw()
         }, 1000 / FPS)
     }
 
@@ -829,7 +839,6 @@ export class Game extends GameCommon {
     }
 
     draw() {
-        if(this.isServerEnv) return
         const ctx = super.draw()
         if(this.debugScene) {
             this.debugScene.draw()

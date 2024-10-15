@@ -29,7 +29,7 @@ export class GameBuilder extends GameCommon {
         const beginTime = now()
         this.gameLoop = setInterval(() => {
             this.update(now() - beginTime)
-            this.draw()
+            this.mayDraw()
         }, 1000 / FPS)
     }
 
