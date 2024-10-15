@@ -15,8 +15,8 @@ import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 
 // import Consts from './static/consts.mjs'
 
-const PROD = ((process.env.MULTISTAR_ENV || "").toLowerCase() === "production") ? true : false
-const PORT = process.env.MULTISTAR_PORT || (PROD ? 8080 : 3000)
+const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
+const PORT = process.env.DRAWMYGAME_PORT || (PROD ? 8080 : 3000)
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
@@ -110,13 +110,10 @@ class GameServer {
         const key = msg.substring(0, MSG_KEY_LENGTH)
         const body = msg.substring(MSG_KEY_LENGTH)
         if(key === MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
-        //else if(key === MSG_KEYS.GAME_INPUT) this.onGameInput(ws, body)
-        // else if(key === MSG_KEYS.GAME_STATE) this.onGameState(ws, body)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
         else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
-        // else if(key === MSG_KEYS.START_GAME) this.handleStartGame(ws, JSON.parse(body))
-        // else if(key === MSG_KEYS.DISCONNECT_PLAYER) this.handleDisconnectPlayer(ws, body)
+        else if(key === MSG_KEYS.PING) this.handlePing(ws)
         else console.warn("Unknown websocket key", key)
       })
     
@@ -249,6 +246,12 @@ class GameServer {
       debug: IS_DEBUG_MODE,
     })
     room.game.play()
+  }
+
+  handlePing(ws) {
+    const { room } = ws
+    if(!room) { ws.close(); return }
+    ws.send(MSG_KEYS.PING)
   }
 
   handleClientDeconnection(ws) {

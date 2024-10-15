@@ -1,5 +1,5 @@
 const { assign } = Object
-const { abs, floor, ceil, round, min, max, sqrt, atan2, PI, random } = Math
+const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, Touches } = utils
 
@@ -9,19 +9,23 @@ const CANVAS_MAX_HEIGHT = 600
 const MAP_BOX_DEFAULT_SIZE = 20
 const MAP_DEFAULT_NB_COLS = 40
 const MAP_DEFAULT_NB_ROWS = 25
+
 const GRAVITY = 1000
 
 export const MSG_KEY_LENGTH = 3
 export const MSG_KEYS = {
-  JOIN_GAME: 'JOI',
-  IDENTIFY_CLIENT: 'IDC',
-  GAME_STATE: 'STT',
-  PLAYER_INPUT: 'INP',
-  GAME_INSTRUCTION: 'GMI',
+    PING: "PNG",
+    JOIN_GAME: 'JOI',
+    IDENTIFY_CLIENT: 'IDC',
+    GAME_STATE: 'STT',
+    PLAYER_INPUT: 'INP',
+    GAME_INSTRUCTION: 'GMI',
 //   GAME_OVER: 'GOV',
 }
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
+
+const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
 const SEND_INPUT_STATE_PERIOD = .5
 
@@ -163,6 +167,11 @@ export function range(start, end) {
     const res = []
     for(let i=start; i<end; ++i) res.push(i)
     return res
+}
+
+const _round = Math.round
+export function round(val, precision = 1) {
+    return _round(val / precision) * precision
 }
 
 function hasKeys(obj) {
@@ -575,6 +584,7 @@ export class GameCommon {
         const ctx = this.canvas.getContext("2d")
         if(this.gameScene.visible) ctx.drawImage(this.gameScene.canvas, 0, this.gameScene.y)
         if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.joypadScene.y)
+        return ctx
     }
 
     syncSize() {
@@ -622,6 +632,7 @@ export class SceneCommon {
         this.width = 100
         this.height = 100
         this.visible = true
+        this.color = "white"
         this.time = 0
         this.pointer = null
         if(!this.game.isServerEnv) {
@@ -705,8 +716,10 @@ export class SceneCommon {
     draw() {
         const ctx = this.canvas.getContext("2d")
         ctx.reset()
-        ctx.fillStyle = "white"
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+        if(this.color) {
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+        }
         this.drawTo(ctx)
     }
 }
@@ -742,6 +755,8 @@ export class Game extends GameCommon {
         this.players = {}
         this.localPlayerId = playerId
 
+        this.lag = 0
+        this.sendPing = (kwargs && kwargs.sendPing) || null
         this.sendState = (kwargs && kwargs.sendState) || null
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
 
@@ -751,6 +766,8 @@ export class Game extends GameCommon {
             document.addEventListener('keydown', evt => {this.keyboardKeysPressed[evt.key] = true})
             document.addEventListener('keyup', evt => delete this.keyboardKeysPressed[evt.key])
         }
+
+        if(this.isDebugMode) this.showDebugScene()
     }
 
     play() {
@@ -768,6 +785,7 @@ export class Game extends GameCommon {
                 this.setInputStateFromReceived()
             }
             this.update(dt)
+            if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
             if(this.sendInputState) this.maySendInputState(inputState)
             this.draw()
@@ -790,6 +808,33 @@ export class Game extends GameCommon {
         if(visible == this.gameScene.visible) return
         this.gameScene.visible = visible
         this.syncSize()
+    }
+
+    showDebugScene() {
+        this.debugScene = new DebugScene(this)
+        this.syncSize()
+    }
+
+    syncSize() {
+        super.syncSize()
+        if(this.debugScene) {
+            const { width, height } = this.game
+            this.debugScene.setPosAndSize(0, 0, width, height)
+        }
+    }
+
+    update(dt) {
+        super.update(dt)
+        if(this.debugScene) this.debugScene.update(dt)
+    }
+
+    draw() {
+        if(this.isServerEnv) return
+        const ctx = super.draw()
+        if(this.debugScene) {
+            this.debugScene.draw()
+            ctx.drawImage(this.debugScene.canvas, 0, 0)
+        }
     }
 
     restart(scnId) {
@@ -827,6 +872,23 @@ export class Game extends GameCommon {
 
     setJoypadKeyPressed(key, val) {
         this.joypadKeysPressed[key] = val
+    }
+
+    maySendPing() {
+        this.pingLastTime ||= -SEND_PING_PERIOD
+        this.waitingPing ||= false
+        const nowS = now()
+        if(!this.waitingPing && nowS > this.pingLastTime + SEND_PING_PERIOD) {
+            this.sendPing()
+            this.pingLastTime = nowS
+            this.waitingPing = true
+        }
+    }
+
+    receivePing() {
+        this.lag = now() - this.pingLastTime
+        this.waitingPing = false
+        if(this.isDebugMode) console.log("Lag:", this.lag)
     }
 
     getState(isFull) {
@@ -1827,3 +1889,21 @@ class SmokeExplosion extends Entity {
     }
 }
 Entities.register("smokee", Star)
+
+
+class DebugScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.color = null
+        this.lagTxt = new Text(this, "", this.game.width - 55, 15, {
+            font: "20px arial",
+            fillStyle: "grey"
+        })
+    }
+    update(dt) {
+        this.lagTxt.updateText(`Lag: ${round(this.game.lag, 0.001)}`)
+    }
+    drawTo(ctx) {
+        this.lagTxt.drawTo(ctx)
+    }
+}

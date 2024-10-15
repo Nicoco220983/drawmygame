@@ -98,7 +98,7 @@ function connectToRoom() {
             const data = evt.data.substring(MSG_KEY_LENGTH)
             if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
             else if(key === MSG_KEYS.GAME_STATE) handleGameState(ws, data)
-            // else if(key === MSG_KEYS.GAME_OVER) onGameOver()
+            else if(key === MSG_KEYS.PING) handlePing(ws, data)
         })
         ws.addEventListener('close', () => {
             console.log('Disconnected from server.')
@@ -120,6 +120,7 @@ function startGame() {
         gameParentEl.innerHTML = ""
     }
     game = new Game(gameParentEl, map, ws.id, {
+        sendPing: () => ws.send(MSG_KEYS.PING),
         sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr),
         debug: isDebugMode,
     })
@@ -148,6 +149,10 @@ function joinGame() {
 
 function handleGameState(ws, data) {
     game.receiveState(data)
+}
+
+function handlePing(ws, data) {
+    game.receivePing(data)
 }
 
 function restartGame() {
