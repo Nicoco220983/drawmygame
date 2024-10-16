@@ -799,6 +799,7 @@ export class Game extends GameCommon {
             const nowTime = now()
             const dt = nowTime - prevTime
             prevTime = nowTime
+            if(this.receiveStates) this.setReceivedStates()
             let inputState = null
             if(!this.isServerEnv) {
                 inputState = this.getInputState()
@@ -920,6 +921,7 @@ export class Game extends GameCommon {
         this.fullState ||= { _isFull: true }
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
+        state.time = this.time
         if(isFull) state.players = this.players
         state.main = this.gameScene.getState(isFull)
         return (isFull || state.main) ? JSON.stringify(state) : null
@@ -928,6 +930,20 @@ export class Game extends GameCommon {
     receiveState(stateStr) {
         if(this.isDebugMode) console.log("receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
+        const receiveStates = this.receiveStates ||= []
+        receiveStates.push(state)
+        if(receiveStates.length >= 2) receiveStates.sort((a, b) => a.time - b.time)
+    }
+
+    setReceivedStates() {
+        for(const state of this.receiveStates) {
+            if(this.isDebugMode) console.log("setState", state.time - this.time, state)
+            this.setState(state)
+        }
+        this.receiveStates.length = 0
+    }
+
+    setState(state) {
         const isFull = state._isFull || false
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.main) {
