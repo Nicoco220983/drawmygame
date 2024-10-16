@@ -806,7 +806,9 @@ export class Game extends GameCommon {
             } else {
                 this.setInputStateFromReceived()
             }
+            const updStartTime = now()
             this.update(dt)
+            this.updateDur = now() - updStartTime
             if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
             if(this.sendInputState) this.maySendInputState(inputState)
@@ -851,7 +853,9 @@ export class Game extends GameCommon {
     }
 
     draw() {
+        const drawStartTime = now()
         const ctx = super.draw()
+        this.drawDur = now() - drawStartTime
         if(this.debugScene) {
             this.debugScene.draw()
             ctx.drawImage(this.debugScene.canvas, 0, 0)
@@ -1927,15 +1931,25 @@ class DebugScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.color = null
-        this.lagTxt = new Text(this, "", this.game.width - 55, 15, {
+        const fontArgs = {
             font: "20px arial",
             fillStyle: "grey"
-        })
+        }
+        this.updDurTxt = new Text(this, "", this.game.width - 55, 15, fontArgs)
+        this.drawDurTxt = new Text(this, "", this.game.width - 55, 40, fontArgs)
+        this.lagTxt = new Text(this, "", this.game.width - 55, 65, fontArgs)
     }
     update(dt) {
-        this.lagTxt.updateText(`Lag: ${round(this.game.lag, 0.001)}`)
+        const updDur = this.game.updateDur || 0
+        this.updDurTxt.updateText(`Upd: ${updDur.toFixed(3)}`)
+        const drawDur = this.game.drawDur || 0
+        this.drawDurTxt.updateText(`Draw: ${drawDur.toFixed(3)}`)
+        const lag = this.game.lag || 0
+        this.lagTxt.updateText(`Lag: ${lag.toFixed(3)}`)
     }
     drawTo(ctx) {
+        this.updDurTxt.drawTo(ctx)
+        this.drawDurTxt.drawTo(ctx)
         this.lagTxt.drawTo(ctx)
     }
 }
