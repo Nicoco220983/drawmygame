@@ -346,6 +346,13 @@ export class Entity {
         return state
     }
 
+    checkAndSetState(time, state) {
+        this.setStateLastTime ||= 0
+        if(this.setStateLastTime >= time) return
+        this.setStateLastTime = time
+        this.setState(state)
+    }
+
     setState(state) {
         this.x = state.x
         this.y = state.y
@@ -512,26 +519,31 @@ export class Group {
         return (isFull || hasKeys(res)) ? res : null
     }
 
-    setState(state, isFull) {
+    setState(time, state, isFull) {
         const { items } = this
         if(state) {
             const ClassDefs = this.getClassDefs()
             for(let key in state) {
-                let ent = items[key]
-                if(!ent) {
+                let item = items[key]
+                if(!item) {
                     const cls = ClassDefs[state[key].key]
-                    ent = this.add(new cls(this.owner))
+                    item = this.add(new cls(this.owner))
                 }
-                ent.setState(state[key], isFull)
+                this.setItemState(item, time, state[key], isFull)
             }
             if(isFull) for(let key in items) if(!state[key]) items[key].remove()
         } else if(isFull) for(let key in items) items[key].remove()
     }
+
+    setItemState(time, state, isFull) {}
 }
 
 class EntityGroup extends Group {
     getClassDefs() {
         return Entities
+    }
+    setItemState(ent, time, state, isFull) {
+        ent.checkAndSetState(time, state, isFull)
     }
 }
 
@@ -1265,9 +1277,9 @@ export class GameScene extends SceneCommon {
         this.fullState ||= {}
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
+        state.time = this.time
         if(isFull) {
             state.id = this.id
-            state.time = this.time
             state.step = this.step
         }
         const ent = state.entities = this.entities.getState(isFull)
@@ -1276,10 +1288,13 @@ export class GameScene extends SceneCommon {
 
     setState(state, isFull) {
         if(isFull) {
+            this.setStateLastTime ||= 0
+            if(this.setStateLastTime >= state.time) return
+            this.setStateLastTime = state.time
             this.time = state.time
             this.step = state.step
         }
-        this.entities.setState(state.entities, isFull)
+        this.entities.setState(state.time, state.entities, isFull)
     }
 }
 
@@ -1424,7 +1439,7 @@ export class Hero extends LivingEntity {
         this.inputState = state.inputState
         if(this.extras || state.extras) {
             this.extras ||= new ExtraGroup(this)
-            this.extras.setState(state.extras, true)
+            this.extras.setState(state.extras)
         }
     }
 
@@ -1759,6 +1774,14 @@ Extras.register = function(key, cls) {
 class ExtraGroup extends Group {
     getClassDefs() {
         return Extras
+    }
+
+    setState(state) {
+        super.setState(0, state, true)
+    }
+
+    setItemState(extra, time, state, isFull) {
+        extra.setState(state)
     }
 
     getInputState() {
