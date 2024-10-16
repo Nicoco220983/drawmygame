@@ -40,10 +40,13 @@ class GameServer {
     this.app = express()
     this.app.use('/static', express.static('static'))
     this.app.get('/', (req, res) => {
-      res.sendFile(join(DIRNAME, 'static/index.html'));
+      res.sendFile(join(DIRNAME, 'static/index.html'))
     })
     this.app.get('/favicon.ico', (req, res) => {
-      res.sendFile(join(DIRNAME, 'static/favicon.ico'));
+      res.sendFile(join(DIRNAME, 'static/favicon.ico'))
+    })
+    this.app.get('/ping', (req, res) => {
+      res.sendStatus(200)
     })
 
     this.app.post("/newroom", (req, res) => {
