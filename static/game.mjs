@@ -292,7 +292,7 @@ export class Entity {
         this.scaleSprite = Entity.spriteFit
     }
 
-    update(dt) {}
+    update() {}
 
     drawTo(ctx) {
         const img = this.getImg()
@@ -346,10 +346,10 @@ export class Entity {
         return state
     }
 
-    checkAndSetState(time, state) {
-        this.setStateLastTime ||= 0
-        if(this.setStateLastTime >= time) return
-        this.setStateLastTime = time
+    checkAndSetState(iteration, state) {
+        this.setStateLastIteration ||= 0
+        if(this.setStateLastIteration >= iteration) return
+        this.setStateLastIteration = iteration
         this.setState(state)
     }
 
@@ -493,9 +493,9 @@ export class Group {
         for(let id in items) if(items[id].removed) delete items[id]
     }
 
-    update(dt) {
+    update() {
         this.cleanRemoved()
-        this.forEach(ent => ent.update(dt))
+        this.forEach(ent => ent.update())
     }
 
     drawTo(gameCtx) {
@@ -519,7 +519,7 @@ export class Group {
         return (isFull || hasKeys(res)) ? res : null
     }
 
-    setState(time, state, isFull) {
+    setState(iteration, state, isFull) {
         const { items } = this
         if(state) {
             const ClassDefs = this.getClassDefs()
@@ -529,21 +529,21 @@ export class Group {
                     const cls = ClassDefs[state[key].key]
                     item = this.add(new cls(this.owner))
                 }
-                this.setItemState(item, time, state[key], isFull)
+                this.setItemState(item, iteration, state[key])
             }
             if(isFull) for(let key in items) if(!state[key]) items[key].remove()
         } else if(isFull) for(let key in items) items[key].remove()
     }
 
-    setItemState(time, state, isFull) {}
+    setItemState(iteration, state) {}
 }
 
 class EntityGroup extends Group {
     getClassDefs() {
         return Entities
     }
-    setItemState(ent, time, state, isFull) {
-        ent.checkAndSetState(time, state, isFull)
+    setItemState(ent, iteration, state) {
+        ent.checkAndSetState(iteration, state)
     }
 }
 
@@ -560,8 +560,11 @@ export class GameCommon {
             parentEl.appendChild(this.canvas)
         }
 
-        this.time = 0
         this.game = this
+        this.iteration = -1
+        this.time = 0
+        this.fps = FPS
+        this.dt = 1/this.fps
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
@@ -583,10 +586,11 @@ export class GameCommon {
         this.touches = new Touches(this)
     }
 
-    update(dt) {
-        this.time += dt
-        if(this.gameScene.visible) this.gameScene.update(dt)
-        if(this.joypadScene) this.joypadScene.update(dt)
+    update() {
+        this.iteration += 1
+        this.time = this.iteration * this.dt
+        if(this.gameScene.visible) this.gameScene.update()
+        if(this.joypadScene) this.joypadScene.update()
     }
 
     mayDraw() {
@@ -655,6 +659,7 @@ export class SceneCommon {
         this.height = 100
         this.visible = true
         this.color = "white"
+        this.iteration = -1
         this.time = 0
         this.pointer = null
         if(!this.game.isServerEnv) {
@@ -720,8 +725,9 @@ export class SceneCommon {
         this.localHero = hero
     }
 
-    update(dt) {
-        this.time += dt
+    update() {
+        this.iteration += 1
+        this.time = this.iteration * this.game.dt
         this.syncPointer()
     }
 
@@ -794,11 +800,7 @@ export class Game extends GameCommon {
 
     play() {
         if(this.gameLoop) return
-        let prevTime = now()
         this.gameLoop = setInterval(() => {
-            const nowTime = now()
-            const dt = nowTime - prevTime
-            prevTime = nowTime
             if(this.receiveStates) this.setReceivedStates()
             let inputState = null
             if(!this.isServerEnv) {
@@ -808,7 +810,7 @@ export class Game extends GameCommon {
                 this.setInputStateFromReceived()
             }
             const updStartTime = now()
-            this.update(dt)
+            this.update()
             this.updateDur = now() - updStartTime
             if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
@@ -823,7 +825,7 @@ export class Game extends GameCommon {
     }
 
     initGameScene(scnId) {
-        if(scnId === undefined) scnId = this.time
+        if(scnId === undefined) scnId = this.iteration
         this.gameScene = new GameScene(this, scnId)
         this.syncSize()
         for(let playerId in this.players) this.gameScene.addHero(playerId)
@@ -848,9 +850,9 @@ export class Game extends GameCommon {
         }
     }
 
-    update(dt) {
-        super.update(dt)
-        if(this.debugScene) this.debugScene.update(dt)
+    update() {
+        super.update()
+        if(this.debugScene) this.debugScene.update()
     }
 
     draw() {
@@ -921,7 +923,7 @@ export class Game extends GameCommon {
         this.fullState ||= { _isFull: true }
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
-        state.time = this.time
+        state.it = this.iteration
         if(isFull) state.players = this.players
         state.main = this.gameScene.getState(isFull)
         return (isFull || state.main) ? JSON.stringify(state) : null
@@ -937,7 +939,7 @@ export class Game extends GameCommon {
 
     setReceivedStates() {
         for(const state of this.receiveStates) {
-            if(this.isDebugMode) console.log("setState", state.time - this.time, state)
+            if(this.isDebugMode) console.log("setState", state.it - this.iteration, state)
             this.setState(state)
         }
         this.receiveStates.length = 0
@@ -945,6 +947,7 @@ export class Game extends GameCommon {
 
     setState(state) {
         const isFull = state._isFull || false
+        this.iteration = state.it
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.main) {
             if(isFull && state.main.id != this.gameScene.id)
@@ -1055,7 +1058,6 @@ export class GameScene extends SceneCommon {
         this.notifs = new EntityGroup(this)
         this.initVictoryNotifs()
         this.initGameOverNotifs()
-        this.time = 0
     }
 
     initEntities() {
@@ -1114,12 +1116,12 @@ export class GameScene extends SceneCommon {
         if(this.step == "GAME" && nbHeros > 0 && nbHerosAlive == 0) this.step = "GAMEOVER"
     }
 
-    update(dt) {
+    update() {
         const { step } = this
-        super.update(dt)
+        super.update()
         if(step == "GAME" || step == "GAMEOVER") {
-            this.applyPhysics(dt)
-            this.entities.update(dt)
+            this.applyPhysics()
+            this.entities.update()
             this.checkHeros()
         }
         this.updateView()
@@ -1151,7 +1153,8 @@ export class GameScene extends SceneCommon {
         return teams[team]
     }
 
-    applyPhysics(dt) {
+    applyPhysics() {
+        const { dt } = this.game
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         const { getHitBox } = utils
         this.entities.forEach(ent => {
@@ -1297,7 +1300,7 @@ export class GameScene extends SceneCommon {
         this.fullState ||= {}
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
-        state.time = this.time
+        state.it = this.iteration
         if(isFull) {
             state.id = this.id
             state.step = this.step
@@ -1307,14 +1310,14 @@ export class GameScene extends SceneCommon {
     }
 
     setState(state, isFull) {
+        this.iteration = state.it
         if(isFull) {
-            this.setStateLastTime ||= 0
-            if(this.setStateLastTime >= state.time) return
-            this.setStateLastTime = state.time
-            this.time = state.time
+            this.setStateLastIteration ||= 0
+            if(this.setStateLastIteration >= state.it) return
+            this.setStateLastIteration = state.it
             this.step = state.step
         }
-        this.entities.setState(state.time, state.entities, isFull)
+        this.entities.setState(state.it, state.entities, isFull)
     }
 }
 
@@ -1358,8 +1361,8 @@ export class LivingEntity extends DynamicEntity {
         this.damageLastTime = -3
     }
 
-    update(dt) {
-        this.time += dt
+    update() {
+        this.time += this.game.dt
         this.undergoWalls = (this.life > 0)
         // if(this.life == 0) this.rotation += 4 * PI * dt
         if(this.scene.step != "GAME" || this.life == 0 || this.isDamageable()) this.spriteVisible = true
@@ -1427,9 +1430,9 @@ export class Hero extends LivingEntity {
         return this === this.scene.localHero
     }
 
-    update(dt) {
-        super.update(dt)
-        if(this.extras) this.extras.update(dt)
+    update() {
+        super.update()
+        if(this.extras) this.extras.update()
     }
 
     isDamageable() {
@@ -1516,10 +1519,10 @@ class Nico extends Hero {
         this.sprite = NicoStandingSprite
     }
 
-    update(dt) {
-        super.update(dt)
+    update() {
+        super.update()
         // inputs
-        this.applyInputState(dt)
+        this.applyInputState()
         // display
         if(this.speedX > 0) this.dirX = 1
         else if(this.speedX < 0) this.dirX = -1
@@ -1544,7 +1547,8 @@ class Nico extends Hero {
         return inputState
     }
 
-    applyInputState(dt) {
+    applyInputState() {
+        const { dt } = this.game
         if(this.life == 0) return
         const { inputState } = this
         if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
@@ -1606,8 +1610,9 @@ class Zombi extends Enemy {
         this.scaleSprite = Entity.spriteFitHeight
     }
 
-    update(dt) {
-        super.update(dt)
+    update() {
+        super.update()
+        const { dt } = this.game
         const { time } = this.scene
         const { nbRows, nbCols, boxSize, walls } = this.game.map
         // move
@@ -1652,8 +1657,9 @@ class Bat extends Enemy {
         this.undergoGravity = false
     }
 
-    update(dt) {
-        super.update(dt)
+    update() {
+        super.update()
+        const { dt } = this.game
         const { time } = this.scene
         const { width } = this.game.map
         // move
@@ -1690,9 +1696,8 @@ class Spider extends Enemy {
         this.undergoGravity = false
     }
 
-    update(dt) {
-        super.update(dt)
-        const { time } = this.scene
+    update() {
+        const { dt } = this.game
         const { height } = this.game.map
         // move
         let dirY = (this.speedY > 0) ? 1 : -1
@@ -1733,7 +1738,7 @@ class SwordItem extends Entity {
         this.respawnDur = 2
         this.addLastTime = -this.respawnDur
     }
-    update(dt) {
+    update() {
         this.spriteVisible = (this.scene.time >= this.addLastTime + this.respawnDur)
         if(!this.spriteVisible) return
         for(let hero of this.scene.getTeam("hero")) {
@@ -1800,7 +1805,7 @@ class ExtraGroup extends Group {
         super.setState(0, state, true)
     }
 
-    setItemState(extra, time, state, isFull) {
+    setItemState(extra, iteration, state) {
         extra.setState(state)
     }
 
@@ -1838,7 +1843,7 @@ class SwordExtra extends Extra {
         this.syncSprite()
         this.removeSimilarExtras()
     }
-    update(dt) {
+    update() {
         const { inputState } = this
         if(inputState && inputState.attack && this.owner.time - this.lastAttackTime > SWORD_ATTACK_PERIOD) {
             this.lastAttackTime = this.owner.time
@@ -1901,7 +1906,7 @@ class Star extends Entity {
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
     }
-    update(dt) {
+    update() {
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) {
                 this.remove()
@@ -1925,8 +1930,8 @@ class SmokeExplosion extends Entity {
         this.undergoWalls = false
         this.time = 0
     }
-    update(dt) {
-        this.time += dt
+    update() {
+        this.time += this.game.dt
         if(this.time > .5) { this.remove(); return }
         this.sprite = SmokeExplosionSprites[floor(this.time/.5*4)]
     }
@@ -1955,7 +1960,7 @@ class DebugScene extends SceneCommon {
         this.drawDurTxt = new Text(this, "", this.game.width - 55, 40, fontArgs)
         this.lagTxt = new Text(this, "", this.game.width - 55, 65, fontArgs)
     }
-    update(dt) {
+    update() {
         const updDur = this.game.updateDur || 0
         this.updDurTxt.updateText(`Upd: ${updDur.toFixed(3)}`)
         const drawDur = this.game.drawDur || 0

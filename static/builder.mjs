@@ -28,7 +28,7 @@ export class GameBuilder extends GameCommon {
         if(this.gameLoop) return
         const beginTime = now()
         this.gameLoop = setInterval(() => {
-            this.update(now() - beginTime)
+            this.update()
             this.mayDraw()
         }, 1000 / FPS)
     }
@@ -38,8 +38,8 @@ export class GameBuilder extends GameCommon {
         this.gameLoop = null
     }
 
-    update(time) {
-        super.update(time)
+    update() {
+        super.update()
         this.prevHasTouches = this.touches.length > 0
     }
 
@@ -92,8 +92,8 @@ class BuilderScene extends SceneCommon {
         this.grid.sprite = new Sprite(can)
     }
 
-    update(time) {
-        super.update(time)
+    update() {
+        super.update()
         const { mode } = this.game
         if(mode == "move") this.updateMove()
         else if(mode == "wall") this.updateWall()
