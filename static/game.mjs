@@ -346,13 +346,6 @@ export class Entity {
         return state
     }
 
-    checkAndSetState(iteration, state) {
-        this.setStateLastIteration ||= 0
-        if(this.setStateLastIteration >= iteration) return
-        this.setStateLastIteration = iteration
-        this.setState(state)
-    }
-
     setState(state) {
         this.x = state.x
         this.y = state.y
@@ -519,7 +512,7 @@ export class Group {
         return (isFull || hasKeys(res)) ? res : null
     }
 
-    setState(iteration, state, isFull) {
+    setState(state, isFull) {
         const { items } = this
         if(state) {
             const ClassDefs = this.getClassDefs()
@@ -529,21 +522,16 @@ export class Group {
                     const cls = ClassDefs[state[key].key]
                     item = this.add(new cls(this.owner))
                 }
-                this.setItemState(item, iteration, state[key])
+                item.setState(state[key])
             }
             if(isFull) for(let key in items) if(!state[key]) items[key].remove()
         } else if(isFull) for(let key in items) items[key].remove()
     }
-
-    setItemState(iteration, state) {}
 }
 
 class EntityGroup extends Group {
     getClassDefs() {
         return Entities
-    }
-    setItemState(ent, iteration, state) {
-        ent.checkAndSetState(iteration, state)
     }
 }
 
@@ -947,7 +935,7 @@ export class Game extends GameCommon {
 
     setState(state) {
         const isFull = state._isFull || false
-        this.iteration = state.it
+        if(isFull) this.iteration = state.it
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.main) {
             if(isFull && state.main.id != this.gameScene.id)
@@ -1312,12 +1300,9 @@ export class GameScene extends SceneCommon {
     setState(state, isFull) {
         this.iteration = state.it
         if(isFull) {
-            this.setStateLastIteration ||= 0
-            if(this.setStateLastIteration >= state.it) return
-            this.setStateLastIteration = state.it
             this.step = state.step
         }
-        this.entities.setState(state.it, state.entities, isFull)
+        this.entities.setState(state.entities, isFull)
     }
 }
 
@@ -1802,11 +1787,7 @@ class ExtraGroup extends Group {
     }
 
     setState(state) {
-        super.setState(0, state, true)
-    }
-
-    setItemState(extra, iteration, state) {
-        extra.setState(state)
+        super.setState(state, true)
     }
 
     getInputState() {
