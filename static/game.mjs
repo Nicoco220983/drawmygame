@@ -1101,7 +1101,6 @@ export class GameScene extends SceneCommon {
 
     initEntities() {
         if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
-        console.log("TMP initEntities")
         this.game.map.entities.forEach(mapEnt => {
             const { x, y, key } = mapEnt
             this.addEntity(x, y, key)
@@ -1220,7 +1219,7 @@ export class GameScene extends SceneCommon {
                             blocked = (walls[bx][by] !== null)
                         }
                         if(blocked) {
-                            ent.x += ddx
+                            ent.x += ddx - 0.01
                             ent.speedX = 0
                             ent.speedResX = ddx - dx
                         }
@@ -1242,7 +1241,7 @@ export class GameScene extends SceneCommon {
                             blocked = (walls[bx][by] !== null)
                         }
                         if(blocked) {
-                            ent.x += ddx
+                            ent.x += ddx + 0.01
                             ent.speedX = 0
                             ent.speedResX = ddx - dx
                         }
@@ -1264,7 +1263,7 @@ export class GameScene extends SceneCommon {
                             blocked = (walls[bx][by] !== null)
                         }
                         if(blocked) {
-                            ent.y += ddy
+                            ent.y += ddy - 0.01
                             ent.speedY = 0
                             ent.speedResY = ddy - dy
                         }
@@ -1286,7 +1285,7 @@ export class GameScene extends SceneCommon {
                             blocked = (walls[bx][by] !== null)
                         }
                         if(blocked) {
-                            ent.y += ddy
+                            ent.y += ddy + 0.01
                             ent.speedY = 0
                             ent.speedResY = ddy - dy
                         }
