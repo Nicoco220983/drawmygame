@@ -893,7 +893,7 @@ export class Game extends GameCommon {
 
     storeHistoryState() {
         this.historyStates ||= {}
-        this.historyStates[this.iteration] = JSON.stringify(this.getState(true))
+        this.historyStates[this.iteration] = this.getState(true)
     }
 
     restoreHistoryState(it) {
