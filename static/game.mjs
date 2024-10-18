@@ -1135,7 +1135,7 @@ export class GameScene extends SceneCommon {
         super.setLocalHero(hero)
         this.hearts ||= new EntityGroup(this)
         this.hearts.forEach(h => h.remove())
-        for(let i=0; i<hero.life; ++i)
+        if(hero) for(let i=0; i<hero.life; ++i)
             this.hearts.add(new Heart(this, i))
     }
 
