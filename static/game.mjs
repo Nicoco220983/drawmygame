@@ -897,7 +897,7 @@ export class Game extends GameCommon {
     }
 
     restoreHistoryState(it) {
-        if(this.isDebugMode) console.log("restoreHistoryState", this.iteration - it)
+        if(this.isDebugMode) console.log("restoreHistoryState", this.iteration, it)
         const state = JSON.parse(this.historyStates[it])
         this.setState(state)
     }
