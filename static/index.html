@@ -66,7 +66,7 @@
     <flexcol id="builder"></flexcol>
     <flexcol id="game" style="padding:1em; display: none"></flexcol>
 <script type="module">
-import { GameMap, Game } from './static/game.mjs'
+import { GameMap, Game, MODE_LOCAL } from './static/game.mjs'
 import { GameBuilder } from './static/builder.mjs'
 
 const urlQueryStr = window.location.search
@@ -117,7 +117,9 @@ document.getElementById("game_multi").onclick = async () => {
         body: new Blob([mapBin], {type: 'application/octet-stream'}),
     })
     // window.location = `${window.location.origin}/r/${roomId}`
-    window.open(`${window.location.origin}/r/${roomId}`, '_blank').focus();
+    let url = `${window.location.origin}/r/${roomId}`
+    if(isDebugMode) url += '?debug=1'
+    window.open(url, '_blank').focus();
 }
 
 const boxSizeEl = document.getElementById("map_box_size")
@@ -185,6 +187,7 @@ function startAndShowGame() {
     if(!game) {
         const playerId = "0"
         game = new Game(gameParentEl, map, playerId, {
+            mode: MODE_LOCAL,
             debug: isDebugMode
         })
         // game.showJoypadScene(true)

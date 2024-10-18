@@ -11,7 +11,7 @@ import express from "express"
 import bodyParser from 'body-parser'
 import { WebSocketServer } from 'ws'
 
-import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
+import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 
 // import Consts from './static/consts.mjs'
 
@@ -245,6 +245,7 @@ class GameServer {
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
     room.game = new Game(null, map, null, {
+      mode: MODE_SERVER,
       sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr),
       debug: IS_DEBUG_MODE,
     })

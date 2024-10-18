@@ -478,7 +478,7 @@ export class Group {
 
     forEach(next) {
         const { items } = this
-        for(let key in items) next(items[key])
+        for(let id in items) next(items[id])
     }
 
     cleanRemoved() {
@@ -502,10 +502,10 @@ export class Group {
     getState(isFull) {
         const { items } = this
         const res = {}
-        for(let key in items) {
-            const item = items[key]
+        for(let id in items) {
+            const item = items[id]
             if((isFull || item._isStateToSend) && !item.removed) {
-                res[key] = item.getState(isFull)
+                res[id] = item.getState(isFull)
                 delete item._isStateToSend
             }
         }
@@ -516,16 +516,21 @@ export class Group {
         const { items } = this
         if(state) {
             const ClassDefs = this.getClassDefs()
-            for(let key in state) {
-                let item = items[key]
+            for(let id in state) {
+                let item = items[id]
                 if(!item) {
-                    const cls = ClassDefs[state[key].key]
-                    item = this.add(new cls(this.owner))
+                    const { key } = state[id]
+                    if(!key) console.warning("Item state without key:", state[id])
+                    else {
+                        const cls = ClassDefs[key]
+                        if(!cls) console.warning("Unknown key from state:", state[id])
+                        else item = this.add(new cls(this.owner))
+                    }
                 }
-                item.setState(state[key])
+                if(item) item.setState(state[id])
             }
-            if(isFull) for(let key in items) if(!state[key]) items[key].remove()
-        } else if(isFull) for(let key in items) items[key].remove()
+            if(isFull) for(let id in items) if(!state[id]) items[id].remove()
+        } else if(isFull) for(let id in items) items[id].remove()
     }
 }
 
@@ -535,9 +540,14 @@ class EntityGroup extends Group {
     }
 }
 
+export const MODE_LOCAL = 0
+export const MODE_SERVER = 1
+export const MODE_CLIENT = 2
+
 export class GameCommon {
 
     constructor(parentEl, map, kwargs) {
+        this.mode = (kwargs &&kwargs.mode) || MODE_LOCAL
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
             this.parentEl = parentEl
@@ -789,7 +799,6 @@ export class Game extends GameCommon {
     play() {
         if(this.gameLoop) return
         this.gameLoop = setInterval(() => {
-            if(this.receiveStates) this.setReceivedStates()
             let inputState = null
             if(!this.isServerEnv) {
                 inputState = this.getInputState()
@@ -813,10 +822,9 @@ export class Game extends GameCommon {
     }
 
     initGameScene(scnId) {
-        if(scnId === undefined) scnId = this.iteration
+        if(scnId === undefined) scnId = max(0, this.iteration)
         this.gameScene = new GameScene(this, scnId)
         this.syncSize()
-        for(let playerId in this.players) this.gameScene.addHero(playerId)
     }
 
     showGameScene(visible) {
@@ -839,8 +847,59 @@ export class Game extends GameCommon {
     }
 
     update() {
-        super.update()
+        if(!this.receivedStates) this.updateGame()
+        else this.updateGameUsingReceivedStates()
+        if(this.joypadScene) this.joypadScene.update()
         if(this.debugScene) this.debugScene.update()
+    }
+
+    updateGame() {
+        this.iteration += 1
+        this.time = this.iteration * this.dt
+        this.gameScene.update()
+    }
+
+    updateGameUsingReceivedStates() {
+        const targetIteration = this.iteration + 1
+        const states = this.receivedStates
+        // received full state
+        let lastFullStateIdx = null
+        for(let i in states) if(states[i]._isFull) lastFullStateIdx = i
+        if(lastFullStateIdx !== null) {
+            this.setState(states[lastFullStateIdx])
+            this.lastFullStateIteration = this.iteration
+            states.splice(0, lastFullStateIdx+1)
+            this.cleanHistoryStates()
+            this.storeHistoryState()
+            const acceptableIteration = targetIteration - 1
+            if(this.iteration >= acceptableIteration) return
+        }
+        // received partial states
+        if(this.lastFullStateIteration === undefined) return
+        let numState = 0, nbStates = states.length
+        while(numState < nbStates && (states[numState].set || states[numState].it < this.lastFullStateIteration)) numState += 1
+        while(this.iteration < targetIteration) {
+            const state = numState < nbStates ? states[numState] : null
+            if(state && this.iteration > state.it) this.restoreHistoryState(state.it)
+            else if(!state || this.iteration < state.it) this.updateGame()
+            if(state && this.iteration == state.it) { this.setState(state); state.set=true; numState+=1 }
+            this.storeHistoryState()
+        }
+    }
+
+    cleanHistoryStates() {
+        this.historyStates = {}
+    }
+
+    storeHistoryState() {
+        this.historyStates ||= {}
+        this.historyStates[this.iteration] = JSON.stringify(this.getState(true))
+    }
+
+    restoreHistoryState(it) {
+        if(this.isDebugMode) console.log("restoreHistoryState", this.iteration - it)
+        const state = JSON.parse(this.historyStates[it])
+        this.setState(state)
     }
 
     draw() {
@@ -920,17 +979,9 @@ export class Game extends GameCommon {
     receiveState(stateStr) {
         if(this.isDebugMode) console.log("receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
-        const receiveStates = this.receiveStates ||= []
-        receiveStates.push(state)
-        if(receiveStates.length >= 2) receiveStates.sort((a, b) => a.time - b.time)
-    }
-
-    setReceivedStates() {
-        for(const state of this.receiveStates) {
-            if(this.isDebugMode) console.log("setState", state.it - this.iteration, state)
-            this.setState(state)
-        }
-        this.receiveStates.length = 0
+        const receivedStates = this.receivedStates ||= []
+        receivedStates.push(state)
+        if(receivedStates.length >= 2) receivedStates.sort((a, b) => a.it - b.it)
     }
 
     setState(state) {
@@ -1049,10 +1100,13 @@ export class GameScene extends SceneCommon {
     }
 
     initEntities() {
+        if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
+        console.log("TMP initEntities")
         this.game.map.entities.forEach(mapEnt => {
             const { x, y, key } = mapEnt
             this.addEntity(x, y, key)
         })
+        for(let playerId in this.game.players) this.addHero(playerId)
     }
 
     addHero(playerId) {
@@ -1909,24 +1963,25 @@ class SmokeExplosion extends Entity {
         this.width = this.height = 100
         this.undergoGravity = false
         this.undergoWalls = false
-        this.time = 0
+        this.iteration = 0
     }
     update() {
-        this.time += this.game.dt
-        if(this.time > .5) { this.remove(); return }
-        this.sprite = SmokeExplosionSprites[floor(this.time/.5*4)]
+        this.iteration += 1
+        const time = this.iteration * this.game.dt
+        if(time > .5) { this.remove(); return }
+        this.sprite = SmokeExplosionSprites[floor(time/.5*4)]
     }
     getState() {
         const state = super.getState()
-        state.time = this.time
+        state.it = this.iteration
         return state
     }
     setState(state) {
         super.setState(state)
-        this.time = state.time
+        this.iteration = state.it
     }
 }
-Entities.register("smokee", Star)
+Entities.register("smokee", SmokeExplosion)
 
 
 class DebugScene extends SceneCommon {

@@ -43,7 +43,7 @@
     </flexrow>
     <flexcol id="game"></flexcol>
 <script type="module">
-import { GameMap, Game, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
+import { GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -120,6 +120,7 @@ function startGame() {
         gameParentEl.innerHTML = ""
     }
     game = new Game(gameParentEl, map, ws.id, {
+        mode: MODE_CLIENT,
         sendPing: () => ws.send(MSG_KEYS.PING),
         sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr),
         debug: isDebugMode,
