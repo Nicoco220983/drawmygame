@@ -809,7 +809,7 @@ export class Game extends GameCommon {
             const updStartTime = now()
             this.update()
             this.updateDur = now() - updStartTime
-            if(this.isDebugMode && this.updateDur > this.dt/10) console.log("updateDur", this.updateDur)
+            if(this.isDebugMode && this.updateDur > this.dt/10) this.log("updateDur", this.updateDur)
             if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
             if(this.sendInputState) this.maySendInputState(inputState)
@@ -898,7 +898,7 @@ export class Game extends GameCommon {
     }
 
     restoreHistoryState(it) {
-        if(this.isDebugMode) console.log("restoreHistoryState", this.iteration, it)
+        if(this.isDebugMode) this.log("restoreHistoryState", this.iteration, it)
         const state = JSON.parse(this.historyStates[it])
         this.setState(state)
     }
@@ -964,7 +964,7 @@ export class Game extends GameCommon {
     receivePing() {
         this.lag = now() - this.pingLastTime
         this.waitingPing = false
-        if(this.isDebugMode) console.log("Lag:", this.lag)
+        if(this.isDebugMode) this.log("Lag:", this.lag)
     }
 
     getState(isFull) {
@@ -978,7 +978,7 @@ export class Game extends GameCommon {
     }
 
     receiveState(stateStr) {
-        if(this.isDebugMode) console.log("receiveState", this.time, stateStr)
+        if(this.isDebugMode) this.log("receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
         const receivedStates = this.receivedStates ||= []
         receivedStates.push(state)
@@ -1001,13 +1001,13 @@ export class Game extends GameCommon {
         if(this.time > this.lastSendStateTime + SEND_STATE_PERIOD) {
             const stateStr = this.getState(true)
             this.sendState(stateStr)
-            if(this.isDebugMode) console.log("sendState", stateStr)
+            if(this.isDebugMode) this.log("sendState", stateStr)
             this.lastSendStateTime = this.time
         } else {
             const stateStr = this.getState(false)
             if(stateStr) {
                 this.sendState(stateStr)
-                if(this.isDebugMode) console.log("sendState", stateStr)
+                if(this.isDebugMode) this.log("sendState", stateStr)
             }
         }
     }
@@ -1032,7 +1032,7 @@ export class Game extends GameCommon {
             if(inputState && hasKeys(inputState)) inputStateWiTime.i = inputState
             else delete inputStateWiTime.i
             const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
-            if(this.isDebugMode) console.log("sendInputState", this.time, inputStateWiTimeStr)
+            if(this.isDebugMode) this.log("sendInputState", this.time, inputStateWiTimeStr)
             this.sendInputState(inputStateWiTimeStr)
             this.prevInputStateStr = inputStateStr
             this.lastSendInputStateTime = this.time
@@ -1040,7 +1040,7 @@ export class Game extends GameCommon {
     }
 
     receivePlayerInputState(playerId, inputStateWiTimeStr) {
-        if(this.isDebugMode) console.log("receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
+        if(this.isDebugMode) this.log("receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
         const receivedInputStates = this.receivedInputStates ||= {}
         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
         const inputStateWiTime = JSON.parse(inputStateWiTimeStr)
@@ -1092,6 +1092,10 @@ export class Game extends GameCommon {
             this.joypadScene = null
         }
         this.syncSize()
+    }
+
+    log(...args) {
+        console.log(this.iteration, now(), ...args)
     }
 }
 
