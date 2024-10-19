@@ -788,7 +788,7 @@ export class Game extends GameCommon {
 
         this.keyboardKeysPressed = {}
         this.joypadKeysPressed = {}
-        if(!this.isServerEnv) {
+        if(this.mode != MODE_SERVER) {
             document.addEventListener('keydown', evt => {this.keyboardKeysPressed[evt.key] = true})
             document.addEventListener('keyup', evt => delete this.keyboardKeysPressed[evt.key])
         }
@@ -800,15 +800,16 @@ export class Game extends GameCommon {
         if(this.gameLoop) return
         this.gameLoop = setInterval(() => {
             let inputState = null
-            if(!this.isServerEnv) {
+            if(this.mode != MODE_SERVER) {
                 inputState = this.getInputState()
-                if(!this.sendInputState) this.setLocalHeroInputState(inputState)
+                if(this.mode == MODE_LOCAL) this.setLocalHeroInputState(inputState)
             } else {
                 this.setInputStateFromReceived()
             }
             const updStartTime = now()
             this.update()
             this.updateDur = now() - updStartTime
+            if(this.isDebugMode && this.updateDur > this.dt/10) console.log("updateDur", this.updateDur)
             if(this.sendPing) this.maySendPing()
             if(this.sendState) this.getAndMaySendState()
             if(this.sendInputState) this.maySendInputState(inputState)
