@@ -999,11 +999,16 @@ export class Game extends GameCommon {
     getAndMaySendState() {
         this.lastSendStateTime ||= -SEND_STATE_PERIOD
         if(this.time > this.lastSendStateTime + SEND_STATE_PERIOD) {
-            this.sendState(this.getState(true))
+            const stateStr = this.getState(true)
+            this.sendState(stateStr)
+            if(this.isDebugMode) console.log("sendState", stateStr)
             this.lastSendStateTime = this.time
         } else {
             const stateStr = this.getState(false)
-            if(stateStr) this.sendState(stateStr)
+            if(stateStr) {
+                this.sendState(stateStr)
+                if(this.isDebugMode) console.log("sendState", stateStr)
+            }
         }
     }
 
