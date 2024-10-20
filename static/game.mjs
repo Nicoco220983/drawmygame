@@ -810,10 +810,10 @@ export class Game extends GameCommon {
             this.update()
             this.updateDur = now() - updStartTime
             if(this.isDebugMode && this.updateDur > this.dt/10) this.log("updateDur", this.updateDur)
-            if(this.sendPing) this.maySendPing()
-            if(this.sendState) this.getAndMaySendState()
-            if(this.sendInputState) this.maySendInputState(inputState)
-            if(!this.isServerEnv) this.mayDraw()
+            if(this.mode == MODE_CLIENT) this.maySendPing()
+            if(this.mode == MODE_SERVER) this.getAndMaySendState()
+            if(this.mode == MODE_CLIENT) this.maySendInputState(inputState)
+            if(this.mode != MODE_SERVER) this.mayDraw()
         }, 1000 / FPS)
     }
 
@@ -1027,25 +1027,32 @@ export class Game extends GameCommon {
         this.lastSendInputStateTime ||= -SEND_INPUT_STATE_PERIOD
         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
         if(this.prevInputStateStr != inputStateStr || (inputStateStr && this.time > this.lastSendInputStateTime + SEND_INPUT_STATE_PERIOD)) {
-            const inputStateWiTime = this.inputStateWiTime ||= {}
-            inputStateWiTime.t = this.time
-            if(inputState && hasKeys(inputState)) inputStateWiTime.i = inputState
-            else delete inputStateWiTime.i
-            const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
-            if(this.isDebugMode) this.log("sendInputState", this.time, inputStateWiTimeStr)
-            this.sendInputState(inputStateWiTimeStr)
+            const inputStateWiIt = this.inputStateWiIt ||= {}
+            inputStateWiIt.it = this.iteration
+            if(inputState && hasKeys(inputState)) inputStateWiIt.is = inputState
+            else delete inputStateWiIt.is
+            const inputStateWiItStr = JSON.stringify(inputStateWiIt)
+            if(this.isDebugMode) this.log("sendInputState", inputStateWiItStr)
+            this.sendInputState(inputStateWiItStr)
             this.prevInputStateStr = inputStateStr
             this.lastSendInputStateTime = this.time
         }
     }
 
-    receivePlayerInputState(playerId, inputStateWiTimeStr) {
-        if(this.isDebugMode) this.log("receivePlayerInputState", this.time, playerId, inputStateWiTimeStr)
+    receivePlayerInputState(playerId, inputStateWiItStr) {
+        if(this.isDebugMode) this.log("receivePlayerInputState", playerId, inputStateWiItStr)
         const receivedInputStates = this.receivedInputStates ||= {}
         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-        const inputStateWiTime = JSON.parse(inputStateWiTimeStr)
-        inputStateWiTime.localTime = this.time
-        playerReceivedInputStates.push(inputStateWiTime)
+        const inputStateWiIt = JSON.parse(inputStateWiItStr)
+        inputStateWiIt.localIt = this.iteration
+        inputStateWiIt.nbIt = ceil(SEND_INPUT_STATE_PERIOD / this.dt)
+        if(playerReceivedInputStates.length > 0) {
+            const prevInputStateWiIt = playerReceivedInputStates[playerReceivedInputStates.length-1]
+            if(prevInputStateWiIt.it == inputStateWiIt.it) playerReceivedInputStates.shift()
+            else prevInputStateWiIt.nbIt = inputStateWiIt.it - prevInputStateWiIt.it
+        }
+        if(inputStateWiIt.is) inputStateWiIt.nbIt = ceil(SEND_INPUT_STATE_PERIOD / this.dt)
+        playerReceivedInputStates.push(inputStateWiIt)
     }
 
     setInputStateFromReceived() {
@@ -1054,27 +1061,19 @@ export class Game extends GameCommon {
             const hero = this.gameScene.getHero(playerId)
             if(!hero) continue
             const playerReceivedInputStates = receivedInputStates[playerId]
-            const nbStates = playerReceivedInputStates.length
-            if(nbStates == 0) continue
-            const playerInputStateWiTime = playerReceivedInputStates[0]
-            const inputState = playerInputStateWiTime.i
-            const stateHasKeys = (inputState && hasKeys(inputState))
-            if(!stateHasKeys) {
+            if(playerReceivedInputStates.length == 0) continue
+            const playerInputStateWiIt = playerReceivedInputStates[0]
+            const inputState = playerInputStateWiIt.is
+            if(!inputState) {
                 hero.setInputState(null)
                 playerReceivedInputStates.shift()
             } else {
-                if(!playerInputStateWiTime.setDone) {
+                if(!playerInputStateWiIt.setDone) {
                     hero.setInputState(inputState)
-                    playerInputStateWiTime.setDone = true
+                    playerInputStateWiIt.setDone = true
                 }
-                // clean inputState if too old (according to next inputState)
-                const playerNextInputStateWiTime = (nbStates > 1) ? playerReceivedInputStates[1] : null
-                if(playerNextInputStateWiTime) {
-                    const playerInputStateDur = playerNextInputStateWiTime.t - playerInputStateWiTime.t
-                    if(this.time > playerInputStateWiTime.localTime + playerInputStateDur) {
-                        playerReceivedInputStates.shift()
-                    }
-                }
+                if(this.iteration - playerInputStateWiIt.localIt >= playerInputStateWiIt.nbIt)
+                    playerReceivedInputStates.shift()
             }
         }
     }
