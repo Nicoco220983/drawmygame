@@ -798,6 +798,7 @@ export class Game extends GameCommon {
 
     play() {
         if(this.gameLoop) return
+        this.startTime = now()
         this.gameLoop = setInterval(() => {
             let inputState = null
             if(this.mode != MODE_SERVER) {
@@ -809,7 +810,6 @@ export class Game extends GameCommon {
             const updStartTime = now()
             this.update()
             this.updateDur = now() - updStartTime
-            if(this.isDebugMode && this.updateDur > this.dt/10) this.log("updateDur", this.updateDur)
             if(this.mode == MODE_CLIENT) this.maySendPing()
             if(this.mode == MODE_SERVER) this.getAndMaySendState()
             if(this.mode == MODE_CLIENT) this.maySendInputState(inputState)
@@ -1094,7 +1094,7 @@ export class Game extends GameCommon {
     }
 
     log(...args) {
-        console.log(this.iteration, now(), ...args)
+        console.log(this.iteration, ((now() - this.startTime) / this.dt).toFixed(1), ...args)
     }
 }
 
