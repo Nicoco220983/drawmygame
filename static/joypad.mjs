@@ -97,6 +97,7 @@ class Button extends Entity {
     constructor(scn, kwargs) {
         super(scn)
         this.key = kwargs.desc.key
+        this.isDown = false
         this.posX = kwargs.posX
         this.posWidth = kwargs.posWidth
         this.posY = kwargs.posY
@@ -115,7 +116,10 @@ class Button extends Entity {
 
     update(time) {
         const isDown = this.checkHitTouches()
-        this.game.setJoypadKeyPressed(this.key, isDown)
-        this.sprite = ButtonSprites[isDown ? 1 : 0]
+        if(isDown != this.isDown) {
+            this.isDown = isDown
+            this.game.setInputKey(this.key, isDown)
+            this.sprite = ButtonSprites[isDown ? 1 : 0]
+        }
     }
 }
