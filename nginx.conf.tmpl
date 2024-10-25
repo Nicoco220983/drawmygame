@@ -40,7 +40,7 @@ http {
     # include /etc/nginx/sites-enabled/*;
 
     server {
-        listen 3000;
+        listen ${NGINX_PORT};
 
         root ${PWD};
 
@@ -61,7 +61,7 @@ http {
         }
 
         location / {
-            proxy_pass http://127.0.0.1:3001;
+            proxy_pass http://127.0.0.1:${DRAWMYGAME_PORT};
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";

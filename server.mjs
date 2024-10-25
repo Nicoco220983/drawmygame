@@ -14,7 +14,7 @@ import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/g
 // import Consts from './static/consts.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
-const PORT = process.env.DRAWMYGAME_PORT || (PROD ? 8080 : 3001)
+const PORT = parseInt(process.env.DRAWMYGAME_PORT || (PROD ? 8080 : 3001))
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
