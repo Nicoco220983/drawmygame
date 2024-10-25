@@ -88,7 +88,8 @@ async function main() {
 function connectToRoom() {
     return new Promise((ok, ko) => {
         const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
-        ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
+        const appPort = window.location.port == 3000 ? 3001 : 8080
+        ws = new WebSocket(`${socketProtocol}://${window.location.hostname}:${appPort}/client`)
         ws.addEventListener('open', () => {
             console.log('Connected to server !')
             ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId }))
