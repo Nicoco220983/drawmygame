@@ -964,7 +964,6 @@ export class Game extends GameCommon {
     receivePing() {
         this.lag = now() - this.pingLastTime
         this.waitingPing = false
-        if(this.isDebugMode) this.log("Lag:", this.lag)
     }
 
     getState(isFull) {
@@ -1094,7 +1093,7 @@ export class Game extends GameCommon {
     }
 
     log(...args) {
-        console.log(this.iteration, ((now() - this.startTime) / this.dt).toFixed(1), ...args)
+        console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
     }
 }
 
