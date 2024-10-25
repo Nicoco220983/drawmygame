@@ -17,7 +17,6 @@
   },
   "homepage": "https://github.com/Nicoco220983/drawmygame#readme",
   "dependencies": {
-    "express": "^4.19.2",
-    "ws": "^8.17.1"
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.48.0"
   }
 }

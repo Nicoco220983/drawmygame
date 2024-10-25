@@ -7,26 +7,19 @@ import crypto from "crypto"
 import { networkInterfaces } from "os"
 // import path from "path"
 
-import express from "express"
-import bodyParser from 'body-parser'
-import { WebSocketServer } from 'ws'
+import uWS from "uWebSockets.js"
 
 import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 
 // import Consts from './static/consts.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
-const PORT = process.env.DRAWMYGAME_PORT || (PROD ? 80 : 3000)
+const PORT = process.env.DRAWMYGAME_PORT || (PROD ? 8080 : 3001)
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
-// const games = initGames()
+const MAX_BODY_SIZE = 2000
 
-const octetStreamParser = bodyParser.raw({
-  inflate: false,
-  type: "application/octet-stream",
-  limit: "2mb",
-})
 
 class GameServer {
 
@@ -37,95 +30,74 @@ class GameServer {
   }
 
   initApp() {
-    this.app = express()
-    this.app.use('/static', express.static('static'))
-    this.app.get('/', (req, res) => {
-      res.sendFile(join(DIRNAME, 'static/index.html'))
-    })
-    this.app.get('/favicon.ico', (req, res) => {
-      res.sendFile(join(DIRNAME, 'static/favicon.ico'))
-    })
-    this.app.get('/ping', (req, res) => {
-      res.sendStatus(200)
+    this.app = uWS.App()
+
+    this.app.get('/ping', (res, req) => {
+      res.end('pong')
     })
 
-    this.app.post("/newroom", (req, res) => {
+    this.app.post("/newroom", (res, req) => {
       const roomId = this.newRoom()
-      res.json({ roomId })
-      // res.redirect(`/r/${this.generateRoomId()}`)
+      res.writeHeader("Content-Type", "application/json")
+        .end(JSON.stringify({ roomId }))
     })
 
-    this.app.get("/r/:roomId", (req, res) => {
-      res.sendFile(join(DIRNAME, "static/room.html"))
-    })
-
-    this.app.get("/room/:roomId/map", (req, res) => {
-      const { roomId } = req.params
+    this.app.post("/room/:roomId/map", async (res, req) => {
+      const roomId = req.getParameter("roomId")
       const room = this.rooms[roomId]
-      if(!room || !room.mapBuf) return res.sendStatus(404)
-      res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': room.mapBuf.length
-      })
-      res.end(room.mapBuf)
-    })
-
-    this.app.post("/room/:roomId/map", octetStreamParser, (req, res) => {
-      const { roomId } = req.params
-      const room = this.rooms[roomId]
-      if(room === undefined) return res.sendStatus(404)
-      room.mapBuf = req.body
+      if(!room) return res.writeStatus("404 Not Found").end()
+      room.mapBuf = await readBody(res)
       this.startGame(room)
       res.end()
     })
 
-    // this.app.get("/r/:roomId/p", (req, res) => {
-    //   const { roomId } = req.params
-    //   const room = this.rooms[roomId]
-    //   if(room === undefined) return res.sendStatus(404)
-    //   res.redirect(`/r/${roomId}/p/${room.generatePlayerId()}`)
-    // })
+    this.app.get("/room/:roomId/map", (res, req) => {
+      const roomId = req.getParameter("roomId")
+      const room = this.rooms[roomId]
+      if(!room || !room.mapBuf) return res.writeStatus("404 Not Found").end()
+      res.writeHeader("Content-Type", "application/octet-stream")
+        .end(room.mapBuf)
+    })
 
-    // this.app.get("/r/:roomId/p/:playerId", (req, res) => {
-    //   const { roomId } = req.params
-    //   if(this.rooms[roomId] === undefined) return res.sendStatus(404)
-    //   res.sendFile(join(DIRNAME, "static/joypad.html"))
-    // })
-
-    // this.app.get("/games", (req, res) => {
-    //   res.json({ games })
-    // })
-  }
-
-  serve() {
-    this.server = this.app.listen(this.port)
-    this.startWebocketServer()
-  }
-
-  startWebocketServer() {
-
-    this.websocketServer = new WebSocketServer({ server: this.server })
-
-    this.websocketServer.on('connection', ws => {
-    
-      ws.on('message', (data, isBinary) => {
-        const msg = isBinary ? data : data.toString()
-        const key = msg.substring(0, MSG_KEY_LENGTH)
-        const body = msg.substring(MSG_KEY_LENGTH)
+    const decoder = new TextDecoder();
+    this.app.ws('/client', {
+      /* Options */
+      // compression: uWS.SHARED_COMPRESSOR,
+      // maxPayloadLength: 16 * 1024 * 1024,
+      // idleTimeout: 10,
+      /* Handlers */
+      open: ws => {},
+      message: (ws, msg, isBinary) => {
+        /* Ok is false if backpressure was built up, wait for drain */
+        // let ok = ws.send(message, isBinary);
+        //const msgStr = isBinary ? msg : msg.toString()
+        const msgStr = decoder.decode(msg) // TODO: optimise this
+        const key = msgStr.substring(0, MSG_KEY_LENGTH)
+        const body = msgStr.substring(MSG_KEY_LENGTH)
         if(key === MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
         else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
         else if(key === MSG_KEYS.PING) this.handlePing(ws)
         else console.warn("Unknown websocket key", key)
-      })
-    
-      ws.on('error', console.error)
-    
-      ws.on('close', () => {
+      },
+      // drain: (ws) => {
+      //   console.log('WebSocket backpressure: ' + ws.getBufferedAmount());
+      // },
+      close: (ws, code, msg) => {
         console.log(`Client '${ws.id}' disconnected`)
         this.handleClientDeconnection(ws)
-      })
+      }
+    })
+  }
+
+  serve() {
+    this.server = this.app.listen(this.port, token => {
+      if (token) {
+        console.log('Listening to port ' + this.port);
+      } else {
+        console.error('Failed to listen to port ' + this.port);
+      }
     })
   }
 
@@ -168,7 +140,7 @@ class GameServer {
   handleIdentifyClient(ws, kwargs) {
     const { roomId } = kwargs
     const room = this.rooms[roomId]
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     if(room.closed) { room.closeClient(ws); return }
     ws.id = this.generateClientId()
     room.attachClient(ws)
@@ -182,7 +154,7 @@ class GameServer {
 
   handleJoinGame(ws, kwargs) {
     const { room } = ws
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     if(room.closed) { room.closeClient(ws); return }
     const { name, color } = kwargs
     ws.playerName = name
@@ -203,7 +175,7 @@ class GameServer {
     // } else {
     //   // player chose its name and color
     //   const { room } = ws
-    //   if(!room || room.closed) { ws.close(); return }
+    //   if(!room || room.closed) { closeWs(ws); return }
     //   if(kwargs.name) ws.name = kwargs.name
     //   if(kwargs.color) ws.color = kwargs.color
     //   const msg = MSG_KEYS.SYNC_PLAYERS + JSON.stringify(room.exportPlayers())
@@ -214,7 +186,7 @@ class GameServer {
 
   handlePlayerInput(ws, data) {
     const { room } = ws
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     if(room.closed) { room.closeClient(ws); return }
     const { game } = room
     if(game) game.receivePlayerInputState(ws.id, data)
@@ -222,7 +194,7 @@ class GameServer {
 
   handleGameInstruction(ws, data) {
     const { room } = ws
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     if(room.closed) { room.closeClient(ws); return }
     if(data == "restart" && room.game) room.game.restart()
   }
@@ -230,7 +202,7 @@ class GameServer {
   // handleStartGame(ws, kwargs) {
   //   const { map } = kwargs
   //   const { room } = ws
-  //   if(!room || room.closed) { ws.close(); return }
+  //   if(!room || room.closed) { closeWs(ws); return }
   //   // room.gameKey = gameKey
   //   // room.gameState = null
   //   room.game = new Game(null, map)
@@ -254,38 +226,38 @@ class GameServer {
 
   handlePing(ws) {
     const { room } = ws
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     ws.send(MSG_KEYS.PING)
   }
 
   handleClientDeconnection(ws) {
     const { room } = ws
-    if(!room) { ws.close(); return }
+    if(!room) { closeWs(ws); return }
     room.closeClient(ws)
   }
 
   // onJoypadInput(ws, body) {
   //   const { room } = ws
-  //   if(!room || room.closed) { ws.close(); return }
+  //   if(!room || room.closed) { closeWs(ws); return }
   //   room.sendToGame(MSG_KEYS.JOYPAD_INPUT + ws.id + ':' + body)
   // }
 
   // onGameInput(ws, body) {
   //   const { room } = ws
-  //   if(!room || room.closed) { ws.close(); return }
+  //   if(!room || room.closed) { closeWs(ws); return }
   //   room.sendToPlayers(MSG_KEYS.GAME_INPUT + body)
   // }
 
   // onGameState(ws, body) {
   //   const { room } = ws
-  //   if(!room || room.closed) { ws.close(); return }
+  //   if(!room || room.closed) { closeWs(ws); return }
   //   room.gameState = body
   //   room.sendToPlayers(MSG_KEYS.GAME_STATE + body)
   // }
 
   // onDisconnectPlayer(ws, playerId) {
   //   const { room } = ws
-  //   if(!room || room.closed) { ws.close(); return }
+  //   if(!room || room.closed) { closeWs(ws); return }
   //   const playerWs = room.playerWebsockets[playerId]
   //   if(!playerWs) return
   //   playerWs.close()
@@ -324,7 +296,7 @@ class Room {
   closeClient(ws) {
     delete this.websockets[ws.id]
     delete ws.room
-    ws.close()
+    closeWs(ws)
     if(this.game) this.game.rmPlayer(ws.id)
     if(!this.hasClients()) this.initCloseCountdown()
     console.log(`Player '${ws.id}' left the room '${this.id}'`)
@@ -405,6 +377,38 @@ class Room {
 //   }
 //   return games
 // }
+
+
+function readBody(res) {
+  return new Promise((ok, ko) => {
+      const buffers = []
+      let totalSize = 0
+
+      res.onData((ab, isLast) => {
+          try {
+              if(ab.byteLength > 0) {
+                  const copy = ab.slice(0) // Immediately copy the ArrayBuffer into a Buffer, every return of onData neuters the ArrayBuffer
+                  totalSize += copy.byteLength
+                  buffers.push(Buffer.from(copy))
+              }
+
+              if (totalSize > MAX_BODY_SIZE) { ko(new Error('Request body too large')); return }
+
+              if (isLast) ok(Buffer.concat(buffers))
+          } catch (err) { ko(new Error(err.message)) }
+      })
+
+      res.onAborted(() => ko(new Error('Request aborted')))
+  })
+}
+
+function closeWs(ws) {
+  if(ws.closed) return
+  try {
+    ws.close()
+  } catch(err) {}
+  ws.closed = true
+}
 
 
 function getLocalIps() {
