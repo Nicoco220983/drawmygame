@@ -626,7 +626,7 @@ export class GameCommon {
             width,
             height169,
         )
-        const height = max(height169, (this.gameScene.isible ? this.gameScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
+        const height = max(height169, (this.gameScene.visible ? this.gameScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
