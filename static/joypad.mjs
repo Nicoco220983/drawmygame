@@ -8,7 +8,7 @@ export class JoypadScene {
         this.game = game
         this.x = 0
         this.y = 0
-        this.pointer = null
+        // this.pointer = null
         this.game.initTouches()
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
@@ -63,19 +63,19 @@ export class JoypadScene {
     }
 
     update(time) {
-        this.syncPointer()
+        // this.syncPointer()
         this.buttons.update(time)
     }
 
-    syncPointer() {
-        const gamePointer = this.game.pointer
-        if(!gamePointer) return
-        const thisPointer = this.pointer ||= {}
-        thisPointer.isDown = gamePointer.isDown
-        thisPointer.prevIsDown = gamePointer.prevIsDown
-        thisPointer.x = gamePointer.x - this.x
-        thisPointer.y = gamePointer.y - this.y
-    }
+    // syncPointer() {
+    //     const gamePointer = this.game.pointer
+    //     if(!gamePointer) return
+    //     const thisPointer = this.pointer ||= {}
+    //     thisPointer.isDown = gamePointer.isDown
+    //     thisPointer.prevIsDown = gamePointer.prevIsDown
+    //     thisPointer.x = gamePointer.x - this.x
+    //     thisPointer.y = gamePointer.y - this.y
+    // }
 
     draw() {
         const ctx = this.canvas.getContext("2d")

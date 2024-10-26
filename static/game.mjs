@@ -573,11 +573,11 @@ export class GameCommon {
     // pure abstract
     // initGameScene()
 
-    initPointer() {
-        if(this.pointer) return
-        this.pointer = utils.newPointer(this)
-        this.pointer.prevIsDown = false
-    }
+    // initPointer() {
+    //     if(this.pointer) return
+    //     this.pointer = utils.newPointer(this)
+    //     this.pointer.prevIsDown = false
+    // }
 
     initTouches() {
         if(this.touches) return
@@ -659,7 +659,7 @@ export class SceneCommon {
         this.color = "white"
         this.iteration = -1
         this.time = 0
-        this.pointer = null
+        // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
@@ -726,18 +726,18 @@ export class SceneCommon {
     update() {
         this.iteration += 1
         this.time = this.iteration * this.game.dt
-        this.syncPointer()
+        // this.syncPointer()
     }
 
-    syncPointer() {
-        const gamePointer = this.game.pointer
-        if(!gamePointer) return
-        const thisPointer = this.pointer ||= {}
-        thisPointer.isDown = gamePointer.isDown
-        thisPointer.prevIsDown = gamePointer.prevIsDown
-        thisPointer.x = gamePointer.x - this.x
-        thisPointer.y = gamePointer.y - this.y
-    }
+    // syncPointer() {
+    //     const gamePointer = this.game.pointer
+    //     if(!gamePointer) return
+    //     const thisPointer = this.pointer ||= {}
+    //     thisPointer.isDown = gamePointer.isDown
+    //     thisPointer.prevIsDown = gamePointer.prevIsDown
+    //     thisPointer.x = gamePointer.x - this.x
+    //     thisPointer.y = gamePointer.y - this.y
+    // }
 
     draw() {
         const ctx = this.canvas.getContext("2d")
@@ -776,7 +776,7 @@ export class Game extends GameCommon {
     constructor(parentEl, map, playerId, kwargs) {
         super(parentEl, map, kwargs)
 
-        this.pointer = null
+        // this.pointer = null
 
         this.players = {}
         this.localPlayerId = playerId
@@ -943,7 +943,7 @@ export class Game extends GameCommon {
     }
 
     setInputKey(key, val) {
-        if(this.keysPressed[key] === val) return
+        if(Boolean(this.keysPressed[key]) === val) return
         this.keysPressed[key] = val
         if(this.mode == MODE_CLIENT) this.getAndSendInputState()
     }
@@ -1084,8 +1084,8 @@ export class Game extends GameCommon {
         if(val) {
             const joypadMod = await import("./joypad.mjs")
             if(this.joypadScene) return
-            this.initPointer()
-            this.initTouches()
+            // this.initPointer()
+            // this.initTouches()
             const { JoypadScene } = joypadMod
             this.joypadScene = new JoypadScene(this)
         } else {
