@@ -14,7 +14,7 @@ import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/g
 // import Consts from './static/consts.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
-const PORT = parseInt(process.env.DRAWMYGAME_PORT || (PROD ? 8080 : 3001))
+const PORT = parseInt(process.env.DRAWMYGAME_PORT || 8080)
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
@@ -30,7 +30,10 @@ class GameServer {
   }
 
   initApp() {
-    this.app = uWS.App()
+    this.app = uWS.App({
+      key_file_name: "dev_key.pem",
+      cert_file_name: "dev_cert.pem"
+    })
 
     this.app.get('/ping', (res, req) => {
       res.end('pong')
@@ -62,7 +65,7 @@ class GameServer {
     const decoder = new TextDecoder();
     this.app.ws('/client', {
       /* Options */
-      // compression: uWS.SHARED_COMPRESSOR,
+      compression: uWS.SHARED_COMPRESSOR,
       // maxPayloadLength: 16 * 1024 * 1024,
       // idleTimeout: 10,
       /* Handlers */
