@@ -42,8 +42,12 @@
         <button id="fullscreen">Fullscreen</button>
     </flexrow>
     <flexcol id="game"></flexcol>
+    <flexcol id="logs_section" style="display: none; width: 90%">
+        <input id="logs_filter" type="text">
+        <p id="logs" style="border: 1px solid grey; width: 100%; height: 500px; overflow: scroll"></p>
+    </flexcol>
 <script type="module">
-import { GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
+import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -74,6 +78,25 @@ const fullscrenEl = document.getElementById("fullscreen")
 fullscrenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
+
+const showLogs = isDebugMode && HAS_TOUCH
+if(showLogs) document.getElementById("logs_section").style.display = ""
+const logsEl = document.getElementById("logs")
+const logsFilterEl = document.getElementById("logs_filter")
+const addLog = (...args) => {
+    args = [...args]
+    const logStr = args.map(JSON.stringify).join(" ")
+    const divEl = document.createElement("div")
+    divEl.style.display = "none"
+    divEl.textContent = logStr
+    logsEl.insertBefore(divEl, logsEl.firstChild)
+    syncLogsEl()
+}
+const syncLogsEl = () => {
+    const filt = logsFilterEl.value
+    for(const el of logsEl.children) el.style.display = (!filt || el.textContent.indexOf(filt) >= 0) ? "" : "none"
+}
+logsFilterEl.onchange = syncLogsEl
 
 // main
 
@@ -125,6 +148,7 @@ function startGame() {
         sendPing: () => ws.send(MSG_KEYS.PING),
         sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr),
         debug: isDebugMode,
+        onLog: showLogs ? addLog : null
     })
     game.play()
 }

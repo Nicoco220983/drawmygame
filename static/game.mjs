@@ -24,7 +24,7 @@ export const MSG_KEYS = {
 }
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
-const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
+export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
@@ -814,6 +814,7 @@ export class Game extends GameCommon {
         this.sendPing = (kwargs && kwargs.sendPing) || null
         this.sendState = (kwargs && kwargs.sendState) || null
         this.sendInputState = (kwargs && kwargs.sendInputState) || null
+        this.onLog = (kwargs && kwargs.onLog) || null
 
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
@@ -1140,6 +1141,7 @@ export class Game extends GameCommon {
 
     log(...args) {
         console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
+        if(this.onLog) this.onLog(...args)
     }
 }
 
