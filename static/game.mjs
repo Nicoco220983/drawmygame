@@ -827,23 +827,28 @@ export class Game extends GameCommon {
     play() {
         if(this.gameLoop) return
         this.startTime = now()
-        this.gameLoop = setInterval(() => {
-            if(this.mode == MODE_LOCAL) {
-                this.setLocalHeroInputState(this.getInputState())
-            } else {
-                this.setInputStateFromReceived()
-            }
-            const updStartTime = now()
-            this.update()
-            this.updateDur = now() - updStartTime
-            if(this.mode == MODE_CLIENT) this.maySendPing()
-            if(this.mode == MODE_SERVER) this.getAndMaySendState()
-            if(this.mode != MODE_SERVER) this.mayDraw()
-        }, 1000 / FPS)
+        this.updateGameLoop()
+    }
+
+    updateGameLoop() {
+        const startTime = now()
+        if(this.mode == MODE_LOCAL) {
+            this.setLocalHeroInputState(this.getInputState())
+        } else {
+            this.setInputStateFromReceived()
+        }
+        const updStartTime = now()
+        this.update()
+        this.updateDur = now() - updStartTime
+        if(this.mode == MODE_CLIENT) this.maySendPing()
+        if(this.mode == MODE_SERVER) this.getAndMaySendState()
+        if(this.mode != MODE_SERVER) this.mayDraw()
+        const updDur = now() - startTime
+        this.gameLoop = setTimeout(() => this.updateGameLoop(), max(0, 1000 * (this.dt - updDur)))
     }
 
     stop() {
-        if(this.gameLoop) clearInterval(this.gameLoop)
+        if(this.gameLoop) clearTimeout(this.gameLoop)
         this.gameLoop = null
     }
 
