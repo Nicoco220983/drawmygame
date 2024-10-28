@@ -900,6 +900,7 @@ export class Game extends GameCommon {
             this.setState(states[lastFullStateIdx])
             this.lastFullStateIteration = this.iteration
             this.log("TMP states before clean", states.map(s => s.it))
+            this.log("TMP lastFullStateIdx", lastFullStateIdx)
             states.splice(0, lastFullStateIdx+1)
             this.log("TMP states after clean", states.map(s => s.it))
             this.cleanHistoryStates()
