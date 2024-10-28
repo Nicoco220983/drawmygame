@@ -900,7 +900,7 @@ export class Game extends GameCommon {
             this.setState(states[lastFullStateIdx])
             this.lastFullStateIteration = this.iteration
             states.splice(0, lastFullStateIdx+1)
-            console.log("TMP remaining receivedStates", states.length)
+            this.log("TMP remaining receivedStates", states.length)
             this.cleanHistoryStates()
             this.storeHistoryState()
             const acceptableIteration = targetIteration - 1
