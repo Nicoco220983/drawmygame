@@ -30,10 +30,7 @@ class GameServer {
   }
 
   initApp() {
-    this.app = uWS.App({
-      key_file_name: "dev_key.pem",
-      cert_file_name: "dev_cert.pem"
-    })
+    this.app = uWS.App()
 
     this.app.get('/ping', (res, req) => {
       res.end('pong')
