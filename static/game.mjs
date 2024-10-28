@@ -895,14 +895,11 @@ export class Game extends GameCommon {
         const states = this.receivedStates
         // received full state
         let lastFullStateIdx = null
-        for(let i in states) if(states[i]._isFull) lastFullStateIdx = i
+        for(let i=0; i<states.length; ++i) if(states[i]._isFull) lastFullStateIdx = i
         if(lastFullStateIdx !== null) {
             this.setState(states[lastFullStateIdx])
             this.lastFullStateIteration = this.iteration
-            this.log("TMP states before clean", states.map(s => s.it))
-            this.log("TMP lastFullStateIdx", lastFullStateIdx)
             states.splice(0, lastFullStateIdx+1)
-            this.log("TMP states after clean", states.map(s => s.it))
             this.cleanHistoryStates()
             this.storeHistoryState()
             const acceptableIteration = targetIteration - 1
