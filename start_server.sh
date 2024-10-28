@@ -1,10 +1,10 @@
 #!/bin/bash -e
 
 if [ "$DRAWMYGAME_ENV" = "production" ]; then
-    export NGINX_PORT=443
+    export NGINX_PORT="443 ssl"
     export DRAWMYGAME_PORT=8080
 else
-    export NGINX_PORT=8443
+    export NGINX_PORT="8443 ssl"
     export DRAWMYGAME_PORT=8080
     export SSL_CERT="$PWD/dev_cert.pem"
     export SSL_CERT_KEY="$PWD/dev_key.pem"
