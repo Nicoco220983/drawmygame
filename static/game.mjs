@@ -882,7 +882,7 @@ export class Game extends GameCommon {
     updateGame() {
         this.iteration += 1
         this.time = this.iteration * this.dt
-        this.gameScene.update()
+        if(this.gameScene.visible) this.gameScene.update()
     }
 
     updateGameUsingReceivedStates() {
