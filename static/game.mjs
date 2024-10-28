@@ -1025,8 +1025,8 @@ export class Game extends GameCommon {
     }
 
     receiveState(stateStr) {
-        if(this.isDebugMode) this.log("receiveState", this.time, stateStr)
         const state = JSON.parse(stateStr)
+        if(this.isDebugMode) this.log("receiveState", state._isFull ? "Full" : "Partial", stateStr)
         const receivedStates = this.receivedStates ||= []
         receivedStates.push(state)
         if(receivedStates.length >= 2) receivedStates.sort((a, b) => a.it - b.it)
