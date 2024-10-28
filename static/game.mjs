@@ -908,12 +908,16 @@ export class Game extends GameCommon {
         // received partial states
         if(this.lastFullStateIteration === undefined) return
         let numState = 0, nbStates = states.length
-        while(numState < nbStates && (states[numState].set || states[numState].it < this.lastFullStateIteration)) numState += 1
+        for(; numState < nbStates; ++numState) {
+            const state = states[numState]
+            if(state.it < this.lastFullStateIteration) continue
+            if(!state._setDone) break
+        }
         while(this.iteration < targetIteration) {
-            const state = numState < nbStates ? states[numState] : null
-            if(state && this.iteration > state.it) this.restoreHistoryState(state.it)
-            else if(!state || this.iteration < state.it) this.updateGame()
-            if(state && this.iteration == state.it) { this.setState(state); state.set=true; numState+=1 }
+            const state = (numState < nbStates) ? states[numState] : null
+            if(state && state.it < this.iteration) this.restoreHistoryState(state.it)
+            else if(!state || state.it > this.iteration) this.updateGame()
+            if(state && state.it == this.iteration) { this.setState(state); state._setDone=true; numState+=1 }
             this.storeHistoryState()
         }
     }
