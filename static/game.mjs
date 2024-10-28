@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, Touches } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas } = utils
 
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
@@ -24,6 +24,7 @@ export const MSG_KEYS = {
 }
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
+const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
@@ -581,7 +582,35 @@ export class GameCommon {
 
     initTouches() {
         if(this.touches) return
-        this.touches = new Touches(this)
+        this.touches = []
+
+        const el = this.game.canvas
+        const _updTouches = evtTouches => {
+            this.touches.length = 0
+            const rect = el.getBoundingClientRect()
+            for(let evtTouch of evtTouches) {
+                this.touches.push({
+                    x: (evtTouch.clientX - rect.left) * el.width / rect.width,
+                    y: (evtTouch.clientY - rect.top) * el.height / rect.height,
+                })
+            }
+            this.onTouch()
+        }
+
+        if(HAS_TOUCH) {
+            el.addEventListener("touchmove", evt => _updTouches(evt.touches))
+            el.addEventListener("touchstart", evt => _updTouches(evt.touches))
+            document.addEventListener("touchend", evt => _updTouches(evt.touches))
+        } else {
+            let isDown = false
+            el.addEventListener("mousemove", evt => _updTouches(isDown ? [evt] : []))
+            el.addEventListener("mousedown", evt => { isDown = true; _updTouches([evt]) })
+            document.addEventListener("mouseup", evt => { isDown = false; _updTouches([]) })
+        }
+    }
+
+    onTouch() {
+        if(this.joypadScene) this.joypadScene.onTouch()
     }
 
     update() {
@@ -945,13 +974,19 @@ export class Game extends GameCommon {
     setInputKey(key, val) {
         if(Boolean(this.keysPressed[key]) === val) return
         this.keysPressed[key] = val
-        if(this.mode == MODE_CLIENT) this.getAndSendInputState()
+        if(this.mode == MODE_CLIENT) this.getAndSendInputState(true)
     }
 
-    getAndSendInputState() {
+    getAndSendInputState(checkPrev) {
         const hero = this.gameScene.getHero(this.localPlayerId)
         if(!hero) return
         const inputState = hero.getInputState()
+        if(checkPrev) {
+            this.previnputStateStr ||= ""
+            const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
+            if(this.previnputStateStr == inputStateStr) return
+            this.previnputStateStr = inputStateStr
+        }
         const inputStateWiTime = this.inputStateWiTime ||= {}
         inputStateWiTime.t = now()
         if(inputState && hasKeys(inputState)) inputStateWiTime.is = inputState
@@ -960,7 +995,7 @@ export class Game extends GameCommon {
         if(this.isDebugMode) this.log("sendInputState", inputStateWiTimeStr)
         this.sendInputState(inputStateWiTimeStr)
         if(this.resendInputStateTimeout) clearTimeout(this.resendInputStateTimeout)
-        this.resendInputStateTimeout = inputStateWiTime.is ? setTimeout(() => this.getAndSendInputState(), RESEND_INPUT_STATE_PERIOD * 1000) : null
+        this.resendInputStateTimeout = inputStateWiTime.is ? setTimeout(() => this.getAndSendInputState(false), RESEND_INPUT_STATE_PERIOD * 1000) : null
     }
 
     maySendPing() {

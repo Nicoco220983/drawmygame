@@ -2,7 +2,7 @@ const { assign } = Object
 const { min, max } = Math
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
-const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
+//const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 // import Two from './two.min.mjs'
 
@@ -69,66 +69,66 @@ function fitTwoToEl(two, wrapperEl, kwargs) {
 }
 
 
-export class Touches extends Array {
-    constructor(game) {
-        super()
-        const el = game.canvas
+// export class Touches extends Array {
+//     constructor(game) {
+//         super()
+//         const el = game.canvas
 
-        const _updTouches = (evtTouches) => {
-            this.length = 0
-            const rect = el.getBoundingClientRect()
-            for(let evtTouch of evtTouches) {
-                this.push({
-                    x: (evtTouch.clientX - rect.left) * el.width / rect.width,
-                    y: (evtTouch.clientY - rect.top) * el.height / rect.height,
-                })
-            }
-        }
+//         const _updTouches = (evtTouches) => {
+//             this.length = 0
+//             const rect = el.getBoundingClientRect()
+//             for(let evtTouch of evtTouches) {
+//                 this.push({
+//                     x: (evtTouch.clientX - rect.left) * el.width / rect.width,
+//                     y: (evtTouch.clientY - rect.top) * el.height / rect.height,
+//                 })
+//             }
+//         }
 
-        if(HAS_TOUCH) {
-            el.addEventListener("touchmove", evt => _updTouches(evt.touches))
-            el.addEventListener("touchstart", evt => _updTouches(evt.touches))
-            document.addEventListener("touchend", evt => _updTouches(evt.touches))
-        } else {
-            let isDown = false
-            el.addEventListener("mousemove", evt => _updTouches(isDown ? [evt] : []))
-            el.addEventListener("mousedown", evt => { isDown = true; _updTouches([evt]) })
-            document.addEventListener("mouseup", evt => { isDown = false; _updTouches([]) })
-        }
-    }
-}
+//         if(HAS_TOUCH) {
+//             el.addEventListener("touchmove", evt => _updTouches(evt.touches))
+//             el.addEventListener("touchstart", evt => _updTouches(evt.touches))
+//             document.addEventListener("touchend", evt => _updTouches(evt.touches))
+//         } else {
+//             let isDown = false
+//             el.addEventListener("mousemove", evt => _updTouches(isDown ? [evt] : []))
+//             el.addEventListener("mousedown", evt => { isDown = true; _updTouches([evt]) })
+//             document.addEventListener("mouseup", evt => { isDown = false; _updTouches([]) })
+//         }
+//     }
+// }
 
 
-function newPointer(game) {
+// function newPointer(game) {
 
-    const el = game.canvas
+//     const el = game.canvas
 
-    const pointer = {
-        isDown: false,
-        x: null,
-        y: null
-    }
-    function _updPointer(isDown, pos) {
-        const rect = el.getBoundingClientRect()
-        assign(pointer, {
-            isDown: isDown === null ? pointer.isDown : isDown,
-            x: pos ? (pos.clientX - rect.left) * el.width / rect.width : null,
-            y: pos ? (pos.clientY - rect.top) * el.height / rect.height : null,
-        })
-    }
+//     const pointer = {
+//         isDown: false,
+//         x: null,
+//         y: null
+//     }
+//     function _updPointer(isDown, pos) {
+//         const rect = el.getBoundingClientRect()
+//         assign(pointer, {
+//             isDown: isDown === null ? pointer.isDown : isDown,
+//             x: pos ? (pos.clientX - rect.left) * el.width / rect.width : null,
+//             y: pos ? (pos.clientY - rect.top) * el.height / rect.height : null,
+//         })
+//     }
 
-    el.addEventListener("mousemove", evt => _updPointer(null, evt))
-    el.addEventListener("touchmove", evt => _updPointer(true, evt.changedTouches[0]))
-    el.addEventListener("mousedown", evt => _updPointer(true, evt))
-    el.addEventListener("touchstart", evt => _updPointer(true, evt.changedTouches[0]))
-    document.addEventListener("mouseup", evt => _updPointer(false, null))
-    document.addEventListener("touchend", evt => {
-        if(evt.touches.length === 0) _updPointer(false, null)
-        else _updPointer(true, evt.touches[0])
-    })
+//     el.addEventListener("mousemove", evt => _updPointer(null, evt))
+//     el.addEventListener("touchmove", evt => _updPointer(true, evt.changedTouches[0]))
+//     el.addEventListener("mousedown", evt => _updPointer(true, evt))
+//     el.addEventListener("touchstart", evt => _updPointer(true, evt.changedTouches[0]))
+//     document.addEventListener("mouseup", evt => _updPointer(false, null))
+//     document.addEventListener("touchend", evt => {
+//         if(evt.touches.length === 0) _updPointer(false, null)
+//         else _updPointer(true, evt.touches[0])
+//     })
 
-    return pointer
-}
+//     return pointer
+// }
 
 
 const Loads = []
@@ -260,7 +260,7 @@ export {
     addTo,
     urlAbsPath,
     fitTwoToEl,
-    newPointer,
+    //newPointer,
     addToLoads,
     newCanvas,
     newCanvasFromSrc,

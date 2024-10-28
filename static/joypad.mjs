@@ -9,10 +9,10 @@ export class JoypadScene {
         this.x = 0
         this.y = 0
         // this.pointer = null
-        this.game.initTouches()
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
+        this.game.initTouches()
         this.buttons = new Group(this)
         this.syncLocalPlayerButtons()
     }
@@ -67,6 +67,15 @@ export class JoypadScene {
         this.buttons.update(time)
     }
 
+    onTouch() {
+        this.checkBoutonsHit()
+
+    }
+
+    checkBoutonsHit() {
+        this.buttons.forEach(but => but.checkHit())
+    }
+
     // syncPointer() {
     //     const gamePointer = this.game.pointer
     //     if(!gamePointer) return
@@ -115,11 +124,14 @@ class Button extends Entity {
     }
 
     update(time) {
+        this.sprite = ButtonSprites[this.isDown ? 1 : 0]
+    }
+
+    checkHit() {
         const isDown = this.checkHitTouches()
         if(isDown != this.isDown) {
             this.isDown = isDown
             this.game.setInputKey(this.key, isDown)
-            this.sprite = ButtonSprites[isDown ? 1 : 0]
         }
     }
 }
