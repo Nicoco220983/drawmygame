@@ -113,6 +113,7 @@ class Button extends Entity {
         this.posHeight = kwargs.posHeight
         this.syncSize()
         this.sprite = ButtonSprites[0]
+        this.iconSprite = kwargs.desc.icon
     }
 
     syncSize() {
@@ -132,6 +133,31 @@ class Button extends Entity {
         if(isDown != this.isDown) {
             this.isDown = isDown
             this.game.setInputKey(this.key, isDown)
+        }
+    }
+
+    drawTo(ctx) {
+        super.drawTo(ctx)
+        if(this.iconSprite) {
+            const iconImg = this.iconSprite.getImg(
+                ~~(this.spriteWidth * .5),
+                ~~(this.spriteHeight * .5),
+                this.dirX,
+                this.dirY,
+            )
+            if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
+        }
+    }
+
+    getImg() {
+        if(this.sprite && this.spriteVisible) {
+            this.scaleSprite()
+            return this.sprite.getImg(
+                this.spriteWidth,
+                this.spriteHeight,
+                this.dirX,
+                this.dirY,
+            )
         }
     }
 }

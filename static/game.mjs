@@ -1616,6 +1616,9 @@ const NicoStandingSprite = new Sprite(NicoSpriteSheet.getFrame(0))
 const NicoRunningSprites = range(1, 4).map(i => new Sprite(NicoSpriteSheet.getFrame(i)))
 const NicoJumpingSprite = new Sprite(NicoSpriteSheet.getFrame(1))
 
+const ArrosSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
+const ArrowsSprites = range(0, 4).map(i => new Sprite(ArrosSpriteSheet.getFrame(i)))
+
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
         super(scn, x, y, playerId)
@@ -1681,9 +1684,9 @@ class Nico extends Hero {
 
     static initJoypadButtons(joypadScn) {
         joypadScn.addButtons([
-            { key: "ArrowLeft" },
-            { key: "ArrowUp" },
-            { key: "ArrowRight" },
+            { key: "ArrowLeft", icon: ArrowsSprites[3] },
+            { key: "ArrowUp", icon: ArrowsSprites[0] },
+            { key: "ArrowRight", icon: ArrowsSprites[1] },
         ])
     }
 }
