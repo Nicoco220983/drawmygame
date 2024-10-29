@@ -458,7 +458,7 @@ export class Group {
 
     nextAutoId() {
         this.lastAutoId += 1
-        return this.lastAutoId
+        return this.lastAutoId.toString()
     }
 
     get(entId) {
@@ -525,7 +525,7 @@ export class Group {
                     else {
                         const cls = ClassDefs[key]
                         if(!cls) console.warning("Unknown key from state:", state[id])
-                        else item = this.add(new cls(this.owner))
+                        else item = this.add(id, new cls(this.owner))
                     }
                 }
                 if(item) item.setState(state[id])
@@ -980,7 +980,7 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        this.gameScene.addHero(playerId)
+        if(this.mode != MODE_CLIENT) this.gameScene.addHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
 
