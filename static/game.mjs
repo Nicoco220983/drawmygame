@@ -409,8 +409,8 @@ function newTextCanvas(text, kwargs) {
     ctx.font = "30px serif"
     assign(ctx, kwargs)
     const metrics = ctx.measureText(text)
-    canvas.width = metrics.width
-    canvas.height = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent
+    canvas.width = max(1, metrics.width)
+    canvas.height = max(1, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
     ctx.fillStyle = "black"
     ctx.font = "30px serif"
     assign(ctx, kwargs)
@@ -672,6 +672,18 @@ export class GameCommon {
     requestFullscreen() {
         this.parentEl.requestFullscreen()
     }
+
+    log(...args) {
+        console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
+        if(this.onLog) this.onLog(...args)
+    }
+
+    pushMetric(key, val, maxNb) {
+        const metrics = this.metrics ||= {}
+        const keyMetrics = metrics[key] ||= []
+        keyMetrics.push(val)
+        if(keyMetrics.length > maxNb) keyMetrics.splice(0, keyMetrics.length- maxNb)
+    }
 }
 
 export class SceneCommon {
@@ -840,7 +852,7 @@ export class Game extends GameCommon {
         }
         const updStartTime = now()
         this.update()
-        this.updateDur = now() - updStartTime
+        if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
         if(this.mode == MODE_CLIENT) this.maySendPing()
         if(this.mode == MODE_SERVER) this.getAndMaySendState()
         if(this.mode != MODE_SERVER) this.mayDraw()
@@ -941,7 +953,7 @@ export class Game extends GameCommon {
     draw() {
         const drawStartTime = now()
         const ctx = super.draw()
-        this.drawDur = now() - drawStartTime
+        if(this.isDebugMode) this.pushMetric("drawDur", now() - drawStartTime, this.fps * 5)
         if(this.debugScene) {
             this.debugScene.draw()
             ctx.drawImage(this.debugScene.canvas, 0, 0)
@@ -1020,7 +1032,7 @@ export class Game extends GameCommon {
     }
 
     receivePing() {
-        this.lag = now() - this.pingLastTime
+        this.pushMetric("lag", now() - this.pingLastTime, 5)
         this.waitingPing = false
     }
 
@@ -1137,11 +1149,6 @@ export class Game extends GameCommon {
             this.joypadScene = null
         }
         this.syncSize()
-    }
-
-    log(...args) {
-        console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
-        if(this.onLog) this.onLog(...args)
     }
 }
 
@@ -2047,21 +2054,37 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.updDurTxt = new Text(this, "", this.game.width - 55, 15, fontArgs)
-        this.drawDurTxt = new Text(this, "", this.game.width - 55, 40, fontArgs)
-        this.lagTxt = new Text(this, "", this.game.width - 55, 65, fontArgs)
+        this.updDurTxt = new Text(this, "", this.game.width - 90, 15, fontArgs)
+        this.drawDurTxt = new Text(this, "", this.game.width - 90, 40, fontArgs)
+        this.lagTxt = new Text(this, "", this.game.width - 90, 65, fontArgs)
     }
     update() {
-        const updDur = this.game.updateDur || 0
-        this.updDurTxt.updateText(`Upd: ${updDur.toFixed(3)}`)
-        const drawDur = this.game.drawDur || 0
-        this.drawDurTxt.updateText(`Draw: ${drawDur.toFixed(3)}`)
-        const lag = this.game.lag || 0
-        this.lagTxt.updateText(`Lag: ${lag.toFixed(3)}`)
+        const { metrics } = this.game
+        if(metrics) {
+            const updDurMts = metrics["updateDur"]
+            if(updDurMts) this.updDurTxt.updateText(`Upd: ${arrAvg(updDurMts).toFixed(3)} / ${arrMax(updDurMts).toFixed(3)}`)
+            const drawDurMts = metrics["drawDur"]
+            if(drawDurMts) this.drawDurTxt.updateText(`Draw: ${arrAvg(drawDurMts).toFixed(3)} / ${arrMax(drawDurMts).toFixed(3)}`)
+            const lagMts = metrics["lag"]
+            if(lagMts) this.lagTxt.updateText(`Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`)
+        }
     }
     drawTo(ctx) {
         this.updDurTxt.drawTo(ctx)
         this.drawDurTxt.drawTo(ctx)
         this.lagTxt.drawTo(ctx)
     }
+}
+
+function arrAvg(arr) {
+    let sum = 0, nb = arr.length
+    if(nb === 0) return 0
+    for(let v of arr) sum += v
+    return sum / nb
+}
+
+function arrMax(arr) {
+    let res = 0
+    for(let v of arr) if(v > res) res = v
+    return res
 }
