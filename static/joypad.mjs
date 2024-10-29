@@ -1,3 +1,5 @@
+
+const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 import { Img, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game.mjs"
 
@@ -5,6 +7,7 @@ import { Img, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game
 export class JoypadScene {
 
     constructor(game) {
+        this.scene = this
         this.game = game
         this.x = 0
         this.y = 0
@@ -13,7 +16,7 @@ export class JoypadScene {
             this.canvas = document.createElement("canvas")
         }
         this.game.initTouches()
-        this.buttons = new Group(this)
+        this.buttons = new ButtonsRow(this)
         this.syncLocalPlayerButtons()
     }
 
@@ -26,7 +29,11 @@ export class JoypadScene {
             this.canvas.width = width
             this.canvas.height = height
         }
-        this.buttons.forEach(ent => ent.syncSize())
+        this.buttons.x = floor(width / 2)
+        this.buttons.y = floor(height / 2)
+        this.buttons.width = width
+        this.buttons.height = height
+        this.buttons.syncPosAndSize()
     }
 
     syncLocalPlayerButtons() {
@@ -39,52 +46,32 @@ export class JoypadScene {
         const heroCls = Entities[heroKey]
         heroCls.initJoypadButtons(this)
     }
+    addRow() {
+        return this.buttons.addRow()
+    }
+    addColumn() {
+        return this.buttons.addColumn()
+    }
+    addButton(desc) {
+        return this.buttons.addButton(desc)
+    }
 
     removeButtons() {
-        this.buttons.forEach(but => but.remove())
+        this.buttons.remove()
     }
 
-    addButtons(buts) {
-        const nbCols = buts.length
-        for(let i=0; i < nbCols; ++i) {
-            const but = (buts[i] instanceof Array) ? buts[i] : [buts[i]]
-            const nbRows = but.length
-            for(let j=0; j < nbRows; ++j) {
-                this.buttons.add(new Button(this, {
-                    desc: but[j],
-                    posX: i / nbCols,
-                    posWidth: 1 / nbCols,
-                    posY: j / nbRows,
-                    posHeight: 1 / nbRows,
-                }))
-            }
-        }
-        this.buttons.forEach(ent => ent.syncSize())
-    }
-
-    update(time) {
+    update() {
         // this.syncPointer()
-        this.buttons.update(time)
+        this.buttons.update()
     }
 
     onTouch() {
         this.checkBoutonsHit()
-
     }
 
     checkBoutonsHit() {
-        this.buttons.forEach(but => but.checkHit())
+        this.buttons.checkHit()
     }
-
-    // syncPointer() {
-    //     const gamePointer = this.game.pointer
-    //     if(!gamePointer) return
-    //     const thisPointer = this.pointer ||= {}
-    //     thisPointer.isDown = gamePointer.isDown
-    //     thisPointer.prevIsDown = gamePointer.prevIsDown
-    //     thisPointer.x = gamePointer.x - this.x
-    //     thisPointer.y = gamePointer.y - this.y
-    // }
 
     draw() {
         const ctx = this.canvas.getContext("2d")
@@ -98,37 +85,107 @@ export class JoypadScene {
     }
 }
 
+class ButtonsGroup {
+    constructor(owner) {
+        this.owner = owner
+        this.scene = owner.scene
+        this.game = owner.game
+        this.x = 0
+        this.y = 0
+        this.width = 100
+        this.height = 100
+        this.items = []
+    }
+    forEach(next) {
+        for(let item of this.items) next(item)
+    }
+    addRow() {
+        const res = new ButtonsRow(this)
+        this.items.push(res)
+        this.syncPosAndSize()
+        return res
+    }
+    addColumn() {
+        const res = new ButtonsColumn(this)
+        this.items.push(res)
+        this.syncPosAndSize()
+        return res
+    }
+    addButton(desc) {
+        const res = new Button(this.scene, desc)
+        this.items.push(res)
+        this.syncPosAndSize()
+        return res
+    }
+    // pure abstract
+    // syncPosAndSize() {}
+    update() {
+        this.forEach(b => b.update())
+    }
+    checkHit() {
+        this.forEach(b => b.checkHit())
+    }
+    drawTo(ctx) {
+        this.forEach(b => b.drawTo(ctx))
+    }
+    remove() {
+        this.forEach(b => b.remove())
+        this.items.length = 0
+    }
+}
+
+class ButtonsRow extends ButtonsGroup {
+    syncPosAndSize() {
+        const { x, y, width, height, items } = this
+        const nbItems = items.length
+        const itemWidth = floor(width / nbItems)
+        for(let i=0; i<nbItems; ++i) {
+            const item = items[i]
+            item.x = floor(x - width * .5 + itemWidth * (i + .5))
+            item.y = y
+            item.width = itemWidth
+            item.height = height
+            if(item.syncPosAndSize) item.syncPosAndSize()
+        }
+    }
+}
+
+class ButtonsColumn extends ButtonsGroup {
+    syncPosAndSize() {
+        const { x, y, width, height, items } = this
+        const nbItems = items.length
+        const itemHeight = floor(height / nbItems)
+        for(let i=0; i<nbItems; ++i) {
+            const item = items[i]
+            item.x = x
+            item.y = floor(y - height * .5 + itemHeight * (i + .5))
+            item.width = width
+            item.height = itemHeight
+            if(item.syncPosAndSize) item.syncPosAndSize()
+        }
+    }
+}
+
 
 const ButtonSpriteSheet = new SpriteSheet("/static/assets/button.png", 2, 1)
 const ButtonSprites = range(0, 2).map(i => new Sprite(ButtonSpriteSheet.getFrame(i)))
 
 class Button extends Entity {
-    constructor(scn, kwargs) {
+    constructor(scn, desc) {
         super(scn)
-        this.key = kwargs.desc.key
+        this.key = desc.key
         this.isDown = false
-        this.posX = kwargs.posX
-        this.posWidth = kwargs.posWidth
-        this.posY = kwargs.posY
-        this.posHeight = kwargs.posHeight
-        this.syncSize()
+        this.disabled = desc.disabled
         this.sprite = ButtonSprites[0]
-        this.iconSprite = kwargs.desc.icon
+        this.icon = desc.icon
     }
 
-    syncSize() {
-        const scn = this.scene
-        this.width = scn.width * this.posWidth
-        this.x = scn.width * this.posX + this.width / 2
-        this.height = scn.height * this.posHeight
-        this.y = scn.height * this.posY + this.height / 2
-    }
-
-    update(time) {
+    update() {
         this.sprite = ButtonSprites[this.isDown ? 1 : 0]
     }
 
     checkHit() {
+        if(this.disabled) return
         const isDown = this.checkHitTouches()
         if(isDown != this.isDown) {
             this.isDown = isDown
@@ -137,27 +194,16 @@ class Button extends Entity {
     }
 
     drawTo(ctx) {
+        if(this.disabled) return
         super.drawTo(ctx)
-        if(this.iconSprite) {
-            const iconImg = this.iconSprite.getImg(
+        if(this.icon) {
+            const iconImg = this.icon.getImg(
                 ~~(this.spriteWidth * .5),
                 ~~(this.spriteHeight * .5),
                 this.dirX,
                 this.dirY,
             )
             if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
-        }
-    }
-
-    getImg() {
-        if(this.sprite && this.spriteVisible) {
-            this.scaleSprite()
-            return this.sprite.getImg(
-                this.spriteWidth,
-                this.spriteHeight,
-                this.dirX,
-                this.dirY,
-            )
         }
     }
 }

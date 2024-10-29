@@ -1683,11 +1683,21 @@ class Nico extends Hero {
     }
 
     static initJoypadButtons(joypadScn) {
-        joypadScn.addButtons([
-            { key: "ArrowLeft", icon: ArrowsSprites[3] },
-            { key: "ArrowUp", icon: ArrowsSprites[0] },
-            { key: "ArrowRight", icon: ArrowsSprites[1] },
-        ])
+        let col = joypadScn.addColumn()
+        joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
+        col.addButton({ key: "ArrowLeft", icon: ArrowsSprites[3] })
+        col = joypadScn.addColumn()
+        col.addButton({ key: "ArrowUp", icon: ArrowsSprites[0] })
+        col.addButton({ key: "ArrowRight", icon: ArrowsSprites[1] })
+    }
+
+    addExtra(extra) {
+        super.addExtra(extra)
+        if(extra.isMainExtra && this.game.joypadScene) {
+            const extraButton = this.game.joypadScene.extraButton
+            extraButton.disabled = false
+            extraButton.icon = extra.sprite
+        }
     }
 }
 Entities.register("nico", Nico)
