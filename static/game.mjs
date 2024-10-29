@@ -740,7 +740,7 @@ export class SceneCommon {
 
     addWall(boxX, boxY, key) {
         let wall
-        if(key == "W") wall = this.walls.add(new Wall(this, boxX, boxY, key))
+        if(key == "W" || key == "P") wall = this.walls.add(new Wall(this, boxX, boxY, key))
         return wall
     }
 
@@ -792,6 +792,7 @@ export class SceneCommon {
 }
 
 const wallSprite = new Sprite(newCanvas(10, 10, "black"))
+const platformSprite = new Sprite(newCanvas(10, 10, "lightgrey"))
 
 class Wall extends Entity {
     constructor(scn, boxX, boxY, key) {
@@ -804,7 +805,8 @@ class Wall extends Entity {
         this.y = (boxY + .5) * boxSize
         this.width = boxSize
         this.height = boxSize
-        this.sprite = wallSprite
+        if(key == "W") this.sprite = wallSprite
+        else if(key == "P") this.sprite = platformSprite
         this.spriteScaleX = this.spriteScaleY = boxSize / 10
     }
 }
@@ -1279,7 +1281,7 @@ export class GameScene extends SceneCommon {
                         const by1 = max(0, min(nbRows-1, floor((entY+ddy+1) / boxSize)))
                         const by2 = max(0, min(nbRows-1, floor((entY+entH+ddy-1) / boxSize)))
                         for(let by=by1; !blocked && by<=by2; ++by) {
-                            blocked = (walls[bx][by] !== null)
+                            blocked = (walls[bx][by] == "W")
                         }
                         if(blocked) {
                             ent.x += ddx - 0.01
@@ -1301,7 +1303,7 @@ export class GameScene extends SceneCommon {
                         const by1 = max(0, min(nbRows-1, floor((entY+ddy+1) / boxSize)))
                         const by2 = max(0, min(nbRows-1, floor((entY+entH+ddy-1) / boxSize)))
                         for(let by=by1; !blocked && by<=by2; ++by) {
-                            blocked = (walls[bx][by] !== null)
+                            blocked = (walls[bx][by] == "W")
                         }
                         if(blocked) {
                             ent.x += ddx + 0.01
@@ -1323,7 +1325,8 @@ export class GameScene extends SceneCommon {
                         const bx1 = max(0, min(nbCols-1, floor((entX+ddx+1) / boxSize)))
                         const bx2 = max(0, min(nbCols-1, floor((entX+entW+ddx-1) / boxSize)))
                         for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
-                            blocked = (walls[bx][by] !== null)
+                            const wallKey = walls[bx][by]
+                            blocked = (wallKey == "W" || wallKey == "P")
                         }
                         if(blocked) {
                             ent.y += ddy - 0.01
@@ -1345,7 +1348,7 @@ export class GameScene extends SceneCommon {
                         const bx1 = max(0, min(nbCols-1, floor((entX+ddx+1) / boxSize)))
                         const bx2 = max(0, min(nbCols-1, floor((entX+entW+ddx-1) / boxSize)))
                         for(let bx=bx1; !blocked && bx<=bx2; ++bx) {
-                            blocked = (walls[bx][by] !== null)
+                            blocked = (walls[bx][by] == "W")
                         }
                         if(blocked) {
                             ent.y += ddy + 0.01

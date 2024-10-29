@@ -120,16 +120,21 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    updateWall() {
+    updateWall(key) {
         const { touches } = this.game
         const { boxSize, walls } = this.game.map
+        const { modeKey } = this.game
         if(touches.length > 0) {
             const touch = touches[0]
             const boxX = floor((touch.x + this.viewX) / boxSize)
             const boxY = floor((touch.y + this.viewY) / boxSize)
 
             const prevWallKey = walls[boxX][boxY]
-            if(this.currentWallKey === null) this.currentWallKey = prevWallKey ? 0 : "W"
+            if(this.currentWallKey === null) {
+                if(prevWallKey) this.currentWallKey = 0 // delete
+                else if(modeKey == "wall") this.currentWallKey = "W"
+                else if(modeKey == "platform") this.currentWallKey = "P"
+            }
             // case delete
             if(this.currentWallKey === 0) {
                 if(prevWallKey !== null) {

@@ -35,6 +35,7 @@
     <flexrow>
         <button id="mode_move">[M]ove</button>
         <button id="mode_wall">[W]all</button>
+        <button id="mode_platform">[P]latform</button>
     </flexrow>
     <flexrow>
         <button id="mode_erase">[E]rase</button>
@@ -79,7 +80,8 @@ let map = null, gameBuilder = null, game = null
 
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setMode('move')
-document.getElementById("mode_wall").onclick = Keys["w"] = () => setMode('wall')
+document.getElementById("mode_wall").onclick = Keys["ww"] = () => setMode('wall', 'wall')
+document.getElementById("mode_platform").onclick = Keys["wp"] = () => setMode('wall', 'platform')
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setMode('erase')
 document.getElementById("mode_nico").onclick = Keys["en"] = () => setMode('entity', 'nico')
 document.getElementById("mode_sword").onclick = Keys["eo"] = () => setMode('entity', 'sword')
