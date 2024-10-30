@@ -453,12 +453,12 @@ export class Group {
         this.owner = owner
         this.game = owner.game
         this.items = {}
-        this.lastAutoId = 0
+        this._lastAutoId = 0
     }
 
     nextAutoId() {
-        this.lastAutoId += 1
-        return this.lastAutoId.toString()
+        this._lastAutoId += 1
+        return this._lastAutoId.toString()
     }
 
     get(entId) {
@@ -1952,26 +1952,29 @@ class SwordExtra extends Extra {
     constructor(owner) {
         super(owner, 0, 0)
         this.isMainExtra = true
-        this.lastAttackTime = -SWORD_ATTACK_PERIOD
+        this.lastAttackAge = ceil(SWORD_ATTACK_PERIOD * this.game.fps)
         this.syncSprite()
         this.removeSimilarExtras()
     }
     update() {
         const { inputState } = this
-        if(inputState && inputState.attack && this.owner.time - this.lastAttackTime > SWORD_ATTACK_PERIOD) {
-            this.lastAttackTime = this.owner.time
+        let attacking = this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
+        if(!attacking && inputState && inputState.attack) {
+            this.lastAttackAge = 0
+            attacking = true
         }
-        this.syncSprite()
-        if(this.owner.time - this.lastAttackTime < SWORD_ATTACK_PERIOD) {
+        if(attacking) {
             for(let enem of this.scene.getTeam("enemy")) {
                 if(checkHit(this, enem)) enem.onDamage(1, this.owner)
             }
         }
+        this.syncSprite()
+        this.lastAttackAge += 1
     }
     syncSprite() {
-        const timeSinceLastAttack = this.owner.time - this.lastAttackTime
-        if(timeSinceLastAttack < SWORD_ATTACK_PERIOD) {
-            this.sprite = SwordSlashSprites[floor(timeSinceLastAttack/SWORD_ATTACK_PERIOD*6)]
+        const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
+        if(ratioSinceLastAttack <= 1) {
+            this.sprite = SwordSlashSprites[floor(6*ratioSinceLastAttack)]
             this.x = 40
             this.width = this.height = 60
         } else {
@@ -1988,12 +1991,12 @@ class SwordExtra extends Extra {
     }
     getState() {
         const state = super.getState()
-        state.lat = this.lastAttackTime
+        state.laa = this.lastAttackAge
         return state
     }
     setState(state) {
         super.setState(state)
-        this.lastAttackTime = state.lat
+        this.lastAttackAge = state.laa
     }
     getInputState() {
         const inputState = super.getInputState()
