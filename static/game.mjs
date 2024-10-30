@@ -458,7 +458,10 @@ export class Group {
 
     nextAutoId() {
         this._lastAutoId += 1
-        return this._lastAutoId.toString()
+        let res = this._lastAutoId.toString()
+        // be sure that client & leader generate different ids
+        if(this.game.mode == MODE_CLIENT) res += 'C'
+        return res
     }
 
     get(entId) {
@@ -1853,18 +1856,29 @@ class SwordItem extends Entity {
         this.width = this.height = 40
         this.sprite = SwordSprite
         this.respawnDur = 2
-        this.addLastTime = -this.respawnDur
+        this.lastAddAge = this.respawnDur * this.game.fps
     }
     update() {
-        this.spriteVisible = (this.scene.time >= this.addLastTime + this.respawnDur)
-        if(!this.spriteVisible) return
-        for(let hero of this.scene.getTeam("hero")) {
-            if(checkHit(this, hero)) {
-                hero.addExtra(new SwordExtra(hero))
-                this.addLastTime = this.scene.time
-                break
+        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
+        if(this.spriteVisible) {
+            for(let hero of this.scene.getTeam("hero")) {
+                if(checkHit(this, hero)) {
+                    hero.addExtra(new SwordExtra(hero))
+                    this.lastAddAge = 0
+                    break
+                }
             }
         }
+        this.lastAddAge += 1
+    }
+    getState() {
+        const state = super.getState()
+        state.ada = this.lastAddAge
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.lastAddAge = state.ada
     }
 }
 Entities.register("sword", SwordItem)
