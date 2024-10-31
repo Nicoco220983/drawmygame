@@ -41,6 +41,7 @@
         <button id="mode_erase">[E]rase</button>
         <button id="mode_nico">[N]ico</button>
         <button id="mode_sword">Sw[o]rd</button>
+        <button id="mode_bomb">Bo[m]b</button>
         <button id="mode_star">[S]tar</button>
     </flexrow>
     <flexrow>
@@ -85,6 +86,7 @@ document.getElementById("mode_platform").onclick = Keys["wp"] = () => setMode('w
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setMode('erase')
 document.getElementById("mode_nico").onclick = Keys["en"] = () => setMode('entity', 'nico')
 document.getElementById("mode_sword").onclick = Keys["eo"] = () => setMode('entity', 'sword')
+document.getElementById("mode_bomb").onclick = Keys["em"] = () => setMode('entity', 'bombIt')
 document.getElementById("mode_zombi").onclick = Keys["ez"] = () => setMode('entity', 'zombi')
 document.getElementById("mode_bat").onclick = Keys["eb"] = () => setMode('entity', 'bat')
 document.getElementById("mode_spider").onclick = Keys["ep"] = () => setMode('entity', 'spider')

@@ -1,5 +1,5 @@
 const { assign } = Object
-const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
+const { abs, floor, ceil, min, max, pow, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas } = utils
 
@@ -1848,42 +1848,6 @@ class Heart extends Entity {
 }
 
 
-const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
-
-class SwordItem extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.width = this.height = 40
-        this.sprite = SwordSprite
-        this.respawnDur = 2
-        this.lastAddAge = this.respawnDur * this.game.fps
-    }
-    update() {
-        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
-        if(this.spriteVisible) {
-            for(let hero of this.scene.getTeam("hero")) {
-                if(checkHit(this, hero)) {
-                    hero.addExtra(new SwordExtra(hero))
-                    this.lastAddAge = 0
-                    break
-                }
-            }
-        }
-        this.lastAddAge += 1
-    }
-    getState() {
-        const state = super.getState()
-        state.ada = this.lastAddAge
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.lastAddAge = state.ada
-    }
-}
-Entities.register("sword", SwordItem)
-
-
 class Extra extends Entity {
     constructor(owner, x, y) {
         const scn = owner.scene
@@ -1957,6 +1921,42 @@ class ExtraGroup extends Group {
 }
 
 
+const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
+
+class SwordItem extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+        this.sprite = SwordSprite
+        this.respawnDur = 2
+        this.lastAddAge = this.respawnDur * this.game.fps
+    }
+    update() {
+        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
+        if(this.spriteVisible) {
+            for(let hero of this.scene.getTeam("hero")) {
+                if(checkHit(this, hero)) {
+                    hero.addExtra(new SwordExtra(hero))
+                    this.lastAddAge = 0
+                    break
+                }
+            }
+        }
+        this.lastAddAge += 1
+    }
+    getState() {
+        const state = super.getState()
+        state.ada = this.lastAddAge
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.lastAddAge = state.ada
+    }
+}
+Entities.register("sword", SwordItem)
+
+
 const SWORD_ATTACK_PERIOD = .5
 
 const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
@@ -2021,6 +2021,151 @@ class SwordExtra extends Extra {
     }
 }
 Extras.register("sword", SwordExtra)
+
+
+const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
+const BombSprites = range(0, 2).map(i => new Sprite(BombSpriteSheet.getFrame(i)))
+
+class BombItem extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+        this.sprite = BombSprites[0]
+        this.respawnDur = 2
+        this.lastAddAge = this.respawnDur * this.game.fps
+    }
+    update() {
+        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
+        if(this.spriteVisible) {
+            for(let hero of this.scene.getTeam("hero")) {
+                if(checkHit(this, hero)) {
+                    hero.addExtra(new BombExtra(hero))
+                    this.lastAddAge = 0
+                    break
+                }
+            }
+        }
+        this.lastAddAge += 1
+    }
+    getState() {
+        const state = super.getState()
+        state.ada = this.lastAddAge
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.lastAddAge = state.ada
+    }
+}
+Entities.register("bombIt", BombItem)
+
+
+class BombExtra extends Extra {
+    constructor(owner) {
+        super(owner, 0, 0)
+        this.width = this.height = 40
+        this.isMainExtra = true
+        this.sprite = BombSprites[0]
+        this.removeSimilarExtras()
+    }
+    update() {
+        const { inputState } = this
+        if(inputState && inputState.attack) {
+            const bomb = this.scene.entities.add(new Bomb(this.scene, this.owner.x, this.owner.y))
+            bomb.speedX = this.owner.dirX * 200
+            bomb.speedY = -500
+            this.remove()
+        }
+    }
+    removeSimilarExtras() {
+        if(!this.owner.extras) return
+        this.owner.extras.forEach(extra2 => {
+            if(extra2.isMainExtra) extra2.remove()
+        })
+    }
+    getInputState() {
+        const inputState = super.getInputState()
+        const { game } = this
+        if(game.isKeyPressed(" ")) inputState.attack = true
+        else delete inputState.attack
+        return inputState
+    }
+}
+Extras.register("bomb", BombExtra)
+
+
+class Bomb extends DynamicEntity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+        this.itToLive = 3 * this.game.fps
+        this.syncSprite()
+    }
+    update() {
+        const { dt } = this.game
+        if(this.speedResY  < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
+        if(this.itToLive <= 0) {
+            this.scene.entities.add(new Explosion(this.scene, this.x, this.y))
+            this.remove()
+        }
+        this.syncSprite()
+        this.itToLive -= 1
+    }
+    syncSprite() {
+        this.sprite = BombSprites[floor(pow((3 - (this.itToLive / this.game.fps))*2, 2)) % 2]
+    }
+    getState() {
+        const state = super.getState()
+        state.ttl = this.itToLive
+        return state
+    }
+    setSTate(state) {
+        super.setState(state)
+        this.itToLive = state.ttl
+    }
+}
+Entities.register("bomb", Bomb)
+
+
+const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
+const ExplosionSprites = range(0, 46).map(i => new Sprite(ExplosionSpriteSheet.getFrame(i)))
+
+class Explosion extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 300
+        this.iteration = 0
+    }
+    update() {
+        super.update()
+        if(this.iteration == 0) this.checkEntitiesToDamage()
+        const age = this.iteration/this.game.fps
+        if(age >= 1) return this.remove()
+        this.sprite = ExplosionSprites[floor(age*46)]
+        this.iteration += 1
+    }
+    checkEntitiesToDamage() {
+        const { x, y } = this
+        const radius2 = pow(150, 2)
+        const _checkOne = ent => {
+            const dx = x - ent.x, dy = y - ent.y
+            if(dx*dx+dy*dy < radius2) ent.onDamage(1, this)
+        }
+        this.scene.getTeam("hero").forEach(_checkOne)
+        this.scene.getTeam("enemy").forEach(_checkOne)
+    }
+    getState() {
+        const state = super.getState()
+        state.it = this.iteration
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        this.iteration = state.it
+    }
+}
+Entities.register("explos", Explosion)
+
 
 
 const StarImg = new Img("/static/assets/star.png")
