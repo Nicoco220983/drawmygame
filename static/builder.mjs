@@ -47,6 +47,7 @@ export class GameBuilder extends GameCommon {
         const { mode } = this
         if(mode == "move") this.canvas.style.cursor = "move"
         else this.canvas.style.cursor = "cell"
+        this.gameScene.syncMode()
     }
 }
 
@@ -73,7 +74,7 @@ class BuilderScene extends SceneCommon {
 
     syncGrid() {
         this.grid ||= new Entity(this)
-        const { nbCols, nbRows, boxSize, width, height } = this.game.map
+        const { width, height } = this.game.map
         this.grid.x = width / 2
         this.grid.y = height / 2
         this.grid.width = width
@@ -87,9 +88,15 @@ class BuilderScene extends SceneCommon {
             ctx.lineTo(x2, y2)
             ctx.stroke()
         }
+        const boxSize = 20, nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
         for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
         for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
         this.grid.sprite = new Sprite(can)
+    }
+
+    syncMode() {
+        this.prevTouchX = null
+        this.prevTouchY = null
     }
 
     update() {
@@ -121,37 +128,53 @@ class BuilderScene extends SceneCommon {
     }
 
     updateWall(key) {
-        const { touches } = this.game
-        const { boxSize, walls } = this.game.map
+        const { touches, map } = this.game
+        // const { boxSize, walls } = this.game.map
         const { modeKey } = this.game
-        if(touches.length > 0) {
-            const touch = touches[0]
-            const boxX = floor((touch.x + this.viewX) / boxSize)
-            const boxY = floor((touch.y + this.viewY) / boxSize)
 
-            const prevWallKey = walls[boxX][boxY]
-            if(this.currentWallKey === null) {
-                if(prevWallKey) this.currentWallKey = 0 // delete
-                else if(modeKey == "wall") this.currentWallKey = "W"
-                else if(modeKey == "platform") this.currentWallKey = "P"
-            }
-            // case delete
-            if(this.currentWallKey === 0) {
-                if(prevWallKey !== null) {
-                    walls[boxX][boxY] = null
-                    this.walls.forEach(w => {
-                        if(w.boxX == boxX && w.boxY == boxY) w.remove()
-                    })
+        if(touches.length > 0) {
+            if(!this.prevIsDown) {
+                this.prevIsDown = true
+                const touch = touches[0]
+                const touchX = touch.x + this.viewX
+                const touchY = touch.y + this.viewY
+                if(this.prevTouchX !== null) {
+                    const wall = this.addWall(this.prevTouchX, this.prevTouchY, touchX, touchY)
+                    wall.mapRef = { x1: this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY }
+                    map.walls.push(wall.mapRef)
                 }
-                return
+                this.prevTouchX = touchX
+                this.prevTouchY = touchY
             }
-            // case new box
-            if(prevWallKey !== null && this.currentWallKey == prevWallKey) return
-            this.addWall(boxX, boxY, this.currentWallKey)
-            walls[boxX][boxY] = this.currentWallKey
         } else {
-            this.currentWallKey = null
+            this.prevIsDown = false
         }
+
+
+
+        //     const prevWallKey = walls[boxX][boxY]
+        //     if(this.currentWallKey === null) {
+        //         if(prevWallKey) this.currentWallKey = 0 // delete
+        //         else if(modeKey == "wall") this.currentWallKey = "W"
+        //         else if(modeKey == "platform") this.currentWallKey = "P"
+        //     }
+        //     // case delete
+        //     if(this.currentWallKey === 0) {
+        //         if(prevWallKey !== null) {
+        //             walls[boxX][boxY] = null
+        //             this.walls.forEach(w => {
+        //                 if(w.boxX == boxX && w.boxY == boxY) w.remove()
+        //             })
+        //         }
+        //         return
+        //     }
+        //     // case new box
+        //     if(prevWallKey !== null && this.currentWallKey == prevWallKey) return
+        //     this.addWall(boxX, boxY, this.currentWallKey)
+        //     walls[boxX][boxY] = this.currentWallKey
+        // } else {
+        //     this.currentWallKey = null
+        // }
     }
 
     addEntityInMap(x, y, key) {

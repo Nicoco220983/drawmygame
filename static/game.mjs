@@ -7,9 +7,11 @@ import PhysicsEngine from './physics.mjs'
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
 const CANVAS_MAX_HEIGHT = 600
-const MAP_BOX_DEFAULT_SIZE = 20
-const MAP_DEFAULT_NB_COLS = 40
-const MAP_DEFAULT_NB_ROWS = 25
+// const MAP_BOX_DEFAULT_SIZE = 20
+// const MAP_DEFAULT_NB_COLS = 40
+// const MAP_DEFAULT_NB_ROWS = 25
+const MAP_DEFAULT_WIDTH = 800
+const MAP_DEFAULT_HEIGHT = 600
 
 const GRAVITY = 1000
 
@@ -36,42 +38,20 @@ const RESEND_INPUT_STATE_PERIOD = .5
 
 export class GameMap {
     constructor() {
-        this.boxSize = MAP_BOX_DEFAULT_SIZE
-        this.nbCols = MAP_DEFAULT_NB_COLS
-        this.nbRows = MAP_DEFAULT_NB_ROWS
+        this.width = MAP_DEFAULT_WIDTH
+        this.height = MAP_DEFAULT_HEIGHT
         this.walls = []
         this.heros = []
         this.entities = []
-        this.syncSize()
-    }
-
-    syncSize() {
-        this.width = this.boxSize * this.nbCols
-        this.height = this.boxSize * this.nbRows
-        this.syncMap()
-    }
-
-    syncMap() {
-        const { nbRows, nbCols, walls } = this
-        for(let x=0; x<nbCols; ++x) {
-            if(walls.length == x) walls.push([])
-            const col = walls[x]
-            for(let y=0; y<nbRows; ++y) if(col.length == y) col.push(null)
-        }
     }
 
     async exportAsBinary() {
-        let wallsStr = ""
-        for(let bx=0; bx<this.nbCols; ++bx) for(let by=0; by<this.nbRows; ++by) {
-            wallsStr += this.walls[bx][by] || " "
-        }
         const outObj = {
-            bs: this.boxSize,
-            nc: this.nbCols,
-            nr: this.nbRows,
-            w: wallsStr,
-            h: this.heros,
-            e: this.entities,
+            w: this.width,
+            h: this.height,
+            ws: this.walls,
+            hs: this.heros,
+            es: this.entities,
         }
         const outStr = JSON.stringify(outObj)
         const outBin = await compress(outStr)
@@ -90,24 +70,11 @@ export class GameMap {
     async importFromBinary(inBin) {
         const inStr = await decompress(inBin)
         const inObj = JSON.parse(inStr)
-        this.boxSize = inObj.bs
-        this.nbCols = inObj.nc
-        this.nbRows = inObj.nr
-        this.walls = []
-        const inObjWalls = inObj.w, nbBox = this.nbCols * this.nbRows, nbRows = this.nbRows
-        let col
-        for(let i=0; i<nbBox; ++i) {
-            if(i % nbRows == 0) {
-                col = []
-                this.walls.push(col)
-            }
-            let key = inObjWalls[i]
-            if(key === " ") key = null
-            col.push(key)
-        }
-        this.heros = inObj.h
-        this.entities = inObj.e
-        this.syncSize()
+        this.width = inObj.w
+        this.height = inObj.h
+        this.walls = inObj.ws
+        this.heros = inObj.hs
+        this.entities = inObj.es
     }
 }
 
@@ -557,6 +524,7 @@ export class GameCommon {
         if(!this.isServerEnv) {
             this.parentEl = parentEl
             this.canvas = document.createElement("canvas")
+            this.canvas.setAttribute('tabindex', '0')
             assign(this.canvas.style, {
                 outline: "2px solid grey"
             })
@@ -731,21 +699,16 @@ export class SceneCommon {
     }
 
     initWalls() {
-        const { nbCols, nbRows, walls } = this.game.map
-        for(let boxX=0; boxX<nbCols; ++boxX) for(let boxY=0; boxY<nbRows; ++boxY) {
-            const wall = walls[boxX][boxY]
-            if(wall) this.addWall(boxX, boxY, wall)
-        }
+        const { walls } = this.game.map
+        walls.forEach(w => this.addWall(w.x1, w.y1, w.x2, w.y2))
     }
 
     initEntities() {
         this.game.map.entities.forEach(e => this.addEntity(e.x, e.y, e.key))
     }
 
-    addWall(boxX, boxY, key) {
-        let wall
-        if(key == "W" || key == "P") wall = this.walls.add(new Wall(this, boxX, boxY, key))
-        return wall
+    addWall(x1, y1, x2, y2) {
+        return this.walls.add(new Wall(this, x1, y1, x2, y2))
     }
 
     addEntity(x, y, key) {
@@ -795,23 +758,25 @@ export class SceneCommon {
     }
 }
 
-const wallSprite = new Sprite(newCanvas(10, 10, "black"))
-const platformSprite = new Sprite(newCanvas(10, 10, "lightgrey"))
+// const wallSprite = new Sprite(newCanvas(10, 10, "black"))
+// const platformSprite = new Sprite(newCanvas(10, 10, "lightgrey"))
 
 class Wall extends Entity {
-    constructor(scn, boxX, boxY, key) {
+    constructor(scn, x1, y1, x2, y2, key) {
         super(scn)
-        this.boxX = boxX
-        this.boxY = boxY
+        this.x1 = x1
+        this.y1 = y1
+        this.x2 = x2
+        this.y2 = y2
         this.key = key
-        const { boxSize } = this.game.map
-        this.x = (boxX + .5) * boxSize
-        this.y = (boxY + .5) * boxSize
-        this.width = boxSize
-        this.height = boxSize
-        if(key == "W") this.sprite = wallSprite
-        else if(key == "P") this.sprite = platformSprite
-        this.spriteScaleX = this.spriteScaleY = boxSize / 10
+    }
+    drawTo(ctx) {
+        ctx.lineWidth = 5
+        ctx.strokeStyle = "dark"
+        ctx.beginPath()
+        ctx.moveTo(this.x1, this.y1)
+        ctx.lineTo(this.x2, this.y2)
+        ctx.stroke()
     }
 }
 
@@ -836,14 +801,20 @@ export class Game extends GameCommon {
 
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
-            document.addEventListener('keydown', evt => this.setInputKey(evt.key, true))
-            document.addEventListener('keyup', evt => this.setInputKey(evt.key, false))
+            const onKey = (evt, val) => {
+                if(document.activeElement !== this.canvas) return
+                this.setInputKey(evt.key, val)
+                evt.stopPropagation()
+                evt.preventDefault()
+            }
+            document.addEventListener('keydown', evt => onKey(evt, true))
+            document.addEventListener('keyup', evt => onKey(evt, false))
         }
 
         if(this.isDebugMode) this.showDebugScene()
 
-        this.physics = new PhysicsEngine(this)
-        this.physicsGravity = GRAVITY
+        this.physicEngine = new PhysicsEngine(this)
+        this.physicGravity = GRAVITY
     }
 
     play() {
@@ -1231,10 +1202,10 @@ export class GameScene extends SceneCommon {
 
     update() {
         const { step, entities } = this
-        const { physics, map, dt } = this.game
+        const { physicEngine, dt } = this.game
         super.update()
         if(step == "GAME" || step == "GAMEOVER") {
-            physics.apply(map, dt, entities)
+            physicEngine.apply(dt, entities)
             entities.update()
             this.checkHeros()
         }
@@ -1636,15 +1607,15 @@ class Zombi extends Enemy {
         super.update()
         const { dt } = this.game
         const { time } = this.scene
-        const { nbRows, nbCols, boxSize, walls } = this.game.map
+        const { walls } = this.game.map
         // move
-        if(this.speedResX * this.dirX < 0) this.dirX *= -1
+        if(this.speedX != 0 && (-this.speedResX / this.speedX) > .5) this.dirX *= -1
         if(this.speedResY < 0) {
-            const { left, width, top, height } = this.getHitBox()
-            const wallAheadBy = ceil((top + height - 1) / boxSize)
-            const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
-            if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
-            this.speedX = this.dirX * 1000 * dt
+            // const { left, width, top, height } = this.getHitBox()
+            // const wallAheadBy = ceil((top + height - 1) / boxSize)
+            // const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
+            // if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
+            this.speedX = this.dirX * 20
         }
         // anim
         this.sprite = ZombiSprites[floor((time * 6) % 8)]
@@ -1722,6 +1693,7 @@ class Spider extends Enemy {
         const { dt } = this.game
         const { height } = this.game.map
         // move
+        this.speedX = 0
         let dirY = (this.speedY > 0) ? 1 : -1
         if((this.speedResY * dirY < 0) || (this.y < 0 && dirY < 0) || (this.y > height && dirY > 0)) dirY *= -1
         this.speedY = (dirY > 0 ? 5000 : -1000) * dt

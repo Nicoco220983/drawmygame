@@ -28,9 +28,11 @@
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame Builder</h1>
     <flexrow>
-        <flexrow>Box size: <input id="map_box_size" type="number"></flexrow>
+        <!-- <flexrow>Box size: <input id="map_box_size" type="number"></flexrow>
         <flexrow>Width: <input id="map_nb_cols" type="number"></flexrow>
-        <flexrow>Height: <input id="map_nb_rows" type="number"></flexrow>
+        <flexrow>Height: <input id="map_nb_rows" type="number"></flexrow> -->
+        <flexrow>Width: <input id="map_width" type="number"></flexrow>
+        <flexrow>Height: <input id="map_height" type="number"></flexrow>
     </flexrow>
     <flexrow>
         <button id="mode_move">[M]ove</button>
@@ -126,22 +128,28 @@ document.getElementById("game_multi").onclick = async () => {
     window.open(url, '_blank').focus();
 }
 
-const boxSizeEl = document.getElementById("map_box_size")
-const nbColsEl = document.getElementById("map_nb_cols")
-const nbRowsEl = document.getElementById("map_nb_rows")
+// const boxSizeEl = document.getElementById("map_box_size")
+// const nbColsEl = document.getElementById("map_nb_cols")
+// const nbRowsEl = document.getElementById("map_nb_rows")
+const mapWidthEl = document.getElementById("map_width")
+const mapHeightEl = document.getElementById("map_height")
 function syncInputElSize() {
-    boxSizeEl.value = map.boxSize
-    nbColsEl.value = map.nbCols
-    nbRowsEl.value = map.nbRows
+    // boxSizeEl.value = map.boxSize
+    // nbColsEl.value = map.nbCols
+    // nbRowsEl.value = map.nbRows
+    mapWidthEl.value = map.width
+    mapHeightEl.value = map.height
 }
 function updSize() {
-    map.boxSize = parseInt(boxSizeEl.value)
-    map.nbCols = parseInt(nbColsEl.value)
-    map.nbRows = parseInt(nbRowsEl.value)
-    map.syncSize()
+    map.width = parseInt(mapWidthEl.value)
+    map.height = parseInt(mapHeightEl.value)
+    // map.boxSize = parseInt(boxSizeEl.value)
+    // map.nbCols = parseInt(nbColsEl.value)
+    // map.nbRows = parseInt(nbRowsEl.value)
+    //map.syncSize()
     if(gameBuilder) gameBuilder.syncSize()
 }
-nbColsEl.onchange = nbRowsEl.onchange = updSize
+mapWidthEl.onchange = mapHeightEl.onchange = updSize
 
 const fullscreenEl = document.getElementById("fullscreen")
 fullscreenEl.onclick = () => {
@@ -163,7 +171,7 @@ document.addEventListener('keydown', evt => {
 async function main() {
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
-    map.syncSize()
+    //map.syncSize()
     syncInputElSize()
     if(urlParams.has("map")) {
         startAndShowGame()
@@ -204,6 +212,7 @@ function startAndShowGame() {
         game.restart()
     }
     gameParentEl.style.display = ""
+    game.canvas.focus()
 }
 
 function stopGame() {

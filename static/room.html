@@ -151,6 +151,7 @@ function startGame() {
         onLog: showLogs ? addLog : null
     })
     game.play()
+    game.canvas.focus()
 }
 
 function handleIdentifyClient(ws, data, next) {
