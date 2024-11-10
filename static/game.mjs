@@ -1508,8 +1508,6 @@ class Nico extends Hero {
         // inputs
         this.applyInputState()
         // display
-        if(this.speedX > 0) this.dirX = 1
-        else if(this.speedX < 0) this.dirX = -1
         if(this.speedResY == 0) this.sprite = NicoJumpingSprite
         else if(this.speedX == 0) this.sprite = NicoStandingSprite
         else this.sprite = NicoRunningSprites[floor((this.time * 6) % 3)]
@@ -1536,8 +1534,13 @@ class Nico extends Hero {
         if(this.life == 0) return
         const { inputState } = this
         if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
-        else if(inputState.walkX > 0) this.speedX = sumTo(this.speedX, 1000 * dt, 300)
-        else if(inputState.walkX < 0) this.speedX = sumTo(this.speedX, 1000 * dt, -300)
+        else if(inputState.walkX > 0) {
+            this.dirX = 1
+            this.speedX = sumTo(this.speedX, 1000 * dt, 300)
+        } else if(inputState.walkX < 0) {
+            this.dirX = -1
+            this.speedX = sumTo(this.speedX, 1000 * dt, -300)
+        }
         if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
     }
 
@@ -1858,7 +1861,7 @@ class SwordExtra extends Extra {
             attacking = true
         }
         this.syncSprite()
-        if(this.lastAttackAge == 0) {
+        if(this.lastAttackAge == 3) { // TODO: 3 as long as input state sync is a bit buggy
             for(let enem of this.scene.getTeam("enemy")) {
                 if(checkHit(this, enem)) this.attackEnemy(enem)
             }
@@ -1874,8 +1877,8 @@ class SwordExtra extends Extra {
     }
     attackHero(hero) {
         hero.dirX = this.owner.x > hero.x ? 1 : -1
-        hero.speedX = -500 * hero.dirX
-        hero.speedY = -500
+        hero.speedX = -200 * hero.dirX
+        hero.speedY = -200
     }
     syncSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
