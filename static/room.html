@@ -151,7 +151,6 @@ function startGame() {
         onLog: showLogs ? addLog : null
     })
     game.play()
-    game.canvas.focus()
 }
 
 function handleIdentifyClient(ws, data, next) {
@@ -172,6 +171,7 @@ function joinGame() {
         color: playrColor,
     }))
     console.log(`Joined as '${playerName}'.`)
+    game.canvas.focus()
 }
 
 function handleGameState(ws, data) {
@@ -184,6 +184,7 @@ function handlePing(ws, data) {
 
 function restartGame() {
     ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
+    game.canvas.focus()
 }
 
 main()
