@@ -1428,8 +1428,8 @@ export class Hero extends LivingEntity {
         const state = super.getState()
         state.playerId = this.playerId
         const inputState = this.inputState
-        if(inputState && hasKeys(inputState)) state.inputState = inputState
-        else delete state.inputState
+        if(inputState && hasKeys(inputState)) state.ist = inputState
+        else delete state.ist
         const extras = this.extras
         if(extras && extras.hasKeys()) state.extras = this.extras.getState(true)
         else delete state.extras
@@ -1439,7 +1439,7 @@ export class Hero extends LivingEntity {
     setState(state) {
         super.setState(state)
         this.setPlayerId(state.playerId)
-        this.inputState = state.inputState
+        this.inputState = state.ist
         if(this.extras || state.extras) {
             this.extras ||= new ExtraGroup(this)
             this.extras.setState(state.extras)
@@ -1455,9 +1455,10 @@ export class Hero extends LivingEntity {
     }
 
     setInputState(inputState) {
-        this.inputState = inputState
         const extras = this.extras
         if(extras) extras.setInputState(inputState && inputState.extras)
+        if(inputState) delete inputState.extras
+        this.inputState = inputState
         this.inputStateTime = now()
         this._isStateToSend = true
     }
@@ -1743,10 +1744,15 @@ class Extra extends Entity {
     getState() {
         const state = this.state ||= {}
         state.key = this.constructor.key
+        const inputState = this.inputState
+        if(inputState && hasKeys(inputState)) state.ist = inputState
+        else delete state.ist
         return state
     }
 
-    setState(state) {}
+    setState(state) {
+        this.inputState = state.ist
+    }
 
     getInputState() {
         const inputState = this._inputState ||= {}
@@ -1851,13 +1857,25 @@ class SwordExtra extends Extra {
             this.lastAttackAge = 0
             attacking = true
         }
-        if(attacking) {
+        this.syncSprite()
+        if(this.lastAttackAge == 0) {
             for(let enem of this.scene.getTeam("enemy")) {
-                if(checkHit(this, enem)) enem.onDamage(1, this.owner)
+                if(checkHit(this, enem)) this.attackEnemy(enem)
+            }
+            for(let hero of this.scene.getTeam("hero")) {
+                if(this.owner == hero) continue
+                if(checkHit(this, hero)) this.attackHero(hero)
             }
         }
-        this.syncSprite()
         this.lastAttackAge += 1
+    }
+    attackEnemy(enem) {
+        enem.onDamage(1, this.owner)
+    }
+    attackHero(hero) {
+        hero.dirX = this.owner.x > hero.x ? 1 : -1
+        hero.speedX = -500 * hero.dirX
+        hero.speedY = -500
     }
     syncSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
