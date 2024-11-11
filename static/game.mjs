@@ -1334,27 +1334,37 @@ class DynamicEntity extends Entity {
 
 
 export class LivingEntity extends DynamicEntity {
-    constructor(scn, x, y, playerId) {
+    constructor(scn, x, y) {
         super(scn, x, y)
         this.life = 1
-        this.time = 0
-        this.damageLastTime = -3
+        this.iteBeforeDamageable = 0
+        this.iteBeforeRm = null
     }
 
     update() {
-        this.time += this.game.dt
-        this.undergoWalls = (this.life > 0)
-        // if(this.life == 0) this.rotation += 4 * PI * dt
-        if(this.scene.step != "GAME" || this.life == 0 || this.isDamageable()) this.spriteVisible = true
-        else this.spriteVisible = floor(this.time * 100) % 2 == 0
-        if(this.rmTime && this.time > this.rmTime) this.remove()
+        this.iteration += 1
+        const { life } = this
+        const { iteration, step } = this.scene
+        const { dt } = this.game
+        this.undergoWalls = (life > 0)
+        if(step != "GAME" || life == 0 || this.isDamageable()) this.spriteVisible = true
+        else this.spriteVisible = floor(iteration * dt * 100) % 2 == 0
+        if(this.iteBeforeRm != null) {
+            if(this.iteBeforeRm <= 0) this.remove()
+            this.iteBeforeRm -= 1
+        }
+        this.iteBeforeDamageable -= 1
     }
 
     isDamageable() {
-        return (this.damageLastTime + .5) < this.time
+        return this.iteBeforeDamageable <= 0
     }
 
-    onDamage(val, damager, force) {
+    makeNotDamageable() {
+        this.iteBeforeDamageable = ceil(0.5 * this.game.fps)
+    }
+
+    takeDamage(val, damager, force) {
         if(this.life == 0) return
         if(!force && !this.isDamageable()) return
         this.life = max(0, this.life - val)
@@ -1362,7 +1372,7 @@ export class LivingEntity extends DynamicEntity {
         if(this.life == 0) {
             this.onKill(damager)
         } else {
-            this.damageLastTime = this.time
+            if(val > 0) this.makeNotDamageable()
             if(damager) {
                 this.speedY = -200
                 this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
@@ -1371,7 +1381,7 @@ export class LivingEntity extends DynamicEntity {
     }
 
     onKill(killer) {
-        this.rmTime = this.time + 3
+        this.iteBeforeRm = ceil(3 * this.game.fps)
         if(killer) {
             this.speedY = -500
             this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
@@ -1381,12 +1391,18 @@ export class LivingEntity extends DynamicEntity {
     getState() {
         const state = super.getState()
         state.life = this.life
+        if(this.iteBeforeDamageable > 0) state.itd = this.iteBeforeDamageable
+        else delete state.itd
+        if(this.iteBeforeRm !== null) state.itr = this.iteBeforeRm
+        else delete state.itr
         return state
     }
 
     setState(state) {
         super.setState(state)
         this.life = state.life
+        this.iteBeforeDamageable = state.itd || 0
+        this.iteBeforeRm = state.itr !== undefined ? state.itr : null
     }
 }
 
@@ -1396,7 +1412,6 @@ export class Hero extends LivingEntity {
         super(scn, x, y)
         this.team = "hero"
         this.life = 3
-        this.time = 0
         if(playerId !== undefined) this.setPlayerId(playerId)
     }
 
@@ -1415,12 +1430,12 @@ export class Hero extends LivingEntity {
         if(this.extras) this.extras.update()
     }
 
-    isDamageable() {
-        return (this.damageLastTime + 3) < this.time
+    makeNotDamageable() {
+        this.iteBeforeDamageable = ceil(3 * this.game.fps)
     }
 
-    onDamage(val, damager, force) {
-        super.onDamage(val, damager, force)
+    takeDamage(val, damager, force) {
+        super.takeDamage(val, damager, force)
         this.scene.syncHearts()
     }
 
@@ -1504,16 +1519,18 @@ class Nico extends Hero {
     }
 
     update() {
+        const { iteration } = this.scene
+        const { dt } = this.game
         super.update()
         // inputs
         this.applyInputState()
         // display
         if(this.speedResY == 0) this.sprite = NicoJumpingSprite
         else if(this.speedX == 0) this.sprite = NicoStandingSprite
-        else this.sprite = NicoRunningSprites[floor((this.time * 6) % 3)]
+        else this.sprite = NicoRunningSprites[floor((iteration * dt * 6) % 3)]
         // fall
         if(this.y > this.game.map.height + 100) {
-            this.onDamage(1, null, true)
+            this.takeDamage(1, null, true)
             if(this.life > 0) this.respawn()
         }
     }
@@ -1610,7 +1627,7 @@ class Zombi extends Enemy {
     update() {
         super.update()
         const { dt } = this.game
-        const { time } = this.scene
+        const { iteration } = this.scene
         const { walls } = this.game.map
         // move
         if(this.speedX != 0 && (-this.speedResX / this.speedX) > .5) this.dirX *= -1
@@ -1622,10 +1639,10 @@ class Zombi extends Enemy {
             this.speedX = this.dirX * 20
         }
         // anim
-        this.sprite = ZombiSprites[floor((time * 6) % 8)]
+        this.sprite = ZombiSprites[floor((iteration * dt * 6) % 8)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.onDamage(1, this)
+            if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
     }
 
@@ -1657,16 +1674,16 @@ class Bat extends Enemy {
     update() {
         super.update()
         const { dt } = this.game
-        const { time } = this.scene
+        const { iteration } = this.scene
         const { width } = this.game.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = this.dirX * 3000 * dt
         // anim
-        this.sprite = BatSprites[floor((time * 6) % 4)]
+        this.sprite = BatSprites[floor((iteration * dt * 6) % 4)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.onDamage(1, this)
+            if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
     }
 
@@ -1703,7 +1720,7 @@ class Spider extends Enemy {
         this.speedY = (dirY > 0 ? 5000 : -1000) * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.onDamage(1, this)
+            if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
     }
 }
@@ -1873,12 +1890,10 @@ class SwordExtra extends Extra {
         this.lastAttackAge += 1
     }
     attackEnemy(enem) {
-        enem.onDamage(1, this.owner)
+        enem.takeDamage(1, this.owner)
     }
     attackHero(hero) {
-        hero.dirX = this.owner.x > hero.x ? 1 : -1
-        hero.speedX = -200 * hero.dirX
-        hero.speedY = -200
+        hero.takeDamage(0, this.owner)
     }
     syncSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -2044,7 +2059,7 @@ class Explosion extends Entity {
         const radius2 = pow(150, 2)
         const _checkOne = ent => {
             const dx = x - ent.x, dy = y - ent.y
-            if(dx*dx+dy*dy < radius2) ent.onDamage(1, this)
+            if(dx*dx+dy*dy < radius2) ent.takeDamage(1, this)
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
