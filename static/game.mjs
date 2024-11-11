@@ -1177,17 +1177,24 @@ export class GameScene extends SceneCommon {
 
     setLocalHero(hero) {
         super.setLocalHero(hero)
-        this.hearts ||= new EntityGroup(this)
-        this.hearts.forEach(h => h.remove())
-        if(hero) for(let i=0; i<hero.life; ++i)
-            this.hearts.add(new Heart(this, i))
+        this.syncHearts()
     }
 
     syncHearts() {
-        if(!this.hearts) return
-        this.hearts.forEach(heart => {
-            heart.setFull(heart.num < this.localHero.life)
-        })
+        if(this.localHero) {
+            const { life } = this.localHero
+            if(!this.hearts) {
+                this.hearts = new EntityGroup(this)
+                for(let i=0; i<life; ++i)
+                    this.hearts.add(new Heart(this, i))
+            }
+            this.hearts.forEach(heart => {
+                heart.setFull(heart.num < life)
+            })
+        } else if(this.hearts) {
+            this.hearts.forEach(h => h.remove())
+            delete this.hearts
+        }
     }
 
     checkHeros() {
