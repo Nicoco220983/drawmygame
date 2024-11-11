@@ -1140,6 +1140,7 @@ export class GameScene extends SceneCommon {
         this.notifs = new EntityGroup(this)
         this.initVictoryNotifs()
         this.initGameOverNotifs()
+        this.initHerosSpawnPos()
     }
 
     initEntities() {
@@ -1279,6 +1280,18 @@ export class GameScene extends SceneCommon {
         ))
     }
 
+    initHerosSpawnPos() {
+        const { heros } = this.game.map
+        if(!heros || heros.length == 0) return
+        const { x, y } = heros[0]
+        this.setHerosSpawnPos(x, y)
+    }
+
+    setHerosSpawnPos(x, y) {
+        this.herosSpawnX = floor(x)
+        this.herosSpawnY = floor(y)
+    }
+
     getState(isFull) {
         this.fullState ||= {}
         this.partialState ||= {}
@@ -1287,6 +1300,8 @@ export class GameScene extends SceneCommon {
         if(isFull) {
             state.id = this.id
             state.step = this.step
+            state.hsx = this.herosSpawnX
+            state.hsy = this.herosSpawnY
         }
         const ent = state.entities = this.entities.getState(isFull)
         return (isFull || ent) ? state : null
@@ -1296,6 +1311,7 @@ export class GameScene extends SceneCommon {
         this.iteration = state.it
         if(isFull) {
             this.step = state.step
+            this.setHerosSpawnPos(state.hsx, state.hsy)
         }
         this.entities.setState(state.entities, isFull)
     }
@@ -1571,10 +1587,9 @@ class Nico extends Hero {
     }
 
     respawn() {
-        const player = this.game.players[this.playerId]
-        const { x, y } = player.hero
-        this.x = x
-        this.y = y
+        const { herosSpawnX, herosSpawnY } = this.scene
+        this.x = herosSpawnX
+        this.y = herosSpawnY
         this.speedX = 0
         this.speedY = 0
     }
@@ -2102,6 +2117,31 @@ class Star extends Entity {
     }
 }
 Entities.register("star", Star)
+
+
+
+const CheckpointImg = new Img("/static/assets/checkpoint.png")
+const CheckpointSprite = new Sprite(CheckpointImg)
+
+class Checkpoint extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.sprite = CheckpointSprite
+        this.width = this.height = 40
+        this.undergoGravity = false
+        this.undergoWalls = false
+    }
+    update() {
+        this.scene.getTeam("hero").forEach(hero => {
+            if(checkHit(this, hero)) {
+                this.remove()
+                this.scene.herosSpawnX = this.x
+                this.scene.herosSpawnY = this.y
+            }
+        })
+    }
+}
+Entities.register("checkpt", Checkpoint)
 
 
 const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
