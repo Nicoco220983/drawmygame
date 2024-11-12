@@ -413,14 +413,14 @@ class CenteredText extends Text {
     }
 }
 
-export class Group {
+export class Group extends Map {
 
     constructor(owner) {
+        super()
         this.x = 0
         this.y = 0
         this.owner = owner
         this.game = owner.game
-        this.items = {}
         this._lastAutoId = 0
     }
 
@@ -432,39 +432,32 @@ export class Group {
         return res
     }
 
-    get(entId) {
-        return this.items[entId]
-    }
-
     add(arg1, arg2) {
         let id, item
         if(arg2 === undefined) { id = this.nextAutoId(); item = arg1 }
         else { id = arg1; item = arg2 }
-        this.items[id] = item
+        this.set(id, item)
         return item
     }
 
-    hasKeys() {
-        return hasKeys(this.items)
+    clearRemoved() {
+        this.forEach((item, id) => {
+            if(item.removed) this.delete(id)
+        })
     }
 
-    forEach(next) {
-        const { items } = this
-        for(let id in items) next(items[id])
-    }
-
-    cleanRemoved() {
-        const { items } = this
-        for(let id in items) if(items[id].removed) delete items[id]
+    clear() {
+        this.forEach(item => item.remove())
+        super.clear()
     }
 
     update() {
-        this.cleanRemoved()
+        this.clearRemoved()
         this.forEach(ent => ent.update())
     }
 
     drawTo(gameCtx) {
-        this.cleanRemoved()
+        this.clearRemoved()
         const x = ~~this.x, y = ~~this.y
         gameCtx.translate(x, y)
         this.forEach(ent => ent.drawTo(gameCtx))
@@ -472,24 +465,21 @@ export class Group {
     }
 
     getState(isFull) {
-        const { items } = this
         const res = {}
-        for(let id in items) {
-            const item = items[id]
+        this.forEach((item, id) => {
             if((isFull || item._isStateToSend) && !item.removed) {
                 res[id] = item.getState(isFull)
                 delete item._isStateToSend
             }
-        }
+        })
         return (isFull || hasKeys(res)) ? res : null
     }
 
     setState(state, isFull) {
-        const { items } = this
         if(state) {
             const ClassDefs = this.getClassDefs()
             for(let id in state) {
-                let item = items[id]
+                let item = this.get(id)
                 if(!item) {
                     const { key } = state[id]
                     if(!key) console.warning("Item state without key:", state[id])
@@ -501,8 +491,8 @@ export class Group {
                 }
                 if(item) item.setState(state[id])
             }
-            if(isFull) for(let id in items) if(!state[id]) items[id].remove()
-        } else if(isFull) for(let id in items) items[id].remove()
+            if(isFull) this.forEach((item, id) => { if(!state[id]) item.remove() })
+        } else if(isFull) this.removeAll()
     }
 }
 
@@ -1469,7 +1459,7 @@ export class Hero extends LivingEntity {
         if(inputState && hasKeys(inputState)) state.ist = inputState
         else delete state.ist
         const extras = this.extras
-        if(extras && extras.hasKeys()) state.extras = this.extras.getState(true)
+        if(extras && extras.size > 0) state.extras = this.extras.getState(true)
         else delete state.extras
         return state
     }
