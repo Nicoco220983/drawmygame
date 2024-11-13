@@ -5,17 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <style>
         html, body {
-            padding: 0;
-            margin: 0;
-            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: start;
+            align-items: center;
         }
-        body, flexcol, flexrow {
+        html {
+            width: 100%;
+            min-height: 100%;
+        }
+        body {
+            padding: 1em;
+            gap: 1em;
+            flex: 1;
+            align-self: stretch;
+        }
+        flexcol, flexrow {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: .5em;
         }
-        body, flexcol {
+        flexcol {
             flex-direction: column;
         }
         flexrow {
@@ -24,31 +35,43 @@
         .fill {
             flex: 1;
         }
+        @media screen and (max-width: 800px) {
+            #title {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
-    <h1>DrawMyGame MultiPlayer Game</h1>
-    <flexrow>
+    <h1 id="title">DrawMyGame MultiPlayer Game</h1>
+    <flexrow id="section_join" style="display: none">
         <input id="player_name" type="text">
         <input id="player_color" type="color">
         <button id="join">Join</button>
     </flexrow>
-    <flexrow>
-        <button id="restart">Restart</button>
-    </flexrow>
-    <flexrow>
+    <flexrow id="section_show_game" style="display: none">
         <input id="show_game" type="checkbox">Show Game
         <input id="show_joypad" type="checkbox">Show Joypad
-        <button id="fullscreen">Fullscreen</button>
     </flexrow>
-    <flexcol id="game"></flexcol>
-    <flexcol id="logs_section" style="display: none; width: 90%">
+    <flexrow id="section_game" style="display: none">
+        <flexcol>
+            <button id="fullscreen">Fullscreen</button>
+            <button id="restart">Restart</button>
+        </flexcol>
+        <flexcol id="game"></flexcol>
+    </flexrow>
+    <flexcol id="section_joypad_link" style="display: none">
+        <button id="show_joypad_link">Joypad link</button>
+        <div id="joypad_qrcode"></div>
+    </flexcol>
+    <flexcol id="section_logs" style="display: none; width: 90%">
         <input id="logs_filter" type="text">
         <p id="logs" style="border: 1px solid grey; width: 100%; height: 500px; overflow: scroll"></p>
     </flexcol>
 <script type="module">
 import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
+const isMob = ( window.innerWidth <= 800 ) && ( window.innerHeight <= 600 )
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
 const isDebugMode = urlParams.get("debug") == "1"
@@ -56,22 +79,47 @@ const isDebugMode = urlParams.get("debug") == "1"
 const locPathnames = location.pathname.split('/')
 const roomId = locPathnames[locPathnames.length-1]
 
+document.getElementById("section_join").style.display = (urlParams.get("join") != "0") ? "" : "none"
+
 document.getElementById("join").onclick = joinGame
 
 document.getElementById("restart").onclick = restartGame
 
 const gameParentEl = document.getElementById("game")
 const map = new GameMap()
-let game = null, ws = null
+let game = null, ws = null, joined = false
 
 const showGameEl = document.getElementById("show_game")
-showGameEl.onchange = () => game.showGameScene(showGameEl.checked)
+showGameEl.checked = isMob ? (urlParams.get("game") == "1") : (urlParams.get("game") != "0")
 const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.onchange = () => game.showJoypadScene(showJoypadEl.checked)
-function syncShows() {
-    if(!game) return
-    showGameEl.checked = game.gameScene.visible
-    showJoypadEl.checked = Boolean(game.joypadScene)
+showJoypadEl.checked = isMob ? (urlParams.get("joypad") != "0") : (urlParams.get("joypad") == "1")
+const isGameVisible = () => showGameEl.checked
+const isJoypadVisible = () => joined && showJoypadEl.checked
+const syncGameShow = () => {
+    if(game) game.showGameScene(showGameEl.checked)
+    if(game) game.showJoypadScene(showJoypadEl.checked)
+    document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
+    document.getElementById("section_show_game").style.display = ""
+    if(!isMob) document.getElementById("section_joypad_link").style.display = ""
+}
+showGameEl.onchange = showJoypadEl.onchange = syncGameShow
+
+const showJoypadLinkBut = document.getElementById("show_joypad_link")
+showJoypadLinkBut.onclick = async () => {
+    await importJs('../static/qrcode.min.js')
+    const url = URL.parse(window.location)
+    url.searchParams.set("game", "0")
+    url.searchParams.set("joypad", "1")
+    const el = document.getElementById("joypad_qrcode")
+    el.innerHTML = ""
+    var qrcode = new QRCode(el, {
+        text: url.toString(),
+        width: 256,
+        height: 256,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    })
 }
 
 const fullscrenEl = document.getElementById("fullscreen")
@@ -80,7 +128,7 @@ fullscrenEl.onclick = () => {
 }
 
 const showLogs = isDebugMode && HAS_TOUCH
-if(showLogs) document.getElementById("logs_section").style.display = ""
+if(showLogs) document.getElementById("section_logs").style.display = ""
 const logsEl = document.getElementById("logs")
 const logsFilterEl = document.getElementById("logs_filter")
 const addLog = (...args) => {
@@ -101,10 +149,9 @@ logsFilterEl.onchange = syncLogsEl
 // main
 
 async function main() {
-    await getMap() 
+    await getMap()
     await connectToRoom()
     startGame()
-    syncShows()
 }
 
 
@@ -139,10 +186,8 @@ async function getMap() {
 }
 
 function startGame() {
-    if(game) {
-        game.stop()
-        gameParentEl.innerHTML = ""
-    }
+    if(game) return
+    if(!isGameVisible() && !isJoypadVisible()) return
     game = new Game(gameParentEl, map, ws.id, {
         mode: MODE_CLIENT,
         sendPing: () => ws.send(MSG_KEYS.PING),
@@ -150,6 +195,7 @@ function startGame() {
         debug: isDebugMode,
         onLog: showLogs ? addLog : null
     })
+    syncGameShow()
     game.play()
 }
 
@@ -163,28 +209,42 @@ function handleIdentifyClient(ws, data, next) {
 }
 
 function joinGame() {
-    if(!ws) return
+    if(!ws || joined) return
     const playerName = document.getElementById("player_name").value
-    const playrColor = document.getElementById("player_color").value
+    const playerColor = document.getElementById("player_color").value
     ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
         name: playerName,
-        color: playrColor,
+        color: playerColor,
     }))
+    joined = true
+    document.getElementById("section_join").style.display = "none"
     console.log(`Joined as '${playerName}'.`)
-    game.canvas.focus()
+    startGame()
+    if(gqme) game.canvas.focus()
 }
 
 function handleGameState(ws, data) {
-    game.receiveState(data)
+    if(game) game.receiveState(data)
 }
 
 function handlePing(ws, data) {
-    game.receivePing(data)
+    if(game) game.receivePing(data)
 }
 
 function restartGame() {
-    ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
-    game.canvas.focus()
+    if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
+    if(game) game.canvas.focus()
+}
+
+const importJsPrms = {}
+function importJs(src) {
+    return importJsPrms[src] ||= new Promise((ok, ko) => {
+        const scriptEl = document.createElement("script")
+        scriptEl.src = src
+        document.body.appendChild(scriptEl)
+        scriptEl.onload = ok
+        scriptEl.onerror = ko
+    })
 }
 
 main()
