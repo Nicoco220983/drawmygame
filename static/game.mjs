@@ -622,13 +622,23 @@ export class GameCommon {
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
             assign(this.canvas, { width, height })
-            const gameIsMoreLandscapeThanScreen = ((width / window.innerWidth) / (height / window.innerHeight)) >= 1
-            assign(this.canvas.style, {
-                width: gameIsMoreLandscapeThanScreen ? "100%" : null,
-                height: gameIsMoreLandscapeThanScreen ? null : "100%",
-                aspectRatio: width / height,
-            })
+            this.syncCanvasAspectRatio()
+            window.addEventListener("resize", () => this.syncCanvasAspectRatio())
         }
+    }
+
+    syncCanvasAspectRatio() {
+        const { width, height } = this
+        const gameIsMoreLandscapeThanScreen = ((width / window.innerWidth) / (height / window.innerHeight)) >= 1
+        assign(this.canvas.style, {
+            width: gameIsMoreLandscapeThanScreen ? "100%" : null,
+            height: gameIsMoreLandscapeThanScreen ? null : "100%",
+            aspectRatio: width / height,
+        })
+    }
+
+    isFullscreened() {
+        return document.fullscreenElement == this.parentEl
     }
 
     requestFullscreen() {

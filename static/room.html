@@ -15,6 +15,7 @@
             min-height: 100%;
         }
         body {
+            margin: 0;
             padding: 1em;
             gap: 1em;
             flex: 1;
@@ -36,14 +37,15 @@
             flex: 1;
         }
         @media screen and (max-width: 800px) {
-            #title {
-                display: none;
+            h1 {
+                font-size: medium;
+                margin: .5em;
             }
         }
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
-    <h1 id="title">DrawMyGame MultiPlayer Game</h1>
+    <h1>DrawMyGame MultiPlayer Game</h1>
     <flexrow id="section_join" style="display: none">
         <input id="player_name" type="text">
         <input id="player_color" type="color">
@@ -57,13 +59,11 @@
         <flexcol>
             <button id="fullscreen">Fullscreen</button>
             <button id="restart">Restart</button>
+            <button id="show_joypad_link"></button>
+            <div id="joypad_qrcode"></div>
         </flexcol>
         <flexcol id="game"></flexcol>
     </flexrow>
-    <flexcol id="section_joypad_link" style="display: none">
-        <button id="show_joypad_link">Joypad link</button>
-        <div id="joypad_qrcode"></div>
-    </flexcol>
     <flexcol id="section_logs" style="display: none; width: 90%">
         <input id="logs_filter" type="text">
         <p id="logs" style="border: 1px solid grey; width: 100%; height: 500px; overflow: scroll"></p>
@@ -100,29 +100,46 @@ const syncGameShow = () => {
     if(game) game.showJoypadScene(showJoypadEl.checked)
     document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
     document.getElementById("section_show_game").style.display = ""
-    if(!isMob) document.getElementById("section_joypad_link").style.display = ""
 }
 showGameEl.onchange = showJoypadEl.onchange = syncGameShow
 
 const showJoypadLinkBut = document.getElementById("show_joypad_link")
-showJoypadLinkBut.onclick = async () => {
-    await importJs('../static/qrcode.min.js')
-    const url = URL.parse(window.location)
-    url.searchParams.set("game", "0")
-    url.searchParams.set("joypad", "1")
-    const el = document.getElementById("joypad_qrcode")
-    el.innerHTML = ""
-    var qrcode = new QRCode(el, {
-        text: url.toString(),
-        width: 256,
-        height: 256,
-        colorDark : "#000000",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
-    })
+const joypadQrcodeEl = document.getElementById("joypad_qrcode")
+let joypadLinkShowed = false
+const syncJoypadLink = async () => {
+    if(!joypadLinkShowed) {
+        showJoypadLinkBut.textContent = "Show joypad link"
+        joypadQrcodeEl.style.display = "none"
+    } else {
+        showJoypadLinkBut.textContent = "Hide joypad link"
+        await importJs('../static/qrcode.min.js')
+        const url = URL.parse(window.location)
+        url.searchParams.set("game", "0")
+        url.searchParams.set("joypad", "1")
+        joypadQrcodeEl.innerHTML = ""
+        joypadQrcodeEl.style.display = ""
+        var qrcode = new QRCode(joypadQrcodeEl, {
+            text: url.toString(),
+            width: 256,
+            height: 256,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        })
+    }
+}
+syncJoypadLink()
+showJoypadLinkBut.onclick = () => {
+    joypadLinkShowed = !joypadLinkShowed
+    syncJoypadLink()
 }
 
 const fullscrenEl = document.getElementById("fullscreen")
+gameParentEl.onclick = evt => {
+    if(!game || game.isFullscreened()) return
+    game.requestFullscreen()
+    evt.stopPropagation()
+}
 fullscrenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
