@@ -1644,15 +1644,19 @@ class Zombi extends Enemy {
         this.height = 60
         this.sprite = ZombiSprites[0]
         this.scaleSprite = Entity.spriteFitHeight
+        this.lastChangeDirAge = 0
     }
 
     update() {
         super.update()
-        const { dt } = this.game
+        const { dt, fps } = this.game
         const { iteration } = this.scene
         const { walls } = this.game.map
         // move
-        if(this.speedX != 0 && (-this.speedResX / this.speedX) > .5) this.dirX *= -1
+        if(this.speedX != 0 && this.lastChangeDirAge > fps && abs(this.speedResX) > .8 * 20) {
+            this.dirX *= -1
+            this.lastChangeDirAge = 0
+        }
         if(this.speedResY < 0) {
             // const { left, width, top, height } = this.getHitBox()
             // const wallAheadBy = ceil((top + height - 1) / boxSize)
@@ -1666,6 +1670,7 @@ class Zombi extends Enemy {
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
+        this.lastChangeDirAge += 1
     }
 
     getHitBox() {
@@ -1675,6 +1680,17 @@ class Zombi extends Enemy {
             top: this.y - 30,
             height: 60,
         }
+    }
+
+    getState() {
+        const state = super.getState()
+        state.cda = this.lastChangeDirAge
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        this.lastChangeDirAge = state.cda
     }
 }
 Entities.register("zombi", Zombi)
