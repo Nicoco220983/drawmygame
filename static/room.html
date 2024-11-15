@@ -78,10 +78,16 @@ const isDebugMode = urlParams.get("debug") == "1"
 
 const locPathnames = location.pathname.split('/')
 const roomId = locPathnames[locPathnames.length-1]
+let clientId = sessionStorage.getItem("drawmygame.clientId")
 
 document.getElementById("section_join").style.display = (urlParams.get("join") != "0") ? "" : "none"
 
-document.getElementById("join").onclick = joinGame
+document.getElementById("join").onclick = () => {
+    joinGame(
+        document.getElementById("player_name").value,
+        document.getElementById("player_color").value,
+    )
+}
 
 document.getElementById("restart").onclick = restartGame
 
@@ -179,7 +185,9 @@ function connectToRoom() {
         ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
         ws.addEventListener('open', () => {
             console.log('Connected to server !')
-            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({ roomId }))
+            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+                id: clientId, roomId,
+            }))
         })
         ws.addEventListener('message', evt => {
             const key = evt.data.substring(0, MSG_KEY_LENGTH)
@@ -217,27 +225,34 @@ function startGame() {
 }
 
 function handleIdentifyClient(ws, data, next) {
-    const { id, name } = JSON.parse(data)
-    ws.id = id
-    ws.playerName = name
-    document.getElementById("player_name").value = name
+    const { id, name, color, suggestedName, suggestedColor } = JSON.parse(data)
+    clientId = ws.id = id
+    if(name) {
+        // client already has a player name: he already joined the game
+        // recover this join
+        // ws.playerName = name
+        // ws.playerColor = color
+        joinGame(name, color)
+    } else {
+        // ws.playerName = suggestedName
+        document.getElementById("player_name").value = suggestedName
+        document.getElementById("player_color").value = suggestedColor
+    }
+    sessionStorage.setItem("drawmygame.clientId", clientId)
     console.log(`Identified as '${id}'.`)
     next()
 }
 
-function joinGame() {
+function joinGame(name, color) {
     if(!ws || joined) return
-    const playerName = document.getElementById("player_name").value
-    const playerColor = document.getElementById("player_color").value
     ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
-        name: playerName,
-        color: playerColor,
+        name, color,
     }))
     joined = true
     document.getElementById("section_join").style.display = "none"
-    console.log(`Joined as '${playerName}'.`)
+    console.log(`Joined as '${name}', with color '${color}'.`)
     startGame()
-    if(gqme) game.canvas.focus()
+    if(game) game.canvas.focus()
 }
 
 function handleGameState(ws, data) {
