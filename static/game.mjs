@@ -1603,11 +1603,11 @@ class Nico extends Hero {
 
     static initJoypadButtons(joypadScn) {
         let col = joypadScn.addColumn()
-        joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
         col.addButton({ key: "ArrowLeft", icon: ArrowsSprites[3] })
+        col.addButton({ key: "ArrowRight", icon: ArrowsSprites[1] })
         col = joypadScn.addColumn()
         col.addButton({ key: "ArrowUp", icon: ArrowsSprites[0] })
-        col.addButton({ key: "ArrowRight", icon: ArrowsSprites[1] })
+        joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
     }
 
     addExtra(extra) {
