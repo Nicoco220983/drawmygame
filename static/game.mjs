@@ -178,47 +178,21 @@ export class Img extends Image {
     }
 }
 
-export class SpriteSheet {
-    constructor(src, nbCols, nbRows, kwargs) {
-        this.src = src
-        this.nbCols = nbCols
-        this.nbRows = nbRows
-        this.frames = []
-        this._loading = true
-        assign(this, kwargs)
-        if(!IS_SERVER_ENV) this.load()
-    }
-    async load() {
-        if (!this._loading) return
-        const { nbRows, nbCols } = this
-        Loads.push(this)
-        const img = this.img = new Img(this.src)
-        await _waitLoad(img)
-        const frameWidth = floor(img.width / nbCols)
-        const frameHeight = floor(img.height / nbRows)
-        for (let j = 0; j < nbRows; ++j) for (let i = 0; i < nbCols; ++i) {
-            const can = this.getFrame(i + nbCols * j)
-            can.width = frameWidth
-            can.height = frameHeight
-            can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
-            can._loading = false
-        }
-        this._loading = false
-    }
-    getFrame(num) {
-        const frames = this.frames
-        while (frames.length <= num) {
-            const can = newCanvas(0, 0)
-            if(can) can._loading = true
-            frames.push(can)
-        }
-        return frames[num]
-    }
+export function loadImg(src) {
+    return new Promise((ok, ko) => {
+        //if(IS_SERVER_ENV) return
+        const img = new Image()
+        img.src = src
+        img.onload = () => ok(img)
+        img.onerror = () => ko(`load error: ${src}`)
+    })
 }
 
 export class Sprite {
-    constructor(img) {
-        this.baseImg = img
+    constructor(src) {
+        if(typeof src === "string") src = loadImg(src)  
+        if(src instanceof Promise) src.then(img => this.baseImg = img)
+        else this.baseImg = src
         this.transImgs = {}
     }
     getImg(width, height, dirX, dirY) {
@@ -226,7 +200,7 @@ export class Sprite {
         let res = this.transImgs[key]
         if(res) return res
         const { baseImg } = this
-        if(baseImg._loading) return null
+        if(!baseImg || baseImg._loading) return null // TODO: deprecate it
         const { width: baseWidth, height: baseHeight } = baseImg
         const resImg = newCanvas(width, height)
         const ctx = resImg.getContext("2d")
@@ -235,6 +209,34 @@ export class Sprite {
         ctx.drawImage(baseImg, 0, 0)
         this.transImgs[key] = resImg
         return resImg
+    }
+}
+
+
+export class SpriteSheet extends Array {
+    constructor(src, nbCols, nbRows) {
+        super()
+        if(typeof src === "string") src = loadImg(src)  
+        if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
+        else this.initSprites(src, nbCols, nbRows)
+    }
+    initSprites(img, nbCols, nbRows) {
+        const frameWidth = floor(img.width / nbCols)
+        const frameHeight = floor(img.height / nbRows)
+        for (let j = 0; j < nbRows; ++j) for (let i = 0; i < nbCols; ++i) {
+            const can = document.createElement("canvas")
+            can.width = frameWidth
+            can.height = frameHeight
+            can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
+            this.push(new Sprite(can))
+        }
+    }
+    get(num, loop = false) {
+        const nbSprites = this.length
+        if(nbSprites == 0) return null
+        if(loop) num = num % nbSprites
+        else if(num >= nbSprites) return null
+        return this[num]
     }
 }
 
@@ -249,6 +251,7 @@ export class Entity {
             height: 10,
             dirX: 1,
             dirY: 1,
+            spriteVisible: true,
         })
     }
 
@@ -257,7 +260,6 @@ export class Entity {
         this.y = y
         this.scene = scn
         this.game = scn.game
-        this.spriteVisible = true
         this.scaleSprite = Entity.spriteFit
     }
 
@@ -268,16 +270,21 @@ export class Entity {
         if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
     }
 
+    getSprite() {
+        return this.sprite // TODO: return null when this.sprite deprecated
+    }
+
     getImg() {
-        if(this.sprite && this.spriteVisible) {
-            this.scaleSprite()
-            return this.sprite.getImg(
-                this.spriteWidth,
-                this.spriteHeight,
-                this.dirX,
-                this.dirY,
-            )
-        }
+        if(this.spriteVisible === false) return
+        const sprite = this.getSprite()
+        if(!sprite) return
+        this.scaleSprite(sprite)
+        return sprite.getImg(
+            this.spriteWidth,
+            this.spriteHeight,
+            this.dirX,
+            this.dirY,
+        )
     }
 
     getHitBox() {
@@ -325,9 +332,9 @@ export class Entity {
     }
 }
 
-Entity.spriteFit = function() {
+Entity.spriteFit = function(sprite) {
     const { width, height } = this
-    const { width: baseWidth, height: baseHeight } = this.sprite.baseImg
+    const { width: baseWidth, height: baseHeight } = sprite.baseImg
     if(width * baseHeight > baseWidth * height){
         this.spriteWidth = ~~(baseWidth*height/baseHeight)
         this.spriteHeight = height
@@ -337,9 +344,9 @@ Entity.spriteFit = function() {
     }
 }
 
-Entity.spriteFill = function() {
+Entity.spriteFill = function(sprite) {
     const { width, height } = this
-    const { width: baseWidth, height: baseHeight } = this.sprite.baseImg
+    const { width: baseWidth, height: baseHeight } = sprite.baseImg
     if(width * baseHeight < baseWidth * height){
         this.spriteWidth = ~~(baseWidth*height/baseHeight)
         this.spriteHeight = height
@@ -349,16 +356,16 @@ Entity.spriteFill = function() {
     }
 }
 
-Entity.spriteFitWidth = function() {
+Entity.spriteFitWidth = function(sprite) {
     const { width } = this
-    const { width: baseWidth, height: baseHeight } = this.sprite.baseImg
+    const { width: baseWidth, height: baseHeight } = sprite.baseImg
     this.spriteWidth = width
     this.spriteHeight = ~~(baseHeight*width/baseWidth)
 }
 
-Entity.spriteFitHeight = function() {
+Entity.spriteFitHeight = function(sprite) {
     const { height } = this
-    const { width: baseWidth, height: baseHeight } = this.sprite.baseImg
+    const { width: baseWidth, height: baseHeight } = sprite.baseImg
     this.spriteWidth = ~~(baseWidth*height/baseHeight)
     this.spriteHeight = height
 }
@@ -399,6 +406,10 @@ class Text extends Entity {
         this.width = canvas.width
         this.height = canvas.height
         this.sprite = new Sprite(canvas)
+    }
+
+    getSprite() {
+        return this.sprite
     }
 }
 
@@ -1527,35 +1538,31 @@ export class Hero extends LivingEntity {
 
 
 const NicoSpriteSheet = new SpriteSheet("/static/assets/nico_full.png", 4, 1)
-const NicoStandingSprite = new Sprite(NicoSpriteSheet.getFrame(0))
-const NicoRunningSprites = range(1, 4).map(i => new Sprite(NicoSpriteSheet.getFrame(i)))
-const NicoJumpingSprite = new Sprite(NicoSpriteSheet.getFrame(1))
-
-const ArrosSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
-const ArrowsSprites = range(0, 4).map(i => new Sprite(ArrosSpriteSheet.getFrame(i)))
+const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
         super(scn, x, y, playerId)
         this.width = this.height = 50
-        this.sprite = NicoStandingSprite
     }
 
     update() {
-        const { iteration } = this.scene
-        const { dt } = this.game
         super.update()
         // inputs
         this.applyInputState()
-        // display
-        if(this.speedResY == 0) this.sprite = NicoJumpingSprite
-        else if(this.speedX == 0) this.sprite = NicoStandingSprite
-        else this.sprite = NicoRunningSprites[floor((iteration * dt * 6) % 3)]
         // fall
         if(this.y > this.game.map.height + 100) {
             this.takeDamage(1, null, true)
             if(this.life > 0) this.respawn()
         }
+    }
+
+    getSprite() {
+        const { iteration } = this.scene
+        const { dt } = this.game
+        if(this.speedResY == 0) return NicoSpriteSheet.get(1)
+        else if(this.speedX == 0) return NicoSpriteSheet.get(0)
+        else return NicoSpriteSheet[1 + floor((iteration * dt * 6) % 3)]
     }
 
     getInputState() {
@@ -1603,10 +1610,10 @@ class Nico extends Hero {
 
     static initJoypadButtons(joypadScn) {
         let col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowLeft", icon: ArrowsSprites[3] })
-        col.addButton({ key: "ArrowRight", icon: ArrowsSprites[1] })
+        col.addButton({ key: "ArrowLeft", icon: ArrowsSpriteSheet[3] })
+        col.addButton({ key: "ArrowRight", icon: ArrowsSpriteSheet[1] })
         col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowUp", icon: ArrowsSprites[0] })
+        col.addButton({ key: "ArrowUp", icon: ArrowsSpriteSheet[0] })
         joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
     }
 
@@ -1635,23 +1642,19 @@ class Enemy extends LivingEntity {
 
 
 const ZombiSpriteSheet = new SpriteSheet("/static/assets/zombi.png", 8, 1)
-const ZombiSprites = range(0, 8).map(i => new Sprite(ZombiSpriteSheet.getFrame(i)))
 
 class Zombi extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = 50
         this.height = 60
-        this.sprite = ZombiSprites[0]
         this.scaleSprite = Entity.spriteFitHeight
         this.lastChangeDirAge = 0
     }
 
     update() {
         super.update()
-        const { dt, fps } = this.game
-        const { iteration } = this.scene
-        const { walls } = this.game.map
+        const { fps } = this.game
         // move
         if(this.speedX != 0 && this.lastChangeDirAge > fps && abs(this.speedResX) > .8 * 20) {
             this.dirX *= -1
@@ -1664,13 +1667,17 @@ class Zombi extends Enemy {
             // if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
             this.speedX = this.dirX * 20
         }
-        // anim
-        this.sprite = ZombiSprites[floor((iteration * dt * 6) % 8)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
         this.lastChangeDirAge += 1
+    }
+
+    getSprite() {
+        const { dt } = this.game
+        const { iteration } = this.scene
+        return ZombiSpriteSheet.get(floor(iteration * dt * 6), true)
     }
 
     getHitBox() {
@@ -1697,14 +1704,12 @@ Entities.register("zombi", Zombi)
 
 
 const BatSpriteSheet = new SpriteSheet("/static/assets/bat.png", 4, 1)
-const BatSprites = range(0, 4).map(i => new Sprite(BatSpriteSheet.getFrame(i)))
 
 class Bat extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = 80
         this.height = 40
-        this.sprite = BatSprites[0]
         this.scaleSprite = Entity.spriteFitHeight
         this.undergoGravity = false
     }
@@ -1717,12 +1722,16 @@ class Bat extends Enemy {
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = this.dirX * 3000 * dt
-        // anim
-        this.sprite = BatSprites[floor((iteration * dt * 6) % 4)]
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
+    }
+
+    getSprite() {
+        const { dt } = this.game
+        const { iteration } = this.scene
+        return BatSpriteSheet.get(floor(iteration * dt * 6), true)
     }
 
     getHitBox() {
@@ -1743,7 +1752,6 @@ class Spider extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 45
-        this.sprite = SpiderSprite
         this.scaleSprite = Entity.spriteFitHeight
         this.undergoGravity = false
     }
@@ -1761,22 +1769,27 @@ class Spider extends Enemy {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
         })
     }
+
+    getSprite() {
+        return SpiderSprite
+    }
 }
 Entities.register("spider", Spider)
 
 
 const HeartSpriteSheet = new SpriteSheet("/static/assets/heart.png", 2, 1)
-const HeartSprites = range(0, 2).map(i => new Sprite(HeartSpriteSheet.getFrame(i)))
 
 class Heart extends Entity {
     constructor(scn, num) {
         super(scn, 25 + 35 * num, 25)
         this.num = num
         this.width = this.height = 30
-        this.sprite = HeartSprites[0]
     }
     setFull(isFull) {
-        this.sprite = HeartSprites[isFull ? 0 : 1]
+        this.isFull = isFull
+    }
+    getSprite() {
+        return HeartSpriteSheet.get(this.isFull ? 0 : 1)
     }
 }
 
@@ -1898,14 +1911,12 @@ Entities.register("sword", SwordItem)
 const SWORD_ATTACK_PERIOD = .5
 
 const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
-const SwordSlashSprites = range(0, 6).map(i => new Sprite(SwordSlashSpriteSheet.getFrame(i)))
 
 class SwordExtra extends Extra {
     constructor(owner) {
         super(owner, 0, 0)
         this.isMainExtra = true
         this.lastAttackAge = ceil(SWORD_ATTACK_PERIOD * this.game.fps)
-        this.syncSprite()
         this.removeSimilarExtras()
     }
     update() {
@@ -1915,7 +1926,6 @@ class SwordExtra extends Extra {
             this.lastAttackAge = 0
             attacking = true
         }
-        this.syncSprite()
         if(this.lastAttackAge == 3) { // TODO: 3 as long as input state sync is a bit buggy
             for(let enem of this.scene.getTeam("enemy")) {
                 if(checkHit(this, enem)) this.attackEnemy(enem)
@@ -1933,16 +1943,16 @@ class SwordExtra extends Extra {
     attackHero(hero) {
         hero.takeDamage(0, this.owner)
     }
-    syncSprite() {
+    getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if(ratioSinceLastAttack <= 1) {
-            this.sprite = SwordSlashSprites[floor(6*ratioSinceLastAttack)]
-            this.x = 40
+            this.x = 40  // TODO: weird
             this.width = this.height = 60
+            return SwordSlashSprites[floor(6*ratioSinceLastAttack)]
         } else {
-            this.sprite = SwordSprite
             this.x = 25
             this.width = this.height = 40
+            return SwordSprite
         }
     }
     removeSimilarExtras() {
@@ -1972,13 +1982,11 @@ Extras.register("sword", SwordExtra)
 
 
 const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
-const BombSprites = range(0, 2).map(i => new Sprite(BombSpriteSheet.getFrame(i)))
 
 class BombItem extends Entity {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 40
-        this.sprite = BombSprites[0]
         this.respawnDur = 2
         this.lastAddAge = this.respawnDur * this.game.fps
     }
@@ -1994,6 +2002,9 @@ class BombItem extends Entity {
             }
         }
         this.lastAddAge += 1
+    }
+    getSprite() {
+        return BombSpriteSheet[0]
     }
     getState() {
         const state = super.getState()
@@ -2013,7 +2024,6 @@ class BombExtra extends Extra {
         super(owner, 0, 0)
         this.width = this.height = 40
         this.isMainExtra = true
-        this.sprite = BombSprites[0]
         this.removeSimilarExtras()
     }
     update() {
@@ -2031,6 +2041,9 @@ class BombExtra extends Extra {
             if(extra2.isMainExtra) extra2.remove()
         })
     }
+    getSprite() {
+        return BombSpriteSheet[0]
+    }
     getInputState() {
         const inputState = super.getInputState()
         const { game } = this
@@ -2047,7 +2060,6 @@ class Bomb extends DynamicEntity {
         super(scn, x, y)
         this.width = this.height = 40
         this.itToLive = 3 * this.game.fps
-        this.syncSprite()
     }
     update() {
         const { dt } = this.game
@@ -2056,18 +2068,17 @@ class Bomb extends DynamicEntity {
             this.scene.entities.add(new Explosion(this.scene, this.x, this.y))
             this.remove()
         }
-        this.syncSprite()
         this.itToLive -= 1
     }
-    syncSprite() {
-        this.sprite = BombSprites[floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2]
+    getSprite() {
+        return BombSpriteSheet[floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2]
     }
     getState() {
         const state = super.getState()
         state.ttl = this.itToLive
         return state
     }
-    setSTate(state) {
+    setState(state) {
         super.setState(state)
         this.itToLive = state.ttl
     }
@@ -2075,8 +2086,10 @@ class Bomb extends DynamicEntity {
 Entities.register("bomb", Bomb)
 
 
+// const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
+// const ExplosionSprites = range(0, 46).map(i => new Sprite(ExplosionSpriteSheet.getFrame(i)))
+
 const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
-const ExplosionSprites = range(0, 46).map(i => new Sprite(ExplosionSpriteSheet.getFrame(i)))
 
 class Explosion extends Entity {
     constructor(scn, x, y) {
@@ -2089,7 +2102,6 @@ class Explosion extends Entity {
         if(this.iteration == 0) this.checkEntitiesToDamage()
         const age = this.iteration/this.game.fps
         if(age >= 1) return this.remove()
-        this.sprite = ExplosionSprites[floor(age*46)]
         this.iteration += 1
     }
     checkEntitiesToDamage() {
@@ -2101,6 +2113,11 @@ class Explosion extends Entity {
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
+    }
+    getSprite() {
+        return ExplosionSpriteSheet.get(floor(
+            this.iteration / this.game.fps * ExplosionSpriteSheet.length
+        ))
     }
     getState() {
         const state = super.getState()
@@ -2115,14 +2132,11 @@ class Explosion extends Entity {
 Entities.register("explos", Explosion)
 
 
-
-const StarImg = new Img("/static/assets/star.png")
-const StarSprite = new Sprite(StarImg)
+const StarSprite = new Sprite("/static/assets/star.png")
 
 class Star extends Entity {
     constructor(scn, x, y) {
         super(scn, x, y)
-        this.sprite = StarSprite
         this.width = this.height = 30
         this.undergoGravity = false
         this.undergoWalls = false
@@ -2138,18 +2152,19 @@ class Star extends Entity {
             }
         })
     }
+    getSprite() {
+        return StarSprite
+    }
 }
 Entities.register("star", Star)
 
 
 
-const CheckpointImg = new Img("/static/assets/checkpoint.png")
-const CheckpointSprite = new Sprite(CheckpointImg)
+const CheckpointSprite = new Sprite("/static/assets/checkpoint.png")
 
 class Checkpoint extends Entity {
     constructor(scn, x, y) {
         super(scn, x, y)
-        this.sprite = CheckpointSprite
         this.width = this.height = 40
         this.undergoGravity = false
         this.undergoWalls = false
@@ -2163,12 +2178,14 @@ class Checkpoint extends Entity {
             }
         })
     }
+    getSprite() {
+        return CheckpointSprite
+    }
 }
 Entities.register("checkpt", Checkpoint)
 
 
 const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
-const SmokeExplosionSprites = range(0, 4).map(i => new Sprite(SmokeExplosionSpriteSheet.getFrame(i)))
 
 class SmokeExplosion extends Entity {
     constructor(scn, x, y) {
@@ -2182,7 +2199,9 @@ class SmokeExplosion extends Entity {
         this.iteration += 1
         const time = this.iteration * this.game.dt
         if(time > .5) { this.remove(); return }
-        this.sprite = SmokeExplosionSprites[floor(time/.5*4)]
+    }
+    getSprite() {
+        return SmokeExplosionSpriteSheet.get(floor(time/.5*4))
     }
     getState() {
         const state = super.getState()
