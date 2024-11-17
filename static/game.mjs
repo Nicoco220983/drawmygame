@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas } = utils
 import PhysicsEngine from './physics.mjs'
 
 export const FPS = 30
@@ -267,7 +267,7 @@ export class Entity {
 
     drawTo(ctx) {
         const img = this.getImg()
-        if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
+        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
     }
 
     getSprite() {
@@ -503,7 +503,7 @@ export class Group extends Map {
                 if(item) item.setState(state[id])
             }
             if(isFull) this.forEach((item, id) => { if(!state[id]) item.remove() })
-        } else if(isFull) this.removeAll()
+        } else if(isFull) this.clear()
     }
 }
 
@@ -681,7 +681,7 @@ export class SceneCommon {
         this.height = 100
         this.visible = true
         this.color = "white"
-        this.iteration = -1
+        this.iteration = 0
         this.time = 0
         // this.pointer = null
         if(!this.game.isServerEnv) {
@@ -742,11 +742,7 @@ export class SceneCommon {
         this.localHero = hero
     }
 
-    update() {
-        this.iteration += 1
-        this.time = this.iteration * this.game.dt
-        // this.syncPointer()
-    }
+    update() {}
 
     // syncPointer() {
     //     const gamePointer = this.game.pointer
@@ -1223,6 +1219,8 @@ export class GameScene extends SceneCommon {
         const { step, entities } = this
         const { physicEngine, dt } = this.game
         super.update()
+        this.iteration += 1
+        this.time = this.iteration * this.game.dt
         if(step == "GAME" || step == "GAMEOVER") {
             physicEngine.apply(dt, entities)
             entities.update()
@@ -1537,7 +1535,21 @@ export class Hero extends LivingEntity {
 }
 
 
-const NicoSpriteSheet = new SpriteSheet("/static/assets/nico_full.png", 4, 1)
+const NicoImgPrm = loadImg("/static/assets/nico_full.png")
+const NicoColorableImgPrm = loadImg("/static/assets/nico_full_colorable.png")
+const NicoSpriteSheets = {
+    spritesheets: {},
+    get: function(color) {
+        return this.spritesheets[color] ||= new SpriteSheet((async () => {
+            const img = await NicoImgPrm
+            if(!color) return img
+            const colorableImg = await NicoColorableImgPrm
+            const coloredImg = colorizeCanvas(cloneCanvas(colorableImg), color)
+            return addCanvas(cloneCanvas(img), coloredImg)
+        })(), 4, 1)
+    },
+}
+
 const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
 class Nico extends Hero {
@@ -1559,10 +1571,13 @@ class Nico extends Hero {
 
     getSprite() {
         const { iteration } = this.scene
-        const { dt } = this.game
-        if(this.speedResY == 0) return NicoSpriteSheet.get(1)
-        else if(this.speedX == 0) return NicoSpriteSheet.get(0)
-        else return NicoSpriteSheet[1 + floor((iteration * dt * 6) % 3)]
+        const { dt, players } = this.game
+        const player = players && players[this.playerId]
+        const color = player && player.color
+        const spriteSheet = NicoSpriteSheets.get(color)
+        if(iteration > 0 && this.speedResY == 0) return spriteSheet.get(1)
+        else if(this.speedX == 0) return spriteSheet.get(0)
+        else return spriteSheet[1 + floor((iteration * dt * 6) % 3)]
     }
 
     getInputState() {

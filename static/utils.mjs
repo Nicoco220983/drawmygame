@@ -220,11 +220,13 @@ function colorizeCanvas(canvas, color) {
     ctx.globalCompositeOperation = "color"
     ctx.drawImage(colorCanvas, 0, 0, width, height)
     ctx.restore()
+    return canvas
 }
 
 function addCanvas(canvas, canvas2, x=0, y=0) {
     const ctx = canvas.getContext("2d")
     ctx.drawImage(canvas2, x, y)
+    return canvas
 }
 
 function getHitBox(obj) {

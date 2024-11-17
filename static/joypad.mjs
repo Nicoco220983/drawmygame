@@ -1,7 +1,8 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-import { Img, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game.mjs"
+import { loadImg, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game.mjs"
+import { cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
 
 export class JoypadScene {
@@ -167,8 +168,17 @@ class ButtonsColumn extends ButtonsGroup {
 }
 
 
-const ButtonSpriteSheet = new SpriteSheet("/static/assets/button.png", 2, 1)
-const ButtonSprites = range(0, 2).map(i => new Sprite(ButtonSpriteSheet.getFrame(i)))
+const BurronImgPrm = loadImg("/static/assets/button_colorable.png")
+const ButtonSpriteSheets = {
+    spritesheets: {},
+    get: function(color) {
+        return this.spritesheets[color] ||= new SpriteSheet((async () => {
+            let img = await BurronImgPrm
+            if(color) img = colorizeCanvas(cloneCanvas(img), color)
+            return img
+        })(), 2, 1)
+    },
+}
 
 class Button extends Entity {
     constructor(scn, desc) {
@@ -176,12 +186,7 @@ class Button extends Entity {
         this.key = desc.key
         this.isDown = false
         this.disabled = desc.disabled
-        this.sprite = ButtonSprites[0]
         this.icon = desc.icon
-    }
-
-    update() {
-        this.sprite = ButtonSprites[this.isDown ? 1 : 0]
     }
 
     checkHit() {
@@ -191,6 +196,12 @@ class Button extends Entity {
             this.isDown = isDown
             this.game.setInputKey(this.key, isDown)
         }
+    }
+
+    getSprite() {
+        const localPlayer = this.game.players[this.game.localPlayerId]
+        const color = localPlayer ? localPlayer.color : null
+        return ButtonSpriteSheets.get(color)[this.isDown ? 1 : 0]
     }
 
     drawTo(ctx) {
@@ -203,7 +214,7 @@ class Button extends Entity {
                 this.dirX,
                 this.dirY,
             )
-            if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
+            if(iconImg && iconImg.width>0 && iconImg.height>0) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
         }
     }
 }
