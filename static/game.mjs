@@ -1852,22 +1852,19 @@ class ExtraGroup extends Group {
     }
 
     getInputState() {
-        const { items } = this
-        if(!hasKeys(items)) return null
+        if(this.size == 0) return null
         const res = {}
-        for(let key in items) {
-            const item = items[key]
+        this.forEach((item, id) => {
             let state = item.removed ? null : item.getInputState()
-            if(state && hasKeys(state)) res[key] = state
-        }
+            if(state && hasKeys(state)) res[id] = state
+        })
         return hasKeys(res) ? res : null
     }
 
     setInputState(state) {
-        const { items } = this
-        for(let key in items) {
-            items[key].setInputState(state && state[key])
-        }
+        this.forEach((item, id) => {
+            item.setInputState(state && state[id])
+        })
     }
 }
 
@@ -1948,7 +1945,7 @@ class SwordExtra extends Extra {
         if(ratioSinceLastAttack <= 1) {
             this.x = 40  // TODO: weird
             this.width = this.height = 60
-            return SwordSlashSprites[floor(6*ratioSinceLastAttack)]
+            return SwordSlashSpriteSheet[floor(6*ratioSinceLastAttack)]
         } else {
             this.x = 25
             this.width = this.height = 40
@@ -2201,6 +2198,7 @@ class SmokeExplosion extends Entity {
         if(time > .5) { this.remove(); return }
     }
     getSprite() {
+        const time = this.iteration * this.game.dt
         return SmokeExplosionSpriteSheet.get(floor(time/.5*4))
     }
     getState() {
