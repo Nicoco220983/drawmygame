@@ -1938,6 +1938,13 @@ class SwordExtra extends Extra {
             this.lastAttackAge = 0
             attacking = true
         }
+        if(attacking) {
+            this.x = 40
+            this.width = this.height = 60
+        } else {
+            this.x = 25
+            this.width = this.height = 40
+        }
         if(this.lastAttackAge == 3) { // TODO: 3 as long as input state sync is a bit buggy
             for(let enem of this.scene.getTeam("enemy")) {
                 if(checkHit(this, enem)) this.attackEnemy(enem)
@@ -1958,12 +1965,8 @@ class SwordExtra extends Extra {
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if(ratioSinceLastAttack <= 1) {
-            this.x = 40  // TODO: weird
-            this.width = this.height = 60
             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
-            this.x = 25
-            this.width = this.height = 40
             return SwordSprite
         }
     }
