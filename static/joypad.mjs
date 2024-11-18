@@ -201,20 +201,20 @@ class Button extends Entity {
     getSprite() {
         const localPlayer = this.game.players[this.game.localPlayerId]
         const color = localPlayer ? localPlayer.color : null
-        return ButtonSpriteSheets.get(color)[this.isDown ? 1 : 0]
+        return ButtonSpriteSheets.get(color).get(this.isDown ? 1 : 0)
     }
 
     drawTo(ctx) {
         if(this.disabled) return
         super.drawTo(ctx)
-        if(this.icon) {
+        if(this.icon && this.spriteWidth>0 && this.spriteHeight>0) {
             const iconImg = this.icon.getImg(
                 ~~(this.spriteWidth * .5),
                 ~~(this.spriteHeight * .5),
                 this.dirX,
                 this.dirY,
             )
-            if(iconImg && iconImg.width>0 && iconImg.height>0) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
+            if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
         }
     }
 }

@@ -213,9 +213,10 @@ export class Sprite {
 }
 
 
-export class SpriteSheet extends Array {
+export class SpriteSheet {
     constructor(src, nbCols, nbRows) {
-        super()
+        this.sprites = []
+        for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
         if(typeof src === "string") src = loadImg(src)  
         if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
         else this.initSprites(src, nbCols, nbRows)
@@ -228,15 +229,14 @@ export class SpriteSheet extends Array {
             can.width = frameWidth
             can.height = frameHeight
             can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
-            this.push(new Sprite(can))
+            this.get(i + j*nbCols).baseImg = can
         }
     }
     get(num, loop = false) {
-        const nbSprites = this.length
-        if(nbSprites == 0) return null
-        if(loop) num = num % nbSprites
-        else if(num >= nbSprites) return null
-        return this[num]
+        const { sprites } = this
+        if(loop) num = num % sprites.length
+        else if(num >= sprites.length) return null
+        return sprites[num]
     }
 }
 
@@ -267,7 +267,7 @@ export class Entity {
 
     drawTo(ctx) {
         const img = this.getImg()
-        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
+        if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
     }
 
     getSprite() {
@@ -277,7 +277,7 @@ export class Entity {
     getImg() {
         if(this.spriteVisible === false) return
         const sprite = this.getSprite()
-        if(!sprite) return
+        if(!sprite || !sprite.baseImg) return
         this.scaleSprite(sprite)
         return sprite.getImg(
             this.spriteWidth,
@@ -1577,7 +1577,7 @@ class Nico extends Hero {
         const spriteSheet = NicoSpriteSheets.get(color)
         if(iteration > 0 && this.speedResY == 0) return spriteSheet.get(1)
         else if(this.speedX == 0) return spriteSheet.get(0)
-        else return spriteSheet[1 + floor((iteration * dt * 6) % 3)]
+        else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
     }
 
     getInputState() {
@@ -1625,10 +1625,10 @@ class Nico extends Hero {
 
     static initJoypadButtons(joypadScn) {
         let col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowLeft", icon: ArrowsSpriteSheet[3] })
-        col.addButton({ key: "ArrowRight", icon: ArrowsSpriteSheet[1] })
+        col.addButton({ key: "ArrowLeft", icon: ArrowsSpriteSheet.get(3) })
+        col.addButton({ key: "ArrowRight", icon: ArrowsSpriteSheet.get(1) })
         col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowUp", icon: ArrowsSpriteSheet[0] })
+        col.addButton({ key: "ArrowUp", icon: ArrowsSpriteSheet.get(0) })
         joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
     }
 
@@ -1960,7 +1960,7 @@ class SwordExtra extends Extra {
         if(ratioSinceLastAttack <= 1) {
             this.x = 40  // TODO: weird
             this.width = this.height = 60
-            return SwordSlashSpriteSheet[floor(6*ratioSinceLastAttack)]
+            return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
             this.x = 25
             this.width = this.height = 40
@@ -2016,7 +2016,7 @@ class BombItem extends Entity {
         this.lastAddAge += 1
     }
     getSprite() {
-        return BombSpriteSheet[0]
+        return BombSpriteSheet.get(0)
     }
     getState() {
         const state = super.getState()
@@ -2054,7 +2054,7 @@ class BombExtra extends Extra {
         })
     }
     getSprite() {
-        return BombSpriteSheet[0]
+        return BombSpriteSheet.get(0)
     }
     getInputState() {
         const inputState = super.getInputState()
@@ -2083,7 +2083,7 @@ class Bomb extends DynamicEntity {
         this.itToLive -= 1
     }
     getSprite() {
-        return BombSpriteSheet[floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2]
+        return BombSpriteSheet.get(floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2)
     }
     getState() {
         const state = super.getState()
@@ -2128,7 +2128,7 @@ class Explosion extends Entity {
     }
     getSprite() {
         return ExplosionSpriteSheet.get(floor(
-            this.iteration / this.game.fps * ExplosionSpriteSheet.length
+            this.iteration / this.game.fps * 8 * 6
         ))
     }
     getState() {
