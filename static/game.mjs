@@ -18,13 +18,15 @@ const GRAVITY = 1000
 export const MSG_KEY_LENGTH = 3
 export const MSG_KEYS = {
     PING: "PNG",
-    JOIN_GAME: 'JOI',
     IDENTIFY_CLIENT: 'IDC',
-    GAME_STATE: 'STT',
-    PLAYER_INPUT: 'INP',
+    JOIN_GAME: 'JOI',
+    STATE: 'STT',
     GAME_INSTRUCTION: 'GMI',
 //   GAME_OVER: 'GOV',
 }
+
+const STATE_TYPE_FULL = "F"
+const STATE_TYPE_INPUT = "I"
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
@@ -520,7 +522,7 @@ export const MODE_CLIENT = 2
 export class GameCommon {
 
     constructor(parentEl, map, kwargs) {
-        this.mode = (kwargs &&kwargs.mode) || MODE_LOCAL
+        this.mode = (kwargs && kwargs.mode) || MODE_LOCAL
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
             this.parentEl = parentEl
@@ -594,12 +596,14 @@ export class GameCommon {
     }
 
     mayDraw() {
-        this.drawing ||= false
-        if(!this.drawing) {
-            this.drawing = true
+        this._drawing ||= false
+        if(!this._drawing) {
+            if(this.iteration == this._lastDrawIteration) return
+            this._drawing = true
+            this._lastDrawIteration = this.iteration
             window.requestAnimationFrame(() => {
                 this.draw()
-                this.drawing = false
+                this._drawing = false
             })
         }
     }
@@ -802,9 +806,15 @@ export class Game extends GameCommon {
 
         this.lag = 0
         this.sendPing = (kwargs && kwargs.sendPing) || null
-        this.sendState = (kwargs && kwargs.sendState) || null
-        this.sendInputState = (kwargs && kwargs.sendInputState) || null
+        this.sendStates = (kwargs && kwargs.sendStates) || null
         this.onLog = (kwargs && kwargs.onLog) || null
+
+        this.inputStates = []
+        if(this.mode != MODE_LOCAL) {
+            this.statesToSend = []
+            this.receivedStates = []
+            this.receivedAppliedStates = []
+        }
 
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
@@ -827,28 +837,28 @@ export class Game extends GameCommon {
     play() {
         if(this.gameLoop) return
         this.startTime = now()
-        this.updateGameLoop()
+        this.gameLoop = setInterval(() => this.updateGameLoop(), 1000 * this.dt)
     }
 
     updateGameLoop() {
-        const startTime = now()
-        if(this.mode == MODE_LOCAL) {
-            this.setLocalHeroInputState(this.getInputState())
-        } else {
-            this.setInputStateFromReceived()
-        }
+        if(this.updating) return
+        this._updating = true
+        const { mode } = this
+        //if(mode == MODE_LOCAL) this.setLocalHeroInputState()
+        // if(mode == MODE_CLIENT) this.getAndMaySendInputState()
+        // if(mode == MODE_SERVER) this.getAndMaySendInputStates()
+        // if(mode == MODE_CLIENT || mode == MODE_SERVER) this.setInputStatesFromReceived()
         const updStartTime = now()
         this.update()
         if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
-        if(this.mode == MODE_CLIENT) this.maySendPing()
-        if(this.mode == MODE_SERVER) this.getAndMaySendState()
-        if(this.mode != MODE_SERVER) this.mayDraw()
-        const updDur = now() - startTime
-        this.gameLoop = setTimeout(() => this.updateGameLoop(), max(0, 1000 * (this.dt - updDur)))
+        if(mode != MODE_LOCAL) this.getAndMaySendStates()
+        if(mode != MODE_SERVER) this.mayDraw()
+        if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
+        this.updating = false
     }
 
     stop() {
-        if(this.gameLoop) clearTimeout(this.gameLoop)
+        if(this.gameLoop) clearInterval(this.gameLoop)
         this.gameLoop = null
     }
 
@@ -878,8 +888,8 @@ export class Game extends GameCommon {
     }
 
     update() {
-        if(!this.receivedStates) this.updateGame()
-        else this.updateGameUsingReceivedStates()
+        if(this.mode == MODE_LOCAL) this.updateGame()
+        else this.updateGameApplyingReceivedStates()
         if(this.joypadScene) this.joypadScene.update()
         if(this.debugScene) this.debugScene.update()
     }
@@ -887,55 +897,92 @@ export class Game extends GameCommon {
     updateGame() {
         this.iteration += 1
         this.time = this.iteration * this.dt
+        this.applyInputStates()
         if(this.gameScene.visible) this.gameScene.update()
     }
 
-    updateGameUsingReceivedStates() {
-        const targetIteration = this.iteration + 1
-        const states = this.receivedStates
-        // received full state
-        let lastFullStateIdx = null
-        for(let i=0; i<states.length; ++i) if(states[i]._isFull) lastFullStateIdx = i
-        if(lastFullStateIdx !== null) {
-            this.setState(states[lastFullStateIdx])
-            this.lastFullStateIteration = this.iteration
-            states.splice(0, lastFullStateIdx+1)
-            this.cleanHistoryStates()
-            this.storeHistoryState()
-            const acceptableIteration = targetIteration - 1
-            if(this.iteration >= acceptableIteration) return
+    applyInputStates() {
+        for(const inputState of this.inputStates) {
+            const hero = this.gameScene.getHero(inputState.pid)
+            if(hero) hero.setInputState(inputState.is)
         }
-        // received partial states
-        if(this.lastFullStateIteration === undefined) return
-        let numState = 0, nbStates = states.length
-        for(; numState < nbStates; ++numState) {
-            const state = states[numState]
-            if(state.it < this.lastFullStateIteration) continue
-            if(!state._setDone) break
-        }
+        this.inputStates.length = 0
+    }
+
+    updateGameApplyingReceivedStates() {
+        const { receivedStates, receivedAppliedStates } = this
+        let targetIteration = this.iteration + 1
         while(this.iteration < targetIteration) {
-            const state = (numState < nbStates) ? states[numState] : null
-            if(state && state.it < this.iteration) this.restoreHistoryState(state.it)
-            else if(!state || state.it > this.iteration) this.updateGame()
-            if(state && state.it == this.iteration) { this.setState(state); state._setDone=true; numState+=1 }
-            this.storeHistoryState()
+            while(receivedStates.length > 0) {
+                const state = receivedStates[0]
+                if(state.t == STATE_TYPE_FULL) {
+                    this.setState(state)
+                    const newTargetIteration = max(this.iteration, targetIteration - 1)
+                    if(newTargetIteration != targetIteration) {
+                        if(this.isDebugMode) this.log("Fix iteration", targetIteration, "=>", newTargetIteration)
+                        targetIteration = newTargetIteration
+                    }
+                } else if(state.it >= targetIteration) break
+                if(state.t == STATE_TYPE_INPUT) this.inputStates.push(state)
+                receivedAppliedStates.push(state)
+                receivedStates.shift()
+            }
+            if(this.iteration < targetIteration) this.updateGame()
         }
+
+        // const targetIteration = this.iteration + 1
+        // const states = this.receivedStates
+        // // received full state
+        // let lastFullStateIdx = null
+        // for(let i=0; i<states.length; ++i) if(states[i]._isFull) lastFullStateIdx = i
+        // if(lastFullStateIdx !== null) {
+        //     this.setState(states[lastFullStateIdx])
+        //     this.lastFullStateIteration = this.iteration
+        //     states.splice(0, lastFullStateIdx+1)
+        //     if(this.receiveInputStates) for(let playerId in this.receiveInputStates) {
+        //         const playerInputState = this.receiveInputStates[playerId]
+        //         while(playerInputState.length>0 && playerInputState[0].it < this.iteration) playerInputState.shift()
+        //     }
+        //     // this.cleanHistoryStates()
+        //     // this.storeHistoryState()
+        //     const acceptableIteration = targetIteration - 1
+        //     // case fullState was late
+        //     while(this.iteration < acceptableIteration) this.updateGame()
+        // } else {
+        //     this.updateGame()
+        // }
+
+        // received partial states
+        // if(this.lastFullStateIteration === undefined) return
+        // let numState = 0, nbStates = states.length
+        // for(; numState < nbStates; ++numState) {
+        //     const state = states[numState]
+        //     if(state.it < this.lastFullStateIteration) continue
+        //     if(!state._setDone) break
+        // }
+        // while(this.iteration < targetIteration) {
+        //     const state = (numState < nbStates) ? states[numState] : null
+        //     if(state && state.it < this.iteration) this.restoreHistoryState(state.it)
+        //     else if(!state || state.it > this.iteration) this.updateGame()
+        //     if(state && state.it == this.iteration) { this.setState(state); state._setDone=true; numState+=1 }
+        //     this.storeHistoryState()
+        // }
     }
 
-    cleanHistoryStates() {
-        this.historyStates = {}
-    }
+    // cleanHistoryStates() {
+    //     this.historyStates = {}
+    // }
 
-    storeHistoryState() {
-        this.historyStates ||= {}
-        this.historyStates[this.iteration] = this.getState(true)
-    }
+    // storeHistoryState() {
+    //     this.historyStates ||= {}
+    //     this.historyStates[this.iteration] = this.getState(true)
+    // }
 
-    restoreHistoryState(it) {
-        if(this.isDebugMode) this.log("restoreHistoryState", this.iteration, it)
-        const state = JSON.parse(this.historyStates[it])
-        this.setState(state)
-    }
+    // restoreHistoryState(it) {
+    //     if(this.isDebugMode) this.log("restoreHistoryState", this.iteration, it)
+    //     const state = JSON.parse(this.historyStates[it])
+    //     this.setState(state)
+    // }
 
     draw() {
         const drawStartTime = now()
@@ -983,28 +1030,17 @@ export class Game extends GameCommon {
     setInputKey(key, val) {
         if(Boolean(this.keysPressed[key]) === val) return
         this.keysPressed[key] = val
-        if(this.mode == MODE_CLIENT) this.getAndSendInputState(true)
-    }
-
-    getAndSendInputState(checkPrev) {
-        const hero = this.gameScene.getHero(this.localPlayerId)
-        if(!hero) return
-        const inputState = hero.getInputState()
-        if(checkPrev) {
-            this.previnputStateStr ||= ""
-            const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
-            if(this.previnputStateStr == inputStateStr) return
-            this.previnputStateStr = inputStateStr
-        }
-        const inputStateWiTime = this.inputStateWiTime ||= {}
-        inputStateWiTime.t = now()
-        if(inputState && hasKeys(inputState)) inputStateWiTime.is = inputState
-        else delete inputStateWiTime.is
-        const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
-        if(this.isDebugMode) this.log("sendInputState", inputStateWiTimeStr)
-        this.sendInputState(inputStateWiTimeStr)
-        if(this.resendInputStateTimeout) clearTimeout(this.resendInputStateTimeout)
-        this.resendInputStateTimeout = inputStateWiTime.is ? setTimeout(() => this.getAndSendInputState(false), RESEND_INPUT_STATE_PERIOD * 1000) : null
+        const localHero = this.gameScene.getHero(this.localPlayerId)
+        if(!localHero) return
+        const states = (this.mode == MODE_CLIENT) ? this.statesToSend : this.inputStates
+        const inputState = localHero.getInputState()
+        if(localHero) states.push({
+            t: STATE_TYPE_INPUT,
+            pid: this.localPlayerId,
+            it: this.iteration,
+            is: (inputState && hasKeys(inputState)) ? inputState : null
+        })
+        //if(this.mode == MODE_CLIENT) this.getAndMaySendInputState()
     }
 
     maySendPing() {
@@ -1024,104 +1060,243 @@ export class Game extends GameCommon {
     }
 
     getState(isFull) {
-        this.fullState ||= { _isFull: true }
+        this.fullState ||= { t: STATE_TYPE_FULL }
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
         state.it = this.iteration
         if(isFull) state.players = this.players
-        state.main = this.gameScene.getState(isFull)
-        return (isFull || state.main) ? JSON.stringify(state) : null
-    }
-
-    receiveState(stateStr) {
-        const state = JSON.parse(stateStr)
-        if(this.isDebugMode) this.log("receiveState", state._isFull ? "Full" : "Partial", stateStr)
-        const receivedStates = this.receivedStates ||= []
-        receivedStates.push(state)
-        if(receivedStates.length >= 2) receivedStates.sort((a, b) => a.it - b.it)
+        state.game = this.gameScene.getState(isFull)
+        return (isFull || state.game) ? state : null
     }
 
     setState(state) {
-        const isFull = state._isFull || false
+        const isFull = (state.t == STATE_TYPE_FULL)
         if(isFull) this.iteration = state.it
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
-        if(state.main) {
-            if(isFull && state.main.id != this.gameScene.id)
-                this.restart(state.main.id)
-            this.gameScene.setState(state.main, isFull)
+        if(state.game) {
+            if(isFull && state.game.id != this.gameScene.id)
+                this.restart(state.game.id)
+            this.gameScene.setState(state.game, isFull)
         }
     }
 
-    getAndMaySendState() {
-        this.lastSendStateTime ||= -SEND_STATE_PERIOD
-        if(this.time > this.lastSendStateTime + SEND_STATE_PERIOD) {
-            const stateStr = this.getState(true)
-            this.sendState(stateStr)
-            if(this.isDebugMode) this.log("sendState", stateStr)
-            this.lastSendStateTime = this.time
-        } else {
-            const stateStr = this.getState(false)
-            if(stateStr) {
-                this.sendState(stateStr)
-                if(this.isDebugMode) this.log("sendState", stateStr)
+    // server only
+    getAndMaySendStates() {
+        const { iteration, receivedStates, receivedAppliedStates, statesToSend } = this
+        if(this.mode == MODE_SERVER) {
+            // full state
+            this._lastSendFullStateTime ||= -SEND_STATE_PERIOD
+            if(this.time > this._lastSendFullStateTime + SEND_STATE_PERIOD) {
+                const stateStr = this.getState(true)
+                statesToSend.push(stateStr)
+                this._lastSendFullStateTime = this.time
             }
+            // forward
+            while(receivedAppliedStates.length > 0) {
+                statesToSend.push(...receivedAppliedStates)
+                receivedAppliedStates.length = 0
+            }
+        }
+        if(statesToSend.length > 0) {
+            const statesToSendStr = JSON.stringify(statesToSend)
+            if(this.isDebugMode) this.log("sendStates", statesToSendStr)
+            this.sendStates(statesToSendStr)
+            statesToSend.length = 0
+        }
+        //  else {
+        //     const stateStr = this.getState(false)
+        //     if(stateStr) {
+        //         this.sendState(stateStr)
+        //         if(this.isDebugMode) this.log("sendState", stateStr)
+        //     }
+        // }
+    }
+
+    receiveStatesFromPlayer(playerId, statesStr) {
+        if(this.isDebugMode) this.log("receiveStatesFromPlayer", playerId, statesStr)
+        const states = JSON.parse(statesStr)
+        for(let state of states) {
+            if(state.pid != playerId) continue
+            if(state.t == STATE_TYPE_INPUT) this.fixReceivedInputStateIt(state)
+            this.addReceivedState(state)
         }
     }
 
-    getInputState() {
-        const hero = this.gameScene.getHero(this.localPlayerId)
-        if(!hero) return
-        return hero.getInputState()
+    fixReceivedInputStateIt(inputStateWiIt) {
+        const receivedInputStatePrevDit = this._receivedInputStatePrevDit ||= {}
+        const playerId = inputStateWiIt.pid, clientIt = inputStateWiIt.it, prevDit = receivedInputStatePrevDit[playerId] || 0
+        inputStateWiIt.it = this.iteration
+        if(prevDit !== 0) inputStateWiIt.it = max(inputStateWiIt.it, clientIt + prevDit)
+        if(inputStateWiIt.is) receivedInputStatePrevDit[playerId] = max(prevDit, this.iteration - clientIt)
+        else delete receivedInputStatePrevDit[playerId]
     }
 
-    setLocalHeroInputState(inputState) {
-        const hero = this.gameScene.getHero(this.localPlayerId)
-        if(hero) hero.setInputState(inputState)
-    }
-
-    receivePlayerInputState(playerId, inputStateWiTimeStr) {
-        if(this.isDebugMode) this.log("receivePlayerInputState", playerId, inputStateWiTimeStr)
-        const receivedInputStates = this.receivedInputStates ||= {}
-        const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-        const inputStateWiTime = JSON.parse(inputStateWiTimeStr)
-        inputStateWiTime.localTime = now()
-        inputStateWiTime.duration = RESEND_INPUT_STATE_PERIOD
-        if(playerReceivedInputStates.length > 0) {
-            const prevInputStateWiTime = playerReceivedInputStates[playerReceivedInputStates.length-1]
-            prevInputStateWiTime.duration = inputStateWiTime.t - prevInputStateWiTime.t
-        }
-        playerReceivedInputStates.push(inputStateWiTime)
-    }
-
-    setInputStateFromReceived() {
-        const _now = now()
-        const receivedInputStates = this.receivedInputStates ||= {}
-        for(let playerId in receivedInputStates) {
-            const hero = this.gameScene.getHero(playerId)
-            if(!hero) continue
-            const playerReceivedInputStates = receivedInputStates[playerId]
-            if(playerReceivedInputStates.length == 0) continue
-            while(playerReceivedInputStates.length > 0) {
-                const inputStateWiTime = playerReceivedInputStates[0]
-                if(_now - inputStateWiTime.localTime > inputStateWiTime.duration) playerReceivedInputStates.shift()
-                else break
-            }
-            let inputStateWiTime = null, inputState = null
-            if(playerReceivedInputStates.length > 0) {
-                inputStateWiTime = playerReceivedInputStates[0]
-                inputState = inputStateWiTime.is
-            }
-            if(!inputState) {
-                hero.setInputState(null)
-                playerReceivedInputStates.shift()
-            } else {
-                if(!inputStateWiTime.setDone) {
-                    hero.setInputState(inputState)
-                    inputStateWiTime.setDone = true
-                }
+    receiveStatesFromLeader(statesStr) {
+        if(this.isDebugMode) this.log("receiveStatesFromLeader", statesStr)
+        const { receivedStates } = this
+        this._lastFullStateIt ||= 0
+        const states = JSON.parse(statesStr)
+        for(let state of states) {
+            this.addReceivedState(state)
+            if(state.t == STATE_TYPE_FULL) {
+                this._lastFullStateIt = state.it
+                for(let state2 of this.receivedAppliedStates) this.addReceivedState(state2)
+                this.receivedAppliedStates.length = 0
             }
         }
+        receivedStates.splice(0, receivedStates.findLastIndex(s => (s.it < this._lastFullStateIt)) + 1)
     }
+
+    addReceivedState(state) {
+        const { receivedStates } = this
+        receivedStates.push(state)
+        const getOrder = s => (s.it + ((s.t == STATE_TYPE_INPUT) ? .5 : 0))
+        if(receivedStates.length >= 2) receivedStates.sort((a, b) => getOrder(a) - getOrder(b))
+    }
+
+    // getInputState() {
+    //     const hero = this.gameScene.getHero(this.localPlayerId)
+    //     if(!hero) return
+    //     return hero.getInputState()
+    // }
+
+    // setLocalHeroInputState() {
+    //     const hero = this.gameScene.getHero(this.localPlayerId)
+    //     if(hero) hero.setInputState(hero.getInputState())
+    // }
+
+    // client mode only
+    // getAndSendInputState(checkPrev) {
+    //     const hero = this.gameScene.getHero(this.localPlayerId)
+    //     if(!hero) return
+    //     const inputState = hero.getInputState()
+    //     if(checkPrev) {
+    //         this.previnputStateStr ||= ""
+    //         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
+    //         if(this.previnputStateStr == inputStateStr) return
+    //         this.previnputStateStr = inputStateStr
+    //     }
+    //     const inputStateWiTime = this.inputStateWiTime ||= {}
+    //     inputStateWiTime.t = now()
+    //     if(inputState && hasKeys(inputState)) inputStateWiTime.is = inputState
+    //     else delete inputStateWiTime.is
+    //     const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
+    //     if(this.isDebugMode) this.log("sendInputState", inputStateWiTimeStr)
+    //     this.sendInputState(inputStateWiTimeStr)
+    //     if(this.resendInputStateTimeout) clearTimeout(this.resendInputStateTimeout)
+    //     this.resendInputStateTimeout = inputStateWiTime.is ? setTimeout(() => this.getAndSendInputState(false), RESEND_INPUT_STATE_PERIOD * 1000) : null
+    // }
+
+    // getAndMaySendInputState() {
+    //     const hero = this.gameScene.getHero(this.localPlayerId)
+    //     if(!hero) return
+    //     const inputState = hero.getInputState()
+    //     this.prevInputStateStr ||= ""
+    //     const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
+    //     if(this.prevInputStateStr == inputStateStr) return
+    //     this.prevInputStateStr = inputStateStr
+    //     const inputStateWiIt = this.inputStateWiIt ||= {}
+    //     inputStateWiIt.it = this.iteration
+    //     if(inputState && hasKeys(inputState)) inputStateWiIt.is = inputState
+    //     else delete inputStateWiIt.is
+    //     const inputStateWiItStr = JSON.stringify(inputStateWiIt)
+    //     if(this.isDebugMode) this.log("sendInputState", inputStateWiItStr)
+    //     this.sendInputState(inputStateWiItStr)
+    // }
+
+    // server mode only
+    // receivePlayerInputState(playerId, inputStateWiItStr) {
+    //     if(this.isDebugMode) this.log("receivePlayerInputState", playerId, inputStateWiItStr)
+    //     const receivedInputStates = this.receivedInputStates ||= {}
+    //     const playerReceivedInputStates = receivedInputStates[playerId] ||= []
+    //     const inputStateWiIt = JSON.parse(inputStateWiItStr)
+    //     const receivedInputStatePrevClientDit = this.receivedInputStatePrevClientDit ||= {}
+    //     const clientIt = inputStateWiIt.it, prevClientDit = receivedInputStatePrevClientDit[playerId]
+    //     if(prevClientDit !== undefined) {
+    //         inputStateWiIt.it = max(this.iteration, clientIt + prevClientDit)
+    //     } else {
+    //         inputStateWiIt.it = this.iteration
+    //     }
+    //     playerReceivedInputStates.push(inputStateWiIt)
+    //     if(inputStateWiIt.is) receivedInputStatePrevClientDit[playerId] = this.iteration - clientIt
+    //     else delete receivedInputStatePrevClientDit[playerId]
+    // }
+
+    // server & client mode only
+    // setInputStatesFromReceived() {
+    //     const { iteration } = this
+    //     const receivedInputStates = this.receivedInputStates ||= {}
+    //     for(let playerId in receivedInputStates) {
+    //         const hero = this.gameScene.getHero(playerId)
+    //         if(!hero) continue
+    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
+    //         while(playerReceivedInputStates.length > 0) {
+    //             const inputState = playerReceivedInputStates[0]
+    //             if(inputState.it > iteration) break
+    //             hero.setInputState(inputState.is)
+    //             playerReceivedInputStates.shift()
+    //         }
+    //     }
+    // }
+
+    // setInputStateFromReceived() {
+    //     const _now = now()
+    //     const receivedInputStates = this.receivedInputStates ||= {}
+    //     for(let playerId in receivedInputStates) {
+    //         const hero = this.gameScene.getHero(playerId)
+    //         if(!hero) continue
+    //         const playerReceivedInputStates = receivedInputStates[playerId]
+    //         if(playerReceivedInputStates.length == 0) continue
+    //         while(playerReceivedInputStates.length > 0) {
+    //             const inputStateWiTime = playerReceivedInputStates[0]
+    //             if(_now - inputStateWiTime.localTime > inputStateWiTime.duration) playerReceivedInputStates.shift()
+    //             else break
+    //         }
+    //         let inputStateWiTime = null, inputState = null
+    //         if(playerReceivedInputStates.length > 0) {
+    //             inputStateWiTime = playerReceivedInputStates[0]
+    //             inputState = inputStateWiTime.is
+    //         }
+    //         if(!inputState) {
+    //             hero.setInputState(null)
+    //             playerReceivedInputStates.shift()
+    //         } else {
+    //             if(!inputStateWiTime.setDone) {
+    //                 hero.setInputState(inputState)
+    //                 inputStateWiTime.setDone = true
+    //             }
+    //         }
+    //     }
+    // }
+
+    // server mode only
+    // getAndMaySendInputStates() {
+    //     const { iteration } = this
+    //     const inputStatesWiIt = {}
+    //     const receivedInputStates = this.receivedInputStates ||= {}
+    //     for(let playerId in receivedInputStates){
+    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
+    //         const inputStateWiIt = playerReceivedInputStates[0]
+    //         if(inputStateWiIt && inputStateWiIt.it == iteration) inputStatesWiIt[playerId] = inputStateWiIt
+    //     }
+    //     if(hasKeys(inputStatesWiIt)) {
+    //         const inputStatesWiItStr = JSON.stringify(inputStatesWiIt)
+    //         if(this.isDebugMode) this.log("sendInputStates", inputStatesWiItStr)
+    //         this.sendInputStates(inputStatesWiItStr)
+    //     }
+    // }
+
+    // client mode only
+    // receiveInputStates(inputStatesWiItStr) {
+    //     if(this.isDebugMode) this.log("receiveInputStates", inputStatesWiItStr)
+    //     const receivedInputStates = this.receivedInputStates ||= {}
+    //     const inputStatesWiIt = JSON.parse(inputStatesWiItStr)
+    //     for(let playerId in inputStatesWiIt) {
+    //         const playerInputStatesWiIt = inputStatesWiIt[playerId]
+    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
+    //         playerReceivedInputStates.push(playerInputStatesWiIt)
+    //     }
+    // }
 
     async showJoypadScene(val) {
         if(val == Boolean(this.joypadScene)) return
@@ -1504,7 +1679,6 @@ export class Hero extends LivingEntity {
     setInputState(inputState) {
         const extras = this.extras
         if(extras) extras.setInputState(inputState && inputState.extras)
-        if(inputState) delete inputState.extras
         this.inputState = inputState
         this.inputStateTime = now()
         this._isStateToSend = true
@@ -1830,15 +2004,11 @@ class Extra extends Entity {
     getState() {
         const state = this.state ||= {}
         state.key = this.constructor.key
-        const inputState = this.inputState
-        if(inputState && hasKeys(inputState)) state.ist = inputState
-        else delete state.ist
+        // onputState already managed by Entity.getState
         return state
     }
 
-    setState(state) {
-        this.inputState = state.ist
-    }
+    setState() {}
 
     getInputState() {
         const inputState = this._inputState ||= {}
@@ -1945,7 +2115,7 @@ class SwordExtra extends Extra {
             this.x = 25
             this.width = this.height = 40
         }
-        if(this.lastAttackAge == 3) { // TODO: 3 as long as input state sync is a bit buggy
+        if(this.lastAttackAge == 0) { 
             for(let enem of this.scene.getTeam("enemy")) {
                 if(checkHit(this, enem)) this.attackEnemy(enem)
             }

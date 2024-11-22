@@ -73,7 +73,7 @@ class GameServer {
         const msgStr = decoder.decode(msg) // TODO: optimise this
         const key = msgStr.substring(0, MSG_KEY_LENGTH)
         const body = msgStr.substring(MSG_KEY_LENGTH)
-        if(key === MSG_KEYS.PLAYER_INPUT) this.handlePlayerInput(ws, body)
+        if(key === MSG_KEYS.STATE) this.handleState(ws, body)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
         else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
@@ -160,11 +160,11 @@ class GameServer {
     console.log(`Client '${client.id}' joined game as '${name}'`)
   }
 
-  handlePlayerInput(ws, data) {
+  handleState(ws, data) {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
     const { game } = client.room
-    if(game) game.receivePlayerInputState(client.id, data)
+    if(game) game.receiveStatesFromPlayer(client.id, data)
   }
 
   handleGameInstruction(ws, data) {
@@ -179,7 +179,7 @@ class GameServer {
     await map.importFromBinary(mapBin)
     room.game = new Game(null, map, null, {
       mode: MODE_SERVER,
-      sendState: stateStr => room.sendAll(MSG_KEYS.GAME_STATE + stateStr),
+      sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
       debug: IS_DEBUG_MODE,
     })
     room.game.play()

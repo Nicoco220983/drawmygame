@@ -142,6 +142,7 @@ showJoypadLinkBut.onclick = () => {
 
 const fullscrenEl = document.getElementById("fullscreen")
 gameParentEl.onclick = evt => {
+    if(!isMob) return 
     if(!game || game.isFullscreened()) return
     game.requestFullscreen()
     evt.stopPropagation()
@@ -193,7 +194,7 @@ function connectToRoom() {
             const key = evt.data.substring(0, MSG_KEY_LENGTH)
             const data = evt.data.substring(MSG_KEY_LENGTH)
             if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
-            else if(key === MSG_KEYS.GAME_STATE) handleGameState(ws, data)
+            else if(key === MSG_KEYS.STATE) handleState(ws, data)
             else if(key === MSG_KEYS.PING) handlePing(ws, data)
         })
         ws.addEventListener('close', () => {
@@ -216,7 +217,7 @@ function startGame() {
     game = new Game(gameParentEl, map, ws.id, {
         mode: MODE_CLIENT,
         sendPing: () => ws.send(MSG_KEYS.PING),
-        sendInputState: inputStateStr => ws.send(MSG_KEYS.PLAYER_INPUT + inputStateStr),
+        sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
         debug: isDebugMode,
         onLog: showLogs ? addLog : null
     })
@@ -255,8 +256,8 @@ function joinGame(name, color) {
     if(game) game.canvas.focus()
 }
 
-function handleGameState(ws, data) {
-    if(game) game.receiveState(data)
+function handleState(ws, data) {
+    if(game) game.receiveStatesFromLeader(data)
 }
 
 function handlePing(ws, data) {
