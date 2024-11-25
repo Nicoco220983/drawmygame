@@ -1,5 +1,5 @@
 const { assign } = Object
-const { abs, floor, ceil, min, max, pow, sqrt, atan2, PI, random } = Math
+const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas } = utils
 import PhysicsEngine from './physics.mjs'
@@ -254,6 +254,8 @@ export class Entity {
             dirX: 1,
             dirY: 1,
             spriteVisible: true,
+            spriteDx: 0,
+            spriteDy: 0,
         })
     }
 
@@ -262,14 +264,17 @@ export class Entity {
         this.y = y
         this.scene = scn
         this.game = scn.game
-        this.scaleSprite = Entity.spriteFit
     }
 
     update() {}
 
     drawTo(ctx) {
         const img = this.getImg()
-        if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
+        if(img) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
+    }
+
+    scaleSprite(sprite) {
+        this.spriteFit(sprite)
     }
 
     getSprite() {
@@ -332,44 +337,44 @@ export class Entity {
         if(state.dirY !== undefined) this.dirY = state.dirY
         else delete this.dirY
     }
-}
 
-Entity.spriteFit = function(sprite) {
-    const { width, height } = this
-    const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    if(width * baseHeight > baseWidth * height){
-        this.spriteWidth = ~~(baseWidth*height/baseHeight)
-        this.spriteHeight = height
-    } else {
+    spriteFit(sprite) {
+        const { width, height } = this
+        const { width: baseWidth, height: baseHeight } = sprite.baseImg
+        if(width * baseHeight > baseWidth * height){
+            this.spriteWidth = ~~(baseWidth*height/baseHeight)
+            this.spriteHeight = height
+        } else {
+            this.spriteWidth = width
+            this.spriteHeight = ~~(baseHeight*width/baseWidth)
+        }
+    }
+    
+    spriteFill(sprite) {
+        const { width, height } = this
+        const { width: baseWidth, height: baseHeight } = sprite.baseImg
+        if(width * baseHeight < baseWidth * height){
+            this.spriteWidth = ~~(baseWidth*height/baseHeight)
+            this.spriteHeight = height
+        } else {
+            this.spriteWidth = width
+            this.spriteHeight = ~~(baseHeight*width/baseWidth)
+        }
+    }
+    
+    spriteFitWidth(sprite) {
+        const { width } = this
+        const { width: baseWidth, height: baseHeight } = sprite.baseImg
         this.spriteWidth = width
         this.spriteHeight = ~~(baseHeight*width/baseWidth)
     }
-}
-
-Entity.spriteFill = function(sprite) {
-    const { width, height } = this
-    const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    if(width * baseHeight < baseWidth * height){
+    
+    spriteFitHeight(sprite) {
+        const { height } = this
+        const { width: baseWidth, height: baseHeight } = sprite.baseImg
         this.spriteWidth = ~~(baseWidth*height/baseHeight)
         this.spriteHeight = height
-    } else {
-        this.spriteWidth = width
-        this.spriteHeight = ~~(baseHeight*width/baseWidth)
     }
-}
-
-Entity.spriteFitWidth = function(sprite) {
-    const { width } = this
-    const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    this.spriteWidth = width
-    this.spriteHeight = ~~(baseHeight*width/baseWidth)
-}
-
-Entity.spriteFitHeight = function(sprite) {
-    const { height } = this
-    const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    this.spriteWidth = ~~(baseWidth*height/baseHeight)
-    this.spriteHeight = height
 }
 
 export const Entities = {}
@@ -1830,15 +1835,15 @@ class Enemy extends LivingEntity {
 }
 
 
-const ZombiSpriteSheet = new SpriteSheet("/static/assets/zombi.png", 8, 1)
+const BlobSprite = new Sprite("/static/assets/blob.png")
 
-class Zombi extends Enemy {
+class BlobEnemy extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = 50
-        this.height = 60
-        this.scaleSprite = Entity.spriteFitHeight
+        this.height = 36
         this.lastChangeDirAge = 0
+        this.spriteRand = floor(random() * this.game.fps)
     }
 
     update() {
@@ -1854,7 +1859,7 @@ class Zombi extends Enemy {
             // const wallAheadBy = ceil((top + height - 1) / boxSize)
             // const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
             // if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
-            this.speedX = this.dirX * 20
+            this.speedX = this.dirX * 30
         }
         // attack
         this.scene.getTeam("hero").forEach(hero => {
@@ -1864,9 +1869,17 @@ class Zombi extends Enemy {
     }
 
     getSprite() {
-        const { dt } = this.game
+        return BlobSprite
+    }
+    
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
         const { iteration } = this.scene
-        return ZombiSpriteSheet.get(floor(iteration * dt * 6), true)
+        const { fps } = this.game
+        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAnggle = cos(angle), sinAngle = sin(angle)
+        this.spriteWidth *= (1 + .1 * cosAnggle)
+        this.spriteHeight *= (1 + .1 * sinAngle)
+        this.spriteDy = -this.spriteWidth * .1 * sinAngle / 2
     }
 
     getHitBox() {
@@ -1889,7 +1902,7 @@ class Zombi extends Enemy {
         this.lastChangeDirAge = state.cda
     }
 }
-Entities.register("zombi", Zombi)
+Entities.register("blob", BlobEnemy)
 
 
 const BatSpriteSheet = new SpriteSheet("/static/assets/bat.png", 4, 1)
@@ -1899,7 +1912,6 @@ class Bat extends Enemy {
         super(scn, x, y)
         this.width = 80
         this.height = 40
-        this.scaleSprite = Entity.spriteFitHeight
         this.undergoGravity = false
     }
 
@@ -1941,7 +1953,6 @@ class Spider extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 45
-        this.scaleSprite = Entity.spriteFitHeight
         this.undergoGravity = false
     }
 
