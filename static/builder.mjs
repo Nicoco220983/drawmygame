@@ -104,7 +104,7 @@ class BuilderScene extends SceneCommon {
         const { mode } = this.game
         if(mode == "move") this.updateMove()
         else if(mode == "wall") this.updateWall()
-        else if(mode == "erase") this.removePointedEntity()
+        else if(mode == "erase") this.erasePointedEntityOrWall()
         else if(mode == "entity") this.updateEntity()
     }
 
@@ -128,9 +128,7 @@ class BuilderScene extends SceneCommon {
     }
 
     updateWall(key) {
-        const { touches, map } = this.game
-        // const { boxSize, walls } = this.game.map
-        const { modeKey } = this.game
+        const { touches, modeKey } = this.game
 
         if(touches.length > 0) {
             if(!this.prevIsDown) {
@@ -138,50 +136,31 @@ class BuilderScene extends SceneCommon {
                 const touch = touches[0]
                 const touchX = touch.x + this.viewX
                 const touchY = touch.y + this.viewY
-                if(this.prevTouchX !== null) {
-                    const wall = this.addWall(this.prevTouchX, this.prevTouchY, touchX, touchY)
-                    wall.mapRef = { x1: this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY }
-                    map.walls.push(wall.mapRef)
-                }
+                if(this.prevTouchX !== null) this.addWallAndSyncMap(this.prevTouchX, this.prevTouchY, touchX, touchY)
                 this.prevTouchX = touchX
                 this.prevTouchY = touchY
             }
         } else {
             this.prevIsDown = false
         }
-
-
-
-        //     const prevWallKey = walls[boxX][boxY]
-        //     if(this.currentWallKey === null) {
-        //         if(prevWallKey) this.currentWallKey = 0 // delete
-        //         else if(modeKey == "wall") this.currentWallKey = "W"
-        //         else if(modeKey == "platform") this.currentWallKey = "P"
-        //     }
-        //     // case delete
-        //     if(this.currentWallKey === 0) {
-        //         if(prevWallKey !== null) {
-        //             walls[boxX][boxY] = null
-        //             this.walls.forEach(w => {
-        //                 if(w.boxX == boxX && w.boxY == boxY) w.remove()
-        //             })
-        //         }
-        //         return
-        //     }
-        //     // case new box
-        //     if(prevWallKey !== null && this.currentWallKey == prevWallKey) return
-        //     this.addWall(boxX, boxY, this.currentWallKey)
-        //     walls[boxX][boxY] = this.currentWallKey
-        // } else {
-        //     this.currentWallKey = null
-        // }
     }
 
-    addEntityInMap(x, y, key) {
+    addWallAndSyncMap(x1, y1, x2, y2) {
+        const wall = this.addWall(x1, y1, x2, y2)
+        wall.mapRef = { x1, y1, x2, y2 }
+        this.game.map.walls.push(wall.mapRef)
+    }
+
+    removeWallAndSyncMap(wall) {
+        wall.remove()
+        removeFromArr(this.game.map.walls, wall.mapRef)
+    }
+
+    addEntityAndSyncMap(x, y, key) {
         const ent = this.addEntity(x, y, key)
         if(ent instanceof Hero) {
             this.entities.forEach(ent2 => {
-                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntityFromMap(ent2)
+                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntityAndSyncMap(ent2)
             })
             ent.mapRef = { x, y, keys: [key] }
             this.game.map.heros = [ent.mapRef]
@@ -192,23 +171,28 @@ class BuilderScene extends SceneCommon {
         return ent
     }
 
-    removeEntityFromMap(ent) {
+    removeEntityAndSyncMap(ent) {
         const { map } = this.game
         ent.remove()
         if(ent instanceof Hero) map.hero = null
-        else map.entities.splice(map.entities.indexOf(ent.mapRef), 1)
+        else removeFromArr(map.entities, ent.mapRef)
     }
 
-    removePointedEntity() {
+    erasePointedEntityOrWall() {
         const { touches, prevHasTouches } = this.game
         if(touches.length > 0 && !prevHasTouches) {
             const touch = touches[0]
-            const x = touch.x + this.viewX
-            const y = touch.y + this.viewY
+            const x = touch.x + this.viewX, y = touch.y + this.viewY
+            // walls
+            this.walls.forEach(wall => {
+                if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
+                    this.removeWallAndSyncMap(wall)
+            })
+            // entities
             this.entities.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    this.removeEntityFromMap(ent)
+                    this.removeEntityAndSyncMap(ent)
                 }
             })
         }
@@ -221,7 +205,7 @@ class BuilderScene extends SceneCommon {
             const touch = touches[0]
             const x = touch.x + this.viewX
             const y = touch.y + this.viewY
-            this.addEntityInMap(x, y, modeKey)
+            this.addEntityAndSyncMap(x, y, modeKey)
         }
     }
 
@@ -232,3 +216,18 @@ class BuilderScene extends SceneCommon {
         this.entities.drawTo(ctx)
     }
 }
+
+
+function removeFromArr(arr, item) {
+    arr.splice(arr.indexOf(item), 1)
+}
+
+
+function distancePointSegment(x, y, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1
+    const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)
+    const px = x1 + t * dx, py = y1 + t * dy
+    if (t < 0) return sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1))
+    else if (t > 1) sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2))
+    else return sqrt((x - px) * (x - px) + (y - py) * (y - py))
+  }
