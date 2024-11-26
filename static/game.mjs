@@ -197,8 +197,8 @@ export class Sprite {
         else this.baseImg = src
         this.transImgs = {}
     }
-    getImg(width, height, dirX, dirY) {
-        const key = `${width}:${height}:${dirX}:${dirY}`
+    getImg(width, height, dirX, dirY, visibility) {
+        const key = `${width}:${height}:${dirX}:${dirY}:${visibility}`
         let res = this.transImgs[key]
         if(res) return res
         const { baseImg } = this
@@ -208,6 +208,7 @@ export class Sprite {
         const ctx = resImg.getContext("2d")
         ctx.translate(dirX >= 0 ? 0 : width, dirY >= 0 ? 0 : height)
         ctx.scale(width/baseWidth * dirX, height/baseHeight * dirY)
+        ctx.globalAlpha = visibility
         ctx.drawImage(baseImg, 0, 0)
         this.transImgs[key] = resImg
         return resImg
@@ -253,7 +254,7 @@ export class Entity {
             height: 10,
             dirX: 1,
             dirY: 1,
-            spriteVisible: true,
+            spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
         })
@@ -282,7 +283,7 @@ export class Entity {
     }
 
     getImg() {
-        if(this.spriteVisible === false) return
+        if(this.spriteVisibility === 0) return
         const sprite = this.getSprite()
         if(!sprite || !sprite.baseImg) return
         this.scaleSprite(sprite)
@@ -291,6 +292,7 @@ export class Entity {
             this.spriteHeight,
             this.dirX,
             this.dirY,
+            this.spriteVisibility,
         )
     }
 
@@ -309,8 +311,8 @@ export class Entity {
         left += this.scene.x
         top += this.scene.y
         for(let touch of this.game.touches) {
-            const { x: touchX, y: touchY } = touch
-            if(left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
+            const { isDown, x: touchX, y: touchY } = touch
+            if(isDown && left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
         }
         return false
     }
@@ -565,11 +567,12 @@ export class GameCommon {
         this.touches = []
 
         const el = this.game.canvas
-        const _updTouches = evtTouches => {
+        const _updTouches = (isDown, evtTouches) => {
             this.touches.length = 0
             const rect = el.getBoundingClientRect()
             for(let evtTouch of evtTouches) {
                 this.touches.push({
+                    isDown,
                     x: (evtTouch.clientX - rect.left) * el.width / rect.width,
                     y: (evtTouch.clientY - rect.top) * el.height / rect.height,
                 })
@@ -578,14 +581,14 @@ export class GameCommon {
         }
 
         if(HAS_TOUCH) {
-            el.addEventListener("touchmove", evt => _updTouches(evt.touches))
-            el.addEventListener("touchstart", evt => _updTouches(evt.touches))
-            document.addEventListener("touchend", evt => _updTouches(evt.touches))
+            el.addEventListener("touchmove", evt => _updTouches(true, evt.touches))
+            el.addEventListener("touchstart", evt => _updTouches(true, evt.touches))
+            document.addEventListener("touchend", evt => _updTouches(true, evt.touches))
         } else {
             let isDown = false
-            el.addEventListener("mousemove", evt => _updTouches(isDown ? [evt] : []))
-            el.addEventListener("mousedown", evt => { isDown = true; _updTouches([evt]) })
-            document.addEventListener("mouseup", evt => { isDown = false; _updTouches([]) })
+            el.addEventListener("mousemove", evt => _updTouches(isDown, [evt]))
+            el.addEventListener("mousedown", evt => { isDown = true; _updTouches(isDown, [evt]) })
+            document.addEventListener("mouseup", evt => { isDown = false; _updTouches(isDown, [evt]) })
         }
     }
 
@@ -792,7 +795,9 @@ class Wall extends Entity {
         ctx.beginPath()
         ctx.moveTo(this.x1, this.y1)
         ctx.lineTo(this.x2, this.y2)
+        ctx.globalAlpha = this.spriteVisibility
         ctx.stroke()
+        ctx.globalAlpha = 1
     }
 }
 
@@ -1559,8 +1564,8 @@ export class LivingEntity extends DynamicEntity {
         const { iteration, step } = this.scene
         const { dt } = this.game
         this.undergoWalls = (life > 0)
-        if(step != "GAME" || life == 0 || this.isDamageable()) this.spriteVisible = true
-        else this.spriteVisible = floor(iteration * dt * 100) % 2 == 0
+        if(step != "GAME" || life == 0 || this.isDamageable()) this.spriteVisibility = 1
+        else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
         if(this.iteBeforeRm != null) {
             if(this.iteBeforeRm <= 0) this.remove()
             this.iteBeforeRm -= 1
@@ -2085,8 +2090,8 @@ class SwordItem extends Entity {
         this.lastAddAge = this.respawnDur * this.game.fps
     }
     update() {
-        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
-        if(this.spriteVisible) {
+        this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
+        if(this.spriteVisibility > 0) {
             for(let hero of this.scene.getTeam("hero")) {
                 if(checkHit(this, hero)) {
                     hero.addExtra(new SwordExtra(hero))
@@ -2196,8 +2201,8 @@ class BombItem extends Entity {
         this.lastAddAge = this.respawnDur * this.game.fps
     }
     update() {
-        this.spriteVisible = this.lastAddAge >= this.respawnDur * this.game.fps
-        if(this.spriteVisible) {
+        this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
+        if(this.spriteVisibility > 0) {
             for(let hero of this.scene.getTeam("hero")) {
                 if(checkHit(this, hero)) {
                     hero.addExtra(new BombExtra(hero))

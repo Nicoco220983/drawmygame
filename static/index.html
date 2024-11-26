@@ -108,9 +108,8 @@ document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setMode('enti
 document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setMode('entity', 'checkpt')
 document.getElementById("mode_star").onclick = Keys["es"] = () => setMode('entity', 'star')
 function setMode(mode, modeKey) {
-    gameBuilder.mode = mode
-    gameBuilder.modeKey = modeKey
-    if(gameBuilder) gameBuilder.syncMode()
+    if(!gameBuilder) return
+    gameBuilder.setMode(mode, modeKey)
 }
 
 document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder

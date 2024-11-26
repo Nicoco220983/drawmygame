@@ -12,9 +12,7 @@ export class GameBuilder extends GameCommon {
     constructor(parentEl, map, kwargs) {
         super(parentEl, map, kwargs)
         
-        self.mode = 'move'
-        self.modeKey = null
-        this.syncMode()
+        this.setMode("move")
 
         this.initTouches()
     }
@@ -40,11 +38,13 @@ export class GameBuilder extends GameCommon {
 
     update() {
         super.update()
-        this.prevHasTouches = this.touches.length > 0
+        const touch = this.touches[0]
+        this.prevTouchIsDown = Boolean(touch) && touch.isDown
     }
 
-    syncMode() {
-        const { mode } = this
+    setMode(mode, modeKey = null) {
+        this.mode = mode
+        this.modeKey = modeKey
         if(mode == "move") this.canvas.style.cursor = "move"
         else this.canvas.style.cursor = "cell"
         this.gameScene.syncMode()
@@ -95,23 +95,51 @@ class BuilderScene extends SceneCommon {
     }
 
     syncMode() {
+        const { mode, modeKey } = this.game
         this.prevTouchX = null
         this.prevTouchY = null
+        if(this.draftEntity) {
+            this.draftEntity.remove()
+            this.draftEntity = null
+        }
+        if(mode == "entity") {
+            this.draftEntity = this.addEntity(0, 0, modeKey)
+            this.draftEntity.spriteVisibility = 0
+        }
     }
 
     update() {
         super.update()
         const { mode } = this.game
+        this.updateDraftEntity()
         if(mode == "move") this.updateMove()
-        else if(mode == "wall") this.updateWall()
+        else if(mode == "wall") this.addPointedWall()
         else if(mode == "erase") this.erasePointedEntityOrWall()
-        else if(mode == "entity") this.updateEntity()
+        else if(mode == "entity") this.addPointedEntity()
+    }
+
+    updateDraftEntity() {
+        if(!this.draftEntity) return
+        const { mode } = this.game
+        const touch = this.game.touches[0]
+        if(touch) {
+            this.draftEntity.spriteVisibility = .5
+            if(mode == "entity") {
+                this.draftEntity.x = touch.x
+                this.draftEntity.y = touch.y
+            } else if(mode == "wall") {
+                this.draftEntity.x2 = touch.x
+                this.draftEntity.y2 = touch.y
+            }
+        } else {
+            this.draftEntity.spriteVisibility = 0
+        }
     }
 
     updateMove() {
         const { touches } = this.game
-        if(touches.length > 0) {
-            const touch = touches[0]
+        const touch = touches[0]
+        if(touch && touch.isDown) {
             if(!this.moveOrig) this.moveOrig = {
                 touchX: touch.x,
                 touchY: touch.y,
@@ -127,21 +155,25 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    updateWall(key) {
-        const { touches, modeKey } = this.game
+    addPointedWall(key) {
+        const { touches, prevTouchIsDown } = this.game
+        const touch = touches[0]
 
-        if(touches.length > 0) {
-            if(!this.prevIsDown) {
-                this.prevIsDown = true
-                const touch = touches[0]
-                const touchX = touch.x + this.viewX
-                const touchY = touch.y + this.viewY
-                if(this.prevTouchX !== null) this.addWallAndSyncMap(this.prevTouchX, this.prevTouchY, touchX, touchY)
-                this.prevTouchX = touchX
-                this.prevTouchY = touchY
+        if(touch && touch.isDown && !prevTouchIsDown) {
+            const touchX = touch.x + this.viewX
+            const touchY = touch.y + this.viewY
+            if(this.prevTouchX !== null) {
+                this.addWallAndSyncMap(this.prevTouchX, this.prevTouchY, touchX, touchY)
             }
-        } else {
-            this.prevIsDown = false
+            if(!this.draftEntity) {
+                this.draftEntity = this.addWall(touchX, touchY, touchX, touchY)
+                this.draftEntity.visibility = .5
+            } else {
+                this.draftEntity.x1 = touchX
+                this.draftEntity.y1 = touchY
+            }
+            this.prevTouchX = touchX
+            this.prevTouchY = touchY
         }
     }
 
@@ -160,7 +192,8 @@ class BuilderScene extends SceneCommon {
         const ent = this.addEntity(x, y, key)
         if(ent instanceof Hero) {
             this.entities.forEach(ent2 => {
-                if(ent2 !== ent && ent2 instanceof Hero) this.removeEntityAndSyncMap(ent2)
+                if(ent2 !== ent && ent2 instanceof Hero && ent2 != this.draftEntity)
+                    this.removeEntityAndSyncMap(ent2)
             })
             ent.mapRef = { x, y, keys: [key] }
             this.game.map.heros = [ent.mapRef]
@@ -179,9 +212,9 @@ class BuilderScene extends SceneCommon {
     }
 
     erasePointedEntityOrWall() {
-        const { touches, prevHasTouches } = this.game
-        if(touches.length > 0 && !prevHasTouches) {
-            const touch = touches[0]
+        const { touches, prevTouchIsDown } = this.game
+        const touch = touches[0]
+        if(touch && touch.isDown && !prevTouchIsDown) {
             const x = touch.x + this.viewX, y = touch.y + this.viewY
             // walls
             this.walls.forEach(wall => {
@@ -198,11 +231,11 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    updateEntity() {
-        const { touches, prevHasTouches } = this.game
+    addPointedEntity() {
+        const { touches, prevTouchIsDown } = this.game
         const { modeKey } = this.game
-        if(touches.length > 0 && !prevHasTouches) {
-            const touch = touches[0]
+        const touch = touches[0]
+        if(touch && touch.isDown && !prevTouchIsDown) {
             const x = touch.x + this.viewX
             const y = touch.y + this.viewY
             this.addEntityAndSyncMap(x, y, modeKey)
