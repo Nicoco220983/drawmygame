@@ -1876,8 +1876,8 @@ class BlobEnemy extends Enemy {
         super.scaleSprite(sprite)
         const { iteration } = this.scene
         const { fps } = this.game
-        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAnggle = cos(angle), sinAngle = sin(angle)
-        this.spriteWidth *= (1 + .1 * cosAnggle)
+        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle), sinAngle = sin(angle)
+        this.spriteWidth *= (1 + .1 * cosAngle)
         this.spriteHeight *= (1 + .1 * sinAngle)
         this.spriteDy = -this.spriteWidth * .1 * sinAngle / 2
     }
@@ -1905,14 +1905,15 @@ class BlobEnemy extends Enemy {
 Entities.register("blob", BlobEnemy)
 
 
-const BatSpriteSheet = new SpriteSheet("/static/assets/bat.png", 4, 1)
+const GhostSprite = new Sprite("/static/assets/ghost.png")
 
-class Bat extends Enemy {
+class Ghost extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
-        this.width = 80
-        this.height = 40
+        this.width = 45
+        this.height = 45
         this.undergoGravity = false
+        this.spriteRand = floor(random() * this.game.fps)
     }
 
     update() {
@@ -1922,7 +1923,7 @@ class Bat extends Enemy {
         const { width } = this.game.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
-        this.speedX = this.dirX * 3000 * dt
+        this.speedX = this.dirX * 2000 * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
@@ -1930,9 +1931,15 @@ class Bat extends Enemy {
     }
 
     getSprite() {
-        const { dt } = this.game
+        return GhostSprite
+    }
+    
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
         const { iteration } = this.scene
-        return BatSpriteSheet.get(floor(iteration * dt * 6), true)
+        const { fps } = this.game
+        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
+        this.spriteDy = -this.spriteWidth * .1 * cosAngle
     }
 
     getHitBox() {
@@ -1944,26 +1951,20 @@ class Bat extends Enemy {
         }
     }
 }
-Entities.register("bat", Bat)
+Entities.register("ghost", Ghost)
 
 
-const SpiderSprite = new Sprite(new Img("/static/assets/spider.png"))
+const SpikySprite = new Sprite(new Img("/static/assets/spiky.png"))
 
-class Spider extends Enemy {
+class Spiky extends Enemy {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 45
         this.undergoGravity = false
+        this.spriteRand = floor(random() * this.game.fps)
     }
 
     update() {
-        const { dt } = this.game
-        const { height } = this.game.map
-        // move
-        this.speedX = 0
-        let dirY = (this.speedY > 0) ? 1 : -1
-        if((this.speedResY * dirY < 0) || (this.y < 0 && dirY < 0) || (this.y > height && dirY > 0)) dirY *= -1
-        this.speedY = (dirY > 0 ? 5000 : -1000) * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.takeDamage(1, this)
@@ -1971,10 +1972,18 @@ class Spider extends Enemy {
     }
 
     getSprite() {
-        return SpiderSprite
+        return SpikySprite
+    }
+    
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
+        const { iteration } = this.scene
+        const { fps } = this.game
+        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
+        this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
-Entities.register("spider", Spider)
+Entities.register("spiky", Spiky)
 
 
 const HeartSpriteSheet = new SpriteSheet("/static/assets/heart.png", 2, 1)

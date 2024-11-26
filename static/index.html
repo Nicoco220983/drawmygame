@@ -61,8 +61,8 @@
     </flexrow>
     <flexrow>
         <button id="mode_blob">B[l]ob</button>
-        <button id="mode_bat">[B]at</button>
-        <button id="mode_spider">S[p]ider</button>
+        <button id="mode_ghost">[G]host</button>
+        <button id="mode_spiky">S[p]iky</button>
     </flexrow>
     <flexrow>
         <button id="game_draw">[D]RAW</button>
@@ -103,8 +103,8 @@ document.getElementById("mode_nico").onclick = Keys["en"] = () => setMode('entit
 document.getElementById("mode_sword").onclick = Keys["eo"] = () => setMode('entity', 'sword')
 document.getElementById("mode_bomb").onclick = Keys["em"] = () => setMode('entity', 'bombIt')
 document.getElementById("mode_blob").onclick = Keys["el"] = () => setMode('entity', 'blob')
-document.getElementById("mode_bat").onclick = Keys["eb"] = () => setMode('entity', 'bat')
-document.getElementById("mode_spider").onclick = Keys["ep"] = () => setMode('entity', 'spider')
+document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setMode('entity', 'ghost')
+document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setMode('entity', 'spiky')
 document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setMode('entity', 'checkpt')
 document.getElementById("mode_star").onclick = Keys["es"] = () => setMode('entity', 'star')
 function setMode(mode, modeKey) {
