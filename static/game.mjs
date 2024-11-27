@@ -516,7 +516,7 @@ export class Group extends Map {
     }
 }
 
-class EntityGroup extends Group {
+export class EntityGroup extends Group {
     getClassDefs() {
         return Entities
     }
@@ -634,11 +634,9 @@ export class GameCommon {
             width,
             min(this.map.height, CANVAS_MAX_HEIGHT),
         )
-        if(this.joypadScene) this.joypadScene.setPosAndSize(
+        if(this.joypadScene) this.joypadScene.setPos(
             0,
             this.gameScene.visible ? this.gameScene.height : 0,
-            width,
-            height169,
         )
         const height = max(height169, (this.gameScene.visible ? this.gameScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
         assign(this, { width, height })
@@ -1694,7 +1692,7 @@ export class Hero extends LivingEntity {
         this._isStateToSend = true
     }
 
-    static initJoypadButtons(joypadScn) {}
+    initJoypadButtons(joypadScn) {}
 
     addExtra(extra) {
         const extras = this.extras ||= new ExtraGroup(this)
@@ -1807,22 +1805,42 @@ class Nico extends Hero {
         this.speedY = 0
     }
 
-    static initJoypadButtons(joypadScn) {
-        let col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowLeft", icon: ArrowsSpriteSheet.get(3) })
-        col.addButton({ key: "ArrowRight", icon: ArrowsSpriteSheet.get(1) })
-        col = joypadScn.addColumn()
-        col.addButton({ key: "ArrowUp", icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.extraButton = col.addButton({ key: " ", disabled: true })
+    initJoypadButtons(joypadScn) {
+        const { width, height } = joypadScn
+        const size = height*.45
+        joypadScn.addButton("ArrowLeft", width*.15, height*.27, size, { icon: ArrowsSpriteSheet.get(3) })
+        joypadScn.addButton("ArrowRight", width*.3, height*.73, size, { icon: ArrowsSpriteSheet.get(1) })
+        joypadScn.addButton("ArrowUp", width*.85, height*.27, size, { icon: ArrowsSpriteSheet.get(0) })
+        joypadScn.extraButton = joypadScn.addButton(" ", width*.7, height*.73, size, { disabled: true })
+        this.syncJoypadExtraButton()
+    }
+
+    syncJoypadExtraButton() {
+        const { joypadScene } = this.game
+        const extraButton = joypadScene && joypadScene.extraButton
+        if(!extraButton) return
+        const mainExtra = this.getMainExtra()
+        if(mainExtra) {
+            extraButton.disabled = false
+            extraButton.icon = mainExtra.getSprite()
+        } else {
+            extraButton.disabled = true
+        }
     }
 
     addExtra(extra) {
         super.addExtra(extra)
-        if(extra.isMainExtra && this.game.joypadScene) {
-            const extraButton = this.game.joypadScene.extraButton
-            extraButton.disabled = false
-            extraButton.icon = extra.sprite
-        }
+        this.syncJoypadExtraButton()
+    }
+
+    getMainExtra() {
+        const { extras } = this
+        if(!extras) return null
+        let mainExtra = null
+        extras.forEach(extra => {
+            if(extra.isMainExtra) mainExtra = extra
+        })
+        return mainExtra
     }
 }
 Entities.register("nico", Nico)
@@ -2154,7 +2172,7 @@ class SwordExtra extends Extra {
     attackEnemy(enem) {
         enem.takeDamage(1, this.owner)
     }
-    attackHero(hero) {
+    attackHero(hero) {SwordExtra
         hero.takeDamage(0, this.owner)
     }
     getSprite() {

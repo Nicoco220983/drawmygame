@@ -1,7 +1,8 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
+const { assign } = Object
 import * as utils from './utils.mjs'
-import { loadImg, Sprite, SpriteSheet, Entity, Group, Entities, range } from "./game.mjs"
+import { loadImg, Sprite, SpriteSheet, Entity, EntityGroup, Entities, range } from "./game.mjs"
 import { cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
 
@@ -12,66 +13,41 @@ export class JoypadScene {
         this.game = game
         this.x = 0
         this.y = 0
+        this.width = 800
+        this.height = floor(this.width * 9 / 16)
         // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
+            this.canvas.width = this.width
+            this.canvas.height = this.height
         }
         this.game.initTouches()
-        this.buttons = new ButtonsRow(this)
+        this.buttons = new EntityGroup(this)
         this.syncLocalPlayerButtons()
     }
 
-    setPosAndSize(x, y, width, height) {
+    setPos(x, y) {
         this.x = x
         this.y = y
-        this.width = width
-        this.height = height
-        if(this.canvas) {
-            this.canvas.width = width
-            this.canvas.height = height
-        }
-        this.buttons.x = floor(width / 2)
-        this.buttons.y = floor(height / 2)
-        this.buttons.width = width
-        this.buttons.height = height
-        this.buttons.syncPosAndSize()
     }
 
     syncLocalPlayerButtons() {
-        const localPlayer = this.game.players[this.game.localPlayerId]
-        if(!localPlayer) return
-        const heroKey = localPlayer.hero.key
-        if(heroKey == this.heroKey) return
-        this.heroKey = heroKey
-        this.removeButtons()
-        const heroCls = Entities[heroKey]
-        heroCls.initJoypadButtons(this)
-    }
-    addRow() {
-        return this.buttons.addRow()
-    }
-    addColumn() {
-        return this.buttons.addColumn()
-    }
-    addButton(desc) {
-        return this.buttons.addButton(desc)
+        this.buttons.clear()
+        const hero = this.game.gameScene.getHero(this.game.localPlayerId)
+        if(!hero) return
+        hero.initJoypadButtons(this)
     }
 
-    removeButtons() {
-        this.buttons.remove()
+    addButton(key, x, y, size, kwargs) {
+        return this.buttons.add(new Button(this, key, x, y, size, kwargs))
     }
 
     update() {
-        // this.syncPointer()
         this.buttons.update()
     }
 
     onTouch() {
-        this.checkBoutonsHit()
-    }
-
-    checkBoutonsHit() {
-        this.buttons.checkHit()
+        this.buttons.forEach(but => but.checkClick())
     }
 
     draw() {
@@ -83,87 +59,6 @@ export class JoypadScene {
 
     drawTo(ctx) {
         this.buttons.drawTo(ctx)
-    }
-}
-
-class ButtonsGroup {
-    constructor(owner) {
-        this.owner = owner
-        this.scene = owner.scene
-        this.game = owner.game
-        this.x = 0
-        this.y = 0
-        this.width = 100
-        this.height = 100
-        this.items = []
-    }
-    forEach(next) {
-        for(let item of this.items) next(item)
-    }
-    addRow() {
-        const res = new ButtonsRow(this)
-        this.items.push(res)
-        this.syncPosAndSize()
-        return res
-    }
-    addColumn() {
-        const res = new ButtonsColumn(this)
-        this.items.push(res)
-        this.syncPosAndSize()
-        return res
-    }
-    addButton(desc) {
-        const res = new Button(this.scene, desc)
-        this.items.push(res)
-        this.syncPosAndSize()
-        return res
-    }
-    // pure abstract
-    // syncPosAndSize() {}
-    update() {
-        this.forEach(b => b.update())
-    }
-    checkHit() {
-        this.forEach(b => b.checkHit())
-    }
-    drawTo(ctx) {
-        this.forEach(b => b.drawTo(ctx))
-    }
-    remove() {
-        this.forEach(b => b.remove())
-        this.items.length = 0
-    }
-}
-
-class ButtonsRow extends ButtonsGroup {
-    syncPosAndSize() {
-        const { x, y, width, height, items } = this
-        const nbItems = items.length
-        const itemWidth = floor(width / nbItems)
-        for(let i=0; i<nbItems; ++i) {
-            const item = items[i]
-            item.x = floor(x - width * .5 + itemWidth * (i + .5))
-            item.y = y
-            item.width = itemWidth
-            item.height = height
-            if(item.syncPosAndSize) item.syncPosAndSize()
-        }
-    }
-}
-
-class ButtonsColumn extends ButtonsGroup {
-    syncPosAndSize() {
-        const { x, y, width, height, items } = this
-        const nbItems = items.length
-        const itemHeight = floor(height / nbItems)
-        for(let i=0; i<nbItems; ++i) {
-            const item = items[i]
-            item.x = x
-            item.y = floor(y - height * .5 + itemHeight * (i + .5))
-            item.width = width
-            item.height = itemHeight
-            if(item.syncPosAndSize) item.syncPosAndSize()
-        }
     }
 }
 
@@ -181,21 +76,25 @@ const ButtonSpriteSheets = {
 }
 
 class Button extends Entity {
-    constructor(scn, desc) {
-        super(scn)
-        this.key = desc.key
+    constructor(scn, key, x, y, size, kwargs) {
+        super(scn, x, y)
+        this.key = key
+        this.width = this.height = size
         this.isDown = false
-        this.disabled = desc.disabled
-        this.icon = desc.icon
+        assign(this, kwargs)
     }
 
-    checkHit() {
+    checkClick() {
         if(this.disabled) return
         const isDown = this.checkHitTouches()
         if(isDown != this.isDown) {
             this.isDown = isDown
-            this.game.setInputKey(this.key, isDown)
+            this.onClick()
         }
+    }
+
+    onClick() {
+        this.game.setInputKey(this.key, this.isDown)
     }
 
     getSprite() {
