@@ -71,7 +71,9 @@
 <script type="module">
 import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
-const isMob = ( window.innerWidth <= 800 ) && ( window.innerHeight <= 600 )
+const mobRegex = /android|iphone|kindle|ipad/i
+const IS_MOBILE = mobRegex.test(navigator.userAgent)
+
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
 const isDebugMode = urlParams.get("debug") == "1"
@@ -96,9 +98,9 @@ const map = new GameMap()
 let game = null, ws = null, joined = false
 
 const showGameEl = document.getElementById("show_game")
-showGameEl.checked = isMob ? (urlParams.get("game") == "1") : (urlParams.get("game") != "0")
+showGameEl.checked = IS_MOBILE ? (urlParams.get("game") == "1") : (urlParams.get("game") != "0")
 const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.checked = isMob ? (urlParams.get("joypad") != "0") : (urlParams.get("joypad") == "1")
+showJoypadEl.checked = IS_MOBILE ? (urlParams.get("joypad") != "0") : (urlParams.get("joypad") == "1")
 const isGameVisible = () => showGameEl.checked
 const isJoypadVisible = () => joined && showJoypadEl.checked
 const syncGameShow = () => {
@@ -142,7 +144,7 @@ showJoypadLinkBut.onclick = () => {
 
 const fullscrenEl = document.getElementById("fullscreen")
 gameParentEl.onclick = evt => {
-    if(!isMob) return 
+    if(!IS_MOBILE) return 
     if(!game || game.isFullscreened()) return
     game.requestFullscreen()
     evt.stopPropagation()

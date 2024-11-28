@@ -79,6 +79,7 @@
     </flexrow>
     <flexrow>
         <button id="fullscreen">Fullscreen</button>
+        <input id="show_joypad" type="checkbox">Show Joypad
     </flexrow>
     <flexcol id="builder"></flexcol>
     <flexcol id="game" style="padding:1em; display: none"></flexcol>
@@ -168,6 +169,8 @@ const fullscreenEl = document.getElementById("fullscreen")
 fullscreenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
+const showJoypadEl = document.getElementById("show_joypad")
+showJoypadEl.onchange = () => { if(game) game.showJoypadScene(showJoypadEl.checked) }
 
 let keyLastTime = -1, currentKey = ""
 document.addEventListener('keydown', evt => {

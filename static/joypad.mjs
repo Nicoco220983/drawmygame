@@ -32,10 +32,12 @@ export class JoypadScene {
     }
 
     syncLocalPlayerButtons() {
-        this.buttons.clear()
         const hero = this.game.gameScene.getHero(this.game.localPlayerId)
+        if(hero && hero == this._lastHeroSynced) return
+        this.buttons.clear()
         if(!hero) return
         hero.initJoypadButtons(this)
+        this._lastHeroSynced = hero
     }
 
     addButton(key, x, y, size, kwargs) {
