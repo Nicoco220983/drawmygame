@@ -12,7 +12,7 @@ import bodyParser from 'body-parser'
 import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
-const PORT = parseInt(process.env.DRAWMYGAME_PORT || 8080)
+const PORT = parseInt(process.env.PORT || 8080)
 const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
