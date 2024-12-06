@@ -42,6 +42,7 @@ export class GameMap {
     constructor() {
         this.width = MAP_DEFAULT_WIDTH
         this.height = MAP_DEFAULT_HEIGHT
+        //this.attrs = {}
         this.walls = []
         this.heros = []
         this.entities = []
@@ -51,6 +52,7 @@ export class GameMap {
         const outObj = {
             w: this.width,
             h: this.height,
+            //a: this.attrs,
             ws: this.walls,
             hs: this.heros,
             es: this.entities,
@@ -74,6 +76,7 @@ export class GameMap {
         const inObj = JSON.parse(inStr)
         this.width = inObj.w
         this.height = inObj.h
+        //this.attrs = inObj.a
         this.walls = inObj.ws
         this.heros = inObj.hs
         this.entities = inObj.es
@@ -1365,35 +1368,13 @@ export class GameScene extends SceneCommon {
         if(hero) hero.remove()
     }
 
-    setLocalHero(hero) {
-        super.setLocalHero(hero)
-        this.syncHearts()
-    }
-
-    syncHearts() {
-        if(this.localHero) {
-            const { life } = this.localHero
-            if(!this.hearts) {
-                this.hearts = new EntityGroup(this)
-                for(let i=0; i<life; ++i)
-                    this.hearts.add(new Heart(this, i))
-            }
-            this.hearts.forEach(heart => {
-                heart.setFull(heart.num < life)
-            })
-        } else if(this.hearts) {
-            this.hearts.forEach(h => h.remove())
-            delete this.hearts
-        }
-    }
-
     checkHeros() {
         const { heros } = this
         let nbHeros = 0, nbHerosAlive = 0
         for(let playerId in heros) {
             const hero = heros[playerId]
             nbHeros += 1
-            if(hero.life > 0) nbHerosAlive += 1
+            if(hero.lives !== 0) nbHerosAlive += 1
         }
         if(this.step == "GAME" && nbHeros > 0 && nbHerosAlive == 0) this.step = "GAMEOVER"
     }
@@ -1417,7 +1398,6 @@ export class GameScene extends SceneCommon {
         this.walls.drawTo(ctx)
         this.entities.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
-        if(this.hearts) this.hearts.drawTo(ctx)
         this.notifs.drawTo(ctx)
         if(this.step == "VICTORY") this.victoryNotifs.drawTo(ctx)
         if(this.step == "GAMEOVER") this.gameOverNotifs.drawTo(ctx)
@@ -1551,52 +1531,44 @@ class DynamicEntity extends Entity {
 export class LivingEntity extends DynamicEntity {
     constructor(scn, x, y) {
         super(scn, x, y)
-        this.life = 1
-        this.iteBeforeDamageable = 0
-        this.iteBeforeRm = null
+        this.health = this.getMaxHealth()
+        this.lastDamageAge = null
+    }
+
+    getMaxHealth() {
+        return 1
     }
 
     update() {
-        this.iteration += 1
-        const { life } = this
         const { iteration, step } = this.scene
         const { dt } = this.game
-        this.undergoWalls = (life > 0)
-        if(step != "GAME" || life == 0 || this.isDamageable()) this.spriteVisibility = 1
+        const hasHealth = this.health > 0
+        this.undergoWalls = hasHealth
+        if(step != "GAME" || !hasHealth || this.isDamageable()) this.spriteVisibility = 1
         else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
-        if(this.iteBeforeRm != null) {
-            if(this.iteBeforeRm <= 0) this.remove()
-            this.iteBeforeRm -= 1
-        }
-        this.iteBeforeDamageable -= 1
+        this.mayRemove()
+        if(this.lastDamageAge !== null) this.lastDamageAge += 1
     }
 
     isDamageable() {
-        return this.iteBeforeDamageable <= 0
-    }
-
-    makeNotDamageable() {
-        this.iteBeforeDamageable = ceil(0.5 * this.game.fps)
+        const { lastDamageAge } = this
+        return lastDamageAge === null || lastDamageAge > ceil(0.5 * this.game.fps)
     }
 
     takeDamage(val, damager, force) {
-        if(this.life == 0) return
+        if(this.health <= 0) return
         if(!force && !this.isDamageable()) return
-        this.life = max(0, this.life - val)
-        // this.scene.syncHearts()
-        if(this.life == 0) {
+        if(val > 0) this.lastDamageAge = 0
+        this.health = max(0, this.health - val)
+        if(this.health == 0) {
             this.onKill(damager)
-        } else {
-            if(val > 0) this.makeNotDamageable()
-            if(damager) {
-                this.speedY = -200
-                this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
-            }
+        } else if(damager) {
+            this.speedY = -200
+            this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
         }
     }
 
     onKill(killer) {
-        this.iteBeforeRm = ceil(3 * this.game.fps)
         if(killer) {
             this.speedY = -500
             this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
@@ -1605,19 +1577,23 @@ export class LivingEntity extends DynamicEntity {
 
     getState() {
         const state = super.getState()
-        state.life = this.life
-        if(this.iteBeforeDamageable > 0) state.itd = this.iteBeforeDamageable
-        else delete state.itd
-        if(this.iteBeforeRm !== null) state.itr = this.iteBeforeRm
-        else delete state.itr
+        state.hea = this.health
+        if(this.lastDamageAge !== null) state.lda = this.lastDamageAge
+        else delete state.lda
         return state
     }
 
     setState(state) {
         super.setState(state)
-        this.life = state.life
-        this.iteBeforeDamageable = state.itd || 0
-        this.iteBeforeRm = state.itr !== undefined ? state.itr : null
+        this.health = state.hea
+        if(state.lda === undefined) this.lastDamageAge = null
+        else this.lastDamageAge = state.lda
+    }
+
+    mayRemove() {
+        if(this.health <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
+            this.remove()
+        }
     }
 }
 
@@ -1626,7 +1602,7 @@ export class Hero extends LivingEntity {
     constructor(scn, x, y, playerId) {
         super(scn, x, y)
         this.team = "hero"
-        this.life = 3
+        this.lives = 3
         if(playerId !== undefined) this.setPlayerId(playerId)
     }
 
@@ -1640,23 +1616,57 @@ export class Hero extends LivingEntity {
         return this === this.scene.localHero
     }
 
+    getMaxHealth() {
+        return 3
+    }
+
+    isDamageable() {
+        const { lastDamageAge } = this
+        return lastDamageAge === null || lastDamageAge > ceil(3 * this.game.fps)
+    }
+
     update() {
         super.update()
+        this.updateHearts()
         if(this.extras) this.extras.update()
+        this.mayResurect()
     }
 
-    makeNotDamageable() {
-        this.iteBeforeDamageable = ceil(3 * this.game.fps)
+    mayResurect() {
+        if(this.health > 0 || this.lastDamageAge < this.game.fps) return
+        if(this.lives > 0) this.lives -= 1
+        if(this.lives > 0) {
+            this.health = this.getMaxHealth()
+            this.respawn()
+        }
     }
 
-    takeDamage(val, damager, force) {
-        super.takeDamage(val, damager, force)
-        this.scene.syncHearts()
+    updateHearts() {
+        if(this.playerId != this.game.localPlayerId) return
+        const { lives, health } = this
+        const { notifs } = this.scene
+        const livesHearts = this.livesHearts ||= []
+        for(let i=livesHearts.length; i<lives; ++i)
+            livesHearts.push(notifs.add(new LifeHeart(this, i)))
+        const healthHearts = this.healthHearts ||= []
+        for(let i=healthHearts.length; i<health; ++i)
+            healthHearts.push(notifs.add(new HealthHeart(this, i)))
+        livesHearts.forEach(heart => {
+            heart.x = 20 + heart.num * 35
+            heart.y = 20
+            heart.setFull(heart.num < lives)
+        })
+        healthHearts.forEach(heart => {
+            heart.x = 15 + heart.num * 23
+            heart.y = (livesHearts.length > 0) ? 50 : 15
+            heart.setFull(heart.num < health)
+        })
     }
 
     getState() {
         const state = super.getState()
-        state.playerId = this.playerId
+        state.pid = this.playerId
+        state.liv = this.lives
         const inputState = this.inputState
         if(inputState && hasKeys(inputState)) state.ist = inputState
         else delete state.ist
@@ -1668,7 +1678,8 @@ export class Hero extends LivingEntity {
 
     setState(state) {
         super.setState(state)
-        this.setPlayerId(state.playerId)
+        this.setPlayerId(state.pid)
+        this.lives = state.liv
         this.inputState = state.ist
         if(this.extras || state.extras) {
             this.extras ||= new ExtraGroup(this)
@@ -1710,9 +1721,31 @@ export class Hero extends LivingEntity {
         }
     }
 
+    respawn() {
+        const { herosSpawnX, herosSpawnY } = this.scene
+        this.x = herosSpawnX
+        this.y = herosSpawnY
+        this.speedX = 0
+        this.speedY = 0
+    }
+
+    mayRemove() {
+        if(this.lives <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
+            this.remove()
+        }
+    }
+
     remove() {
         super.remove()
         this.scene.syncHero(this)
+        if(this.livesHearts) {
+            this.livesHearts.forEach(h => h.remove())
+            delete this.livesHearts
+        }
+        if(this.healthHearts) {
+            this.healthHearts.forEach(h => h.remove())
+            delete this.healthHearts
+        }
     }
 }
 
@@ -1747,7 +1780,7 @@ class Nico extends Hero {
         // fall
         if(this.y > this.game.map.height + 100) {
             this.takeDamage(1, null, true)
-            if(this.life > 0) this.respawn()
+            if(this.health > 0) this.respawn()
         }
     }
 
@@ -1775,7 +1808,7 @@ class Nico extends Hero {
 
     applyInputState() {
         const { dt } = this.game
-        if(this.life == 0) return
+        if(this.health == 0) return
         const { inputState } = this
         if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
         else if(inputState.walkX > 0) {
@@ -1795,14 +1828,6 @@ class Nico extends Hero {
             top: this.y - 25,
             height: 50,
         }
-    }
-
-    respawn() {
-        const { herosSpawnX, herosSpawnY } = this.scene
-        this.x = herosSpawnX
-        this.y = herosSpawnY
-        this.speedX = 0
-        this.speedY = 0
     }
 
     initJoypadButtons(joypadScn) {
@@ -2009,19 +2034,104 @@ class Spiky extends Enemy {
 Entities.register("spiky", Spiky)
 
 
-const HeartSpriteSheet = new SpriteSheet("/static/assets/heart.png", 2, 1)
+const HeartImgPrm = loadImg("/static/assets/colorable_heart.png")
+const HeartSpriteSheets = {
+    spritesheets: {},
+    get: function(color) {
+        return this.spritesheets[color] ||= new SpriteSheet((async () => {
+            const img = await HeartImgPrm
+            if(!color) return img
+            return colorizeCanvas(cloneCanvas(img), color)
+        })(), 2, 1)
+    },
+}
 
-class Heart extends Entity {
+class HeartItem extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 30
+        this.undergoGravity = false
+        this.spriteRand = floor(random() * this.game.fps)
+    }
+
+    update() {
+        super.update()
+        this.checkHitHeros()
+    }
+
+    checkHitHeros() {
+        for(let hero of this.scene.getTeam("hero")) {
+            if(checkHit(this, hero)) this.onHeroHit(hero)
+        }
+    }
+
+    onHeroHit(hero) {
+        if(hero.health < hero.getMaxHealth()) {
+            hero.health = hero.getMaxHealth()
+        } else {
+            hero.lives += 1
+        }
+        this.remove()
+    }
+
+    getSprite() {
+        return HeartSpriteSheets.get("red").get(0)
+    }
+    
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
+        const { iteration } = this.scene
+        const { fps } = this.game
+        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
+        this.spriteDy = -this.spriteWidth * .05 * cosAngle
+    }
+}
+Entities.register("heartIt", HeartItem)
+
+class TeamHeartItem extends HeartItem {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+    }
+
+    onHeroHit() {
+        for(let hero of this.scene.getTeam("hero")) {
+            if(hero.health < hero.getMaxHealth()) {
+                hero.health = hero.getMaxHealth()
+            } else {
+                hero.lives += 1
+            }
+        }
+        this.remove()
+    }
+
+    getSprite() {
+        return HeartSpriteSheets.get("gold").get(0)
+    }
+}
+Entities.register("theartIt", TeamHeartItem)
+
+
+class LifeHeart extends Entity {
     constructor(scn, num) {
-        super(scn, 25 + 35 * num, 25)
+        super(scn, 0, 0)
         this.num = num
         this.width = this.height = 30
+        this.color = "red"
     }
     setFull(isFull) {
         this.isFull = isFull
     }
     getSprite() {
-        return HeartSpriteSheet.get(this.isFull ? 0 : 1)
+        return HeartSpriteSheets.get(this.color).get(this.isFull ? 0 : 1)
+    }
+}
+
+class HealthHeart extends LifeHeart {
+    constructor(scn, num) {
+        super(scn, num)
+        this.width = this.height = 20
+        this.color = "pink"
     }
 }
 
