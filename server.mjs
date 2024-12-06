@@ -157,7 +157,7 @@ class GameServer {
     const { name, color } = kwargs
     client.playerName = name
     client.playerColor = color
-    if(client.room.game) client.room.game.addPlayer(ws.client.id, { name, color })
+    if(client.room.game) client.room.game.addPlayer(ws.client.id, { num: client.num, name, color })
     console.log(`Client '${client.id}' joined game as '${name}'`)
   }
 
@@ -205,7 +205,7 @@ class Room {
   constructor(server, id) {
     this.server = server
     this.id = id
-    this.numPlayer = 1
+    this.numLastClient = 0
     this.clients = {}
     this.server.registerRoom(this)
     this.initCloseCountdown()
@@ -213,7 +213,8 @@ class Room {
   }
 
   addClient(clientId) {
-    const client = this.clients[clientId] = new Client(this, clientId)
+    this.numLastClient += 1
+    const client = this.clients[clientId] = new Client(this, clientId, this.numLastClient)
     return client
   }
 
@@ -235,9 +236,7 @@ class Room {
   }
 
   nextPlayerName() {
-    const res = `Player${this.numPlayer}`
-    this.numPlayer += 1
-    return res
+    return `Player${this.numLastClient}`
   }
 
   sendAll(msg) {
@@ -283,9 +282,10 @@ class Room {
 
 
 class Client {
-  constructor(room, id) {
+  constructor(room, id, num) {
     this.room = room
     this.id = id
+    this.num = num
     this.ws = null
     this.playerName = null
     this.playerColor = null

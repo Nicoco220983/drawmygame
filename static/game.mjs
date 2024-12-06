@@ -1034,6 +1034,19 @@ export class Game extends GameCommon {
         delete this.players[playerId]
     }
 
+    getFirstPlayerId() {
+        let firstPlayerId = null, firstPlayer = null
+        const { players } = this
+        for(let playerId in players) {
+            const player = players[playerId]
+            if(firstPlayerId === null || player.num < firstPlayer.num) {
+                firstPlayerId = playerId
+                firstPlayer = player
+            }
+        }
+        return firstPlayerId
+    }
+
     isKeyPressed(key) {
         return this.keysPressed[key]
     }
@@ -1363,6 +1376,12 @@ export class GameScene extends SceneCommon {
         return this.heros[playerId]
     }
 
+    getFirstHero() {
+        const firstPlayerId = this.game.getFirstPlayerId()
+        if(firstPlayerId === null) return null
+        return this.heros[firstPlayerId]
+    }
+
     rmHero(playerId) {
         const hero = this.getHero(playerId)
         if(hero) hero.remove()
@@ -1376,7 +1395,8 @@ export class GameScene extends SceneCommon {
             nbHeros += 1
             if(hero.lives !== 0) nbHerosAlive += 1
         }
-        if(this.step == "GAME" && nbHeros > 0 && nbHerosAlive == 0) this.step = "GAMEOVER"
+        const firstHero = this.getFirstHero()
+        if(firstHero && this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
     }
 
     update() {
