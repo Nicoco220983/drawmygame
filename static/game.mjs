@@ -2088,29 +2088,6 @@ class HeartItem extends Entity {
 }
 Entities.register("heartIt", HeartItem)
 
-class TeamHeartItem extends HeartItem {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.width = this.height = 40
-    }
-
-    onHeroHit() {
-        for(let hero of this.scene.getTeam("hero")) {
-            if(hero.health < hero.getMaxHealth()) {
-                hero.health = hero.getMaxHealth()
-            } else {
-                hero.lives += 1
-            }
-        }
-        this.remove()
-    }
-
-    getSprite() {
-        return HeartSpriteSheets.get("gold").get(0)
-    }
-}
-Entities.register("theartIt", TeamHeartItem)
-
 
 class LifeHeart extends Entity {
     constructor(scn, num) {

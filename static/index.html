@@ -54,7 +54,6 @@
     <flexrow>
         <button id="mode_nico">[N]ico</button>
         <button id="mode_heart">Heart</button>
-        <button id="mode_team_heart">Team Heart</button>
         <button id="mode_sword">Sw[o]rd</button>
         <button id="mode_bomb">Bo[m]b</button>
         <button id="mode_checkpoint">[C]heckpoint</button>
@@ -136,7 +135,6 @@ document.getElementById("mode_platform").onclick = Keys["wp"] = () => setMode('w
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setMode('erase')
 document.getElementById("mode_nico").onclick = Keys["en"] = () => setMode('entity', 'nico')
 document.getElementById("mode_heart").onclick = () => setMode('entity', 'heartIt')
-document.getElementById("mode_team_heart").onclick = () => setMode('entity', 'theartIt')
 document.getElementById("mode_sword").onclick = Keys["eo"] = () => setMode('entity', 'sword')
 document.getElementById("mode_bomb").onclick = Keys["em"] = () => setMode('entity', 'bombIt')
 document.getElementById("mode_blob").onclick = Keys["el"] = () => setMode('entity', 'blob')
