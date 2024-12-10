@@ -1578,9 +1578,13 @@ export class LivingEntity extends DynamicEntity {
         return lastDamageAge === null || lastDamageAge > ceil(0.5 * this.game.fps)
     }
 
-    takeDamage(val, damager, force) {
+    mayTakeDamage(val, damager, force) {
         if(this.health <= 0) return
         if(!force && !this.isDamageable()) return
+        this.takeDamage(val, damager)
+    }
+
+    takeDamage(val, damager) {
         if(val > 0) this.lastDamageAge = 0
         this.health = max(0, this.health - val)
         if(this.health == 0) {
@@ -1791,6 +1795,7 @@ const NicoSpriteSheets = {
 const HandSprite = new Sprite("/static/assets/hand.png")
 const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
+const OuchAudPrm = loadAud("/static/assets/ouch.opus")
 const SkapAudPrm = loadAud("/static/assets/slap.opus")
 
 class Nico extends Hero {
@@ -1808,7 +1813,7 @@ class Nico extends Hero {
         if(this.handRemIt == this.handDur) this.checkHandHit()
         // fall
         if(this.y > this.game.map.height + 100) {
-            this.takeDamage(1, null, true)
+            this.mayTakeDamage(1, null, true)
             if(this.health > 0) this.respawn()
         }
     }
@@ -1823,7 +1828,7 @@ class Nico extends Hero {
         const _checkHit = ent => {
             if(this == ent) return
             if(checkHit(handHitBox, ent)) {
-                ent.takeDamage(0, this)
+                ent.mayTakeDamage(0, this)
                 this.game.audioEngine.playSound(SkapAudPrm)
             }
         }
@@ -1880,6 +1885,11 @@ class Nico extends Hero {
             top: this.y - 25,
             height: 50,
         }
+    }
+
+    takeDamage(val, damager) {
+        super.takeDamage(val, damager)
+        this.game.audioEngine.playSound(OuchAudPrm)
     }
 
     initJoypadButtons(joypadScn) {
@@ -1985,7 +1995,7 @@ class BlobEnemy extends Enemy {
         }
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.takeDamage(1, this)
+            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
         })
         this.lastChangeDirAge += 1
     }
@@ -2048,7 +2058,7 @@ class Ghost extends Enemy {
         this.speedX = this.dirX * 2000 * dt
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.takeDamage(1, this)
+            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
         })
     }
 
@@ -2089,7 +2099,7 @@ class Spiky extends Enemy {
     update() {
         // attack
         this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.takeDamage(1, this)
+            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
         })
     }
 
@@ -2331,10 +2341,10 @@ class SwordExtra extends Extra {
         this.lastAttackAge += 1
     }
     attackEnemy(enem) {
-        enem.takeDamage(1, this.owner)
+        enem.mayTakeDamage(1, this.owner)
     }
     attackHero(hero) {SwordExtra
-        hero.takeDamage(0, this.owner)
+        hero.mayTakeDamage(0, this.owner)
     }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -2498,7 +2508,7 @@ class Explosion extends Entity {
         const radius2 = pow(150, 2)
         const _checkOne = ent => {
             const dx = x - ent.x, dy = y - ent.y
-            if(dx*dx+dy*dy < radius2) ent.takeDamage(1, this)
+            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this)
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
