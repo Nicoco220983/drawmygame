@@ -2,6 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas } = utils
+import { loadAud, AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 
 export const FPS = 30
@@ -841,6 +842,8 @@ export class Game extends GameCommon {
 
         if(this.isDebugMode) this.showDebugScene()
 
+        this.audioEngine = new AudioEngine(this)
+        
         this.physicEngine = new PhysicsEngine(this)
         this.physicGravity = GRAVITY
     }
@@ -1788,6 +1791,8 @@ const NicoSpriteSheets = {
 const HandSprite = new Sprite("/static/assets/hand.png")
 const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
+const SkapAudPrm = loadAud("/static/assets/slap.opus")
+
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
         super(scn, x, y, playerId)
@@ -1817,7 +1822,10 @@ class Nico extends Hero {
         handHitBox.y = this.y
         const _checkHit = ent => {
             if(this == ent) return
-            if(checkHit(handHitBox, ent)) ent.takeDamage(0, this)
+            if(checkHit(handHitBox, ent)) {
+                ent.takeDamage(0, this)
+                this.game.audioEngine.playSound(SkapAudPrm)
+            }
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.scene.getTeam("hero").forEach(_checkHit)
