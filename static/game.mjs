@@ -1785,23 +1785,42 @@ const NicoSpriteSheets = {
     },
 }
 
+const HandSprite = new Sprite("/static/assets/hand.png")
 const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
         super(scn, x, y, playerId)
         this.width = this.height = 50
+        this.handDur = ceil(.1 * this.game.fps) 
+        this.handRemIt = null
     }
 
     update() {
         super.update()
         // inputs
         this.applyInputState()
+        if(this.handRemIt == this.handDur) this.checkHandHit()
         // fall
         if(this.y > this.game.map.height + 100) {
             this.takeDamage(1, null, true)
             if(this.health > 0) this.respawn()
         }
+    }
+
+    checkHandHit() {
+        const handHitBox = this.handHitBox ||= {
+            width: 25,
+            height: 25,
+        }
+        handHitBox.x = this.x + this.dirX * 28
+        handHitBox.y = this.y
+        const _checkHit = ent => {
+            if(this == ent) return
+            if(checkHit(handHitBox, ent)) ent.takeDamage(0, this)
+        }
+        this.scene.getTeam("enemy").forEach(_checkHit)
+        this.scene.getTeam("hero").forEach(_checkHit)
     }
 
     getSprite() {
@@ -1810,7 +1829,7 @@ class Nico extends Hero {
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if(iteration > 0 && this.speedResY == 0) return spriteSheet.get(1)
+        if(iteration > 0 && (this.handRemIt || this.speedResY == 0)) return spriteSheet.get(1)
         else if(this.speedX == 0) return spriteSheet.get(0)
         else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
     }
@@ -1823,6 +1842,8 @@ class Nico extends Hero {
         else delete inputState.walkX
         if(game.isKeyPressed("ArrowUp")) inputState.jump = true
         else delete inputState.jump
+        if(game.isKeyPressed(" ") && this.getMainExtra() === null) inputState.hand = true
+        else delete inputState.hand
         return inputState
     }
 
@@ -1839,6 +1860,9 @@ class Nico extends Hero {
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
         }
         if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
+        if(this.handRemIt) this.handRemIt -= 1
+        if(inputState && inputState.hand && !this._prevHand && this.handRemIt===null) this.handRemIt = this.handDur
+        if(!(inputState && inputState.hand) && this.handRemIt === 0) this.handRemIt = null
     }
 
     getHitBox() {
@@ -1856,7 +1880,7 @@ class Nico extends Hero {
         joypadScn.addButton("ArrowLeft", width*.15, height*.27, size, { icon: ArrowsSpriteSheet.get(3) })
         joypadScn.addButton("ArrowRight", width*.3, height*.73, size, { icon: ArrowsSpriteSheet.get(1) })
         joypadScn.addButton("ArrowUp", width*.85, height*.27, size, { icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.extraButton = joypadScn.addButton(" ", width*.7, height*.73, size, { disabled: true })
+        joypadScn.extraButton = joypadScn.addButton(" ", width*.7, height*.73, size, { icon: HandSprite })
         this.syncJoypadExtraButton()
     }
 
@@ -1865,12 +1889,7 @@ class Nico extends Hero {
         const extraButton = joypadScene && joypadScene.extraButton
         if(!extraButton) return
         const mainExtra = this.getMainExtra()
-        if(mainExtra) {
-            extraButton.disabled = false
-            extraButton.icon = mainExtra.getSprite()
-        } else {
-            extraButton.disabled = true
-        }
+        extraButton.icon = mainExtra ? mainExtra.getSprite() : HandSprite
     }
 
     addExtra(extra) {
@@ -1886,6 +1905,33 @@ class Nico extends Hero {
             if(extra.isMainExtra) mainExtra = extra
         })
         return mainExtra
+    }
+
+    getState() {
+        const state = super.getState()
+        if(this.handRemIt!==null) state.hri = this.handRemIt
+        else delete state.hri
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        if(this.handRemIt!==undefined) this.handRemIt = this.hri
+        else this.handRemIt = null
+    }
+
+    drawTo(ctx) {
+        if(this.disabled) return
+        super.drawTo(ctx)
+        if(this.handRemIt && this.spriteWidth>0 && this.spriteHeight>0) {
+            const handImg = HandSprite.getImg(
+                ~~(this.spriteWidth * .5),
+                ~~(this.spriteHeight * .5),
+                this.dirX,
+                this.dirY,
+            )
+            if(handImg) ctx.drawImage(handImg, ~~(this.x + handImg.width * (-.5 + this.dirX * 1.1)), ~~(this.y - handImg.height/2))
+        }
     }
 }
 Entities.register("nico", Nico)
