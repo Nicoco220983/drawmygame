@@ -1428,17 +1428,32 @@ export class GameScene extends SceneCommon {
 
     getTeam(team) {
         const teams = this._teams ||= {}
-        const teamsTime = this._teamsTime ||= {}
-        if(teamsTime[team] != this.time) {
+        const teamsIts = this._teamsIts ||= {}
+        if(teamsIts[team] != this.iteration) {
             const teamEnts = teams[team] ||= []
             teamEnts.length = 0
             this.entities.forEach(ent => {
                 const entTeam = ent.team
                 if(entTeam && entTeam.startsWith(team)) teamEnts.push(ent)
             })
-            teamsTime[team] = this.time
+            teamsIts[team] = this.iteration
         }
         return teams[team]
+    }
+
+    getCollectables(team) {
+        const collectables = this._collectables ||= {}
+        const collectablesIts = this._collectablesIt ||= {}
+        if(collectablesIts[team] != this.iteration) {
+            const teamCols = collectables[team] ||= []
+            teamCols.length = 0
+            this.entities.forEach(ent => {
+                if(ent.isCollectableBy && ent.isCollectableBy(team)) teamCols.push(ent)
+            })
+            collectablesIts[team] = this.iteration
+        }
+        return collectables[team]
+
     }
 
     updateView() {
@@ -1654,9 +1669,16 @@ export class Hero extends LivingEntity {
 
     update() {
         super.update()
+        this.checkCollectablesHit()
         this.updateHearts()
         if(this.extras) this.extras.update()
         this.mayResurect()
+    }
+
+    checkCollectablesHit() {
+        this.scene.getCollectables(this.team).forEach(col => {
+            if(checkHit(this, col)) col.onCollected(this)
+        })
     }
 
     mayResurect() {
@@ -1796,7 +1818,10 @@ const HandSprite = new Sprite("/static/assets/hand.png")
 const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
 
 const OuchAudPrm = loadAud("/static/assets/ouch.opus")
-const SkapAudPrm = loadAud("/static/assets/slap.opus")
+const SlashAudPrm = loadAud("/static/assets/slash.opus")
+const HandHitAudPrm = loadAud("/static/assets/hand_hit.opus")
+const JumpAudPrm = loadAud("/static/assets/jump.opus")
+const ItemAudPrm = loadAud("/static/assets/item.opus")
 
 class Nico extends Hero {
     constructor(scn, x, y, playerId) {
@@ -1825,15 +1850,17 @@ class Nico extends Hero {
         }
         handHitBox.x = this.x + this.dirX * 28
         handHitBox.y = this.y
+        let hasHit = false
         const _checkHit = ent => {
             if(this == ent) return
             if(checkHit(handHitBox, ent)) {
                 ent.mayTakeDamage(0, this)
-                this.game.audioEngine.playSound(SkapAudPrm)
+                hasHit = true
             }
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.scene.getTeam("hero").forEach(_checkHit)
+        this.game.audioEngine.playSound(hasHit ? HandHitAudPrm : SlashAudPrm)
     }
 
     getSprite() {
@@ -1872,7 +1899,10 @@ class Nico extends Hero {
             this.dirX = -1
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
         }
-        if(inputState && inputState.jump && this.speedResY < 0) this.speedY = -500
+        if(inputState && inputState.jump && this.speedResY < 0) {
+            this.speedY = -500
+            this.game.audioEngine.playSound(JumpAudPrm)
+        }
         if(this.handRemIt) this.handRemIt -= 1
         if(inputState && inputState.hand && !this._prevHand && this.handRemIt===null) this.handRemIt = this.handDur
         if(!(inputState && inputState.hand) && this.handRemIt === 0) this.handRemIt = null
@@ -1955,6 +1985,8 @@ class Nico extends Hero {
 Entities.register("nico", Nico)
 
 
+const PuffAudPrm = loadAud("/static/assets/puff.opus")
+
 class Enemy extends LivingEntity {
     constructor(...args) {
         super(...args)
@@ -1962,6 +1994,7 @@ class Enemy extends LivingEntity {
     }
     onKill() {
         this.scene.entities.add(new SmokeExplosion(this.scene, this.x, this.y))
+        this.game.audioEngine.playSound(PuffAudPrm)
         this.remove()
     }
 }
@@ -2118,6 +2151,36 @@ class Spiky extends Enemy {
 Entities.register("spiky", Spiky)
 
 
+class Collectable extends Entity {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.undergoGravity = false
+        this.spriteRand = floor(random() * this.game.fps)
+    }
+
+    isCollectableBy(team) {
+        return team.startsWith("hero")
+    }
+
+    onCollected(hero, remove=true) {
+        this.playCollectedSound()
+        if(remove) this.remove()
+    }
+
+    playCollectedSound() {
+        this.game.audioEngine.playSound(ItemAudPrm)
+    }
+    
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
+        const { iteration } = this.scene
+        const { fps } = this.game
+        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
+        this.spriteDy = -this.spriteWidth * .05 * cosAngle
+    }
+}
+
+
 const HeartImgPrm = loadImg("/static/assets/colorable_heart.png")
 const HeartSpriteSheets = {
     spritesheets: {},
@@ -2130,7 +2193,7 @@ const HeartSpriteSheets = {
     },
 }
 
-class HeartItem extends Entity {
+class HeartItem extends Collectable {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 30
@@ -2138,24 +2201,13 @@ class HeartItem extends Entity {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    update() {
-        super.update()
-        this.checkHitHeros()
-    }
-
-    checkHitHeros() {
-        for(let hero of this.scene.getTeam("hero")) {
-            if(checkHit(this, hero)) this.onHeroHit(hero)
-        }
-    }
-
-    onHeroHit(hero) {
+    onCollected(hero) {
+        super.onCollected(hero)
         if(hero.health < hero.getMaxHealth()) {
             hero.health = hero.getMaxHealth()
         } else {
             hero.lives += 1
         }
-        this.remove()
     }
 
     getSprite() {
@@ -2270,7 +2322,7 @@ class ExtraGroup extends Group {
 
 const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
 
-class SwordItem extends Entity {
+class SwordItem extends Collectable {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 40
@@ -2280,16 +2332,17 @@ class SwordItem extends Entity {
     }
     update() {
         this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
-        if(this.spriteVisibility > 0) {
-            for(let hero of this.scene.getTeam("hero")) {
-                if(checkHit(this, hero)) {
-                    hero.addExtra(new SwordExtra(hero))
-                    this.lastAddAge = 0
-                    break
-                }
-            }
-        }
         this.lastAddAge += 1
+    }
+    isCollectableBy(team) {
+        if(this.spriteVisibility == false) return false
+        return super.isCollectableBy(team)
+    }
+    onCollected(hero) {
+        if(this.lastAddAge === 0) return
+        super.onCollected(hero, false)
+        hero.addExtra(new SwordExtra(hero))
+        this.lastAddAge = 0
     }
     getState() {
         const state = super.getState()
@@ -2307,6 +2360,8 @@ Entities.register("sword", SwordItem)
 const SWORD_ATTACK_PERIOD = .5
 
 const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
+
+const SwordHitAudPrm = loadAud("/static/assets/sword_hit.opus")
 
 class SwordExtra extends Extra {
     constructor(owner) {
@@ -2329,22 +2384,26 @@ class SwordExtra extends Extra {
             this.x = 25
             this.width = this.height = 40
         }
-        if(this.lastAttackAge == 0) { 
-            for(let enem of this.scene.getTeam("enemy")) {
-                if(checkHit(this, enem)) this.attackEnemy(enem)
-            }
-            for(let hero of this.scene.getTeam("hero")) {
-                if(this.owner == hero) continue
-                if(checkHit(this, hero)) this.attackHero(hero)
-            }
-        }
+        if(this.lastAttackAge == 0) this.checkHit()
         this.lastAttackAge += 1
     }
-    attackEnemy(enem) {
-        enem.mayTakeDamage(1, this.owner)
+    checkHit() {
+        const { owner } = this
+        let hasHit = false
+        const _checkHit = ent => {
+            if(owner === ent) return
+            if(checkHit(this, ent)) {
+                this.attack(ent)
+                hasHit = true
+            }
+        }
+        this.scene.getTeam("hero").forEach(_checkHit)
+        this.scene.getTeam("enemy").forEach(_checkHit)
+        this.game.audioEngine.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
     }
-    attackHero(hero) {SwordExtra
-        hero.mayTakeDamage(0, this.owner)
+    attack(ent) {
+        const damage = ent.team == this.team ? 0 : 1
+        ent.mayTakeDamage(damage, this.owner)
     }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -2382,7 +2441,7 @@ Extras.register("sword", SwordExtra)
 
 const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
 
-class BombItem extends Entity {
+class BombItem extends Collectable {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 40
@@ -2391,16 +2450,17 @@ class BombItem extends Entity {
     }
     update() {
         this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
-        if(this.spriteVisibility > 0) {
-            for(let hero of this.scene.getTeam("hero")) {
-                if(checkHit(this, hero)) {
-                    hero.addExtra(new BombExtra(hero))
-                    this.lastAddAge = 0
-                    break
-                }
-            }
-        }
         this.lastAddAge += 1
+    }
+    isCollectableBy(team) {
+        if(this.spriteVisibility == false) return false
+        return super.isCollectableBy(team)
+    }
+    onCollected(hero) {
+        if(this.lastAddAge === 0) return
+        super.onCollected(hero, false)
+        hero.addExtra(new BombExtra(hero))
+        this.lastAddAge = 0
     }
     getSprite() {
         return BombSpriteSheet.get(0)
@@ -2533,7 +2593,7 @@ Entities.register("explos", Explosion)
 
 const StarSprite = new Sprite("/static/assets/star.png")
 
-class Star extends Entity {
+class Star extends Collectable {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 30
@@ -2542,14 +2602,10 @@ class Star extends Entity {
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
     }
-    update() {
-        this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) {
-                this.remove()
-                this.scene.nbStars -= 1
-                if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
-            }
-        })
+    onCollected(hero) {
+        super.onCollected(hero)
+        this.scene.nbStars -= 1
+        if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
     }
     getSprite() {
         return StarSprite
@@ -2561,21 +2617,17 @@ Entities.register("star", Star)
 
 const CheckpointSprite = new Sprite("/static/assets/checkpoint.png")
 
-class Checkpoint extends Entity {
+class Checkpoint extends Collectable {
     constructor(scn, x, y) {
         super(scn, x, y)
         this.width = this.height = 40
         this.undergoGravity = false
         this.undergoWalls = false
     }
-    update() {
-        this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) {
-                this.remove()
-                this.scene.herosSpawnX = this.x
-                this.scene.herosSpawnY = this.y
-            }
-        })
+    onCollected(hero) {
+        super.onCollected(hero)
+        this.scene.herosSpawnX = this.x
+        this.scene.herosSpawnY = this.y
     }
     getSprite() {
         return CheckpointSprite
