@@ -88,7 +88,7 @@ export default class PhysicsEngine {
         const { walls } = this.game.map
         const gravity = this.game.physicGravity
         entities.forEach(ent => {
-            if(ent.speedX === undefined || ent.speedY === undefined) return
+            if(!ent.undergoPhysic) return
             let remD = 1, nbCollisions = 0
             if(ent.undergoGravity) ent.speedY += gravity * dt
             const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent

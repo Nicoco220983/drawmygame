@@ -1544,6 +1544,7 @@ class DynamicEntity extends Entity {
             speedY: 0,
             speedResX: 0,
             speedResY: 0,
+            undergoPhysic: true,
             undergoGravity: true,
             undergoWalls: true,
         })
@@ -2088,7 +2089,8 @@ class Ghost extends Enemy {
         const { width } = this.game.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
-        this.speedX = this.dirX * 2000 * dt
+        this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
+        this.speedY = sumTo(this.speedY, 1000 * dt, 0)
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
@@ -2126,6 +2128,7 @@ class Spiky extends Enemy {
         super(scn, x, y)
         this.width = this.height = 45
         this.undergoGravity = false
+        this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
     }
 
