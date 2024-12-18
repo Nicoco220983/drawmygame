@@ -876,14 +876,14 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
-    initGameScene(scnId) {
+    initGameScene(scnId, visible=true) {
         if(scnId === undefined) scnId = max(0, this.iteration)
         this.gameScene = new GameScene(this, scnId)
-        this.syncSize()
+        this.showGameScene(visible, true)
     }
 
-    showGameScene(visible) {
-        if(visible == this.gameScene.visible) return
+    showGameScene(visible, force=false) {
+        if(!force && visible == this.gameScene.visible) return
         this.gameScene.visible = visible
         this.syncSize()
     }
@@ -1009,7 +1009,7 @@ export class Game extends GameCommon {
     }
 
     restart(scnId) {
-        this.initGameScene(scnId)
+        this.initGameScene(scnId, this.gameScene.visible)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
 
