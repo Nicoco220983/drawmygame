@@ -40,53 +40,57 @@
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame Builder</h1>
     <flexrow>
-        <flexrow>Width: <input id="map_width" type="number"></flexrow>
-        <flexrow>Height: <input id="map_height" type="number"></flexrow>
-    </flexrow>
-    <flexrow>
-        <button id="mode_move">[M]ove</button>
-        <button id="mode_erase">[E]rase</button>
-    </flexrow>
-    <flexrow>
-        <button id="mode_wall">[W]all</button>
-        <button id="mode_platform">[P]latform</button>
-    </flexrow>
-    <flexrow>
-        <button id="mode_nico">[N]ico</button>
-        <button id="mode_heart">Heart</button>
-        <button id="mode_sword">Sw[o]rd</button>
-        <button id="mode_bomb">Bo[m]b</button>
-        <button id="mode_checkpoint">[C]heckpoint</button>
-        <button id="mode_star">[S]tar</button>
-    </flexrow>
-    <!-- <flexrow>
-        <input id="lives" placeholder="lives" type="number" />
-        <input id="health" placeholder="health" type="number" />
-    </flexrow> -->
-    <flexrow>
-        <button id="mode_blob">B[l]ob</button>
-        <button id="mode_ghost">[G]host</button>
-        <button id="mode_spiky">S[p]iky</button>
-    </flexrow>
-    <flexrow>
-        <button id="game_draw">[D]RAW</button>
-        <button id="game_start">[P]LAY !</button>
-        <button id="game_share">SHARE</button>
-        <button id="game_multi">PLAY MULTI !</button>
-    </flexrow>
-    <flexrow id="game_url" style="display: none">
-        <flexcol>
-            <button id="game_url_copy">Copy URL</button>
-            <div id="game_url_copied" style="display: none">Copied !</div>
+            <flexcol>
+            <flexcol>
+                <flexrow>Width: <input id="map_width" type="number"></flexrow>
+                <flexrow>Height: <input id="map_height" type="number"></flexrow>
+            </flexcol>
+            <flexrow>
+                <button id="mode_move">[M]ove</button>
+                <button id="mode_erase">[E]rase</button>
+            </flexrow>
+            <flexrow>
+                <button id="mode_wall">[W]all</button>
+                <button id="mode_platform">[P]latform</button>
+            </flexrow>
+            <flexrow>
+                <button id="mode_nico">[N]ico</button>
+                <button id="mode_heart">Heart</button>
+                <button id="mode_sword">Sw[o]rd</button>
+                <button id="mode_bomb">Bo[m]b</button>
+                <button id="mode_checkpoint">[C]heckpoint</button>
+                <button id="mode_star">[S]tar</button>
+            </flexrow>
+            <!-- <flexrow>
+                <input id="lives" placeholder="lives" type="number" />
+                <input id="health" placeholder="health" type="number" />
+            </flexrow> -->
+            <flexrow>
+                <button id="mode_blob">B[l]ob</button>
+                <button id="mode_ghost">[G]host</button>
+                <button id="mode_spiky">S[p]iky</button>
+            </flexrow>
+            <flexrow>
+                <button id="game_draw">[D]RAW</button>
+                <button id="game_start">[P]LAY !</button>
+                <button id="game_share">SHARE</button>
+                <button id="game_multi">PLAY MULTI !</button>
+            </flexrow>
+            <flexrow id="game_url" style="display: none">
+                <flexcol>
+                    <button id="game_url_copy">Copy URL</button>
+                    <div id="game_url_copied" style="display: none">Copied !</div>
+                </flexcol>
+                <textarea id="game_url_val" style="width: 500px; height: 50px"></textarea>
+            </flexrow>
+            <flexrow>
+                <button id="fullscreen">Fullscreen</button>
+                <input id="show_joypad" type="checkbox">Show Joypad
+            </flexrow>
         </flexcol>
-        <textarea id="game_url_val" style="width: 500px; height: 50px"></textarea>
+        <flexcol id="builder"></flexcol>
+        <flexcol id="game" style="padding:1em; display: none"></flexcol>
     </flexrow>
-    <flexrow>
-        <button id="fullscreen">Fullscreen</button>
-        <input id="show_joypad" type="checkbox">Show Joypad
-    </flexrow>
-    <flexcol id="builder"></flexcol>
-    <flexcol id="game" style="padding:1em; display: none"></flexcol>
 <script type="module">
 import { GameMap, Game, MODE_LOCAL } from './static/game.mjs'
 import { GameBuilder } from './static/builder.mjs'
