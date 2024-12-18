@@ -184,7 +184,6 @@ async function main() {
 function connectToRoom() {
     return new Promise((ok, ko) => {
         const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
-        //const appPort = window.location.port == 3000 ? 3001 : 8080
         ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
         ws.addEventListener('open', () => {
             console.log('Connected to server !')
@@ -233,11 +232,8 @@ function handleIdentifyClient(ws, data, next) {
     if(name) {
         // client already has a player name: he already joined the game
         // recover this join
-        // ws.playerName = name
-        // ws.playerColor = color
         joinGame(name, color)
     } else {
-        // ws.playerName = suggestedName
         document.getElementById("player_name").value = suggestedName
         document.getElementById("player_color").value = suggestedColor
     }

@@ -8,9 +8,6 @@ import PhysicsEngine from './physics.mjs'
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
 const CANVAS_MAX_HEIGHT = 600
-// const MAP_BOX_DEFAULT_SIZE = 20
-// const MAP_DEFAULT_NB_COLS = 40
-// const MAP_DEFAULT_NB_ROWS = 25
 const MAP_DEFAULT_WIDTH = 800
 const MAP_DEFAULT_HEIGHT = 600
 
@@ -697,7 +694,6 @@ export class SceneCommon {
         this.color = "white"
         this.iteration = 0
         this.time = 0
-        // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
@@ -758,16 +754,6 @@ export class SceneCommon {
 
     update() {}
 
-    // syncPointer() {
-    //     const gamePointer = this.game.pointer
-    //     if(!gamePointer) return
-    //     const thisPointer = this.pointer ||= {}
-    //     thisPointer.isDown = gamePointer.isDown
-    //     thisPointer.prevIsDown = gamePointer.prevIsDown
-    //     thisPointer.x = gamePointer.x - this.x
-    //     thisPointer.y = gamePointer.y - this.y
-    // }
-
     draw() {
         const ctx = this.canvas.getContext("2d")
         ctx.reset()
@@ -778,9 +764,6 @@ export class SceneCommon {
         this.drawTo(ctx)
     }
 }
-
-// const wallSprite = new Sprite(newCanvas(10, 10, "black"))
-// const platformSprite = new Sprite(newCanvas(10, 10, "lightgrey"))
 
 class Wall extends Entity {
     constructor(scn, x1, y1, x2, y2, key) {
@@ -810,8 +793,6 @@ export class Game extends GameCommon {
 
     constructor(parentEl, map, playerId, kwargs) {
         super(parentEl, map, kwargs)
-
-        // this.pointer = null
 
         this.players = {}
         this.localPlayerId = playerId
@@ -858,10 +839,6 @@ export class Game extends GameCommon {
         if(this.updating) return
         this._updating = true
         const { mode } = this
-        //if(mode == MODE_LOCAL) this.setLocalHeroInputState()
-        // if(mode == MODE_CLIENT) this.getAndMaySendInputState()
-        // if(mode == MODE_SERVER) this.getAndMaySendInputStates()
-        // if(mode == MODE_CLIENT || mode == MODE_SERVER) this.setInputStatesFromReceived()
         const updStartTime = now()
         this.update()
         if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
@@ -943,60 +920,7 @@ export class Game extends GameCommon {
             }
             if(this.iteration < targetIteration) this.updateGame()
         }
-
-        // const targetIteration = this.iteration + 1
-        // const states = this.receivedStates
-        // // received full state
-        // let lastFullStateIdx = null
-        // for(let i=0; i<states.length; ++i) if(states[i]._isFull) lastFullStateIdx = i
-        // if(lastFullStateIdx !== null) {
-        //     this.setState(states[lastFullStateIdx])
-        //     this.lastFullStateIteration = this.iteration
-        //     states.splice(0, lastFullStateIdx+1)
-        //     if(this.receiveInputStates) for(let playerId in this.receiveInputStates) {
-        //         const playerInputState = this.receiveInputStates[playerId]
-        //         while(playerInputState.length>0 && playerInputState[0].it < this.iteration) playerInputState.shift()
-        //     }
-        //     // this.cleanHistoryStates()
-        //     // this.storeHistoryState()
-        //     const acceptableIteration = targetIteration - 1
-        //     // case fullState was late
-        //     while(this.iteration < acceptableIteration) this.updateGame()
-        // } else {
-        //     this.updateGame()
-        // }
-
-        // received partial states
-        // if(this.lastFullStateIteration === undefined) return
-        // let numState = 0, nbStates = states.length
-        // for(; numState < nbStates; ++numState) {
-        //     const state = states[numState]
-        //     if(state.it < this.lastFullStateIteration) continue
-        //     if(!state._setDone) break
-        // }
-        // while(this.iteration < targetIteration) {
-        //     const state = (numState < nbStates) ? states[numState] : null
-        //     if(state && state.it < this.iteration) this.restoreHistoryState(state.it)
-        //     else if(!state || state.it > this.iteration) this.updateGame()
-        //     if(state && state.it == this.iteration) { this.setState(state); state._setDone=true; numState+=1 }
-        //     this.storeHistoryState()
-        // }
     }
-
-    // cleanHistoryStates() {
-    //     this.historyStates = {}
-    // }
-
-    // storeHistoryState() {
-    //     this.historyStates ||= {}
-    //     this.historyStates[this.iteration] = this.getState(true)
-    // }
-
-    // restoreHistoryState(it) {
-    //     if(this.isDebugMode) this.log("restoreHistoryState", this.iteration, it)
-    //     const state = JSON.parse(this.historyStates[it])
-    //     this.setState(state)
-    // }
 
     draw() {
         const drawStartTime = now()
@@ -1067,7 +991,6 @@ export class Game extends GameCommon {
             it: this.iteration,
             is: (inputState && hasKeys(inputState)) ? inputState : null
         })
-        //if(this.mode == MODE_CLIENT) this.getAndMaySendInputState()
     }
 
     maySendPing() {
@@ -1130,13 +1053,6 @@ export class Game extends GameCommon {
             this.sendStates(statesToSendStr)
             statesToSend.length = 0
         }
-        //  else {
-        //     const stateStr = this.getState(false)
-        //     if(stateStr) {
-        //         this.sendState(stateStr)
-        //         if(this.isDebugMode) this.log("sendState", stateStr)
-        //     }
-        // }
     }
 
     receiveStatesFromPlayer(playerId, statesStr) {
@@ -1181,157 +1097,11 @@ export class Game extends GameCommon {
         if(receivedStates.length >= 2) receivedStates.sort((a, b) => getOrder(a) - getOrder(b))
     }
 
-    // getInputState() {
-    //     const hero = this.gameScene.getHero(this.localPlayerId)
-    //     if(!hero) return
-    //     return hero.getInputState()
-    // }
-
-    // setLocalHeroInputState() {
-    //     const hero = this.gameScene.getHero(this.localPlayerId)
-    //     if(hero) hero.setInputState(hero.getInputState())
-    // }
-
-    // client mode only
-    // getAndSendInputState(checkPrev) {
-    //     const hero = this.gameScene.getHero(this.localPlayerId)
-    //     if(!hero) return
-    //     const inputState = hero.getInputState()
-    //     if(checkPrev) {
-    //         this.previnputStateStr ||= ""
-    //         const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
-    //         if(this.previnputStateStr == inputStateStr) return
-    //         this.previnputStateStr = inputStateStr
-    //     }
-    //     const inputStateWiTime = this.inputStateWiTime ||= {}
-    //     inputStateWiTime.t = now()
-    //     if(inputState && hasKeys(inputState)) inputStateWiTime.is = inputState
-    //     else delete inputStateWiTime.is
-    //     const inputStateWiTimeStr = JSON.stringify(inputStateWiTime)
-    //     if(this.isDebugMode) this.log("sendInputState", inputStateWiTimeStr)
-    //     this.sendInputState(inputStateWiTimeStr)
-    //     if(this.resendInputStateTimeout) clearTimeout(this.resendInputStateTimeout)
-    //     this.resendInputStateTimeout = inputStateWiTime.is ? setTimeout(() => this.getAndSendInputState(false), RESEND_INPUT_STATE_PERIOD * 1000) : null
-    // }
-
-    // getAndMaySendInputState() {
-    //     const hero = this.gameScene.getHero(this.localPlayerId)
-    //     if(!hero) return
-    //     const inputState = hero.getInputState()
-    //     this.prevInputStateStr ||= ""
-    //     const inputStateStr = (inputState && hasKeys(inputState)) ? JSON.stringify(inputState) : ""
-    //     if(this.prevInputStateStr == inputStateStr) return
-    //     this.prevInputStateStr = inputStateStr
-    //     const inputStateWiIt = this.inputStateWiIt ||= {}
-    //     inputStateWiIt.it = this.iteration
-    //     if(inputState && hasKeys(inputState)) inputStateWiIt.is = inputState
-    //     else delete inputStateWiIt.is
-    //     const inputStateWiItStr = JSON.stringify(inputStateWiIt)
-    //     if(this.isDebugMode) this.log("sendInputState", inputStateWiItStr)
-    //     this.sendInputState(inputStateWiItStr)
-    // }
-
-    // server mode only
-    // receivePlayerInputState(playerId, inputStateWiItStr) {
-    //     if(this.isDebugMode) this.log("receivePlayerInputState", playerId, inputStateWiItStr)
-    //     const receivedInputStates = this.receivedInputStates ||= {}
-    //     const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-    //     const inputStateWiIt = JSON.parse(inputStateWiItStr)
-    //     const receivedInputStatePrevClientDit = this.receivedInputStatePrevClientDit ||= {}
-    //     const clientIt = inputStateWiIt.it, prevClientDit = receivedInputStatePrevClientDit[playerId]
-    //     if(prevClientDit !== undefined) {
-    //         inputStateWiIt.it = max(this.iteration, clientIt + prevClientDit)
-    //     } else {
-    //         inputStateWiIt.it = this.iteration
-    //     }
-    //     playerReceivedInputStates.push(inputStateWiIt)
-    //     if(inputStateWiIt.is) receivedInputStatePrevClientDit[playerId] = this.iteration - clientIt
-    //     else delete receivedInputStatePrevClientDit[playerId]
-    // }
-
-    // server & client mode only
-    // setInputStatesFromReceived() {
-    //     const { iteration } = this
-    //     const receivedInputStates = this.receivedInputStates ||= {}
-    //     for(let playerId in receivedInputStates) {
-    //         const hero = this.gameScene.getHero(playerId)
-    //         if(!hero) continue
-    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-    //         while(playerReceivedInputStates.length > 0) {
-    //             const inputState = playerReceivedInputStates[0]
-    //             if(inputState.it > iteration) break
-    //             hero.setInputState(inputState.is)
-    //             playerReceivedInputStates.shift()
-    //         }
-    //     }
-    // }
-
-    // setInputStateFromReceived() {
-    //     const _now = now()
-    //     const receivedInputStates = this.receivedInputStates ||= {}
-    //     for(let playerId in receivedInputStates) {
-    //         const hero = this.gameScene.getHero(playerId)
-    //         if(!hero) continue
-    //         const playerReceivedInputStates = receivedInputStates[playerId]
-    //         if(playerReceivedInputStates.length == 0) continue
-    //         while(playerReceivedInputStates.length > 0) {
-    //             const inputStateWiTime = playerReceivedInputStates[0]
-    //             if(_now - inputStateWiTime.localTime > inputStateWiTime.duration) playerReceivedInputStates.shift()
-    //             else break
-    //         }
-    //         let inputStateWiTime = null, inputState = null
-    //         if(playerReceivedInputStates.length > 0) {
-    //             inputStateWiTime = playerReceivedInputStates[0]
-    //             inputState = inputStateWiTime.is
-    //         }
-    //         if(!inputState) {
-    //             hero.setInputState(null)
-    //             playerReceivedInputStates.shift()
-    //         } else {
-    //             if(!inputStateWiTime.setDone) {
-    //                 hero.setInputState(inputState)
-    //                 inputStateWiTime.setDone = true
-    //             }
-    //         }
-    //     }
-    // }
-
-    // server mode only
-    // getAndMaySendInputStates() {
-    //     const { iteration } = this
-    //     const inputStatesWiIt = {}
-    //     const receivedInputStates = this.receivedInputStates ||= {}
-    //     for(let playerId in receivedInputStates){
-    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-    //         const inputStateWiIt = playerReceivedInputStates[0]
-    //         if(inputStateWiIt && inputStateWiIt.it == iteration) inputStatesWiIt[playerId] = inputStateWiIt
-    //     }
-    //     if(hasKeys(inputStatesWiIt)) {
-    //         const inputStatesWiItStr = JSON.stringify(inputStatesWiIt)
-    //         if(this.isDebugMode) this.log("sendInputStates", inputStatesWiItStr)
-    //         this.sendInputStates(inputStatesWiItStr)
-    //     }
-    // }
-
-    // client mode only
-    // receiveInputStates(inputStatesWiItStr) {
-    //     if(this.isDebugMode) this.log("receiveInputStates", inputStatesWiItStr)
-    //     const receivedInputStates = this.receivedInputStates ||= {}
-    //     const inputStatesWiIt = JSON.parse(inputStatesWiItStr)
-    //     for(let playerId in inputStatesWiIt) {
-    //         const playerInputStatesWiIt = inputStatesWiIt[playerId]
-    //         const playerReceivedInputStates = receivedInputStates[playerId] ||= []
-    //         playerReceivedInputStates.push(playerInputStatesWiIt)
-    //     }
-    // }
-
     async showJoypadScene(val) {
         if(val == Boolean(this.joypadScene)) return
         if(val) {
             const joypadMod = await import("./joypad.mjs")
             if(this.joypadScene) return
-            // this.initPointer()
-            // this.initTouches()
             const { JoypadScene } = joypadMod
             this.joypadScene = new JoypadScene(this)
         } else {
@@ -2021,10 +1791,6 @@ class BlobEnemy extends Enemy {
             this.lastChangeDirAge = 0
         }
         if(this.speedResY < 0) {
-            // const { left, width, top, height } = this.getHitBox()
-            // const wallAheadBy = ceil((top + height - 1) / boxSize)
-            // const wallAheadBx = (this.dirX > 0) ? ceil((left + width / 2) / boxSize) : floor((left + width / 2) / boxSize)
-            // if(wallAheadBx<0 || wallAheadBx>=nbCols || wallAheadBy<0 || wallAheadBy>=nbRows || walls[wallAheadBx][wallAheadBy] === null) this.dirX *= -1
             this.speedX = this.dirX * 30
         }
         // attack
@@ -2547,9 +2313,6 @@ class Bomb extends DynamicEntity {
 }
 Entities.register("bomb", Bomb)
 
-
-// const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
-// const ExplosionSprites = range(0, 46).map(i => new Sprite(ExplosionSpriteSheet.getFrame(i)))
 
 const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
 

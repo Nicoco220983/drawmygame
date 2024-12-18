@@ -103,34 +103,19 @@ const builderParentEl = document.getElementById("builder")
 const gameParentEl = document.getElementById("game")
 let map = null, gameBuilder = null, game = null
 
-// const boxSizeEl = document.getElementById("map_box_size")
-// const nbColsEl = document.getElementById("map_nb_cols")
-// const nbRowsEl = document.getElementById("map_nb_rows")
 const mapWidthEl = document.getElementById("map_width")
 const mapHeightEl = document.getElementById("map_height")
 function syncInputElSize() {
-    // boxSizeEl.value = map.boxSize
-    // nbColsEl.value = map.nbCols
-    // nbRowsEl.value = map.nbRows
     mapWidthEl.value = map.width
     mapHeightEl.value = map.height
 }
 function updSize() {
     map.width = parseInt(mapWidthEl.value)
     map.height = parseInt(mapHeightEl.value)
-    // map.boxSize = parseInt(boxSizeEl.value)
-    // map.nbCols = parseInt(nbColsEl.value)
-    // map.nbRows = parseInt(nbRowsEl.value)
-    //map.syncSize()
     if(gameBuilder) gameBuilder.syncSize()
 }
 mapWidthEl.onchange = mapHeightEl.onchange = updSize
 mapWidthEl.onchange = mapHeightEl.onchange = updSize
-
-// function updMapAttr(key, val) {
-//     if(val !== undefined) map.attrs[key] = val
-//     else delete map.attrs[key]
-// }
 
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setMode('move')
@@ -150,11 +135,6 @@ function setMode(mode, modeKey) {
     if(!gameBuilder) return
     gameBuilder.setMode(mode, modeKey)
 }
-
-// const livesEl = document.getElementById("lives")
-// livesEl.onchange = () => livesEl.value ? parseInt(livesEl.value) : undefined
-// const healthEl = document.getElementById("health")
-// healthEl.onchange = () => healthEl.value ? parseInt(healthEl.value) : undefined
 
 document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
 document.getElementById("game_start").onclick = Keys["p"] = startAndShowGame
@@ -179,7 +159,6 @@ document.getElementById("game_multi").onclick = async () => {
         method: "POST",
         body: new Blob([mapBin], {type: 'application/octet-stream'}),
     })
-    // window.location = `${window.location.origin}/r/${roomId}`
     let url = `${window.location.origin}/r/${roomId}`
     if(isDebugMode) url += '?debug=1'
     window.open(url, '_blank').focus();
@@ -207,7 +186,6 @@ document.addEventListener('keydown', evt => {
 async function main() {
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
-    //map.syncSize()
     syncInputElSize()
     if(urlParams.has("map")) {
         startAndShowGame()
@@ -238,7 +216,6 @@ function startAndShowGame() {
             mode: MODE_LOCAL,
             debug: isDebugMode
         })
-        // game.showJoypadScene(true)
         game.addPlayer(playerId, {
             num: 0,
             name: null,
