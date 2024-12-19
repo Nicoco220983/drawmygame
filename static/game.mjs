@@ -981,16 +981,31 @@ export class Game extends GameCommon {
     setInputKey(key, val) {
         if(Boolean(this.keysPressed[key]) === val) return
         this.keysPressed[key] = val
+        this.getAndMayPushLocalHeroInputState()
+    }
+
+    getAndMayPushLocalHeroInputState() {
         const localHero = this.gameScene.getHero(this.localPlayerId)
         if(!localHero) return
-        const states = (this.mode == MODE_CLIENT) ? this.statesToSend : this.inputStates
-        const inputState = localHero.getInputState()
-        if(localHero) states.push({
+        let inputState = localHero.getInputState()
+        if(!inputState || !hasKeys(inputState)) inputState = null
+        const inputStateWiIt = {
             t: STATE_TYPE_INPUT,
             pid: this.localPlayerId,
             it: this.iteration,
-            is: (inputState && hasKeys(inputState)) ? inputState : null
-        })
+            is: inputState
+        }
+        if(this.mode != MODE_CLIENT) {
+            this.inputStates.push(inputStateWiIt)
+        } else {
+            this.statesToSend.push(inputStateWiIt)
+            this._inputStateSendCount ||= 0
+            const inputStateSendCount = this._inputStateSendCount += 1
+            if(inputState) setTimeout(() => {
+                if(this._inputStateSendCount != inputStateSendCount) return
+                this.getAndMayPushLocalHeroInputState()
+            }, RESEND_INPUT_STATE_PERIOD * 1000)
+        }
     }
 
     maySendPing() {
@@ -1032,7 +1047,7 @@ export class Game extends GameCommon {
 
     // server only
     getAndMaySendStates() {
-        const { iteration, receivedStates, receivedAppliedStates, statesToSend } = this
+        const { receivedAppliedStates, statesToSend } = this
         if(this.mode == MODE_SERVER) {
             // full state
             this._lastSendFullStateTime ||= -SEND_STATE_PERIOD
@@ -1060,18 +1075,31 @@ export class Game extends GameCommon {
         const states = JSON.parse(statesStr)
         for(let state of states) {
             if(state.pid != playerId) continue
-            if(state.t == STATE_TYPE_INPUT) this.fixReceivedInputStateIt(state)
+            if(state.t == STATE_TYPE_INPUT) this.handleInputStateFromPlayer(state)
             this.addReceivedState(state)
         }
     }
 
-    fixReceivedInputStateIt(inputStateWiIt) {
+    handleInputStateFromPlayer(inputStateWiIt) {
+        // fix iteration
         const receivedInputStatePrevDit = this._receivedInputStatePrevDit ||= {}
         const playerId = inputStateWiIt.pid, clientIt = inputStateWiIt.it, prevDit = receivedInputStatePrevDit[playerId] || 0
         inputStateWiIt.it = this.iteration
         if(prevDit !== 0) inputStateWiIt.it = max(inputStateWiIt.it, clientIt + prevDit)
         if(inputStateWiIt.is) receivedInputStatePrevDit[playerId] = max(prevDit, this.iteration - clientIt)
         else delete receivedInputStatePrevDit[playerId]
+        // schedule input state stop
+        this._lastReceivedInputStateCount ||= 0
+        const lastReceivedInputStateCount = this._lastReceivedInputStateCount += 1
+        if(inputStateWiIt.is) setTimeout(() => {
+            if(lastReceivedInputStateCount != this._lastReceivedInputStateCount) return
+            this.addReceivedState({
+                t: STATE_TYPE_INPUT,
+                pid: inputStateWiIt.pid,
+                it: this.iteration,
+                is: null
+            })
+        }, RESEND_INPUT_STATE_PERIOD * 2 * 1000)
     }
 
     receiveStatesFromLeader(statesStr) {
