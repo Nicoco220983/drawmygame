@@ -8,7 +8,7 @@ const NO_COLLISION_WITHOUT_SPEED = 1
 const COLLISION_WITHOUT_SPEED = 2
 
 
-const colRes = {}, projRes = {}
+const colRes = {}, projRes = {}, fixRes = {}
 
 export default class PhysicsEngine {
     constructor(game) {
@@ -89,7 +89,7 @@ export default class PhysicsEngine {
         const gravity = this.game.physicGravity
         entities.forEach(ent => {
             if(!ent.undergoPhysic) return
-            let remD = 1, nbCollisions = 0
+            let remD = 1, nbCollisions = 0, nbFixes = 0
             if(ent.undergoGravity) ent.speedY += gravity * dt
             const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent
             const entOrigDx = entOrigSpdX * dt, entOrigDy = entOrigSpdY * dt
@@ -103,17 +103,24 @@ export default class PhysicsEngine {
                         minX: entMinX, minY: entMinY, maxX: entMaxX, maxY: entMaxY,
                         sMinX: entSMinX, sMinY: entSMinY, sMaxX: entSMaxX, sMaxY: entSMaxY,
                     } = entData
-                    walls.forEach(wall => {
+                    let fixed = false
+                    for(let wall of walls) {
                         let col = COLLISION_WITHOUT_SPEED
                         const wallData = wall.physicData
                         // quick filtering
                         if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) return
                         if(entMinX > wallData.maxX || entMaxX < wallData.minX || entMinY > wallData.maxY || entMaxY < wallData.minY) col = NO_COLLISION_WITHOUT_SPEED
-                        // less quick but exact filtering
+                        // less quick but more exact filtering
                         col = min(col, detectCollision(col, entData, wallData))
-                        if(col == NO_COLLISION_WITH_SPEED) return
+                        if(col == NO_COLLISION_WITH_SPEED) continue
+                        // if(col == COLLISION_WITHOUT_SPEED && fixCollision(entData, wallData, fixRes)) {
+                        //     fixed = true; nbFixes += 1; break
+                        // }
+                        // determine closest collision point
                         determineClosestCollisionPoint(col, entData, wallData, colRes)
-                    })
+                    }
+                    if(nbFixes==3) remD = 0
+                    if(fixed) continue
                     if(colRes.d2 !== null) {
                         nbCollisions += 1
                         const { speedX: entSpdX, speedY: entSpdY } = ent
@@ -196,6 +203,37 @@ function projectOnAxis(physicData, ax, ay, res) {
             }
         }
     }
+}
+
+const centerRes1 = {}, centerRes2 = {}, interRes1 = {}, interRes2 = {}
+function fixCollision(physicData1, physicData2, res) {
+    const _getCenter = function(physicData, centerRes) {
+        centerRes.x = 0; centerRes.y = 0
+        const poly = physicData.polygon
+        for(let i=0; i<poly.length; i+=2) {
+            centerRes.x += poly[i]
+            centerRes.y += poly[i+1]
+        }
+        centerRes.x /= poly.length / 2
+        centerRes.y /= poly.length / 2
+    }
+    _getCenter(physicData1, centerRes1)
+    _getCenter(physicData2, centerRes2)
+    const _getIntersection = function(physicData, interRes) {
+        interRes.x = null; interRes.y = null
+        const poly = physicData.polygon, polyLen = poly.length
+        const polyLen2 = (polyLen > 4) ? polyLen : (polyLen -2)  // optim for segments
+        for(let i=0; i<polyLen2; i+=2) {
+            if(intersection(poly[i], poly[i+1], poly[(i+2)%polyLen], poly[(i+3)%polyLen], centerRes1.x, centerRes1.y, centerRes2.x, centerRes2.y, interRes))
+                break
+        }
+    }
+    _getIntersection(physicData1, interRes1)
+    const _interRes1 = (interRes1.x !== null) ? interRes1 : centerRes1
+    _getIntersection(physicData2, interRes2)
+    const _interRes2 = (interRes2.x !== null) ? interRes2 : centerRes2
+    res.x = _interRes2.x - _interRes1.x
+    res.y = _interRes2.y - _interRes1.y
 }
 
 const interRes = {}
