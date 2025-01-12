@@ -1763,7 +1763,7 @@ class Nico extends Hero {
 
     setState(state) {
         super.setState(state)
-        if(this.handRemIt!==undefined) this.handRemIt = this.hri
+        if(this.hri!==undefined) this.handRemIt = this.hri
         else this.handRemIt = null
     }
 
