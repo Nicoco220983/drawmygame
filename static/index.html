@@ -40,13 +40,14 @@
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame Builder</h1>
     <flexrow>
-            <flexcol>
+        <flexcol id="menu">
             <flexcol>
                 <flexrow>Width: <input id="map_width" type="number"></flexrow>
                 <flexrow>Height: <input id="map_height" type="number"></flexrow>
             </flexcol>
             <flexrow>
                 <button id="mode_move">[M]ove</button>
+                <button id="mode_select">[S]elect</button>
                 <button id="mode_erase">[E]rase</button>
             </flexrow>
             <flexrow>
@@ -87,6 +88,7 @@
                 <button id="fullscreen">Fullscreen</button>
                 <input id="show_joypad" type="checkbox">Show Joypad
             </flexrow>
+            <flexcol id="selection_menu"></flexcol>
         </flexcol>
         <flexcol id="builder"></flexcol>
         <flexcol id="game" style="padding:1em; display: none"></flexcol>
@@ -100,6 +102,7 @@ const urlParams = new URLSearchParams(urlQueryStr)
 const isDebugMode = urlParams.get("debug") == "1"
 
 const builderParentEl = document.getElementById("builder")
+const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
 let map = null, gameBuilder = null, game = null
 
@@ -119,6 +122,10 @@ mapWidthEl.onchange = mapHeightEl.onchange = updSize
 
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setMode('move')
+document.getElementById("mode_select").onclick = Keys["s"] = () => {
+    if(gameBuilder) gameBuilder.clearSelection()
+    setMode('select')
+}
 document.getElementById("mode_wall").onclick = Keys["ww"] = () => setMode('wall', 'wall')
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setMode('wall', 'platform')
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setMode('erase')
@@ -139,6 +146,7 @@ function setMode(mode, modeKey) {
 document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
 document.getElementById("game_start").onclick = Keys["p"] = startAndShowGame
 document.getElementById("game_share").onclick = async () => {
+    if(gameBuilder) gameBuilder.syncMap()
     const mapStr = await map.exportAsSafeBase64()
     console.log(`Map export size: ${mapStr.length}`)
     const valEl = document.getElementById("game_url_val")
@@ -154,6 +162,7 @@ document.getElementById("game_share").onclick = async () => {
 document.getElementById("game_multi").onclick = async () => {
     const res = await fetch("/newroom", { method: "POST" })
     const { roomId } = await res.json()
+    if(gameBuilder) gameBuilder.syncMap()
     const mapBin = await map.exportAsBinary()
     await fetch(`/room/${roomId}/map`, {
         method: "POST",
@@ -161,7 +170,7 @@ document.getElementById("game_multi").onclick = async () => {
     })
     let url = `${window.location.origin}/r/${roomId}`
     if(isDebugMode) url += '?debug=1'
-    window.open(url, '_blank').focus();
+    window.open(url, '_blank').focus()
 }
 
 const fullscreenEl = document.getElementById("fullscreen")
@@ -198,7 +207,7 @@ async function main() {
 function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
-    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, map)
+    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map)
     gameBuilder.play()
     builderParentEl.style.display = ""
 }
@@ -210,6 +219,7 @@ function stopBuilder() {
 function startAndShowGame() {
     builderParentEl.style.display = "none"
     stopBuilder()
+    if(gameBuilder)  gameBuilder.syncMap()
     if(!game) {
         const playerId = "0"
         game = new Game(gameParentEl, map, playerId, {

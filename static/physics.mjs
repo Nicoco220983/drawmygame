@@ -142,7 +142,6 @@ export default class PhysicsEngine {
                     if(nbCollisions==5) remD = 0
                 }
             }
-            //console.log("TMP nbCollisions", nbCollisions)
             if(remD > 0) {
                 ent.x += ent.speedX * dt * remD
                 ent.y += ent.speedY * dt * remD

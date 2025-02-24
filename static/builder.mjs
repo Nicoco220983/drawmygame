@@ -1,19 +1,19 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas } = utils
-import { GameCommon, SceneCommon, Entity, Entities, Sprite, Hero, now, FPS } from './game.mjs'
+const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
+import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent } from './game.mjs'
 
 
 // BUILDER //////////////////////////
 
 export class GameBuilder extends GameCommon {
 
-    constructor(parentEl, map, kwargs) {
-        super(parentEl, map, kwargs)
-        
+    constructor(canvasParentEl, menuEl, map, kwargs) {
+        super(canvasParentEl, map, kwargs)
+        this.menuEl = menuEl
+        this.selectionMenu = new SelectionMenu(this)
         this.setMode("move")
-
         this.initTouches()
     }
 
@@ -49,6 +49,15 @@ export class GameBuilder extends GameCommon {
         else this.canvas.style.cursor = "cell"
         this.gameScene.syncMode()
     }
+
+    syncMap() {
+        this.gameScene.syncMap()
+    }
+
+    clearSelection() {
+        this.gameScene.selections.length = 0
+        this.selectionMenu.clear()
+    }
 }
 
 
@@ -56,20 +65,40 @@ class BuilderScene extends SceneCommon {
     constructor(...args) {
         super(...args)
         this.initHeros()
-    }
-
-    initHeros() {
-        const mapHeros = this.game.map.heros
-        for(let heroDef of mapHeros) {
-            const { keys, x, y } = heroDef
-            const cls = Entities[keys[0]]
-            this.entities.add(new cls(this, x, y))
-        }
+        this.initEntities()
+        this.initEvents()
+        this.selections = []
     }
 
     setPosAndSize(x, y, width, height) {
         super.setPosAndSize(x, y, width, height)
         this.syncGrid()
+    }
+
+    initHeros() {
+        const mapHeros = this.game.map.heros
+        for(let heroDef of mapHeros) {
+            const { key, x, y } = heroDef
+            const cls = Entities[key]
+            this.entities.add(new cls(this, x, y))
+        }
+    }
+
+    initEntities() {
+        this.game.map.entities.forEach(entState => {
+            const ent = this.addEntity(entState.x, entState.y, entState.key)
+            ent.setState(entState)
+        })
+    }
+
+    initEvents() {
+        this.game.map.events.forEach(evt => {
+            const { key: evtKey } = evt
+            if(evtKey == "ent") {
+                const ent = this.addEntity(evt.state.x, evt.state.y, evt.state.key)
+                ent.builderTrigger = (nbKeys(evt) > 1) ? evt : null
+            }
+        })
     }
 
     syncGrid() {
@@ -113,6 +142,7 @@ class BuilderScene extends SceneCommon {
         const { mode } = this.game
         this.updateDraftEntity()
         if(mode == "move") this.updateMove()
+        else if(mode == "select") this.updateSelect()
         else if(mode == "wall") this.addPointedWall()
         else if(mode == "erase") this.erasePointedEntityOrWall()
         else if(mode == "entity") this.addPointedEntity()
@@ -155,6 +185,32 @@ class BuilderScene extends SceneCommon {
         }
     }
 
+    updateSelect() {
+        const { touches, prevTouchIsDown } = this.game
+        const touch = touches[0]
+        if(touch && touch.isDown && !prevTouchIsDown) {
+            const x = touch.x + this.viewX, y = touch.y + this.viewY
+            // walls
+            this.walls.forEach(wall => {
+                if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
+                    this.select(wall)
+            })
+            // entities
+            this.entities.forEach(ent  => {
+                const { left, width, top, height } = ent.getHitBox()
+                if(left <= x && left+width >= x && top <= y && top+height >= y) {
+                    this.select(ent)
+                }
+            })
+        }
+    }
+
+    select(ent) {
+        this.selections.push(ent)
+        this.game.selectionMenu.clear()
+        this.game.selectionMenu.addSelection(ent)
+    }
+
     addPointedWall(key) {
         const { touches, prevTouchIsDown } = this.game
         const touch = touches[0]
@@ -163,7 +219,7 @@ class BuilderScene extends SceneCommon {
             const touchX = touch.x + this.viewX
             const touchY = touch.y + this.viewY
             if(this.prevTouchX !== null) {
-                this.addWallAndSyncMap(this.prevTouchX, this.prevTouchY, touchX, touchY)
+                this.addWall(this.prevTouchX, this.prevTouchY, touchX, touchY)
             }
             if(!this.draftEntity) {
                 this.draftEntity = this.addWall(touchX, touchY, touchX, touchY)
@@ -177,38 +233,15 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    addWallAndSyncMap(x1, y1, x2, y2) {
-        const wall = this.addWall(x1, y1, x2, y2)
-        wall.mapRef = { x1, y1, x2, y2 }
-        this.game.map.walls.push(wall.mapRef)
-    }
-
-    removeWallAndSyncMap(wall) {
-        wall.remove()
-        removeFromArr(this.game.map.walls, wall.mapRef)
-    }
-
-    addEntityAndSyncMap(x, y, key) {
-        const ent = this.addEntity(x, y, key)
+    addEntity(x, y, key) {
+        const ent = super.addEntity(x, y, key)
         if(ent instanceof Hero) {
             this.entities.forEach(ent2 => {
                 if(ent2 !== ent && ent2 instanceof Hero && ent2 != this.draftEntity)
-                    this.removeEntityAndSyncMap(ent2)
+                    ent2.remove()
             })
-            ent.mapRef = { x, y, keys: [key] }
-            this.game.map.heros = [ent.mapRef]
-        } else {
-            ent.mapRef = { x, y, key }
-            this.game.map.entities.push(ent.mapRef)
         }
         return ent
-    }
-
-    removeEntityAndSyncMap(ent) {
-        const { map } = this.game
-        ent.remove()
-        if(ent instanceof Hero) map.hero = null
-        else removeFromArr(map.entities, ent.mapRef)
     }
 
     erasePointedEntityOrWall() {
@@ -219,13 +252,13 @@ class BuilderScene extends SceneCommon {
             // walls
             this.walls.forEach(wall => {
                 if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
-                    this.removeWallAndSyncMap(wall)
+                    wall.remove()
             })
             // entities
             this.entities.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    this.removeEntityAndSyncMap(ent)
+                    ent.remove()
                 }
             })
         }
@@ -236,10 +269,42 @@ class BuilderScene extends SceneCommon {
         const { modeKey } = this.game
         const touch = touches[0]
         if(touch && touch.isDown && !prevTouchIsDown) {
-            const x = touch.x + this.viewX
-            const y = touch.y + this.viewY
-            this.addEntityAndSyncMap(x, y, modeKey)
+            const x = floor(touch.x + this.viewX)
+            const y = floor(touch.y + this.viewY)
+            this.addEntity(x, y, modeKey)
         }
+    }
+
+    syncMap() {
+        if(this.draftEntity) this.draftEntity.remove()
+        this.draftEntity = null
+        const { map } = this.game
+        map.walls.length = 0
+        this.walls.forEach(wall => {
+            if(wall.removed) return
+            const { x1, y1, x2, y2 } = wall
+            map.walls.push({ x1, y1, x2, y2 })
+        })
+        map.heros.length = 0
+        map.entities.length = 0
+        map.events.length = 0
+        this.entities.forEach(ent => {
+            if(ent.removed) return
+            if(ent instanceof Hero) map.heros.push(ent.getState())
+            else {
+                // const evt = new SpawnEntityEvent(this, ent.builderTrigger)
+                // evt.entState = ent.getState()
+                // map.events.push(evt.getInitState())
+                const state = ent.getState()
+                if(ent.builderTrigger) {
+                    const evt = new SpawnEntityEvent(this, ent.builderTrigger)
+                    evt.entState = ent.getState()
+                    map.events.push(evt.getInitState())
+                } else {
+                    map.entities.push(state)
+                }
+            }
+        })
     }
 
     drawTo(ctx) {
@@ -247,14 +312,213 @@ class BuilderScene extends SceneCommon {
         this.walls.drawTo(ctx)
         this.grid.drawTo(ctx)
         this.entities.drawTo(ctx)
+        this.drawSelections(ctx)
+    }
+
+    drawSelections(ctx) {
+        for(let sel of this.selections) {
+            let left, top, width, height
+            if(sel instanceof Wall) {
+                left = min(sel.x1, sel.x2)
+                top = min(sel.y1, sel.y2)
+                width = abs(sel.x1 - sel.x2)
+                height = abs(sel.y1 - sel.y2)
+            } else if(sel instanceof Entity) {
+                const hitBox = sel.getHitBox()
+                left = hitBox.left
+                top = hitBox.top
+                width = hitBox.width
+                height = hitBox.height
+            }
+            ctx.lineWidth = 1
+            ctx.strokeStyle = "grey"
+            ctx.beginPath()
+            ctx.setLineDash([5, 5])
+            ctx.rect(left, top, width, height)
+            ctx.stroke()
+        }
     }
 }
 
 
-function removeFromArr(arr, item) {
-    arr.splice(arr.indexOf(item), 1)
+class SelectionMenu {
+    constructor(scn) {
+        this.scene = scn
+        this.game = scn.game
+        this.sectionEls = {}
+        this.selections = []
+    }
+    clear() {
+        const { menuEl } = this.game
+        menuEl.innerHTML = ""
+        this.sectionEls = {}
+        this.selections.length = 0
+    }
+    addSelection(ent) {
+        this.selections.push(ent)
+        if(ent.addMenuInputs) ent.addMenuInputs(this)
+        this.addSpawnEntityTriggerInputs(ent)
+    }
+    getSection(section) {
+        const { menuEl } = this.game
+        let sectionEl = this.sectionEls[section]
+        if(!sectionEl) {
+            sectionEl = this.sectionEls[section] = menuEl.appendChild(newDomEl("div"))
+            sectionEl.appendChild(newDomEl("div", { style: { fontWeight: "bold" }, text: section }))
+        }
+        return sectionEl
+    }
+    addInput(section, name, input, defVal) {
+        if(typeof input === "string") {
+            const inputEl = document.createElement("input")
+            inputEl.type = input
+            inputEl.value = defVal
+            input = inputEl
+        }
+        const sectionEl = this.getSection(section)
+        const lineEl = sectionEl.appendChild(newDomEl("div"))
+        lineEl.innerHTML = `<span>${name}:</span>`
+        lineEl.appendChild(input)
+        return input
+    }
+    updateState(key, val) {
+        for(let sel of this.game.gameScene.selections) {
+            sel[key] = val
+        }
+    }
+    addSpawnEntityTriggerInputs(ent) {
+        const sectionEl = this.getSection("trigger")
+        const checkEl = sectionEl.appendChild(newDomEl("input", { type: "checkbox" }))
+        const trigWrapperEl = sectionEl.appendChild(newDomEl("div"))
+        checkEl.checked = Boolean(ent.builderTrigger)
+        const syncTriggerInputs = () => {
+            trigWrapperEl.innerHTML = ""
+            if(checkEl.checked) {
+                const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-entity-event-trigger-form"))
+                trigEl.setTrigger(ent.builderTrigger)
+            }
+        }
+        syncTriggerInputs()
+        checkEl.onchange = () => {
+            ent.builderTrigger = checkEl.checked ? {} : null
+            syncTriggerInputs()
+        }
+    }
 }
 
+
+class TriggerFormElement extends HTMLElement {
+    connectedCallback() {
+        this.innerHTML = ""
+        assign(this.style, {
+            display: "flex",
+            flexDirection: "column",
+        })
+        this.initSelEl()
+        this.triggerEl = this.appendChild(newDomEl("div"))
+        this.connected = true
+        this.sync()
+    }
+    initSelEl() {
+        const selEl = this.selEl = this.appendChild(newDomEl("select"))
+        selEl.appendChild(newDomEl("option", { value: "", text: "" }))
+        selEl.appendChild(newDomEl("option", { value: "maxExecs", text: "max execs" }))
+        selEl.appendChild(newDomEl("option", { value: "prevExecOlder", text: "prev exec older" }))
+        selEl.appendChild(newDomEl("option", { value: "and", text: "and" }))
+        selEl.appendChild(newDomEl("option", { value: "or", text: "or" }))
+        selEl.appendChild(newDomEl("option", { value: "not", text: "not" }))
+        selEl.onchange = () => {
+            for(let key in this.trigger) delete this.trigger[key]
+            this.trigger[selEl.value] = null
+            this.syncTrigger()
+        }
+    }
+    setTrigger(trigger) {
+        this.trigger = trigger
+        this.sync()
+    }
+    sync() {
+        if(!this.connected || !this.trigger) return
+        this.syncSel()
+        this.syncTrigger()
+    }
+    syncSel() {
+        const { selEl, trigger } = this
+        selEl.value = ""
+        if(trigger.maxExecs !== undefined) return selEl.value = "maxExecs"
+        if(trigger.prevExecOlder !== undefined) return selEl.value = "prevExecOlder"
+        if(trigger.and !== undefined) return selEl.value = "and"
+        if(trigger.or !== undefined) return selEl.value = "or"
+        if(trigger.not !== undefined) return selEl.value = "not"
+    }
+    syncTrigger() {
+        const { selEl, triggerEl, trigger } = this
+        triggerEl.innerHTML = ""
+        const key = selEl.value
+        if(key == "maxExecs" || key == "prevExecOlder") {
+            if(trigger[key] === null) trigger[key] = 0
+            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
+            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
+        } else if(key == "and" || key == "or") {
+            if(trigger[key] === null) trigger[key] = []
+            const butEl = triggerEl.appendChild(newDomEl("button", { text: "Add" }))
+            butEl.onclick = () => {
+                const newTrig = {}
+                trigger[key].push(newTrig)
+                this.addSubTriggerElement(newTrig)
+            }
+            if(trigger[key]) for(let subTrigger of trigger[key]) this.addSubTriggerElement(subTrigger)
+        } else if(key == "not") {
+            if(trigger[key] === null) trigger[key] = {}
+            this.addSubTriggerElement(trigger[key])
+        }
+    }
+    addSubTriggerElement(subTrigger) {
+        const subEl = newDomEl(this.tagName)
+        subEl.setTrigger(subTrigger)
+        this.triggerEl.appendChild(subEl)
+    }
+}
+customElements.define("dmg-event-trigger-form", TriggerFormElement)
+
+
+class SpawnEntityTriggerFormElement extends TriggerFormElement {
+    initSelEl() {
+        super.initSelEl()
+        const { selEl } = this
+        selEl.appendChild(newDomEl("option", { value: "nbEnts", text: "nb entities" }))
+        selEl.appendChild(newDomEl("option", { value: "prevEntFur", text: "previous entity further" }))
+    }
+    syncSel() {
+        const { selEl, trigger } = this
+        super.syncSel()
+        if(trigger.nbEnts !== undefined) return selEl.value = "nbEnts"
+        if(trigger.prevEntFur !== undefined) return selEl.value = "prevEntFur"
+    }
+    syncTrigger() {
+        super.syncTrigger()
+        const { selEl, triggerEl, trigger } = this
+        const key = selEl.value
+        if(key == "nbEnts") {
+            if(trigger[key] === null) trigger[key] = 0
+            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
+            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
+        }
+        if(key == "prevEntFur") {
+            if(trigger[key] === null) trigger[key] = 100
+            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
+            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
+        }
+    }
+}
+customElements.define("dmg-spawn-entity-event-trigger-form", SpawnEntityTriggerFormElement)
+
+
+function nbKeys(obj) {
+    let res = 0
+    for(let _ in obj) res += 1
+    return res
+}
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1

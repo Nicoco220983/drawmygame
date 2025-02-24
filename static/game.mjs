@@ -1,7 +1,7 @@
 const { assign } = Object
-const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random } = Math
+const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl } = utils
 import { loadAud, AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 
@@ -44,6 +44,7 @@ export class GameMap {
         this.walls = []
         this.heros = []
         this.entities = []
+        this.events = []
     }
 
     async exportAsBinary() {
@@ -53,7 +54,8 @@ export class GameMap {
             //a: this.attrs,
             ws: this.walls,
             hs: this.heros,
-            es: this.entities,
+            ents: this.entities,
+            evts: this.events,
         }
         const outStr = JSON.stringify(outObj)
         const outBin = await compress(outStr)
@@ -74,10 +76,10 @@ export class GameMap {
         const inObj = JSON.parse(inStr)
         this.width = inObj.w
         this.height = inObj.h
-        //this.attrs = inObj.a
         this.walls = inObj.ws
         this.heros = inObj.hs
-        this.entities = inObj.es
+        this.entities = inObj.ents
+        this.events = inObj.evts
     }
 }
 
@@ -341,6 +343,25 @@ export class Entity {
         else delete this.dirY
     }
 
+    addMenuInputs(menu) {
+        const xInput = menu.addInput("position", "x", "number", this.x)
+        xInput.onchange = () => menu.updateState("x", parseInt(xInput.value))
+        const yInput = menu.addInput("position", "y", "number", this.y)
+        yInput.onchange = () => menu.updateState("y", parseInt(yInput.value))
+        const dirXInput = newDomEl("select")
+        dirXInput.appendChild(newDomEl("option", {
+            value: "1",
+            text: "Right",
+        }))
+        dirXInput.appendChild(newDomEl("option", {
+            value: "-1",
+            text: "Left",
+        }))
+        dirXInput.value = this.dirX.toString()
+        menu.addInput("position", "dirX", dirXInput)
+        dirXInput.onchange = () => menu.updateState("dirX", parseInt(dirXInput.value))
+    }
+
     spriteFit(sprite) {
         const { width, height } = this
         const { width: baseWidth, height: baseHeight } = sprite.baseImg
@@ -385,6 +406,192 @@ Entities.register = function(key, cls) {
     cls.key = key
     this[key] = cls
 }
+
+
+export class EntityRefs extends Set {
+    constructor(owner, refGroup) {
+        super()
+        this.owner = owner
+        this.game = game
+        this.refGroup = refGroup
+    }
+    clearRemoved() {
+        const { refGroup } = this
+        for(let id of this) {
+            const ent = refGroup.get(id)
+            if(!ent || ent.removed) this.delete(id)
+        }
+    }
+    forEach(next) {
+        const { refGroup } = this
+        for(let id of this) {
+            const ent = refGroup.get(id)
+            if(!ent || ent.removed) this.delete(id)
+            else next(ent)
+        }
+    }
+    getState() {
+        const state = this.state |= []
+        state.length = 0
+        this.forEach(ent => state.push(ent.id))
+        return state
+    }
+    setState(state) {
+        for(let id of state) this.add(id)
+        if(state.length < this.size) {
+            for(let id of this)
+                if(state.indexOf(id)<0)
+                    this.delete(id)
+        }
+    }
+}
+
+
+export const Events = {}
+Events.register = function(key, cls) {
+   cls.key = key
+   this[key] = cls
+}
+
+
+export class Event {
+    constructor(owner, initState) {
+        this.owner = owner
+        this.game = owner.game
+        const trigger = this.trigger = {}
+        if(initState) {
+            if(initState.and !== undefined) trigger.and = initState.and
+            if(initState.or !== undefined) trigger.or = initState.or
+            if(initState.not !== undefined) trigger.not = initState.not
+            if(initState.maxExecs !== undefined) trigger.maxExecs = initState.maxExecs
+            if(initState.prevExecOlder !== undefined) trigger.prevExecOlder = initState.prevExecOlder
+        }
+        this.iteration = 0
+        this.nbExecs = 0
+        this.prevExecIt = -Infinity
+    }
+    update() {
+        if(this.checkTrigger(this.trigger)) this.executeAction()
+        this.iteration += 1
+    }
+    checkTrigger(trigger) {
+        if(trigger.and !== undefined) {
+            for(let c of trigger.and) if(!this.checkTrigger(c)) return false
+            return true
+        } else if(trigger.or !== undefined) {
+            for(let c of trigger.or) if(this.checkTrigger(c)) return true
+            return false
+        } else if(trigger.not !== undefined) {
+            return !this.checkTrigger(trigger.not)
+        } else if(trigger.maxExecs !== undefined) {
+            return this.nbExecs < trigger.maxExecs
+        } else if(trigger.prevExecOlder !== undefined) {
+            const prevExecAge = (this.iteration - this.prevExecIt) * this.game.dt
+            return prevExecAge >= trigger.prevExecOlder
+        }
+    }
+    executeAction() {
+        this.nbExecs += 1
+        this.prevExecIt = this.iteration
+    }
+    getInitState() {
+        const state = this._initState ||= {}
+        state.key = this.constructor.key
+        if(this.trigger.and !== undefined) state.and = this.trigger.and
+        else delete state.and
+        if(this.trigger.or !== undefined) state.or = this.trigger.or
+        else delete state.or
+        if(this.trigger.not !== undefined) state.not = this.trigger.not
+        else delete state.not
+        if(this.trigger.maxExecs !== undefined) state.maxExecs = this.trigger.maxExecs
+        else delete state.maxExecs
+        if(this.trigger.prevExecOlder !== undefined) state.prevExecOlder = this.trigger.prevExecOlder
+        else delete state.prevExecOlder
+        return state
+    }
+    getState() {
+        const state = this._state ||= {}
+        state.it = this.iteration
+        if(this.nbExecs > 0) state.ne = this.nbExecs
+        else state.ne
+        if(this.prevExecIt >= 0) state.peit = this.prevExecIt
+        else delete state.peit
+        return state
+    }
+    setState(state) {
+        this.iteration = state.it
+        if(state.ne === undefined) this.nbExecs = 0
+        else this.nbExecs = state.ne
+        if(state.peit === undefined) this.prevExecIt = -Infinity
+        else this.prevExecIt = state.peit
+    }
+    addMenuInputs(menu) {
+        // const xInput = menu.addInput("position", "x", "number", this.x)
+        // xInput.onchange = () => menu.updateState("x", parseInt(xInput.value))
+    }
+}
+
+
+export class SpawnEntityEvent extends Event {
+    constructor(scn, initState) {
+        super(scn, initState)
+        this.scene = scn
+        if(initState) {
+            if(initState.state !== undefined) this.entState = initState.state
+            if(initState.nbEnts !== undefined) this.trigger.nbEnts = initState.nbEnts
+            if(initState.prevEntFur !== undefined) this.trigger.prevEntFurther = initState.prevEntFur
+        }
+        this.spawnedEntities = new EntityRefs(scn, scn.entities)
+        this.prevSpawnedEntity = null
+    }
+    checkTrigger(trigger) {
+        if(trigger.nbEnts !== undefined) {
+            return this.spawnedEntities.size < trigger.nbEnts
+        } else if(trigger.prevEntFurther !== undefined) {
+            if(this.prevSpawnedEntity == null) return true
+            const { x: prevEntX, y: prevEntY } = this.prevSpawnedEntity
+            const { x: stateX, y: stateY } = this.entState
+            return hypot(prevEntX-stateX, prevEntY-stateY) > trigger.prevEntFurther
+        } else {
+            return super.checkTrigger(trigger)
+        }
+    }
+    update() {
+        this.clearRemoved()
+        super.update()
+    }
+    clearRemoved() {
+        this.spawnedEntities.clearRemoved()
+        if(this.prevSpawnedEntity && this.prevSpawnedEntity.removed) this.prevSpawnedEntity = null
+    }
+    executeAction() {
+        super.executeAction()
+        const EntClass = Entities[this.entState.key]
+        const ent = this.scene.entities.add(new EntClass(this.scene))
+        ent.setState(this.entState)
+        this.spawnedEntities.add(ent.id)
+        this.prevSpawnedEntity = ent
+    }
+    getInitState() {
+        const state = super.getInitState()
+        if(this.entState !== undefined) state.state = this.entState
+        else delete state.state
+        if(this.trigger.nbEnts !== undefined) state.nbEnts = this.trigger.nbEnts
+        if(this.trigger.prevEntFurther !== undefined) state.prevEntFur = this.trigger.prevEntFurther
+        else delete state.nbEnts
+        return state
+    }
+    getState() {
+        const state = super.getState()
+        state.ents = this.spawnedEntities.toState()
+    }
+    setState(state) {
+        super.setState(state)
+        this.spawnedEntities.setState(state.ents)
+    }
+}
+Events.register("ent", SpawnEntityEvent)
+
 
 function newTextCanvas(text, kwargs) {
     if(IS_SERVER_ENV) return null
@@ -457,6 +664,7 @@ export class Group extends Map {
         let id, item
         if(arg2 === undefined) { id = this.nextAutoId(); item = arg1 }
         else { id = arg1; item = arg2 }
+        item.id = id
         this.set(id, item)
         return item
     }
@@ -701,7 +909,6 @@ export class SceneCommon {
         this.entities = new EntityGroup(this)
         this.heros = {}
         this.initWalls()
-        this.initEntities()
     }
 
     setPosAndSize(x, y, width, height) {
@@ -722,10 +929,6 @@ export class SceneCommon {
     initWalls() {
         const { walls } = this.game.map
         walls.forEach(w => this.addWall(w.x1, w.y1, w.x2, w.y2))
-    }
-
-    initEntities() {
-        this.game.map.entities.forEach(e => this.addEntity(e.x, e.y, e.key))
     }
 
     addWall(x1, y1, x2, y2) {
@@ -765,7 +968,7 @@ export class SceneCommon {
     }
 }
 
-class Wall extends Entity {
+export class Wall extends Entity {
     constructor(scn, x1, y1, x2, y2, key) {
         super(scn)
         this.x1 = x1
@@ -945,7 +1148,7 @@ export class Game extends GameCommon {
                 if(defaultHero) player.hero = {
                     x: defaultHero.x,
                     y: defaultHero.y,
-                    key: defaultHero.keys[0],
+                    key: defaultHero.key,
                 }
             }
             this.players[playerId] = player
@@ -1148,15 +1351,30 @@ export class GameScene extends SceneCommon {
         this.initVictoryNotifs()
         this.initGameOverNotifs()
         this.initHerosSpawnPos()
+        this.initHeros()
+        this.initEntities()
+        this.initEvents()
+    }
+
+    initHeros() {
+        if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
+        for(let playerId in this.game.players) this.addHero(playerId)
     }
 
     initEntities() {
-        if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
-        this.game.map.entities.forEach(mapEnt => {
-            const { x, y, key } = mapEnt
-            this.addEntity(x, y, key)
+        this.game.map.entities.forEach(entState => {
+            let ent = new Entities[entState.key](this, entState.x, entState.y)
+            ent.setState(entState)
+            this.entities.add(ent)
         })
-        for(let playerId in this.game.players) this.addHero(playerId)
+    }
+
+    initEvents() {
+        this.events = []
+        this.game.map.events.forEach(evtState => {
+            let evt = new Events[evtState.key](this, evtState)
+            this.events.push(evt)
+        })
     }
 
     addHero(playerId) {
@@ -1201,12 +1419,13 @@ export class GameScene extends SceneCommon {
     }
 
     update() {
-        const { step, entities } = this
+        const { step, entities, events } = this
         const { physicEngine, dt } = this.game
         super.update()
         this.iteration += 1
         this.time = this.iteration * this.game.dt
         if(step == "GAME" || step == "GAMEOVER") {
+            events.forEach(evt => evt.update())
             physicEngine.apply(dt, entities)
             entities.update()
             this.checkHeros()
