@@ -309,10 +309,12 @@ class BuilderScene extends SceneCommon {
 
     drawTo(ctx) {
         ctx.translate(~~-this.viewX, ~~-this.viewY)
-        this.walls.drawTo(ctx)
         this.grid.drawTo(ctx)
-        this.entities.drawTo(ctx)
+        ctx.translate(~~this.viewX, ~~this.viewY)
+        super.drawTo(ctx)
+        ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.drawSelections(ctx)
+        ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
     drawSelections(ctx) {

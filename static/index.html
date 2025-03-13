@@ -104,7 +104,7 @@ const isDebugMode = urlParams.get("debug") == "1"
 const builderParentEl = document.getElementById("builder")
 const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
-let map = null, gameBuilder = null, game = null
+let mode = null, map = null, gameBuilder = null, game = null
 
 const mapWidthEl = document.getElementById("map_width")
 const mapHeightEl = document.getElementById("map_height")
@@ -115,38 +115,38 @@ function syncInputElSize() {
 function updSize() {
     map.width = parseInt(mapWidthEl.value)
     map.height = parseInt(mapHeightEl.value)
-    if(gameBuilder) gameBuilder.syncSize()
+    if(mode == "builder") gameBuilder.syncSize()
 }
 mapWidthEl.onchange = mapHeightEl.onchange = updSize
 mapWidthEl.onchange = mapHeightEl.onchange = updSize
 
 const Keys = {}
-document.getElementById("mode_move").onclick = Keys["m"] = () => setMode('move')
+document.getElementById("mode_move").onclick = Keys["m"] = () => setBuilderMode('move')
 document.getElementById("mode_select").onclick = Keys["s"] = () => {
-    if(gameBuilder) gameBuilder.clearSelection()
-    setMode('select')
+    if(mode == "builder") gameBuilder.clearSelection()
+    setBuilderMode('select')
 }
-document.getElementById("mode_wall").onclick = Keys["ww"] = () => setMode('wall', 'wall')
-document.getElementById("mode_platform").onclick = Keys["wp"] = () => setMode('wall', 'platform')
-document.getElementById("mode_erase").onclick = Keys["e"] = () => setMode('erase')
-document.getElementById("mode_nico").onclick = Keys["en"] = () => setMode('entity', 'nico')
-document.getElementById("mode_heart").onclick = () => setMode('entity', 'heartIt')
-document.getElementById("mode_sword").onclick = Keys["eo"] = () => setMode('entity', 'sword')
-document.getElementById("mode_bomb").onclick = Keys["em"] = () => setMode('entity', 'bombIt')
-document.getElementById("mode_blob").onclick = Keys["el"] = () => setMode('entity', 'blob')
-document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setMode('entity', 'ghost')
-document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setMode('entity', 'spiky')
-document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setMode('entity', 'checkpt')
-document.getElementById("mode_star").onclick = Keys["es"] = () => setMode('entity', 'star')
-function setMode(mode, modeKey) {
-    if(!gameBuilder) return
-    gameBuilder.setMode(mode, modeKey)
+document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'wall')
+document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'platform')
+document.getElementById("mode_erase").onclick = Keys["e"] = () => setBuilderMode('erase')
+document.getElementById("mode_nico").onclick = Keys["en"] = () => setBuilderMode('entity', 'nico')
+document.getElementById("mode_heart").onclick = () => setBuilderMode('entity', 'heartIt')
+document.getElementById("mode_sword").onclick = Keys["eo"] = () => setBuilderMode('entity', 'sword')
+document.getElementById("mode_bomb").onclick = Keys["em"] = () => setBuilderMode('entity', 'bombIt')
+document.getElementById("mode_blob").onclick = Keys["el"] = () => setBuilderMode('entity', 'blob')
+document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setBuilderMode('entity', 'ghost')
+document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setBuilderMode('entity', 'spiky')
+document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setBuilderMode('entity', 'checkpt')
+document.getElementById("mode_star").onclick = Keys["es"] = () => setBuilderMode('entity', 'star')
+function setBuilderMode(builderMode, builderModeKey) {
+    if(mode != "builder") return
+    gameBuilder.setMode(builderMode, builderModeKey)
 }
 
 document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
 document.getElementById("game_start").onclick = Keys["p"] = startAndShowGame
 document.getElementById("game_share").onclick = async () => {
-    if(gameBuilder) gameBuilder.syncMap()
+    if(mode == "builder") gameBuilder.syncMap()
     const mapStr = await map.exportAsSafeBase64()
     console.log(`Map export size: ${mapStr.length}`)
     const valEl = document.getElementById("game_url_val")
@@ -162,7 +162,7 @@ document.getElementById("game_share").onclick = async () => {
 document.getElementById("game_multi").onclick = async () => {
     const res = await fetch("/newroom", { method: "POST" })
     const { roomId } = await res.json()
-    if(gameBuilder) gameBuilder.syncMap()
+    if(mode == "builder") gameBuilder.syncMap()
     const mapBin = await map.exportAsBinary()
     await fetch(`/room/${roomId}/map`, {
         method: "POST",
@@ -200,7 +200,7 @@ async function main() {
         startAndShowGame()
     } else {
         startAndShowBuilder()
-        setMode("move")
+        setBuilderMode("move")
     }
 }
 
@@ -209,17 +209,18 @@ function startAndShowBuilder() {
     stopGame()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map)
     gameBuilder.play()
+    mode = "builder"
     builderParentEl.style.display = ""
 }
 
 function stopBuilder() {
-    if(gameBuilder) gameBuilder.stop()
+    if(mode == "builder") gameBuilder.stop()
 }
 
 function startAndShowGame() {
     builderParentEl.style.display = "none"
     stopBuilder()
-    if(gameBuilder)  gameBuilder.syncMap()
+    if(mode == "builder") gameBuilder.syncMap()
     if(!game) {
         const playerId = "0"
         game = new Game(gameParentEl, map, playerId, {
@@ -235,6 +236,7 @@ function startAndShowGame() {
     } else {
         game.restart()
     }
+    mode = "game"
     gameParentEl.style.display = ""
     game.canvas.focus()
 }

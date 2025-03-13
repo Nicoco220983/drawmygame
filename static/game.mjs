@@ -409,11 +409,11 @@ Entities.register = function(key, cls) {
 
 
 export class EntityRefs extends Set {
-    constructor(owner, refGroup) {
+    constructor(refGroup) {
         super()
-        this.owner = owner
-        this.game = game
         this.refGroup = refGroup
+        this.owner = refGroup.owner
+        this.game = refGroup.game
     }
     clearRemoved() {
         const { refGroup } = this
@@ -541,7 +541,7 @@ export class SpawnEntityEvent extends Event {
             if(initState.nbEnts !== undefined) this.trigger.nbEnts = initState.nbEnts
             if(initState.prevEntFur !== undefined) this.trigger.prevEntFurther = initState.prevEntFur
         }
-        this.spawnedEntities = new EntityRefs(scn, scn.entities)
+        this.spawnedEntities = new EntityRefs(scn.entities)
         this.prevSpawnedEntity = null
     }
     checkTrigger(trigger) {
@@ -965,6 +965,13 @@ export class SceneCommon {
             ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
         }
         this.drawTo(ctx)
+    }
+
+    drawTo(ctx) {
+        ctx.translate(~~-this.viewX, ~~-this.viewY)
+        this.walls.drawTo(ctx)
+        this.entities.drawTo(ctx)
+        ctx.translate(~~this.viewX, ~~this.viewY)
     }
 }
 
@@ -1434,10 +1441,7 @@ export class GameScene extends SceneCommon {
     }
 
     drawTo(ctx) {
-        ctx.translate(~~-this.viewX, ~~-this.viewY)
-        this.walls.drawTo(ctx)
-        this.entities.drawTo(ctx)
-        ctx.translate(~~this.viewX, ~~this.viewY)
+        super.drawTo(ctx)
         this.notifs.drawTo(ctx)
         if(this.step == "VICTORY") this.victoryNotifs.drawTo(ctx)
         if(this.step == "GAMEOVER") this.gameOverNotifs.drawTo(ctx)
@@ -1676,6 +1680,16 @@ export class Hero extends LivingEntity {
         return this === this.scene.localHero
     }
 
+    initExtras() {
+        const extras = this.extras ||= new EntityRefs(this.scene.entities)
+        return extras
+    }
+
+    addExtra(extra) {
+        const extras = this.initExtras()
+        extras.add(extra.id)
+    }
+
     getMaxHealth() {
         return 3
     }
@@ -1689,8 +1703,8 @@ export class Hero extends LivingEntity {
         super.update()
         this.checkCollectablesHit()
         this.updateHearts()
-        if(this.extras) this.extras.update()
         this.mayResurect()
+        if(this.extras) this.extras.forEach(e => e.ownerUpdate())
     }
 
     checkCollectablesHit() {
@@ -1738,8 +1752,11 @@ export class Hero extends LivingEntity {
         if(inputState && hasKeys(inputState)) state.ist = inputState
         else delete state.ist
         const extras = this.extras
-        if(extras && extras.size > 0) state.extras = this.extras.getState(true)
-        else delete state.extras
+        if(extras && extras.size > 0) {
+            const stExtras = state.extras ||= []
+            stExtras.length = 0
+            for(let exId of extras) stExtras.push(exId)
+        } else if(state.extras) state.extras.length = 0
         return state
     }
 
@@ -1749,22 +1766,31 @@ export class Hero extends LivingEntity {
         this.lives = state.liv
         this.inputState = state.ist
         if(this.extras || state.extras) {
-            this.extras ||= new ExtraGroup(this)
-            this.extras.setState(state.extras)
+            const extras = this.initExtras()
+            extras.clear()
+            for(let exId of state.extras) extras.add(exId)
         }
     }
 
     getInputState() {
         const inputState = this._inputState ||= {}
-        const extrasState = this.extras && this.extras.getInputState()
-        if(extrasState && hasKeys(extrasState)) inputState.extras = extrasState
+        let extrasState = null
+        const extras = this.extras
+        if(extras && extras.size > 0) {
+            extrasState = {}
+            extras.forEach(ex => extrasState[ex.id] = ex.getInputState())
+        }
+        if(extrasState) inputState.extras = extrasState
         else delete inputState.extras
         return inputState
     }
 
     setInputState(inputState) {
         const extras = this.extras
-        if(extras) extras.setInputState(inputState && inputState.extras)
+        if(extras) {
+            let extrasState = inputState && inputState.extras
+            extras.forEach(ex => ex.setInputState(extrasState[ex.id] || null))
+        }
         this.inputState = inputState
         this.inputStateTime = now()
         this._isStateToSend = true
@@ -1772,21 +1798,16 @@ export class Hero extends LivingEntity {
 
     initJoypadButtons(joypadScn) {}
 
-    addExtra(extra) {
-        const extras = this.extras ||= new ExtraGroup(this)
-        extras.add(extra)
-    }
-
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        if(this.extras) {
-            ctx.translate(~~this.x, ~~this.y)
-            ctx.scale(this.dirX, this.dirY)
-            this.extras.drawTo(ctx)
-            ctx.scale(this.dirX, this.dirY)
-            ctx.translate(~~-this.x, ~~-this.y)
-        }
-    }
+    // drawTo(ctx) {
+    //     super.drawTo(ctx)
+    //     if(this.extras) {
+    //         ctx.translate(~~this.x, ~~this.y)
+    //         ctx.scale(this.dirX, this.dirY)
+    //         this.extras.drawTo(ctx)
+    //         ctx.scale(this.dirX, this.dirY)
+    //         ctx.translate(~~-this.x, ~~-this.y)
+    //     }
+    // }
 
     respawn() {
         const { herosSpawnX, herosSpawnY } = this.scene
@@ -2172,15 +2193,16 @@ class Collectable extends Entity {
         super(scn, x, y)
         this.undergoGravity = false
         this.spriteRand = floor(random() * this.game.fps)
+        this.owner = null
     }
 
     isCollectableBy(team) {
-        return team.startsWith("hero")
+        return !this.owner && team.startsWith("hero")
     }
 
-    onCollected(hero, remove=true) {
+    onCollected(owner) {
         this.playCollectedSound()
-        if(remove) this.remove()
+        this.owner = owner
     }
 
     playCollectedSound() {
@@ -2189,10 +2211,14 @@ class Collectable extends Entity {
     
     scaleSprite(sprite) {
         super.scaleSprite(sprite)
-        const { iteration } = this.scene
-        const { fps } = this.game
-        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
-        this.spriteDy = -this.spriteWidth * .05 * cosAngle
+        if(this.owner) {
+            this.spriteDy = 0
+        } else {
+            const { iteration } = this.scene
+            const { fps } = this.game
+            const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
+            this.spriteDy = -this.spriteWidth * .05 * cosAngle
+        }
     }
 }
 
@@ -2265,139 +2291,116 @@ class HealthHeart extends LifeHeart {
 }
 
 
-class Extra extends Entity {
-    constructor(owner, x, y) {
-        const scn = owner.scene
-        super(scn, x, y)
-        this.owner = owner
-    }
+// class Extra extends Entity {
+//     constructor(owner, x, y) {
+//         const scn = owner.scene
+//         super(scn, x, y)
+//         this.owner = owner
+//     }
 
-    getHitBox() {
-        const { x, y, width, height } = this
-        const { x: oX, y: oY, dirX, dirY } = this.owner
-        return {
-            left: (x * dirX) + oX - width/2,
-            width,
-            top: (y * dirY) + oY - height/2,
-            height,
-        }
-    }
+//     getHitBox() {
+//         const { x, y, width, height } = this
+//         const { x: oX, y: oY, dirX, dirY } = this.owner
+//         return {
+//             left: (x * dirX) + oX - width/2,
+//             width,
+//             top: (y * dirY) + oY - height/2,
+//             height,
+//         }
+//     }
 
-    getState() {
-        const state = this.state ||= {}
-        state.key = this.constructor.key
-        // onputState already managed by Entity.getState
-        return state
-    }
+//     getState() {
+//         const state = this.state ||= {}
+//         state.key = this.constructor.key
+//         // onputState already managed by Entity.getState
+//         return state
+//     }
 
-    setState() {}
+//     setState() {}
 
-    getInputState() {
-        const inputState = this._inputState ||= {}
-        return inputState
-    }
+//     getInputState() {
+//         const inputState = this._inputState ||= {}
+//         return inputState
+//     }
     
-    setInputState(inputState) {
-        this.inputState = inputState
-        this.inputStateTime = now()
+//     setInputState(inputState) {
+//         this.inputState = inputState
+//         this.inputStateTime = now()
+//     }
+// }
+
+// export const Extras = {}
+// Extras.register = function(key, cls) {
+//     cls.key = key
+//     this[key] = cls
+// }
+
+// class ExtraGroup extends Group {
+//     getClassDefs() {
+//         return Extras
+//     }
+
+//     setState(state) {
+//         super.setState(state, true)
+//     }
+
+//     getInputState() {
+//         if(this.size == 0) return null
+//         const res = {}
+//         this.forEach((item, id) => {
+//             let state = item.removed ? null : item.getInputState()
+//             if(state && hasKeys(state)) res[id] = state
+//         })
+//         return hasKeys(res) ? res : null
+//     }
+
+//     setInputState(state) {
+//         this.forEach((item, id) => {
+//             item.setInputState(state && state[id])
+//         })
+//     }
+// }
+
+class Extra extends Collectable {
+    onCollected(owner) {
+        super.onCollected(owner)
+        owner.addExtra(this)
     }
+    ownerUpdate() {}
 }
-
-export const Extras = {}
-Extras.register = function(key, cls) {
-    cls.key = key
-    this[key] = cls
-}
-
-class ExtraGroup extends Group {
-    getClassDefs() {
-        return Extras
-    }
-
-    setState(state) {
-        super.setState(state, true)
-    }
-
-    getInputState() {
-        if(this.size == 0) return null
-        const res = {}
-        this.forEach((item, id) => {
-            let state = item.removed ? null : item.getInputState()
-            if(state && hasKeys(state)) res[id] = state
-        })
-        return hasKeys(res) ? res : null
-    }
-
-    setInputState(state) {
-        this.forEach((item, id) => {
-            item.setInputState(state && state[id])
-        })
-    }
-}
-
-
-const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
-
-class SwordItem extends Collectable {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.width = this.height = 40
-        this.sprite = SwordSprite
-        this.respawnDur = 2
-        this.lastAddAge = this.respawnDur * this.game.fps
-    }
-    update() {
-        this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
-        this.lastAddAge += 1
-    }
-    isCollectableBy(team) {
-        if(this.spriteVisibility == false) return false
-        return super.isCollectableBy(team)
-    }
-    onCollected(hero) {
-        if(this.lastAddAge === 0) return
-        super.onCollected(hero, false)
-        hero.addExtra(new SwordExtra(hero))
-        this.lastAddAge = 0
-    }
-    getState() {
-        const state = super.getState()
-        state.ada = this.lastAddAge
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.lastAddAge = state.ada
-    }
-}
-Entities.register("sword", SwordItem)
 
 
 const SWORD_ATTACK_PERIOD = .5
 
 const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
+const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
 
 const SwordHitAudPrm = loadAud("/static/assets/sword_hit.opus")
 
-class SwordExtra extends Extra {
-    constructor(owner) {
-        super(owner, 0, 0)
+class Sword extends Extra {
+    constructor(scn, x, y) {
+        super(scn, x, y)
+        this.width = this.height = 40
+        this.sprite = SwordSprite
         this.isMainExtra = true
-        this.lastAttackAge = ceil(SWORD_ATTACK_PERIOD * this.game.fps)
-        this.removeSimilarExtras()
+        this.lastAttackAge = Infinity
+        // this.respawnDur = 2
+        // this.lastAddAge = this.respawnDur * this.game.fps
     }
-    update() {
-        const { inputState } = this
+    ownerUpdate() {
+        const { inputState, owner } = this
         let attacking = this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
         if(!attacking && inputState && inputState.attack) {
             this.lastAttackAge = 0
             attacking = true
         }
+        this.dirX = owner.dirX
+        this.y = owner.y
         if(attacking) {
-            this.x = 40
+            this.x = owner.x + 40 * owner.dirX
             this.width = this.height = 60
         } else {
-            this.x = 25
+            this.x = owner.x + 25 * this.owner.dirX
             this.width = this.height = 40
         }
         if(this.lastAttackAge == 0) this.checkHit()
@@ -2421,144 +2424,229 @@ class SwordExtra extends Extra {
         const damage = ent.team == this.team ? 0 : 1
         ent.mayTakeDamage(damage, this.owner)
     }
+    onCollected(owner) {
+        super.onCollected(owner)
+        this.lastAttackAge = Infinity
+        this.removeOwnerSimilarExtras()
+    }
+    removeOwnerSimilarExtras() {
+        if(!this.owner.extras) return
+        this.owner.extras.forEach(extra => {
+            if(this!=extra && extra.isMainExtra) extra.remove()
+        })
+    }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
-        if(ratioSinceLastAttack <= 1) {
+        if(this.owner && ratioSinceLastAttack <= 1) {
             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
             return SwordSprite
         }
     }
-    removeSimilarExtras() {
-        if(!this.owner.extras) return
-        this.owner.extras.forEach(extra2 => {
-            if(extra2.isMainExtra) extra2.remove()
-        })
-    }
     getState() {
         const state = super.getState()
-        state.laa = this.lastAttackAge
+        if(this.lastAttackAge == Infinity) delete state.laa
+        else state.laa = this.lastAttackAge
         return state
     }
     setState(state) {
         super.setState(state)
-        this.lastAttackAge = state.laa
+        if(state.laa === undefined) this.lastAttackAge = Infinity
+        else this.lastAttackAge = state.laa
     }
     getInputState() {
-        const inputState = super.getInputState()
+        const inputState = this._inputState ||= {}
         const { game } = this
         if(game.isKeyPressed(" ")) inputState.attack = true
         else delete inputState.attack
         return inputState
     }
-}
-Extras.register("sword", SwordExtra)
-
-
-const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
-
-class BombItem extends Collectable {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.width = this.height = 40
-        this.respawnDur = 2
-        this.lastAddAge = this.respawnDur * this.game.fps
-    }
-    update() {
-        this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
-        this.lastAddAge += 1
-    }
-    isCollectableBy(team) {
-        if(this.spriteVisibility == false) return false
-        return super.isCollectableBy(team)
-    }
-    onCollected(hero) {
-        if(this.lastAddAge === 0) return
-        super.onCollected(hero, false)
-        hero.addExtra(new BombExtra(hero))
-        this.lastAddAge = 0
-    }
-    getSprite() {
-        return BombSpriteSheet.get(0)
-    }
-    getState() {
-        const state = super.getState()
-        state.ada = this.lastAddAge
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.lastAddAge = state.ada
+    setInputState(inputState) {
+        this.inputState = inputState
     }
 }
-Entities.register("bombIt", BombItem)
+Entities.register("sword", Sword)
+
+// class SwordExtra extends ExtraOld {
+//     constructor(owner) {
+//         super(owner, 0, 0)
+//         this.isMainExtra = true
+//         this.lastAttackAge = ceil(SWORD_ATTACK_PERIOD * this.game.fps)
+//         this.removeSimilarExtras()
+//     }
+//     update() {
+//         const { inputState } = this
+//         let attacking = this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
+//         if(!attacking && inputState && inputState.attack) {
+//             this.lastAttackAge = 0
+//             attacking = true
+//         }
+//         if(attacking) {
+//             this.x = 40
+//             this.width = this.height = 60
+//         } else {
+//             this.x = 25
+//             this.width = this.height = 40
+//         }
+//         if(this.lastAttackAge == 0) this.checkHit()
+//         this.lastAttackAge += 1
+//     }
+//     checkHit() {
+//         const { owner } = this
+//         let hasHit = false
+//         const _checkHit = ent => {
+//             if(owner === ent) return
+//             if(checkHit(this, ent)) {
+//                 this.attack(ent)
+//                 hasHit = true
+//             }
+//         }
+//         this.scene.getTeam("hero").forEach(_checkHit)
+//         this.scene.getTeam("enemy").forEach(_checkHit)
+//         this.game.audioEngine.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
+//     }
+//     attack(ent) {
+//         const damage = ent.team == this.team ? 0 : 1
+//         ent.mayTakeDamage(damage, this.owner)
+//     }
+//     getSprite() {
+//         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
+//         if(ratioSinceLastAttack <= 1) {
+//             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
+//         } else {
+//             return SwordSprite
+//         }
+//     }
+//     removeSimilarExtras() {
+//         if(!this.owner.extras) return
+//         this.owner.extras.forEach(extra2 => {
+//             if(extra2.isMainExtra) extra2.remove()
+//         })
+//     }
+//     getState() {
+//         const state = super.getState()
+//         state.laa = this.lastAttackAge
+//         return state
+//     }
+//     setState(state) {
+//         super.setState(state)
+//         this.lastAttackAge = state.laa
+//     }
+//     getInputState() {
+//         const inputState = super.getInputState()
+//         const { game } = this
+//         if(game.isKeyPressed(" ")) inputState.attack = true
+//         else delete inputState.attack
+//         return inputState
+//     }
+// }
+// Extras.register("sword", SwordExtra)
 
 
-class BombExtra extends Extra {
-    constructor(owner) {
-        super(owner, 0, 0)
-        this.width = this.height = 40
-        this.isMainExtra = true
-        this.removeSimilarExtras()
-    }
-    update() {
-        const { inputState } = this
-        if(inputState && inputState.attack) {
-            const bomb = this.scene.entities.add(new Bomb(this.scene, this.owner.x, this.owner.y))
-            bomb.speedX = this.owner.dirX * 200
-            bomb.speedY = -500
-            this.remove()
-        }
-    }
-    removeSimilarExtras() {
-        if(!this.owner.extras) return
-        this.owner.extras.forEach(extra2 => {
-            if(extra2.isMainExtra) extra2.remove()
-        })
-    }
-    getSprite() {
-        return BombSpriteSheet.get(0)
-    }
-    getInputState() {
-        const inputState = super.getInputState()
-        const { game } = this
-        if(game.isKeyPressed(" ")) inputState.attack = true
-        else delete inputState.attack
-        return inputState
-    }
-}
-Extras.register("bomb", BombExtra)
+// const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
+
+// class BombItem extends Collectable {
+//     constructor(scn, x, y) {
+//         super(scn, x, y)
+//         this.width = this.height = 40
+//         this.respawnDur = 2
+//         this.lastAddAge = this.respawnDur * this.game.fps
+//     }
+//     update() {
+//         this.spriteVisibility = (this.lastAddAge >= this.respawnDur * this.game.fps) ? 1 : 0
+//         this.lastAddAge += 1
+//     }
+//     isCollectableBy(team) {
+//         if(this.spriteVisibility == false) return false
+//         return super.isCollectableBy(team)
+//     }
+//     onCollected(hero) {
+//         if(this.lastAddAge === 0) return
+//         super.onCollected(hero, false)
+//         hero.addExtra(new BombExtra(hero))
+//         this.lastAddAge = 0
+//     }
+//     getSprite() {
+//         return BombSpriteSheet.get(0)
+//     }
+//     getState() {
+//         const state = super.getState()
+//         state.ada = this.lastAddAge
+//         return state
+//     }
+//     setState(state) {
+//         super.setState(state)
+//         this.lastAddAge = state.ada
+//     }
+// }
+// Entities.register("bombIt", BombItem)
 
 
-class Bomb extends DynamicEntity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.width = this.height = 40
-        this.itToLive = 3 * this.game.fps
-    }
-    update() {
-        const { dt } = this.game
-        if(this.speedResY  < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
-        if(this.itToLive <= 0) {
-            this.scene.entities.add(new Explosion(this.scene, this.x, this.y))
-            this.remove()
-        }
-        this.itToLive -= 1
-    }
-    getSprite() {
-        return BombSpriteSheet.get(floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2)
-    }
-    getState() {
-        const state = super.getState()
-        state.ttl = this.itToLive
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.itToLive = state.ttl
-    }
-}
-Entities.register("bomb", Bomb)
+// class BombExtra extends ExtraOld {
+//     constructor(owner) {
+//         super(owner, 0, 0)
+//         this.width = this.height = 40
+//         this.isMainExtra = true
+//         this.removeSimilarExtras()
+//     }
+//     update() {
+//         const { inputState } = this
+//         if(inputState && inputState.attack) {
+//             const bomb = this.scene.entities.add(new Bomb(this.scene, this.owner.x, this.owner.y))
+//             bomb.speedX = this.owner.dirX * 200
+//             bomb.speedY = -500
+//             this.remove()
+//         }
+//     }
+//     removeSimilarExtras() {
+//         if(!this.owner.extras) return
+//         this.owner.extras.forEach(extra2 => {
+//             if(extra2.isMainExtra) extra2.remove()
+//         })
+//     }
+//     getSprite() {
+//         return BombSpriteSheet.get(0)
+//     }
+//     getInputState() {
+//         const inputState = super.getInputState()
+//         const { game } = this
+//         if(game.isKeyPressed(" ")) inputState.attack = true
+//         else delete inputState.attack
+//         return inputState
+//     }
+// }
+// Extras.register("bomb", BombExtra)
+
+
+// class Bomb extends DynamicEntity {
+//     constructor(scn, x, y) {
+//         super(scn, x, y)
+//         this.width = this.height = 40
+//         this.itToLive = 3 * this.game.fps
+//     }
+//     update() {
+//         const { dt } = this.game
+//         if(this.speedResY  < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
+//         if(this.itToLive <= 0) {
+//             this.scene.entities.add(new Explosion(this.scene, this.x, this.y))
+//             this.remove()
+//         }
+//         this.itToLive -= 1
+//     }
+//     getSprite() {
+//         return BombSpriteSheet.get(floor(pow(3 - (this.itToLive / this.game.fps), 2)*2) % 2)
+//     }
+//     getState() {
+//         const state = super.getState()
+//         state.ttl = this.itToLive
+//         return state
+//     }
+//     setState(state) {
+//         super.setState(state)
+//         this.itToLive = state.ttl
+//     }
+// }
+// Entities.register("bomb", Bomb)
 
 
 const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
