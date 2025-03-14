@@ -1748,29 +1748,10 @@ export class Hero extends LivingEntity {
 
     getInputState() {
         const inputState = this._inputState ||= {}
-        let extrasState = null
-        const extras = this.extras
-        if(extras && extras.size > 0) {
-            extrasState = {}
-            extras.forEach(ex => {
-                const exInputState = ex.getInputState()
-                if(exInputState && hasKeys(exInputState)) extrasState[ex.id] = exInputState
-            })
-        }
-        if(extrasState && hasKeys(extrasState)) inputState.extras = extrasState
-        else delete inputState.extras
         return inputState
     }
 
     setInputState(inputState) {
-        const extras = this.extras
-        if(extras) {
-            let extrasState = inputState && inputState.extras
-            extras.forEach(ex => {
-                const extraState = extrasState ? (extrasState[ex.id] || null) : null
-                ex.setInputState(extraState)
-            })
-        }
         this.inputState = inputState
         this.inputStateTime = now()
         this._isStateToSend = true
@@ -1890,8 +1871,8 @@ class Nico extends Hero {
         else delete inputState.walkX
         if(game.isKeyPressed("ArrowUp")) inputState.jump = true
         else delete inputState.jump
-        if(game.isKeyPressed(" ") && this.getMainExtra() === null) inputState.hand = true
-        else delete inputState.hand
+        if(game.isKeyPressed(" ")) inputState.attack = true
+        else delete inputState.attack
         return inputState
     }
 
@@ -1912,8 +1893,12 @@ class Nico extends Hero {
             this.game.audioEngine.playSound(JumpAudPrm)
         }
         if(this.handRemIt) this.handRemIt -= 1
-        if(inputState && inputState.hand && !this._prevHand && this.handRemIt===null) this.handRemIt = this.handDur
-        if(!(inputState && inputState.hand) && this.handRemIt === 0) this.handRemIt = null
+        if(inputState && inputState.attack) this.attack()
+        if(!(inputState && inputState.attack) && this.handRemIt === 0) this.handRemIt = null
+    }
+
+    attack() {
+        if(this.handRemIt===null) this.handRemIt = this.handDur
     }
 
     getHitBox() {
@@ -2272,13 +2257,6 @@ class Extra extends Collectable {
         super.drop()
     }
     ownerUpdate() {}
-    getInputState() {
-        const inputState = this._inputState ||= {}
-        return inputState
-    }
-    setInputState(inputState) {
-        this.inputState = inputState
-    }
 }
 
 
@@ -2298,15 +2276,10 @@ class Sword extends Extra {
         this.lastAttackAge = Infinity
     }
     ownerUpdate() {
-        const { inputState, owner } = this
-        let attacking = this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
-        if(!attacking && inputState && inputState.attack) {
-            this.lastAttackAge = 0
-            attacking = true
-        }
+        const { owner } = this
         this.dirX = owner.dirX
         this.y = owner.y
-        if(attacking) {
+        if(this.isAttacking()) {
             this.x = owner.x + 40 * owner.dirX
             this.width = this.height = 60
         } else {
@@ -2316,13 +2289,20 @@ class Sword extends Extra {
         if(this.lastAttackAge == 0) this.checkHit()
         this.lastAttackAge += 1
     }
+    isAttacking() {
+        return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
+    }
+    attack() {
+        if(this.isAttacking()) return
+        this.lastAttackAge = 0
+    }
     checkHit() {
         const { owner } = this
         let hasHit = false
         const _checkHit = ent => {
             if(owner === ent) return
             if(checkHit(this, ent)) {
-                this.attack(ent)
+                this.hit(ent)
                 hasHit = true
             }
         }
@@ -2330,19 +2310,25 @@ class Sword extends Extra {
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.game.audioEngine.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
     }
-    attack(ent) {
+    hit(ent) {
         const damage = ent.team == this.team ? 0 : 1
         ent.mayTakeDamage(damage, this.owner)
     }
     onCollected(owner) {
         super.onCollected(owner)
         this.lastAttackAge = Infinity
-        this.removeOwnerSimilarExtras()
+        this.dropOwnerSimilarExtras()
+        owner.attack = () => this.attack()
     }
-    removeOwnerSimilarExtras() {
+    drop() {
+        delete this.owner.attack
+        super.drop()
+        this.remove() // TMP: until non-infinite-collect managed
+    }
+    dropOwnerSimilarExtras() {
         if(!this.owner.extras) return
         this.owner.extras.forEach(extra => {
-            if(this!=extra && extra.isMainExtra) extra.remove()
+            if(this!=extra && extra.isMainExtra) extra.srop()
         })
     }
     getSprite() {
@@ -2364,13 +2350,6 @@ class Sword extends Extra {
         if(state.laa === undefined) this.lastAttackAge = Infinity
         else this.lastAttackAge = state.laa
     }
-    getInputState() {
-        const inputState = super.getInputState()
-        const { game } = this
-        if(game.isKeyPressed(" ")) inputState.attack = true
-        else delete inputState.attack
-        return inputState
-    }
 }
 Entities.register("sword", Sword)
 
@@ -2389,13 +2368,17 @@ class Bomb extends Extra {
     }
     onCollected(hero) {
         super.onCollected(hero)
-        this.itToLive = 3 * this.game.fps
-        this.removeOwnerSimilarExtras()
+        this.dropOwnerSimilarExtras()
+        hero.attack = () => this.attack()
     }
-    removeOwnerSimilarExtras() {
+    drop() {
+        delete this.owner.attack
+        super.drop()
+    }
+    dropOwnerSimilarExtras() {
         if(!this.owner.extras) return
         this.owner.extras.forEach(extra => {
-            if(this!=extra && extra.isMainExtra) extra.remove()
+            if(this!=extra && extra.isMainExtra) extra.drop()
         })
     }
     update() {
@@ -2411,15 +2394,14 @@ class Bomb extends Extra {
         }
     }
     ownerUpdate() {
-        const { inputState } = this
         this.x = this.owner.x
         this.y = this.owner.y
-        if(inputState && inputState.attack) {
-            this.speedX = this.owner.dirX * 200
-            this.speedY = -500
-            this.itToLive = 3 * this.game.fps
-            this.drop()
-        }
+    }
+    attack() {
+        this.speedX = this.owner.dirX * 200
+        this.speedY = -500
+        this.itToLive = 3 * this.game.fps
+        this.drop()
     }
     getSprite() {
         const { itToLive } = this
@@ -2440,13 +2422,6 @@ class Bomb extends Extra {
         super.setState(state)
         if(state.ttl === undefined) this.itToLive = null
         else this.itToLive = state.ttl
-    }
-    getInputState() {
-        const inputState = super.getInputState()
-        const { game } = this
-        if(game.isKeyPressed(" ")) inputState.attack = true
-        else delete inputState.attack
-        return inputState
     }
 }
 Entities.register("bomb", Bomb)
