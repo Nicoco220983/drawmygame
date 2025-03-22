@@ -79,14 +79,13 @@ class BuilderScene extends SceneCommon {
         const mapHeros = this.game.map.heros
         for(let heroDef of mapHeros) {
             const { key, x, y } = heroDef
-            const cls = Entities[key]
-            this.entities.add(new cls(this, x, y))
+            this.newEntity(key, { x, y })
         }
     }
 
     initEntities() {
         this.game.map.entities.forEach(entState => {
-            const ent = this.addEntity(entState.x, entState.y, entState.key)
+            const ent = this.newEntity(entState.key)
             ent.setState(entState)
         })
     }
@@ -95,7 +94,8 @@ class BuilderScene extends SceneCommon {
         this.game.map.events.forEach(evt => {
             const { key: evtKey } = evt
             if(evtKey == "ent") {
-                const ent = this.addEntity(evt.state.x, evt.state.y, evt.state.key)
+                const ent = this.newEntity(evt.state.key)
+                ent.setState(evt.state)
                 ent.builderTrigger = (nbKeys(evt) > 1) ? evt : null
             }
         })
@@ -132,7 +132,7 @@ class BuilderScene extends SceneCommon {
             this.draftEntity = null
         }
         if(mode == "entity") {
-            this.draftEntity = this.addEntity(0, 0, modeKey)
+            this.draftEntity = this.newEntity(modeKey)
             this.draftEntity.spriteVisibility = 0
         }
     }
@@ -219,10 +219,10 @@ class BuilderScene extends SceneCommon {
             const touchX = touch.x + this.viewX
             const touchY = touch.y + this.viewY
             if(this.prevTouchX !== null) {
-                this.addWall(this.prevTouchX, this.prevTouchY, touchX, touchY)
+                this.newWall({ x1:this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY })
             }
             if(!this.draftEntity) {
-                this.draftEntity = this.addWall(touchX, touchY, touchX, touchY)
+                this.draftEntity = this.newWall({ x1:touchX, y1:touchY, x2:touchX, y2:touchY })
                 this.draftEntity.visibility = .5
             } else {
                 this.draftEntity.x1 = touchX
@@ -233,8 +233,8 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    addEntity(x, y, key) {
-        const ent = super.addEntity(x, y, key)
+    newEntity(key, kwargs) {
+        const ent = super.newEntity(key, kwargs)
         if(ent instanceof Hero) {
             this.entities.forEach(ent2 => {
                 if(ent2 !== ent && ent2 instanceof Hero && ent2 != this.draftEntity)
@@ -271,7 +271,7 @@ class BuilderScene extends SceneCommon {
         if(touch && touch.isDown && !prevTouchIsDown) {
             const x = floor(touch.x + this.viewX)
             const y = floor(touch.y + this.viewY)
-            this.addEntity(x, y, modeKey)
+            this.newEntity(modeKey, { x, y })
         }
     }
 

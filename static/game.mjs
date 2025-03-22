@@ -270,11 +270,23 @@ export class Entity {
         })
     }
 
-    constructor(scn, x, y) {
-        this.x = x
-        this.y = y
-        this.scene = scn
-        this.game = scn.game
+    constructor(group, id, kwargs) {
+        this.group = group
+        this.scene = group.scene
+        this.game = group.game
+        this.id = id
+        if(kwargs) {
+            if(kwargs.x !== undefined) this.x = kwargs.x
+            if(kwargs.y !== undefined) this.y = kwargs.y
+            if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
+            if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
+            if(kwargs.speedX !== undefined) this.speedX = kwargs.speedX
+            if(kwargs.speedY !== undefined) this.speedY = kwargs.speedY
+        }
+    }
+
+    getPriority() {
+        return 0
     }
 
     update() {}
@@ -333,6 +345,7 @@ export class Entity {
 
     getState() {
         const state = this.state ||= {}
+        state.id = this.id
         state.key = this.constructor.key
         state.x = this.x
         state.y = this.y
@@ -425,7 +438,7 @@ export class EntityRefs extends Set {
     constructor(refGroup) {
         super()
         this.refGroup = refGroup
-        this.owner = refGroup.owner
+        this.scene = refGroup.scene
         this.game = refGroup.game
     }
     clearRemoved() {
@@ -579,8 +592,7 @@ export class SpawnEntityEvent extends Event {
     }
     executeAction() {
         super.executeAction()
-        const EntClass = Entities[this.entState.key]
-        const ent = this.scene.entities.add(new EntClass(this.scene))
+        const ent = this.scene.newEntity(this.entState.key)
         ent.setState(this.entState)
         this.spawnedEntities.add(ent.id)
         this.prevSpawnedEntity = ent
@@ -624,10 +636,10 @@ function newTextCanvas(text, kwargs) {
 }
 
 class Text extends Entity {
-    constructor(scn, text, x, y, kwargs) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.textArgs = kwargs
-        this.updateText(text)
+        this.updateText(kwargs.text)
     }
 
     updateText(text) {
@@ -644,9 +656,6 @@ class Text extends Entity {
 }
 
 class CenteredText extends Text {
-    constructor(scn, text, kwargs) {
-        super(scn, text, 0, 0, kwargs)
-    }
     drawTo(ctx) {
         this.x = this.scene.width / 2
         this.y = this.scene.height / 2
@@ -654,14 +663,15 @@ class CenteredText extends Text {
     }
 }
 
-export class EntityGroup extends Map {
+export class EntityGroup {
 
-    constructor(owner) {
-        super()
+    constructor(scene) {
         this.x = 0
         this.y = 0
-        this.owner = owner
-        this.game = owner.game
+        this.scene = scene
+        this.game = scene.game
+        this.entArr = []
+        this.entMap = new Map()
         this._lastAutoId = 0
     }
 
@@ -673,19 +683,45 @@ export class EntityGroup extends Map {
         return res
     }
 
-    add(arg1, arg2) {
-        let id, item
-        if(arg2 === undefined) { id = this.nextAutoId(); item = arg1 }
-        else { id = arg1; item = arg2 }
-        item.id = id
-        this.set(id, item)
-        return item
+    new(cls, kwargs) {
+        const id = this.nextAutoId()
+        if(typeof cls === 'string') cls = Entities[cls]
+        const ent = new cls(this, id, kwargs)
+        this.entMap.set(id, ent)
+        this.entArr.push(ent)
+        return ent
+    }
+
+    get(id) {
+        return this.entMap.get(id)
+    }
+
+    // add(ent) {
+    //     if(ent.id === undefined) { ent.id = this.nextAutoId() }
+    //     this.entMap.set(ent.id, ent)
+    //     this.entArr.push(ent)
+    //     return ent
+    // }
+
+    forEach(next) {
+        this.entArr.forEach(ent => {
+            if(!ent.removed) next(ent)
+        })
     }
 
     clearRemoved() {
-        this.forEach((item, id) => {
-            if(item.removed) this.delete(id)
-        })
+        const { entArr, entMap } = this
+        let idx = 0, nbEnts = entArr.length
+        while(idx < nbEnts) {
+            const ent = entArr[idx]
+            if(ent.removed) {
+                entArr.splice(idx, 1)
+                entMap.delete(ent.id)
+                nbEnts -= 1
+            } else {
+                idx += 1
+            }
+        }
     }
 
     clear() {
@@ -695,7 +731,12 @@ export class EntityGroup extends Map {
 
     update() {
         this.clearRemoved()
+        this.sortEntities()
         this.forEach(ent => ent.update())
+    }
+
+    sortEntities() {
+        this.entArr.sort((a, b) => (b.getPriority() - a.getPriority()))
     }
 
     drawTo(gameCtx) {
@@ -706,34 +747,33 @@ export class EntityGroup extends Map {
         gameCtx.translate(-x, -y)
     }
 
-    getState(isFull) {
-        const res = {}
-        this.forEach((item, id) => {
-            if((isFull || item._isStateToSend) && !item.removed) {
-                res[id] = item.getState(isFull)
-                delete item._isStateToSend
-            }
-        })
-        return (isFull || hasKeys(res)) ? res : null
+    getState() {
+        const state = this._state ||= []
+        state.length = 0
+        this.forEach(ent => state.push(ent.getState()))
+        return state
     }
 
-    setState(state, isFull) {
+    setState(state) {
+        const { entArr, entMap } = this
+        entArr.length = 0
         if(state) {
-            for(let id in state) {
-                let item = this.get(id)
-                if(!item) {
-                    const { key } = state[id]
-                    if(!key) console.warning("Item state without key:", state[id])
-                    else {
-                        const cls = Entities[key]
-                        if(!cls) console.warning("Unknown key from state:", state[id])
-                        else item = this.add(id, new cls(this.owner))
-                    }
+            for(let entState of state) {
+                let { id } = entState
+                let ent = entMap.get(id)
+                if(!ent) {
+                    const cls = Entities[entState.key]
+                    ent = new cls(this, id)
+                    entMap.set(ent.id, ent)
                 }
-                if(item) item.setState(state[id])
+                ent.setState(entState)
+                entArr.push(ent)
             }
-            if(isFull) this.forEach((item, id) => { if(!state[id]) item.remove() })
-        } else if(isFull) this.clear()
+            if(entMap.size != entArr.length) {
+                entMap.clear()
+                for(let ent of entArr) entMap.set(ent.id, ent)
+            }
+        } else this.clear()
     }
 }
 
@@ -928,17 +968,18 @@ export class SceneCommon {
 
     initWalls() {
         const { walls } = this.game.map
-        walls.forEach(w => this.addWall(w.x1, w.y1, w.x2, w.y2))
+        walls.forEach(w => {
+            const { x1, y1, x2, y2 } = w
+            this.newWall({ x1, y1, x2, y2 })
+        })
     }
 
-    addWall(x1, y1, x2, y2) {
-        return this.walls.add(new Wall(this, x1, y1, x2, y2))
+    newWall(kwargs) {
+        return this.walls.new(Wall, kwargs)
     }
 
-    addEntity(x, y, key) {
-        const cls = Entities[key]
-        const ent = this.entities.add(new cls(this, x, y))
-        return ent
+    newEntity(key, kwargs) {
+        return this.entities.new(key, kwargs)
     }
 
     syncHero(hero) {
@@ -976,13 +1017,13 @@ export class SceneCommon {
 }
 
 export class Wall extends Entity {
-    constructor(scn, x1, y1, x2, y2, key) {
-        super(scn)
-        this.x1 = x1
-        this.y1 = y1
-        this.x2 = x2
-        this.y2 = y2
-        this.key = key
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.x1 = kwargs.x1
+        this.y1 = kwargs.y1
+        this.x2 = kwargs.x2
+        this.y2 = kwargs.y2
+        this.key = kwargs.key
     }
     drawTo(ctx) {
         ctx.lineWidth = 5
@@ -1370,9 +1411,8 @@ export class GameScene extends SceneCommon {
 
     initEntities() {
         this.game.map.entities.forEach(entState => {
-            let ent = new Entities[entState.key](this, entState.x, entState.y)
+            const ent = this.newEntity(entState.key)
             ent.setState(entState)
-            this.entities.add(ent)
         })
     }
 
@@ -1391,11 +1431,8 @@ export class GameScene extends SceneCommon {
         const { hero: heroDef } = player
         if(!heroDef) return
         const { x, y, key } = heroDef
-        const cls = Entities[key]
-        const heroId = this.entities.nextAutoId()
-        const hero = this.entities.add(heroId, new cls(this, x, y, playerId))
-        hero._isStateToSend = true
-        return heroId
+        const hero = this.newEntity(key, { x, y, playerId })
+        return hero.id
     }
 
     getHero(playerId) {
@@ -1502,20 +1539,24 @@ export class GameScene extends SceneCommon {
 
     initVictoryNotifs() {
         this.victoryNotifs = new EntityGroup(this)
-        this.victoryNotifs.add(new CenteredText(
-            this,
-            "VICTORY !",
-            { font: "100px serif" },
-        ))
+        this.victoryNotifs.new(
+            CenteredText,
+            {
+                text: "VICTORY !",
+                font: "100px serif",
+            },
+        )
     }
 
     initGameOverNotifs() {
         this.gameOverNotifs = new EntityGroup(this)
-        this.gameOverNotifs.add(new CenteredText(
-            this,
-            "GAME OVER",
-            { font: "100px serif" },
-        ))
+        this.gameOverNotifs.new(
+            CenteredText,
+            {
+                text: "GAME OVER",
+                font: "100px serif",
+            },
+        )
     }
 
     initHerosSpawnPos() {
@@ -1558,9 +1599,9 @@ export class GameScene extends SceneCommon {
 // ENTITIES ///////////////////////////////////
 
 export class LivingEntity extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
-        this.health = this.getMaxHealth()
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.health = (kwargs && kwargs.health !== undefined) ? kwargs.health : this.getMaxHealth()
         this.lastDamageAge = null
     }
 
@@ -1632,11 +1673,11 @@ export class LivingEntity extends Entity {
 
 
 export class Hero extends LivingEntity {
-    constructor(scn, x, y, playerId) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.team = "hero"
-        this.lives = 3
-        if(playerId !== undefined) this.setPlayerId(playerId)
+        this.lives = (kwargs && kwargs.lives !== undefined) ? kwargs.lives : 3
+        if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
     }
 
     setPlayerId(playerId) {
@@ -1678,7 +1719,6 @@ export class Hero extends LivingEntity {
         this.checkCollectablesHit()
         this.updateHearts()
         this.mayResurect()
-        if(this.extras) this.extras.forEach(e => e.ownerUpdate())
     }
 
     checkCollectablesHit() {
@@ -1702,10 +1742,10 @@ export class Hero extends LivingEntity {
         const { notifs } = this.scene
         const livesHearts = this.livesHearts ||= []
         for(let i=livesHearts.length; i<lives; ++i)
-            livesHearts.push(notifs.add(new LifeHeart(this, i)))
+            livesHearts.push(notifs.new(LifeHeartNotif, { num: i }))
         const healthHearts = this.healthHearts ||= []
         for(let i=healthHearts.length; i<health; ++i)
-            healthHearts.push(notifs.add(new HealthHeart(this, i)))
+            healthHearts.push(notifs.new(HealthHeartNotif, { num: i }))
         livesHearts.forEach(heart => {
             heart.x = 20 + heart.num * 35
             heart.y = 20
@@ -1813,8 +1853,8 @@ const JumpAudPrm = loadAud("/static/assets/jump.opus")
 const ItemAudPrm = loadAud("/static/assets/item.opus")
 
 class Nico extends Hero {
-    constructor(scn, x, y, playerId) {
-        super(scn, x, y, playerId)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 50
         this.handDur = ceil(.1 * this.game.fps) 
         this.handRemIt = null
@@ -1981,12 +2021,13 @@ Entities.register("nico", Nico)
 const PuffAudPrm = loadAud("/static/assets/puff.opus")
 
 class Enemy extends LivingEntity {
-    constructor(...args) {
-        super(...args)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.team = "enemy"
     }
     onKill() {
-        this.scene.entities.add(new SmokeExplosion(this.scene, this.x, this.y))
+        const { x, y } = this
+        this.scene.newEntity(SmokeExplosion, { x, y })
         this.game.audioEngine.playSound(PuffAudPrm)
         this.remove()
     }
@@ -1996,8 +2037,8 @@ class Enemy extends LivingEntity {
 const BlobSprite = new Sprite("/static/assets/blob.png")
 
 class BlobEnemy extends Enemy {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = 50
         this.height = 36
         this.lastChangeDirAge = 0
@@ -2062,8 +2103,8 @@ Entities.register("blob", BlobEnemy)
 const GhostSprite = new Sprite("/static/assets/ghost.png")
 
 class Ghost extends Enemy {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = 45
         this.height = 45
         this.undergoGravity = false
@@ -2112,8 +2153,8 @@ Entities.register("ghost", Ghost)
 const SpikySprite = new Sprite(new Img("/static/assets/spiky.png"))
 
 class Spiky extends Enemy {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 45
         this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
@@ -2142,8 +2183,8 @@ Entities.register("spiky", Spiky)
 
 
 class Collectable extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
         this.owner = null
@@ -2192,9 +2233,9 @@ const HeartSpriteSheets = {
     },
 }
 
-class HeartItem extends Collectable {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+class Heart extends Collectable {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 30
         this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
@@ -2202,6 +2243,7 @@ class HeartItem extends Collectable {
 
     onCollected(hero) {
         super.onCollected(hero)
+        this.remove()
         if(hero.health < hero.getMaxHealth()) {
             hero.health = hero.getMaxHealth()
         } else {
@@ -2221,13 +2263,13 @@ class HeartItem extends Collectable {
         this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
-Entities.register("heartIt", HeartItem)
+Entities.register("heart", Heart)
 
 
-class LifeHeart extends Entity {
-    constructor(scn, num) {
-        super(scn, 0, 0)
-        this.num = num
+class LifeHeartNotif extends Entity {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.num = kwargs.num
         this.width = this.height = 30
         this.color = "red"
     }
@@ -2239,15 +2281,19 @@ class LifeHeart extends Entity {
     }
 }
 
-class HealthHeart extends LifeHeart {
-    constructor(scn, num) {
-        super(scn, num)
+class HealthHeartNotif extends LifeHeartNotif {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 20
         this.color = "pink"
     }
 }
 
 class Extra extends Collectable {
+    getPriority() {
+        if(this.owner) return this.owner.getPriority() - 1
+        else super.getPriority()
+    }
     onCollected(owner) {
         super.onCollected(owner)
         owner.addExtra(this)
@@ -2256,7 +2302,6 @@ class Extra extends Collectable {
         this.owner.dropExtra(this)
         super.drop()
     }
-    ownerUpdate() {}
 }
 
 
@@ -2268,26 +2313,29 @@ const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
 const SwordHitAudPrm = loadAud("/static/assets/sword_hit.opus")
 
 class Sword extends Extra {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 40
         this.sprite = SwordSprite
         this.isMainExtra = true
         this.lastAttackAge = Infinity
     }
-    ownerUpdate() {
+    update() {
+        super.update()
         const { owner } = this
-        this.dirX = owner.dirX
-        this.y = owner.y
-        if(this.isAttacking()) {
-            this.x = owner.x + 40 * owner.dirX
-            this.width = this.height = 60
-        } else {
-            this.x = owner.x + 25 * this.owner.dirX
-            this.width = this.height = 40
+        if(owner) {
+            this.dirX = owner.dirX
+            this.y = owner.y
+            if(this.isAttacking()) {
+                this.x = owner.x + 40 * owner.dirX
+                this.width = this.height = 60
+            } else {
+                this.x = owner.x + 25 * this.owner.dirX
+                this.width = this.height = 40
+            }
+            if(this.lastAttackAge == 0) this.checkHit()
+            this.lastAttackAge += 1
         }
-        if(this.lastAttackAge == 0) this.checkHit()
-        this.lastAttackAge += 1
     }
     isAttacking() {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -2357,8 +2405,8 @@ Entities.register("sword", Sword)
 const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
 
 class Bomb extends Extra {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 40
         this.itToLive = null
     }
@@ -2383,19 +2431,21 @@ class Bomb extends Extra {
     }
     update() {
         const { dt } = this.game
-        if(this.itToLive !== null) {
-            this.undergoPhysic = true
-            if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
-            if(this.itToLive <= 0) {
-                this.scene.entities.add(new Explosion(this.scene, this.x, this.y))
-                this.remove()
+        const { owner, x, y } = this
+        if(!owner) {
+            if(this.itToLive !== null) {
+                this.undergoPhysic = true
+                if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
+                if(this.itToLive <= 0) {
+                    this.scene.newEntity(Explosion, { x, y })
+                    this.remove()
+                }
+                this.itToLive -= 1
             }
-            this.itToLive -= 1
+        } else {
+            this.x = this.owner.x
+            this.y = this.owner.y
         }
-    }
-    ownerUpdate() {
-        this.x = this.owner.x
-        this.y = this.owner.y
     }
     attack() {
         this.speedX = this.owner.dirX * 200
@@ -2430,8 +2480,8 @@ Entities.register("bomb", Bomb)
 const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
 
 class Explosion extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 300
         this.iteration = 0
         this.undergoPhysic = false
@@ -2474,8 +2524,8 @@ Entities.register("explos", Explosion)
 const StarSprite = new Sprite("/static/assets/star.png")
 
 class Star extends Collectable {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 30
         this.undergoPhysic = false
         this.scene.nbStars ||= 0
@@ -2483,6 +2533,7 @@ class Star extends Collectable {
     }
     onCollected(hero) {
         super.onCollected(hero)
+        this.remove()
         this.scene.nbStars -= 1
         if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
     }
@@ -2497,13 +2548,14 @@ Entities.register("star", Star)
 const CheckpointSprite = new Sprite("/static/assets/checkpoint.png")
 
 class Checkpoint extends Collectable {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 40
         this.undergoPhysic = false
     }
     onCollected(hero) {
         super.onCollected(hero)
+        this.remove()
         this.scene.herosSpawnX = this.x
         this.scene.herosSpawnY = this.y
     }
@@ -2517,8 +2569,8 @@ Entities.register("checkpt", Checkpoint)
 const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
 
 class SmokeExplosion extends Entity {
-    constructor(scn, x, y) {
-        super(scn, x, y)
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
         this.width = this.height = 100
         this.undergoPhysic = false
         this.iteration = 0
