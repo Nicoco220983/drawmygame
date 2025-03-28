@@ -11,8 +11,6 @@ const CANVAS_MAX_HEIGHT = 600
 const MAP_DEFAULT_WIDTH = 800
 const MAP_DEFAULT_HEIGHT = 600
 
-const GRAVITY = 1000
-
 export const MSG_KEY_LENGTH = 3
 export const MSG_KEYS = {
     PING: "PNG",
@@ -261,9 +259,6 @@ export class Entity {
             speedY: 0,
             speedResX: 0,
             speedResY: 0,
-            undergoPhysic: true,
-            undergoGravity: true,
-            undergoWalls: true,
             spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
@@ -367,6 +362,14 @@ export class Entity {
         else delete this.speedX
         if(state.speedY !== undefined) this.speedY = state.speedY
         else delete this.speedY
+    }
+
+    getPhysicsProps() {
+        const props = this._physicsProps ||= {
+            affectedByGravity: true,
+            blockedByWalls: true,
+        }
+        return props
     }
 
     addMenuInputs(menu) {
@@ -1074,10 +1077,9 @@ export class Game extends GameCommon {
 
         if(this.isDebugMode) this.showDebugScene()
 
-        this.audioEngine = new AudioEngine(this)
-        
-        this.physicEngine = new PhysicsEngine(this)
-        this.physicGravity = GRAVITY
+        this.audio = new AudioEngine(this)
+        this.physics = new PhysicsEngine(this)
+        //this.graphics = new GraphicsEngine(this)
     }
 
     play() {
@@ -1464,13 +1466,13 @@ export class GameScene extends SceneCommon {
 
     update() {
         const { step, entities, events } = this
-        const { physicEngine, dt } = this.game
+        const { physics, dt } = this.game
         super.update()
         this.iteration += 1
         this.time = this.iteration * this.game.dt
         if(step == "GAME" || step == "GAMEOVER") {
             events.forEach(evt => evt.update())
-            physicEngine.apply(dt, entities)
+            physics.apply(dt, entities)
             entities.update()
             this.checkHeros()
         }
@@ -1605,6 +1607,12 @@ export class LivingEntity extends Entity {
         this.lastDamageAge = null
     }
 
+    getPhysicsProps() {
+        const props = super.getPhysicsProps()
+        props.blockedByWalls = (this.health > 0)
+        return props
+    }
+
     getMaxHealth() {
         return 1
     }
@@ -1612,9 +1620,7 @@ export class LivingEntity extends Entity {
     update() {
         const { iteration, step } = this.scene
         const { dt } = this.game
-        const hasHealth = this.health > 0
-        this.undergoWalls = hasHealth
-        if(step != "GAME" || !hasHealth || this.isDamageable()) this.spriteVisibility = 1
+        if(step != "GAME" || (this.health <= 0) || this.isDamageable()) this.spriteVisibility = 1
         else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
         this.mayRemove()
         if(this.lastDamageAge !== null) this.lastDamageAge += 1
@@ -1889,7 +1895,7 @@ class Nico extends Hero {
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.scene.getTeam("hero").forEach(_checkHit)
-        this.game.audioEngine.playSound(hasHit ? HandHitAudPrm : SlashAudPrm)
+        this.game.audio.playSound(hasHit ? HandHitAudPrm : SlashAudPrm)
     }
 
     getSprite() {
@@ -1930,7 +1936,7 @@ class Nico extends Hero {
         }
         if(inputState && inputState.jump && this.speedResY < 0) {
             this.speedY = -500
-            this.game.audioEngine.playSound(JumpAudPrm)
+            this.game.audio.playSound(JumpAudPrm)
         }
         if(this.handRemIt) this.handRemIt -= 1
         if(inputState && inputState.attack) this.attack()
@@ -1952,7 +1958,7 @@ class Nico extends Hero {
 
     takeDamage(val, damager) {
         super.takeDamage(val, damager)
-        this.game.audioEngine.playSound(OuchAudPrm)
+        this.game.audio.playSound(OuchAudPrm)
     }
 
     initJoypadButtons(joypadScn) {
@@ -2028,7 +2034,7 @@ class Enemy extends LivingEntity {
     onKill() {
         const { x, y } = this
         this.scene.newEntity(SmokeExplosion, { x, y })
-        this.game.audioEngine.playSound(PuffAudPrm)
+        this.game.audio.playSound(PuffAudPrm)
         this.remove()
     }
 }
@@ -2107,8 +2113,15 @@ class Ghost extends Enemy {
         super(group, id, kwargs)
         this.width = 45
         this.height = 45
-        this.undergoGravity = false
         this.spriteRand = floor(random() * this.game.fps)
+    }
+
+    getPhysicsProps() {
+        const props = this._physicsProps ||= {
+            affectedByGravity: false,
+            blockedByWalls: true,
+        }
+        return props
     }
 
     update() {
@@ -2156,8 +2169,11 @@ class Spiky extends Enemy {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 45
-        this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
+    }
+
+    getPhysicsProps() {
+        return null
     }
 
     update() {
@@ -2185,9 +2201,12 @@ Entities.register("spiky", Spiky)
 class Collectable extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
-        this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
         this.owner = null
+    }
+
+    getPhysicsProps() {
+        return null
     }
 
     isCollectableBy(team) {
@@ -2204,7 +2223,7 @@ class Collectable extends Entity {
     }
 
     playCollectedSound() {
-        this.game.audioEngine.playSound(ItemAudPrm)
+        this.game.audio.playSound(ItemAudPrm)
     }
     
     scaleSprite(sprite) {
@@ -2237,8 +2256,11 @@ class Heart extends Collectable {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 30
-        this.undergoPhysic = false
         this.spriteRand = floor(random() * this.game.fps)
+    }
+
+    getPhysicsProps() {
+        return null
     }
 
     onCollected(hero) {
@@ -2356,7 +2378,7 @@ class Sword extends Extra {
         }
         this.scene.getTeam("hero").forEach(_checkHit)
         this.scene.getTeam("enemy").forEach(_checkHit)
-        this.game.audioEngine.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
+        this.game.audio.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
     }
     hit(ent) {
         const damage = ent.team == this.team ? 0 : 1
@@ -2410,6 +2432,10 @@ class Bomb extends Extra {
         this.width = this.height = 40
         this.itToLive = null
     }
+    getPhysicsProps() {
+        const props = super.getPhysicsProps()
+        return (this.itToLive !== null) ? props : null
+    }
     isCollectableBy(team) {
         if(this.itToLive !== null) return false
         return super.isCollectableBy(team)
@@ -2434,7 +2460,6 @@ class Bomb extends Extra {
         const { owner, x, y } = this
         if(!owner) {
             if(this.itToLive !== null) {
-                this.undergoPhysic = true
                 if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
                 if(this.itToLive <= 0) {
                     this.scene.newEntity(Explosion, { x, y })
@@ -2484,7 +2509,9 @@ class Explosion extends Entity {
         super(group, id, kwargs)
         this.width = this.height = 300
         this.iteration = 0
-        this.undergoPhysic = false
+    }
+    getPhysicsProps() {
+        return null
     }
     update() {
         super.update()
@@ -2527,9 +2554,11 @@ class Star extends Collectable {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 30
-        this.undergoPhysic = false
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
+    }
+    getPhysicsProps() {
+        return null
     }
     onCollected(hero) {
         super.onCollected(hero)
@@ -2551,7 +2580,9 @@ class Checkpoint extends Collectable {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
-        this.undergoPhysic = false
+    }
+    getPhysicsProps() {
+        return null
     }
     onCollected(hero) {
         super.onCollected(hero)
@@ -2572,8 +2603,10 @@ class SmokeExplosion extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 100
-        this.undergoPhysic = false
         this.iteration = 0
+    }
+    getPhysicsProps() {
+        return null
     }
     update() {
         this.iteration += 1

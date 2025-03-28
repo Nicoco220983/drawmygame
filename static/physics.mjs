@@ -2,20 +2,22 @@ const { abs, floor, ceil, min, max, pow, sqrt, hypot, atan2, PI, random } = Math
 const { assign } = Object
 
 const FLOAT_PRECISION_CORRECTION = .00001
+const GRAVITY = 1000
 
 
 const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}, colWalls = new Set()
 
 export default class PhysicsEngine {
-    constructor(game) {
+    constructor(game, kwargs) {
         this.game = game
+        this.gravity = kwargs && kwargs.gravity || GRAVITY
         this.syncMap()
     }
     syncMap() {
         this.game.map.walls.forEach(wall => this.initWall(wall))
     }
     initWall(wall) {
-        const data = wall.physicData ||= {}
+        const data = wall._physicsData ||= {}
         const polygon = data.polygon ||= []
         const { x1, x2, y1, y2 } = wall
         polygon.length = 0
@@ -24,10 +26,10 @@ export default class PhysicsEngine {
             x2, y2,
         )
         data.dx = data.dy = 0
-        this.initPhysicData(data)
+        this.initPhysicsData(data)
     }
     initEntity(dt, ent) {
-        const data = ent.physicData ||= {}
+        const data = ent._physicsData ||= {}
         const polygon = data.polygon ||= []
         polygon.length = 0
         const { x, y, width, height, speedX, speedY } = ent
@@ -41,10 +43,10 @@ export default class PhysicsEngine {
         )
         data.dx = speedX * dt
         data.dy = speedY * dt
-        this.initPhysicData(data)
+        this.initPhysicsData(data)
     }
-    initPhysicData(physicData) {
-        const { polygon, dx, dy } = physicData
+    initPhysicsData(physicsData) {
+        const { polygon, dx, dy } = physicsData
         // min/max
         const minDx = (dx<0 ? dx : 0), minDy = (dy<0 ? dy : 0)
         const maxDx = (dx>0 ? dx : 0), maxDy = (dy>0 ? dy : 0)
@@ -69,9 +71,9 @@ export default class PhysicsEngine {
                 sMaxY = max(sMaxY, y + maxDy)
             }
         }
-        assign(physicData, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
+        assign(physicsData, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
         // normals
-        const normals = physicData.normals ||= []
+        const normals = physicsData.normals ||= []
         normals.length = 0
         for(let i=0; i<polygon.length/2; i+=2) {  // /2 because of symetry
             const edgeX = polygon[i+2] - polygon[i]
@@ -84,27 +86,28 @@ export default class PhysicsEngine {
     }
     apply(dt, entities) {
         const { walls } = this.game.map
-        const gravity = this.game.physicGravity
+        const { gravity } = this
         entities.forEach(ent => {
-            if(!ent.undergoPhysic) return
-            let remD = 1, nbCollisions = 0, nbFixes = 0
-            if(ent.undergoGravity) ent.speedY += gravity * dt
+            const physicsProps = ent.getPhysicsProps()
+            if(!physicsProps) return
+            let remD = 1, nbCollisions = 0
+            if(physicsProps.affectedByGravity) ent.speedY += gravity * dt
             const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent
             const entOrigDx = entOrigSpdX * dt, entOrigDy = entOrigSpdY * dt
-            if(ent.undergoWalls && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
+            if(physicsProps.blockedByWalls && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
                 const entOrigD = dist(entOrigDx, entOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
                     colRes.time = Infinity
                     this.initEntity(dt*remD, ent)
-                    const entData = ent.physicData
+                    const entData = ent._physicsData
                     const {
                         minX: entMinX, minY: entMinY, maxX: entMaxX, maxY: entMaxY,
                         sMinX: entSMinX, sMinY: entSMinY, sMaxX: entSMaxX, sMaxY: entSMaxY,
                     } = entData
                     for(let wall of walls) {
                         if(colWalls.has(wall)) continue
-                        const wallData = wall.physicData
+                        const wallData = wall._physicsData
                         // quick filtering
                         if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) continue
                         //if(entMinX > wallData.maxX || entMaxX < wallData.minX || entMinY > wallData.maxY || entMaxY < wallData.minY) col = NO_COLLISION_WITHOUT_SPEED
@@ -158,21 +161,21 @@ export default class PhysicsEngine {
 }
 
 // Fonction principale pour détecter le moment de collision
-function detectCollisionTime(physicData1, physicData2, res) {
+function detectCollisionTime(physicsData1, physicsData2, res) {
     res.time = 0
     res.dist = Infinity
     res.distFixSign = 0
     res.normalX = null
     res.normalY = null
-    _detectCollisionTime(physicData1, physicData2, physicData1.normals, res)
+    _detectCollisionTime(physicsData1, physicsData2, physicsData1.normals, res)
     if(res.time == Infinity) return
-    _detectCollisionTime(physicData2, physicData1, physicData2.normals, res)
+    _detectCollisionTime(physicsData2, physicsData1, physicsData2.normals, res)
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
-function _detectCollisionTime(physicData1, physicData2, normals, res) {
-    const { polygon: poly1, dx: dx1, dy: dy1 } = physicData1
-    const { polygon: poly2, dx: dx2, dy: dy2 } = physicData2
+function _detectCollisionTime(physicsData1, physicsData2, normals, res) {
+    const { polygon: poly1, dx: dx1, dy: dy1 } = physicsData1
+    const { polygon: poly2, dx: dx2, dy: dy2 } = physicsData2
     for(let i=0; i<normals.length; i+=2) {
         const ax = normals[i], ay = normals[i+1]
         projectPolygonOnAxis(poly1, ax, ay, resProj1) // TODO: cache me
