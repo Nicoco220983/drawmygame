@@ -729,7 +729,8 @@ export class EntityGroup {
 
     clear() {
         this.forEach(item => item.remove())
-        super.clear()
+        this.entArr.length = 0
+        this.entMap.clear()
     }
 
     update() {
@@ -939,6 +940,7 @@ export class SceneCommon {
         this.y = 0
         this.viewX = 0
         this.viewY = 0
+        this.viewSpeed = 100
         this.width = 100
         this.height = 100
         this.visible = true
@@ -965,8 +967,10 @@ export class SceneCommon {
     setView(viewX, viewY) {
         const { width: mapWidth, height: mapHeight } = this.game.map
         const { width, height } = this
-        this.viewX = max(0, min(mapWidth-width, viewX))
-        this.viewY = max(0, min(mapHeight-height, viewY))
+        this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
+        this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
+        this.viewX = max(0, min(mapWidth-width, this.viewX))
+        this.viewY = max(0, min(mapHeight-height, this.viewY))
     }
 
     initWalls() {
@@ -1525,16 +1529,21 @@ export class GameScene extends SceneCommon {
                 this.localHero.y - this.height/2,
             )
         } else {
-            let sumX = 0, sumY = 0, nbHeros = 0
-            for(let playerId in heros) {
-                const hero = heros[playerId]
-                sumX += hero.x
-                sumY += hero.y
-                nbHeros += 1
-            }
+            // let sumX = 0, sumY = 0, nbHeros = 0
+            // for(let playerId in heros) {
+            //     const hero = heros[playerId]
+            //     sumX += hero.x
+            //     sumY += hero.y
+            //     nbHeros += 1
+            // }
+            // this.setView(
+            //     sumX / nbHeros - this.width/2,
+            //     sumY / nbHeros - this.height/2,
+            // )
+            const firstHero = this.getFirstHero()
             this.setView(
-                sumX / nbHeros - this.width/2,
-                sumY / nbHeros - this.height/2,
+                firstHero.x - this.width/2,
+                firstHero.y - this.height/2,
             )
         }
     }
@@ -1964,10 +1973,10 @@ class Nico extends Hero {
     initJoypadButtons(joypadScn) {
         const { width, height } = joypadScn
         const size = height*.45
-        joypadScn.addButton("ArrowLeft", width*.15, height*.27, size, { icon: ArrowsSpriteSheet.get(3) })
-        joypadScn.addButton("ArrowRight", width*.3, height*.73, size, { icon: ArrowsSpriteSheet.get(1) })
-        joypadScn.addButton("ArrowUp", width*.85, height*.27, size, { icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.extraButton = joypadScn.addButton(" ", width*.7, height*.73, size, { icon: HandSprite })
+        joypadScn.newButton({ key:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
+        joypadScn.newButton({ key:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
+        joypadScn.newButton({ key:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
+        joypadScn.extraButton = joypadScn.newButton({ key:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
         this.syncJoypadExtraButton()
     }
 

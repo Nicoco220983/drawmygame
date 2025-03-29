@@ -40,8 +40,8 @@ export class JoypadScene {
         this._lastHeroSynced = hero
     }
 
-    addButton(key, x, y, size, kwargs) {
-        return this.buttons.add(new Button(this, key, x, y, size, kwargs))
+    newButton(kwargs) {
+        return this.buttons.new(Button, kwargs)
     }
 
     update() {
@@ -78,10 +78,10 @@ const ButtonSpriteSheets = {
 }
 
 class Button extends Entity {
-    constructor(scn, key, x, y, size, kwargs) {
-        super(scn, x, y)
-        this.key = key
-        this.width = this.height = size
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.key = kwargs.key
+        this.width = this.height = kwargs.size
         this.isDown = false
         assign(this, kwargs)
     }

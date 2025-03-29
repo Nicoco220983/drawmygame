@@ -64,6 +64,7 @@ export class GameBuilder extends GameCommon {
 class BuilderScene extends SceneCommon {
     constructor(...args) {
         super(...args)
+        this.viewSpeed = Infinity
         this.initHeros()
         this.initEntities()
         this.initEvents()
