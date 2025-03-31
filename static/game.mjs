@@ -1207,7 +1207,7 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        if(this.mode != MODE_CLIENT) this.gameScene.addHero(playerId)
+        if(this.mode != MODE_CLIENT) this.gameScene.newHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
     }
 
@@ -1405,14 +1405,19 @@ export class GameScene extends SceneCommon {
         this.initVictoryNotifs()
         this.initGameOverNotifs()
         this.initHerosSpawnPos()
+        this.initHerosManager()
         this.initHeros()
         this.initEntities()
         this.initEvents()
     }
 
+    initHerosManager() {
+        this.herosManager = new HerosManager(this)
+    }
+
     initHeros() {
         if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
-        for(let playerId in this.game.players) this.addHero(playerId)
+        for(let playerId in this.game.players) this.newHero(playerId)
     }
 
     initEntities() {
@@ -1430,14 +1435,15 @@ export class GameScene extends SceneCommon {
         })
     }
 
-    addHero(playerId) {
+    newHero(playerId) {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
         const { hero: heroDef } = player
         if(!heroDef) return
         const { x, y, key } = heroDef
-        const hero = this.newEntity(key, { x, y, playerId })
+        const hero = this.newEntity(key, { playerId })
+        this.spawnHero(hero)
         return hero.id
     }
 
@@ -1468,6 +1474,10 @@ export class GameScene extends SceneCommon {
         if(firstHero && this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
     }
 
+    spawnHero(hero) {
+        this.herosManager.spawnHero(hero)
+    }
+
     update() {
         const { step, entities, events } = this
         const { physics, dt } = this.game
@@ -1480,7 +1490,7 @@ export class GameScene extends SceneCommon {
             entities.update()
             this.checkHeros()
         }
-        this.updateView()
+        this.herosManager.update()
     }
 
     drawTo(ctx) {
@@ -1518,34 +1528,6 @@ export class GameScene extends SceneCommon {
         }
         return collectables[team]
 
-    }
-
-    updateView() {
-        const { heros } = this
-        if(!hasKeys(heros)) return
-        if(this.localHero) {
-            this.setView(
-                this.localHero.x - this.width/2,
-                this.localHero.y - this.height/2,
-            )
-        } else {
-            // let sumX = 0, sumY = 0, nbHeros = 0
-            // for(let playerId in heros) {
-            //     const hero = heros[playerId]
-            //     sumX += hero.x
-            //     sumY += hero.y
-            //     nbHeros += 1
-            // }
-            // this.setView(
-            //     sumX / nbHeros - this.width/2,
-            //     sumY / nbHeros - this.height/2,
-            // )
-            const firstHero = this.getFirstHero()
-            this.setView(
-                firstHero.x - this.width/2,
-                firstHero.y - this.height/2,
-            )
-        }
     }
 
     initVictoryNotifs() {
@@ -1606,6 +1588,75 @@ export class GameScene extends SceneCommon {
         this.entities.setState(state.entities, isFull)
     }
 }
+
+
+class HerosManager {
+    constructor(scene) {
+        this.scene = scene
+    }
+    update() {
+        this.updateView()
+        this.updateHerosPos()
+    }
+    updateView() {
+        const { scene } = this
+        const { heros, localHero } = scene
+        if(!hasKeys(heros)) return
+        if(localHero) {
+            scene.setView(
+                localHero.x - scene.width/2,
+                localHero.y - scene.height/2,
+            )
+        } else {
+            // let sumX = 0, sumY = 0, nbHeros = 0
+            // for(let playerId in heros) {
+            //     const hero = heros[playerId]
+            //     sumX += hero.x
+            //     sumY += hero.y
+            //     nbHeros += 1
+            // }
+            // this.setView(
+            //     sumX / nbHeros - this.width/2,
+            //     sumY / nbHeros - this.height/2,
+            // )
+            const firstHero = scene.getFirstHero()
+            if(firstHero) scene.setView(
+                firstHero.x - scene.width/2,
+                firstHero.y - scene.height/2,
+            )
+        }
+    }
+    updateHerosPos() {
+        const { scene } = this
+        const { heros, localHero } = scene
+        const firstHero = scene.getFirstHero()
+        if(!firstHero) return
+        const { x:fhx, y:fhy } = firstHero
+        const { width, height } = scene.game
+        for(let playerId in heros) {
+            if(playerId === firstHero.playerId) continue
+            const hero = heros[playerId]
+            const dx = hero.x - fhx, dy = hero.y - fhy
+            if(dx < -width || dx > width || dy < -height || dy > height) {
+                this.spawnHero(hero)
+            }
+        }
+    }
+    spawnHero(hero) {
+        const { scene } = this
+        const firstHero = scene.getFirstHero()
+        let spawnX, spawnY
+        if(!firstHero || hero === firstHero) {
+            spawnX = scene.herosSpawnX
+            spawnY = scene.herosSpawnY
+        } else {
+            spawnX = firstHero.x
+            spawnY = firstHero.y
+        }
+        hero.spawn(spawnX, spawnY)
+    }
+}
+
 
 // ENTITIES ///////////////////////////////////
 
@@ -1747,7 +1798,7 @@ export class Hero extends LivingEntity {
         if(this.lives > 0) this.lives -= 1
         if(this.lives > 0) {
             this.health = this.getMaxHealth()
-            this.respawn()
+            this.scene.spawnHero(this)
         }
     }
 
@@ -1814,10 +1865,9 @@ export class Hero extends LivingEntity {
 
     initJoypadButtons(joypadScn) {}
 
-    respawn() {
-        const { herosSpawnX, herosSpawnY } = this.scene
-        this.x = herosSpawnX
-        this.y = herosSpawnY
+    spawn(x, y) {
+        this.x = x + floor((random()-.5) * 50)
+        this.y = y + floor((random()-1) * 25)
         this.speedX = 0
         this.speedY = 0
     }
@@ -1883,7 +1933,7 @@ class Nico extends Hero {
         // fall
         if(this.y > this.game.map.height + 100) {
             this.mayTakeDamage(1, null, true)
-            if(this.health > 0) this.respawn()
+            if(this.health > 0) this.scene.spawnHero(this)
         }
     }
 
