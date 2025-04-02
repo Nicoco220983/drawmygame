@@ -699,13 +699,6 @@ export class EntityGroup {
         return this.entMap.get(id)
     }
 
-    // add(ent) {
-    //     if(ent.id === undefined) { ent.id = this.nextAutoId() }
-    //     this.entMap.set(ent.id, ent)
-    //     this.entArr.push(ent)
-    //     return ent
-    // }
-
     forEach(next) {
         this.entArr.forEach(ent => {
             if(!ent.removed) next(ent)
@@ -754,7 +747,9 @@ export class EntityGroup {
     getState() {
         const state = this._state ||= []
         state.length = 0
-        this.forEach(ent => state.push(ent.getState()))
+        this.forEach(ent => {
+            if(ent.constructor.key) state.push(ent.getState())
+        })
         return state
     }
 
@@ -1491,6 +1486,7 @@ export class GameScene extends SceneCommon {
             this.checkHeros()
         }
         this.herosManager.update()
+        this.notifs.update()
     }
 
     drawTo(ctx) {
@@ -1744,6 +1740,7 @@ export class Hero extends LivingEntity {
         this.team = "hero"
         this.lives = (kwargs && kwargs.lives !== undefined) ? kwargs.lives : 3
         if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
+        this.lastSpawnIt = -Infinity
     }
 
     setPlayerId(playerId) {
@@ -1785,6 +1782,7 @@ export class Hero extends LivingEntity {
         this.checkCollectablesHit()
         this.updateHearts()
         this.mayResurect()
+        this.updateSpawnEffect()
     }
 
     checkCollectablesHit() {
@@ -1824,6 +1822,25 @@ export class Hero extends LivingEntity {
         })
     }
 
+    updateSpawnEffect() {
+        const { lastSpawnIt } = this
+        const { iteration } = this.scene
+        const { fps } = this.game
+        if(lastSpawnIt + fps > iteration) {
+            if(!this._spawnEnt) this._spawnEnt = this.newSpawnEffect()
+        } else {
+            delete this._spawnEnt
+            this.lastSpawnIt = -Infinity
+        }
+    }
+
+    newSpawnEffect() {
+        return this.scene.newEntity(Pop, {
+            x: this.x,
+            y: this.y,
+        })
+    }
+
     getState() {
         const state = super.getState()
         state.pid = this.playerId
@@ -1837,6 +1854,8 @@ export class Hero extends LivingEntity {
             stExtras.length = 0
             for(let exId of extras) stExtras.push(exId)
         } else if(state.extras) state.extras.length = 0
+        if(this.lastSpawnIt === -Infinity) delete state.lsi
+        else state.lsi = this.lastSpawnIt
         return state
     }
 
@@ -1850,6 +1869,8 @@ export class Hero extends LivingEntity {
             extras.clear()
             for(let exId of state.extras) extras.add(exId)
         }
+        if(state.lsi) this.lastSpawnIt = state.lsi
+        else this.lastSpawnIt = -Infinity
     }
 
     getInputState() {
@@ -1867,9 +1888,10 @@ export class Hero extends LivingEntity {
 
     spawn(x, y) {
         this.x = x + floor((random()-.5) * 50)
-        this.y = y + floor((random()-1) * 25)
+        this.y = y
         this.speedX = 0
-        this.speedY = 0
+        this.speedY = -200
+        this.lastSpawnIt = this.scene.iteration
     }
 
     mayRemove() {
@@ -2687,6 +2709,34 @@ class SmokeExplosion extends Entity {
     }
 }
 Entities.register("smokee", SmokeExplosion)
+
+
+const PopSprite = new Sprite("/static/assets/pop.png")
+const PopAudPrm = loadAud("/static/assets/pop.opus")
+
+class Pop extends Entity {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.width = this.height = 10
+        this.duration = floor(this.game.fps * .25)
+        this.remIt = this.duration
+    }
+    getPhysicsProps() {
+        return null
+    }
+    update() {
+        if(!this._soundPlayed) {
+            this.game.audio.playSound(PopAudPrm)
+            this._soundPlayed = true
+        }
+        this.width = this.height = 10 + 100 * (1 - this.remIt/this.duration)
+        this.remIt -= 1
+        if(this.remIt <= 0) this.remove()
+    }
+    getSprite() {
+        return PopSprite
+    }
+}
 
 
 class DebugScene extends SceneCommon {
