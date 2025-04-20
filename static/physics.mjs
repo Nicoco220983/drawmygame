@@ -18,6 +18,7 @@ export default class PhysicsEngine {
     }
     initWall(wall) {
         const data = wall._physicsData ||= {}
+        data.owner = wall
         const polygon = data.polygon ||= []
         const { x1, x2, y1, y2 } = wall
         polygon.length = 0
@@ -30,6 +31,7 @@ export default class PhysicsEngine {
     }
     initEntity(dt, ent) {
         const data = ent._physicsData ||= {}
+        data.owner = ent
         const polygon = data.polygon ||= []
         polygon.length = 0
         const { x, y, width, height, speedX, speedY } = ent
@@ -100,6 +102,7 @@ export default class PhysicsEngine {
                 while(remD > 0) {
                     colRes.time = Infinity
                     this.initEntity(dt*remD, ent)
+                    let { speedX: entSpdX, speedY: entSpdY } = ent
                     const entData = ent._physicsData
                     const {
                         minX: entMinX, minY: entMinY, maxX: entMaxX, maxY: entMaxY,
@@ -109,6 +112,10 @@ export default class PhysicsEngine {
                         if(colWalls.has(wall)) continue
                         const wallData = wall._physicsData
                         // quick filtering
+                        if(wall.key == "platform") {
+                            const wallDx = wall.x2 - wall.x1, wallDy = wall.y2 - wall.y1
+                            if(wallDx*entSpdY + wallDy*entSpdX < 0) continue
+                        }
                         if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) continue
                         //if(entMinX > wallData.maxX || entMaxX < wallData.minX || entMinY > wallData.maxY || entMaxY < wallData.minY) col = NO_COLLISION_WITHOUT_SPEED
                         // detect collision
@@ -120,27 +127,33 @@ export default class PhysicsEngine {
                     if(colRes.time == Infinity) break
                     colWalls.add(colRes.wall)
                     nbCollisions += 1
-                    let { speedX: entSpdX, speedY: entSpdY } = ent
                     const  { dx: entDx, dy: entDy } = entData
-                    const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
+                    const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY, ent2: colWall } = colRes
+                    console.log("TMP col", colTime, colDist)
                     if(colTime > 0) {
-                        const entD = hypot(entDx, entDy), colD = entD * colTime
                         // move
-                        ent.x += entDx * colTime
-                        ent.y += entDy * colTime
-                        // move away entity a bit from wall to avoid float precision error
-                        ent.x -= (entDx / entD) * FLOAT_PRECISION_CORRECTION
-                        ent.y -= (entDy / entD) * FLOAT_PRECISION_CORRECTION
+                        let dx = entDx * colTime, dy = entDy * colTime
+                        if(dx > 0) dx -= min(dx, FLOAT_PRECISION_CORRECTION)
+                        else if(dx < 0) dx -= max(dx, -FLOAT_PRECISION_CORRECTION)
+                        if(dy > 0) dy -= min(dy, FLOAT_PRECISION_CORRECTION)
+                        else if(dy < 0) dy -= max(dy, -FLOAT_PRECISION_CORRECTION)
+                        ent.x += dx
+                        ent.y += dy
                         // compute remaining speed
                         projection(entSpdX, entSpdY, colNormalY, -colNormalX, projRes)
                         ent.speedX = projRes.x; ent.speedY = projRes.y
                         // stop collisions detection condition
+                        const entD = hypot(entDx, entDy), colD = entD * colTime
                         remD -= colD / entOrigD
                         if(hypot(ent.speedX, ent.speedY) * remD < 1) remD = 0
                     } else {
                         // static collision detected: fix position
-                        ent.x += colNormalX * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
-                        ent.y += colNormalY * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
+                        const colWallKey = colWall.key
+                        const shouldFix = colWallKey == "wall" || (colWallKey == "platform" && colDist > -10*FLOAT_PRECISION_CORRECTION)
+                        if(shouldFix) {
+                            ent.x += colNormalX * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
+                            ent.y += colNormalY * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
+                        }
                     }
                     if(nbCollisions==5) remD = 0
                 }
@@ -163,58 +176,65 @@ export default class PhysicsEngine {
 // Fonction principale pour détecter le moment de collision
 function detectCollisionTime(physicsData1, physicsData2, res) {
     res.time = 0
-    res.dist = Infinity
+    res.dist = -Infinity
     res.distFixSign = 0
     res.normalX = null
     res.normalY = null
-    _detectCollisionTime(physicsData1, physicsData2, physicsData1.normals, res)
+    res.ent1 = null
+    res.ent2 = null
+    _detectCollisionTime(physicsData1, physicsData2, 0, res)
     if(res.time == Infinity) return
-    _detectCollisionTime(physicsData2, physicsData1, physicsData2.normals, res)
+    _detectCollisionTime(physicsData1, physicsData2, 1, res)
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
-function _detectCollisionTime(physicsData1, physicsData2, normals, res) {
-    const { polygon: poly1, dx: dx1, dy: dy1 } = physicsData1
-    const { polygon: poly2, dx: dx2, dy: dy2 } = physicsData2
+function _detectCollisionTime(physicsData1, physicsData2, num, res) {
+    const pdata1 = (num==0) ? physicsData1 : physicsData2
+    const pdata2 = (num==1) ? physicsData1 : physicsData2
+    const { polygon: poly1, dx: dx1, dy: dy1, normals } = pdata1
+    const { polygon: poly2, dx: dx2, dy: dy2 } = pdata2
+    const dx = dx1-dx2, dy = dy1-dy2
     for(let i=0; i<normals.length; i+=2) {
         const ax = normals[i], ay = normals[i+1]
         projectPolygonOnAxis(poly1, ax, ay, resProj1) // TODO: cache me
         projectPolygonOnAxis(poly2, ax, ay, resProj2)
-        getOverlapTime(resProj1, resProj2, dx1-dx2, dy1-dy2, ax, ay, resOverlapTime)
+        let relSpdProj = dx * ax + dy * ay
+        getOverlapTime(resProj1, resProj2, relSpdProj, resOverlapTime)
         const { time: colTime, dist: colDist, distFixSign: colDistFixSign } = resOverlapTime
         if(colTime < res.time) continue
-        if(colTime == 0 && colDist > res.dist) return
+        if(colTime == 0 && colDist < res.dist) return
         res.time = colTime
         res.dist = colDist
         res.distFixSign = colDistFixSign
         res.normalX = ax
         res.normalY = ay
+        res.ent1 = physicsData1.owner
+        res.ent2 = physicsData2.owner
         if(colTime == Infinity) break
     }
 }
 
 // Fonction pour trouver le temps de chevauchement des projections sur un axe
-function getOverlapTime(proj1, proj2, spdX, spdY, ax, ay, res) {
+function getOverlapTime(proj1, proj2, relSpdProj, res) {
 
-    const dist12 = proj1.max - proj2.min, dist21 = proj2.max - proj1.min
-    const colDist = min(dist12, dist21)
+    const dist12 = proj1.min - proj2.max, dist21 = proj2.min - proj1.max
+    const colDist = max(dist12, dist21)
     res.dist = colDist
     res.distFixSign = (dist12 < dist21) ? 1 : -1
-    if(colDist >= 0) {
+    if(colDist <= 0) {
         // static collision detected
         res.time = 0
         return
     }
 
-    const relSpdProj = spdX * ax + spdY * ay
     if (relSpdProj === 0) {
         // static without collision
         res.time = Infinity
         return
     }
 
-    const t1 = (proj2.min - proj1.max) / relSpdProj
-    const t2 = (proj2.max - proj1.min) / relSpdProj
+    const t1 = dist21 / relSpdProj
+    const t2 = -dist12 / relSpdProj
     const tEnter = min(t1, t2), tExit = max(t1, t2)
     if(tExit < 0 || tEnter > 1) res.time = Infinity
     else res.time = tEnter

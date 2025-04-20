@@ -971,8 +971,8 @@ export class SceneCommon {
     initWalls() {
         const { walls } = this.game.map
         walls.forEach(w => {
-            const { x1, y1, x2, y2 } = w
-            this.newWall({ x1, y1, x2, y2 })
+            const { x1, y1, x2, y2, key } = w
+            this.newWall({ x1, y1, x2, y2, key })
         })
     }
 
@@ -1029,7 +1029,7 @@ export class Wall extends Entity {
     }
     drawTo(ctx) {
         ctx.lineWidth = 5
-        ctx.strokeStyle = "dark"
+        ctx.strokeStyle = (this.key == "platform") ? "grey" : "black"
         ctx.beginPath()
         ctx.moveTo(this.x1, this.y1)
         ctx.lineTo(this.x2, this.y2)

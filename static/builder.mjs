@@ -212,18 +212,18 @@ class BuilderScene extends SceneCommon {
         this.game.selectionMenu.addSelection(ent)
     }
 
-    addPointedWall(key) {
-        const { touches, prevTouchIsDown } = this.game
+    addPointedWall() {
+        const { touches, prevTouchIsDown, modeKey } = this.game
         const touch = touches[0]
 
         if(touch && touch.isDown && !prevTouchIsDown) {
             const touchX = touch.x + this.viewX
             const touchY = touch.y + this.viewY
             if(this.prevTouchX !== null) {
-                this.newWall({ x1:this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY })
+                this.newWall({ key:modeKey, x1:this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY })
             }
             if(!this.draftEntity) {
-                this.draftEntity = this.newWall({ x1:touchX, y1:touchY, x2:touchX, y2:touchY })
+                this.draftEntity = this.newWall({ key:modeKey, x1:touchX, y1:touchY, x2:touchX, y2:touchY })
                 this.draftEntity.visibility = .5
             } else {
                 this.draftEntity.x1 = touchX
@@ -283,8 +283,8 @@ class BuilderScene extends SceneCommon {
         map.walls.length = 0
         this.walls.forEach(wall => {
             if(wall.removed) return
-            const { x1, y1, x2, y2 } = wall
-            map.walls.push({ x1, y1, x2, y2 })
+            const { x1, y1, x2, y2, key } = wall
+            map.walls.push({ x1, y1, x2, y2, key })
         })
         map.heros.length = 0
         map.entities.length = 0
