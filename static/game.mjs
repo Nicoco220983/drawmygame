@@ -2479,7 +2479,7 @@ class Sword extends Extra {
     dropOwnerSimilarExtras() {
         if(!this.owner.extras) return
         this.owner.extras.forEach(extra => {
-            if(this!=extra && extra.isMainExtra) extra.srop()
+            if(this!=extra && extra.isMainExtra) extra.drop()
         })
     }
     getSprite() {
