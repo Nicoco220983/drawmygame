@@ -18,7 +18,6 @@ export default class PhysicsEngine {
     }
     initWall(wall) {
         const data = wall._physicsData ||= {}
-        data.owner = wall
         const polygon = data.polygon ||= []
         const { x1, x2, y1, y2 } = wall
         polygon.length = 0
@@ -27,11 +26,15 @@ export default class PhysicsEngine {
             x2, y2,
         )
         data.dx = data.dy = 0
+        if(wall.key == "platform") {
+            const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
+            data.uniDirX = dy/dd
+            data.uniDirY = -dx/dd
+        }
         this.initPhysicsData(data)
     }
     initEntity(dt, ent) {
         const data = ent._physicsData ||= {}
-        data.owner = ent
         const polygon = data.polygon ||= []
         polygon.length = 0
         const { x, y, width, height, speedX, speedY } = ent
@@ -111,13 +114,8 @@ export default class PhysicsEngine {
                     for(let wall of walls) {
                         if(colWalls.has(wall)) continue
                         const wallData = wall._physicsData
-                        // quick filtering
-                        if(wall.key == "platform") {
-                            const wallDx = wall.x2 - wall.x1, wallDy = wall.y2 - wall.y1
-                            if(wallDx*entSpdY + wallDy*entSpdX < 0) continue
-                        }
+                        // quick filteringgs
                         if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) continue
-                        //if(entMinX > wallData.maxX || entMaxX < wallData.minX || entMinY > wallData.maxY || entMaxY < wallData.minY) col = NO_COLLISION_WITHOUT_SPEED
                         // detect collision
                         detectCollisionTime(entData, wallData, wallColRes)
                         if(wallColRes.time == Infinity) continue
@@ -128,8 +126,7 @@ export default class PhysicsEngine {
                     colWalls.add(colRes.wall)
                     nbCollisions += 1
                     const  { dx: entDx, dy: entDy } = entData
-                    const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY, ent2: colWall } = colRes
-                    console.log("TMP col", colTime, colDist)
+                    const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
                     if(colTime > 0) {
                         // move
                         let dx = entDx * colTime, dy = entDy * colTime
@@ -147,13 +144,8 @@ export default class PhysicsEngine {
                         remD -= colD / entOrigD
                         if(hypot(ent.speedX, ent.speedY) * remD < 1) remD = 0
                     } else {
-                        // static collision detected: fix position
-                        const colWallKey = colWall.key
-                        const shouldFix = colWallKey == "wall" || (colWallKey == "platform" && colDist > -10*FLOAT_PRECISION_CORRECTION)
-                        if(shouldFix) {
-                            ent.x += colNormalX * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
-                            ent.y += colNormalY * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
-                        }
+                        ent.x += colNormalX * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
+                        ent.y += colNormalY * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
                     }
                     if(nbCollisions==5) remD = 0
                 }
@@ -180,20 +172,39 @@ function detectCollisionTime(physicsData1, physicsData2, res) {
     res.distFixSign = 0
     res.normalX = null
     res.normalY = null
-    res.ent1 = null
-    res.ent2 = null
+    if(_checkUniDir(physicsData1, physicsData2)
+    || _checkUniDir(physicsData2, physicsData1)) {
+        res.time = Infinity
+        return
+    }
     _detectCollisionTime(physicsData1, physicsData2, 0, res)
     if(res.time == Infinity) return
     _detectCollisionTime(physicsData1, physicsData2, 1, res)
+    _checkUniDir2(physicsData1, physicsData2, res)
+}
+
+function _checkUniDir(physicsData1, physicsData2) {
+    if(physicsData1.uniDirX === undefined) return false
+    const { dx: dx1, dy: dy1 } = physicsData1
+    const { dx: dx2, dy: dy2 } = physicsData2
+    const dx = dx2-dx1, dy = dy2-dy1
+    const dp = dotProduct(dx, dy, physicsData1.uniDirX, physicsData1.uniDirY)
+    return dp >= 0
+}
+
+function _checkUniDir2(physicsData1, physicsData2, res) {
+    if(physicsData1.uniDirX !== undefined && physicsData2.uniDirX !== undefined) return
+    if(res.dist < -1) res.time = Infinity
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
 function _detectCollisionTime(physicsData1, physicsData2, num, res) {
     const pdata1 = (num==0) ? physicsData1 : physicsData2
     const pdata2 = (num==1) ? physicsData1 : physicsData2
-    const { polygon: poly1, dx: dx1, dy: dy1, normals } = pdata1
-    const { polygon: poly2, dx: dx2, dy: dy2 } = pdata2
+    const { polygon: poly1, dx: dx1, dy: dy1, uniDirX: uniDirX1, normals } = pdata1
+    const { polygon: poly2, dx: dx2, dy: dy2, uniDirX: uniDirX2 } = pdata2
     const dx = dx1-dx2, dy = dy1-dy2
+    const isUniDir = uniDirX1 !== undefined || uniDirX2 !== undefined
     for(let i=0; i<normals.length; i+=2) {
         const ax = normals[i], ay = normals[i+1]
         projectPolygonOnAxis(poly1, ax, ay, resProj1) // TODO: cache me
@@ -208,8 +219,6 @@ function _detectCollisionTime(physicsData1, physicsData2, num, res) {
         res.distFixSign = colDistFixSign
         res.normalX = ax
         res.normalY = ay
-        res.ent1 = physicsData1.owner
-        res.ent2 = physicsData2.owner
         if(colTime == Infinity) break
     }
 }
@@ -254,11 +263,15 @@ function projectPolygonOnAxis(polygon, ax, ay, res) {
     res.max = pmax
 }
 
+function dotProduct(x1, y1, x2, y2) {
+    return x1 * x2 + y1 * y2
+}
+
 function projection(x1, y1, x2, y2, res) {
     const d22 = dist2(x2, y2)
-    const dotProduct = x1 * x2 + y1 * y2
-    res.x = dotProduct * x2 / d22
-    res.y = dotProduct * y2 / d22
+    const dp = dotProduct(x1, y1, x2, y2)
+    res.x = dp * x2 / d22
+    res.y = dp * y2 / d22
 }
 
 function dist(x, y) {
