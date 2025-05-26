@@ -262,7 +262,6 @@ try {
     }
 
     function joinGame(name, color) {
-        console.log("TMP joinGame", ws, joined)
         if(!ws || joined) return
         ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
             name, color,
@@ -271,7 +270,7 @@ try {
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         startGame()
-        if(game) game.canvas.focus()
+        if(game) game.focus()
     }
 
     function handleState(ws, data) {
@@ -284,7 +283,7 @@ try {
 
     function restartGame() {
         if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
-        if(game) game.canvas.focus()
+        if(game) game.focus()
     }
 
     const importJsPrms = {}

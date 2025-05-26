@@ -967,6 +967,11 @@ export class GameCommon {
 
     requestFullscreen() {
         this.parentEl.requestFullscreen()
+        this.focus()
+    }
+
+    focus() {
+        this.canvas.focus()
     }
 
     log(...args) {
