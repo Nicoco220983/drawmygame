@@ -305,7 +305,7 @@ export class Entity {
 
     drawTo(ctx) {
         const img = this.getImg()
-        if(img) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
+        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
     }
 
     scaleSprite(sprite) {
@@ -2012,7 +2012,7 @@ export class Hero extends LivingEntity {
         if(this.extras || state.extras) {
             const extras = this.initExtras()
             extras.clear()
-            for(let exId of state.extras) extras.add(exId)
+            if(state.extras) for(let exId of state.extras) extras.add(exId)
         }
         if(state.lsi) this.lastSpawnIt = state.lsi
         else this.lastSpawnIt = -Infinity
@@ -2467,6 +2467,17 @@ class Collectable extends Entity {
             this.spriteDy = -this.spriteWidth * .05 * cosAngle
         }
     }
+    getState() {
+        const state = super.getState()
+        if(this.owner === null) delete state.own
+        else state.own = this.owner.id
+        return state
+    }
+    setState(state) {
+        super.setState(state)
+        if(state.own === undefined) this.owner = null
+        else this.owner = this.group.get(state.own)
+    }
 }
 
 
@@ -2660,10 +2671,14 @@ class Bomb extends Extra {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
+        this.thrower = null
         this.itToLive = null
     }
     getPhysicsProps() {
-        const props = super.getPhysicsProps()
+        const props = this._physicsProps ||= {
+            affectedByGravity: true,
+            blockedByWalls: true,
+        }
         return (this.itToLive !== null) ? props : null
     }
     isCollectableBy(team) {
@@ -2692,7 +2707,7 @@ class Bomb extends Extra {
             if(this.itToLive !== null) {
                 if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
                 if(this.itToLive <= 0) {
-                    this.scene.newEntity(Explosion, { x, y })
+                    this.scene.newEntity(Explosion, { x, y, owner: this.thrower })
                     this.remove()
                 }
                 this.itToLive -= 1
@@ -2706,6 +2721,7 @@ class Bomb extends Extra {
         this.speedX = this.owner.dirX * 200
         this.speedY = -500
         this.itToLive = 3 * this.game.fps
+        this.thrower = this.owner
         this.drop()
     }
     getSprite() {
@@ -2719,12 +2735,16 @@ class Bomb extends Extra {
     }
     getState() {
         const state = super.getState()
+        if(this.thrower === null) delete state.thr
+        else state.thr = this.thrower.id
         if(this.itToLive === null) delete state.ttl
         else state.ttl = this.itToLive
         return state
     }
     setState(state) {
         super.setState(state)
+        if(state.thr === undefined) this.thrower = null
+        else this.thrower = this.group.get(state.thr)
         if(state.ttl === undefined) this.itToLive = null
         else this.itToLive = state.ttl
     }
@@ -2739,6 +2759,7 @@ class Explosion extends Entity {
         super(group, id, kwargs)
         this.width = this.height = 300
         this.iteration = 0
+        this.owner = (kwargs && kwargs.owner) || null
     }
     getPhysicsProps() {
         return null
@@ -2755,7 +2776,7 @@ class Explosion extends Entity {
         const radius2 = pow(150, 2)
         const _checkOne = ent => {
             const dx = x - ent.x, dy = y - ent.y
-            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this)
+            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this.owner)
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
@@ -2768,11 +2789,15 @@ class Explosion extends Entity {
     getState() {
         const state = super.getState()
         state.it = this.iteration
+        if(this.owner === null) delete state.own
+        else state.own = this.owner.id
         return state
     }
     setState(state) {
         super.setState(state)
         this.iteration = state.it
+        if(state.own === undefined) this.owner = null
+        else this.owner = this.group.get(state.own)
     }
 }
 Entities.register("explos", Explosion)
