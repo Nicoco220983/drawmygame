@@ -180,7 +180,7 @@ try {
     }
 
     const fullscrenEl = document.getElementById("fullscreen")
-    gameParentEl.touchstart = evt => {
+    gameParentEl.ontouchstart = evt => {
         if(!IS_MOBILE) return 
         if(!game || game.isFullscreened()) return
         game.requestFullscreen()
