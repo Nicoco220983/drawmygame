@@ -2032,15 +2032,11 @@ export class Hero extends LivingEntity {
     initJoypadButtons(joypadScn) {}
 
     spawn(x, y) {
-        // this.x = x + floor((random()-.5) * 50)
-        // this.y = y
-        // this.speedX = 0
-        // this.speedY = -200
-        // this.lastSpawnIt = this.scene.iteration
-        this.x = x
+        this.x = x + floor((random()-.5) * 50)
         this.y = y
         this.speedX = 0
-        this.speedY = 0
+        this.speedY = -200
+        this.lastSpawnIt = this.scene.iteration
     }
 
     mayRemove() {
@@ -2634,7 +2630,7 @@ class Sword extends Extra {
     drop() {
         delete this.owner.attack
         super.drop()
-        this.remove() // TMP: until non-infinite-collect managed
+        this.remove() // TODO: remove when non-infinite-collect managed
     }
     dropOwnerSimilarExtras() {
         if(!this.owner.extras) return
