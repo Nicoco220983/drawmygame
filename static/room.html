@@ -65,220 +65,245 @@
         <flexcol id="game"></flexcol>
     </flexrow>
     <flexcol id="section_logs" style="display: none; width: 90%">
-        <input id="logs_filter" type="text">
+        <flexrow>Logs: <input id="logs_filter" type="text"></flexrow>
         <p id="logs" style="border: 1px solid grey; width: 100%; height: 500px; overflow: scroll"></p>
     </flexcol>
 <script type="module">
-import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 
-const mobRegex = /android|iphone|kindle|ipad/i
-const IS_MOBILE = mobRegex.test(navigator.userAgent)
+import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
+import lib from '../static/lib.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
 const isDebugMode = urlParams.get("debug") == "1"
 
-const locPathnames = location.pathname.split('/')
-const roomId = locPathnames[locPathnames.length-1]
-let clientId = sessionStorage.getItem("drawmygame.clientId")
+const mobRegex = /android|iphone|kindle|ipad/i
+const IS_MOBILE = mobRegex.test(navigator.userAgent)
+if(IS_MOBILE) console.log("Mobile detected")
 
-document.getElementById("section_join").style.display = (urlParams.get("join") != "0") ? "" : "none"
-
-document.getElementById("join").onclick = () => {
-    joinGame(
-        document.getElementById("player_name").value,
-        document.getElementById("player_color").value,
-    )
-}
-
-document.getElementById("restart").onclick = restartGame
-
-const gameParentEl = document.getElementById("game")
-const map = new GameMap()
-let game = null, ws = null, joined = false
-
-const showGameEl = document.getElementById("show_game")
-showGameEl.checked = IS_MOBILE ? (urlParams.get("game") == "1") : (urlParams.get("game") != "0")
-const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.checked = IS_MOBILE ? (urlParams.get("joypad") != "0") : (urlParams.get("joypad") == "1")
-const isGameVisible = () => showGameEl.checked
-const isJoypadVisible = () => joined && showJoypadEl.checked
-const syncGameShow = () => {
-    if(game) game.showGameScene(showGameEl.checked)
-    if(game) game.showJoypadScene(showJoypadEl.checked)
-    document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
-    document.getElementById("section_show_game").style.display = ""
-}
-showGameEl.onchange = showJoypadEl.onchange = syncGameShow
-
-const showJoypadLinkBut = document.getElementById("show_joypad_link")
-const joypadQrcodeEl = document.getElementById("joypad_qrcode")
-let joypadLinkShowed = false
-const syncJoypadLink = async () => {
-    if(!joypadLinkShowed) {
-        showJoypadLinkBut.textContent = "Show joypad link"
-        joypadQrcodeEl.style.display = "none"
-    } else {
-        showJoypadLinkBut.textContent = "Hide joypad link"
-        await importJs('../static/qrcode.min.js')
-        const url = URL.parse(window.location)
-        url.searchParams.set("game", "0")
-        url.searchParams.set("joypad", "1")
-        joypadQrcodeEl.innerHTML = ""
-        joypadQrcodeEl.style.display = ""
-        var qrcode = new QRCode(joypadQrcodeEl, {
-            text: url.toString(),
-            width: 256,
-            height: 256,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        })
+const showLogs = isDebugMode && IS_MOBILE
+if(showLogs) {
+    document.getElementById("section_logs").style.display = ""
+    const logsEl = document.getElementById("logs")
+    const logsFilterEl = document.getElementById("logs_filter")
+    const oldLog = console.log
+    console.log = (...args) => {
+        oldLog(...args)
+        addLogEl(...args)
     }
+    const oldErr = console.error
+    console.error = (...args) => {
+        oldErr(...args)
+        addLogEl(...args)
+    }
+    const addLogEl = (...args) => {
+        args = [...args]
+        const logStr = args.map(JSON.stringify).join(" ")
+        const divEl = document.createElement("div")
+        divEl.style.display = "none"
+        divEl.textContent = logStr
+        logsEl.insertBefore(divEl, logsEl.firstChild)
+        syncLogsEl()
+    }
+    const syncLogsEl = () => {
+        const filt = logsFilterEl.value
+        for(const el of logsEl.children) el.style.display = (!filt || el.textContent.indexOf(filt) >= 0) ? "" : "none"
+    }
+    logsFilterEl.onchange = syncLogsEl
 }
-syncJoypadLink()
-showJoypadLinkBut.onclick = () => {
-    joypadLinkShowed = !joypadLinkShowed
+
+try {
+
+    const locPathnames = location.pathname.split('/')
+    const roomId = locPathnames[locPathnames.length-1]
+    let clientId = sessionStorage.getItem("drawmygame.clientId")
+
+    document.getElementById("section_join").style.display = (urlParams.get("join") != "0") ? "" : "none"
+
+    document.getElementById("join").onclick = () => {
+        console.log("TMP join")
+        joinGame(
+            document.getElementById("player_name").value,
+            document.getElementById("player_color").value,
+        )
+    }
+
+    document.getElementById("restart").onclick = restartGame
+
+    const gameParentEl = document.getElementById("game")
+    const map = new GameMap()
+    let game = null, ws = null, joined = false
+
+    const showGameEl = document.getElementById("show_game")
+    showGameEl.checked = IS_MOBILE ? (urlParams.get("game") == "1") : (urlParams.get("game") != "0")
+    const showJoypadEl = document.getElementById("show_joypad")
+    showJoypadEl.checked = IS_MOBILE ? (urlParams.get("joypad") != "0") : (urlParams.get("joypad") == "1")
+    const isGameVisible = () => showGameEl.checked
+    const isJoypadVisible = () => joined && showJoypadEl.checked
+    const syncGameShow = () => {
+        if(game) game.showGameScene(showGameEl.checked)
+        if(game) game.showJoypadScene(showJoypadEl.checked)
+        document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
+        document.getElementById("section_show_game").style.display = ""
+    }
+    showGameEl.onchange = showJoypadEl.onchange = syncGameShow
+
+    const showJoypadLinkBut = document.getElementById("show_joypad_link")
+    const joypadQrcodeEl = document.getElementById("joypad_qrcode")
+    let joypadLinkShowed = false
+    const syncJoypadLink = async () => {
+        if(!joypadLinkShowed) {
+            showJoypadLinkBut.textContent = "Show joypad link"
+            joypadQrcodeEl.style.display = "none"
+        } else {
+            showJoypadLinkBut.textContent = "Hide joypad link"
+            await importJs('../static/qrcode.min.js')
+            const url = URL.parse(window.location)
+            url.searchParams.set("game", "0")
+            url.searchParams.set("joypad", "1")
+            joypadQrcodeEl.innerHTML = ""
+            joypadQrcodeEl.style.display = ""
+            var qrcode = new QRCode(joypadQrcodeEl, {
+                text: url.toString(),
+                width: 256,
+                height: 256,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            })
+        }
+    }
     syncJoypadLink()
-}
-
-const fullscrenEl = document.getElementById("fullscreen")
-gameParentEl.onclick = evt => {
-    if(!IS_MOBILE) return 
-    if(!game || game.isFullscreened()) return
-    game.requestFullscreen()
-    evt.stopPropagation()
-}
-fullscrenEl.onclick = () => {
-    if(game) game.requestFullscreen()
-}
-
-const showLogs = isDebugMode && HAS_TOUCH
-if(showLogs) document.getElementById("section_logs").style.display = ""
-const logsEl = document.getElementById("logs")
-const logsFilterEl = document.getElementById("logs_filter")
-const addLog = (...args) => {
-    args = [...args]
-    const logStr = args.map(JSON.stringify).join(" ")
-    const divEl = document.createElement("div")
-    divEl.style.display = "none"
-    divEl.textContent = logStr
-    logsEl.insertBefore(divEl, logsEl.firstChild)
-    syncLogsEl()
-}
-const syncLogsEl = () => {
-    const filt = logsFilterEl.value
-    for(const el of logsEl.children) el.style.display = (!filt || el.textContent.indexOf(filt) >= 0) ? "" : "none"
-}
-logsFilterEl.onchange = syncLogsEl
-
-// main
-
-async function main() {
-    await getMap()
-    await connectToRoom()
-    startGame()
-}
-
-
-function connectToRoom() {
-    return new Promise((ok, ko) => {
-        const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
-        ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
-        ws.addEventListener('open', () => {
-            console.log('Connected to server !')
-            ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
-                id: clientId, roomId,
-            }))
-        })
-        ws.addEventListener('message', evt => {
-            const key = evt.data.substring(0, MSG_KEY_LENGTH)
-            const data = evt.data.substring(MSG_KEY_LENGTH)
-            if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
-            else if(key === MSG_KEYS.STATE) handleState(ws, data)
-            else if(key === MSG_KEYS.PING) handlePing(ws, data)
-        })
-        ws.addEventListener('close', () => {
-            console.log('Disconnected from server.')
-            // newDisconnectedForm(parentEl)
-        })
-        ws.addEventListener('error', console.error)
-    })
-}
-
-async function getMap() {
-    const res = await fetch(`/room/${roomId}/map`)
-    const mapBin = await res.arrayBuffer()
-    await map.importFromBinary(mapBin)
-}
-
-function startGame() {
-    if(game) return
-    if(!isGameVisible() && !isJoypadVisible()) return
-    game = new Game(gameParentEl, map, ws.id, {
-        mode: MODE_CLIENT,
-        sendPing: () => ws.send(MSG_KEYS.PING),
-        sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
-        debug: isDebugMode,
-        onLog: showLogs ? addLog : null
-    })
-    syncGameShow()
-    game.play()
-}
-
-function handleIdentifyClient(ws, data, next) {
-    const { id, name, color, suggestedName, suggestedColor } = JSON.parse(data)
-    clientId = ws.id = id
-    if(name) {
-        // client already has a player name: he already joined the game
-        // recover this join
-        joinGame(name, color)
-    } else {
-        document.getElementById("player_name").value = suggestedName
-        document.getElementById("player_color").value = suggestedColor
+    showJoypadLinkBut.onclick = () => {
+        joypadLinkShowed = !joypadLinkShowed
+        syncJoypadLink()
     }
-    sessionStorage.setItem("drawmygame.clientId", clientId)
-    console.log(`Identified as '${id}'.`)
-    next()
+
+    const fullscrenEl = document.getElementById("fullscreen")
+    gameParentEl.touchstart = evt => {
+        if(!IS_MOBILE) return 
+        if(!game || game.isFullscreened()) return
+        game.requestFullscreen()
+        evt.stopPropagation()
+    }
+    fullscrenEl.onclick = () => {
+        if(game) game.requestFullscreen()
+    }
+
+
+    // main
+
+    async function main() {
+        console.log("TMP main")
+        await getMap()
+        await connectToRoom()
+        startGame()
+    }
+
+
+    function connectToRoom() {
+        return new Promise((ok, ko) => {
+            const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
+            ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
+            ws.addEventListener('open', () => {
+                console.log('Connected to server !')
+                ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+                    id: clientId, roomId,
+                }))
+            })
+            ws.addEventListener('message', evt => {
+                const key = evt.data.substring(0, MSG_KEY_LENGTH)
+                const data = evt.data.substring(MSG_KEY_LENGTH)
+                if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
+                else if(key === MSG_KEYS.STATE) handleState(ws, data)
+                else if(key === MSG_KEYS.PING) handlePing(ws, data)
+            })
+            ws.addEventListener('close', () => {
+                console.log('Disconnected from server.')
+                // newDisconnectedForm(parentEl)
+            })
+            ws.addEventListener('error', console.error)
+        })
+    }
+
+    async function getMap() {
+        const res = await fetch(`/room/${roomId}/map`)
+        const mapBin = await res.arrayBuffer()
+        await map.importFromBinary(mapBin)
+    }
+
+    function startGame() {
+        if(game) return
+        if(!isGameVisible() && !isJoypadVisible()) return
+        game = new Game(gameParentEl, lib, map, ws.id, {
+            mode: MODE_CLIENT,
+            sendPing: () => ws.send(MSG_KEYS.PING),
+            sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
+            debug: isDebugMode,
+        })
+        syncGameShow()
+        game.play()
+    }
+
+    function handleIdentifyClient(ws, data, next) {
+        const { id, name, color, suggestedName, suggestedColor } = JSON.parse(data)
+        clientId = ws.id = id
+        if(name) {
+            // client already has a player name: he already joined the game
+            // recover this join
+            joinGame(name, color)
+        } else {
+            document.getElementById("player_name").value = suggestedName
+            document.getElementById("player_color").value = suggestedColor
+        }
+        sessionStorage.setItem("drawmygame.clientId", clientId)
+        console.log(`Identified as '${id}'.`)
+        next()
+    }
+
+    function joinGame(name, color) {
+        console.log("TMP joinGame", ws, joined)
+        if(!ws || joined) return
+        ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
+            name, color,
+        }))
+        joined = true
+        document.getElementById("section_join").style.display = "none"
+        console.log(`Joined as '${name}', with color '${color}'.`)
+        startGame()
+        if(game) game.canvas.focus()
+    }
+
+    function handleState(ws, data) {
+        if(game) game.receiveStatesFromLeader(data)
+    }
+
+    function handlePing(ws, data) {
+        if(game) game.receivePing(data)
+    }
+
+    function restartGame() {
+        if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
+        if(game) game.canvas.focus()
+    }
+
+    const importJsPrms = {}
+    function importJs(src) {
+        return importJsPrms[src] ||= new Promise((ok, ko) => {
+            const scriptEl = document.createElement("script")
+            scriptEl.src = src
+            document.body.appendChild(scriptEl)
+            scriptEl.onload = ok
+            scriptEl.onerror = ko
+        })
+    }
+
+    await main()
+} catch(err) {
+    if(showLogs) console.log(err.toString(), err.stack)
+    throw err
 }
 
-function joinGame(name, color) {
-    if(!ws || joined) return
-    ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
-        name, color,
-    }))
-    joined = true
-    document.getElementById("section_join").style.display = "none"
-    console.log(`Joined as '${name}', with color '${color}'.`)
-    startGame()
-    if(game) game.canvas.focus()
-}
-
-function handleState(ws, data) {
-    if(game) game.receiveStatesFromLeader(data)
-}
-
-function handlePing(ws, data) {
-    if(game) game.receivePing(data)
-}
-
-function restartGame() {
-    if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
-    if(game) game.canvas.focus()
-}
-
-const importJsPrms = {}
-function importJs(src) {
-    return importJsPrms[src] ||= new Promise((ok, ko) => {
-        const scriptEl = document.createElement("script")
-        scriptEl.src = src
-        document.body.appendChild(scriptEl)
-        scriptEl.onload = ok
-        scriptEl.onerror = ko
-    })
-}
-
-main()
 </script>
 </body>
 </html> 

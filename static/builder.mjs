@@ -9,8 +9,8 @@ import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS
 
 export class GameBuilder extends GameCommon {
 
-    constructor(canvasParentEl, menuEl, map, kwargs) {
-        super(canvasParentEl, map, kwargs)
+    constructor(canvasParentEl, menuEl, lib, map, kwargs) {
+        super(canvasParentEl, lib, map, kwargs)
         this.menuEl = menuEl
         this.selectionMenu = new SelectionMenu(this)
         this.setMode("move")
@@ -19,6 +19,7 @@ export class GameBuilder extends GameCommon {
 
     initGameScene() {
         this.gameScene = new BuilderScene(this)
+        this.gameScene.loadMap(this.map)
         this.syncSize()
     }
 
@@ -65,9 +66,6 @@ class BuilderScene extends SceneCommon {
     constructor(...args) {
         super(...args)
         this.viewSpeed = Infinity
-        this.initHeros()
-        this.initEntities()
-        this.initEvents()
         this.selections = []
     }
 
@@ -77,7 +75,7 @@ class BuilderScene extends SceneCommon {
     }
 
     initHeros() {
-        const mapHeros = this.game.map.heros
+        const mapHeros = this.map.heros
         for(let heroDef of mapHeros) {
             const { key, x, y } = heroDef
             this.newEntity(key, { x, y })
@@ -85,14 +83,14 @@ class BuilderScene extends SceneCommon {
     }
 
     initEntities() {
-        this.game.map.entities.forEach(entState => {
+        this.map.entities.forEach(entState => {
             const ent = this.newEntity(entState.key)
             ent.setState(entState)
         })
     }
 
     initEvents() {
-        this.game.map.events.forEach(evt => {
+        this.map.events.forEach(evt => {
             const { key: evtKey } = evt
             if(evtKey == "ent") {
                 const ent = this.newEntity(evt.state.key)
@@ -104,7 +102,7 @@ class BuilderScene extends SceneCommon {
 
     syncGrid() {
         this.grid ||= new Entity(this)
-        const { width, height } = this.game.map
+        const { width, height } = this.map
         this.grid.x = width / 2
         this.grid.y = height / 2
         this.grid.width = width

@@ -31,14 +31,13 @@ const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
 const RESEND_INPUT_STATE_PERIOD = .5
 
-
 // MAP
 
 export class GameMap {
     constructor() {
         this.width = MAP_DEFAULT_WIDTH
         this.height = MAP_DEFAULT_HEIGHT
-        //this.attrs = {}
+        this.scenes = { "0": { key: "catch_all_stars" } }
         this.walls = []
         this.heros = []
         this.entities = []
@@ -49,7 +48,7 @@ export class GameMap {
         const outObj = {
             w: this.width,
             h: this.height,
-            //a: this.attrs,
+            ss: this.scenes,
             ws: this.walls,
             hs: this.heros,
             ents: this.entities,
@@ -74,6 +73,7 @@ export class GameMap {
         const inObj = JSON.parse(inStr)
         this.width = inObj.w
         this.height = inObj.h
+        this.scenes = inObj.ss
         this.walls = inObj.ws
         this.heros = inObj.hs
         this.entities = inObj.ents
@@ -89,11 +89,24 @@ async function compress(str) {
   return await concatUint8Arrays(chunks)
 }
 
+
 async function decompress(compressedBytes) {
+    if (IS_SERVER_ENV) { // || 'DecompressionStream' in window) {
+        return decompressUsingDecompressionStream(compressedBytes)
+    } else {
+        // Safari does not support DecompressionStream yet
+        return decompressUsingPako(compressedBytes)
+    }
+}
+
+async function decompressUsingDecompressionStream(compressedBytes) {
   const stream = new Blob([compressedBytes]).stream()
+  console.log("TMP stream", stream)
   const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"))
-  const chunks = [];
-  for await (const chunk of decompressedStream) chunks.push(chunk)
+  console.log("TMP decompressedStream", decompressedStream)
+  const chunks = []
+  for await (const chunk of decompressedStream)
+    chunks.push(chunk)
   const stringBytes = await concatUint8Arrays(chunks)
   return new TextDecoder().decode(stringBytes)
 }
@@ -102,6 +115,12 @@ async function concatUint8Arrays(uint8arrays) {
   const blob = new Blob(uint8arrays)
   const buffer = await blob.arrayBuffer()
   return new Uint8Array(buffer)
+}
+
+async function decompressUsingPako(compressedBytes) {
+    const { ungzip } = await import('./deps/pako.mjs')
+    const decompressedBytes = ungzip(new Uint8Array(compressedBytes))
+    return new TextDecoder().decode(decompressedBytes)
 }
 
 const BIN_AS_B64_DATA_URL_PREFIX = "data:application/octet-stream;base64,"
@@ -430,6 +449,33 @@ export class Entity {
     }
 }
 
+function on(trigKey, nextKey, next) {
+    const events = this._events ||= {}
+    const trigNexts = events[trigKey] ||= {}
+    trigNexts[nextKey] = next
+}
+
+function off(trigKey, nextKey) {
+    const events = this._events ||= {}
+    const trigNexts = events[trigKey] ||= {}
+    delete trigNexts[nextKey]
+}
+
+function trigger(trigKey, kwargs) {
+    const events = this._events
+    if(events === undefined) return
+    const trigNexts = events[trigKey]
+    if(trigNexts === undefined) return
+    for(let nextKey in trigNexts) {
+        trigNexts[nextKey].call(this, kwargs)
+    }
+}
+
+Entity.prototype.on = on
+Entity.prototype.off = off
+Entity.prototype.trigger = trigger
+
+
 export const Entities = {}
 Entities.register = function(key, cls) {
     cls.key = key
@@ -687,11 +733,13 @@ export class EntityGroup {
     }
 
     new(cls, kwargs) {
-        const id = this.nextAutoId()
+        let id = kwargs && kwargs.id
+        if(id === undefined) id = this.nextAutoId()
         if(typeof cls === 'string') cls = Entities[cls]
         const ent = new cls(this, id, kwargs)
         this.entMap.set(id, ent)
         this.entArr.push(ent)
+        this.trigger("new", ent)
         return ent
     }
 
@@ -767,6 +815,7 @@ export class EntityGroup {
                 }
                 ent.setState(entState)
                 entArr.push(ent)
+                this.trigger("new", ent)
             }
             if(entMap.size != entArr.length) {
                 entMap.clear()
@@ -776,13 +825,18 @@ export class EntityGroup {
     }
 }
 
+EntityGroup.prototype.on = on
+EntityGroup.prototype.off = off
+EntityGroup.prototype.trigger = trigger
+
+
 export const MODE_LOCAL = 0
 export const MODE_SERVER = 1
 export const MODE_CLIENT = 2
 
 export class GameCommon {
 
-    constructor(parentEl, map, kwargs) {
+    constructor(parentEl, lib, map, kwargs) {
         this.mode = (kwargs && kwargs.mode) || MODE_LOCAL
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
@@ -800,6 +854,7 @@ export class GameCommon {
         this.time = 0
         this.fps = FPS
         this.dt = 1/this.fps
+        this.lib = lib
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
@@ -948,7 +1003,14 @@ export class SceneCommon {
         this.walls = new EntityGroup(this)
         this.entities = new EntityGroup(this)
         this.heros = {}
+    }
+
+    loadMap(map) {
+        this.map = map
         this.initWalls()
+        this.initHeros()
+        this.initEntities()
+        this.initEvents()
     }
 
     setPosAndSize(x, y, width, height) {
@@ -960,7 +1022,7 @@ export class SceneCommon {
     }
 
     setView(viewX, viewY) {
-        const { width: mapWidth, height: mapHeight } = this.game.map
+        const { width: mapWidth, height: mapHeight } = this.map
         const { width, height } = this
         this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
         this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
@@ -969,7 +1031,7 @@ export class SceneCommon {
     }
 
     initWalls() {
-        const { walls } = this.game.map
+        const { walls } = this.map
         walls.forEach(w => {
             const { x1, y1, x2, y2, key } = w
             this.newWall({ x1, y1, x2, y2, key })
@@ -980,8 +1042,8 @@ export class SceneCommon {
         return this.walls.new(Wall, kwargs)
     }
 
-    newEntity(key, kwargs) {
-        return this.entities.new(key, kwargs)
+    newEntity(cls, kwargs) {
+        return this.entities.new(cls, kwargs)
     }
 
     syncHero(hero) {
@@ -1044,8 +1106,8 @@ export class Wall extends Entity {
 
 export class Game extends GameCommon {
 
-    constructor(parentEl, map, playerId, kwargs) {
-        super(parentEl, map, kwargs)
+    constructor(parentEl, lib, map, playerId, kwargs) {
+        super(parentEl, lib, map, kwargs)
 
         this.players = {}
         this.localPlayerId = playerId
@@ -1107,7 +1169,9 @@ export class Game extends GameCommon {
 
     initGameScene(scnId, visible=true) {
         if(scnId === undefined) scnId = max(0, this.iteration)
-        this.gameScene = new GameScene(this, scnId)
+        const cls = this.lib.scenes[this.map.scenes["0"].key]
+        this.gameScene = new cls(this, scnId)
+        this.gameScene.loadMap(this.map)
         this.showGameScene(visible, true)
     }
 
@@ -1397,26 +1461,22 @@ export class GameScene extends SceneCommon {
         this.id = scnId
         this.step = "GAME"
         this.notifs = new EntityGroup(this)
-        this.initVictoryNotifs()
-        this.initGameOverNotifs()
-        this.initHerosSpawnPos()
-        this.initHerosManager()
-        this.initHeros()
-        this.initEntities()
-        this.initEvents()
     }
 
-    initHerosManager() {
-        this.herosManager = new HerosManager(this)
+    loadMap(map) {
+        super.loadMap(map)
+        this.initVictoryNotifs()
+        this.initGameOverNotifs()
     }
 
     initHeros() {
+        this.initHerosSpawnPos()
         if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
         for(let playerId in this.game.players) this.newHero(playerId)
     }
 
     initEntities() {
-        this.game.map.entities.forEach(entState => {
+        this.map.entities.forEach(entState => {
             const ent = this.newEntity(entState.key)
             ent.setState(entState)
         })
@@ -1424,7 +1484,7 @@ export class GameScene extends SceneCommon {
 
     initEvents() {
         this.events = []
-        this.game.map.events.forEach(evtState => {
+        this.map.events.forEach(evtState => {
             let evt = new Events[evtState.key](this, evtState)
             this.events.push(evt)
         })
@@ -1457,20 +1517,20 @@ export class GameScene extends SceneCommon {
         if(hero) hero.remove()
     }
 
-    checkHeros() {
-        const { heros } = this
-        let nbHeros = 0, nbHerosAlive = 0
-        for(let playerId in heros) {
-            const hero = heros[playerId]
-            nbHeros += 1
-            if(hero.lives !== 0) nbHerosAlive += 1
-        }
-        const firstHero = this.getFirstHero()
-        if(firstHero && this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
-    }
+    // checkHeros() {
+    //     const { heros } = this
+    //     let nbHeros = 0, nbHerosAlive = 0
+    //     for(let playerId in heros) {
+    //         const hero = heros[playerId]
+    //         nbHeros += 1
+    //         if(hero.lives !== 0) nbHerosAlive += 1
+    //     }
+    //     const firstHero = this.getFirstHero()
+    //     if(firstHero && this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
+    // }
 
     spawnHero(hero) {
-        this.herosManager.spawnHero(hero)
+        hero.spawn(this.herosSpawnX, this.herosSpawnY)
     }
 
     update() {
@@ -1483,10 +1543,76 @@ export class GameScene extends SceneCommon {
             events.forEach(evt => evt.update())
             physics.apply(dt, entities)
             entities.update()
-            this.checkHeros()
+            //this.checkHeros()
+            this.handleHerosFall()
+            this.handleHerosDeath()
+            this.updateView()
         }
-        this.herosManager.update()
         this.notifs.update()
+    }
+
+    handleHerosFall() {
+        if(!this.onHeroFall) return
+        const { heros } = this
+        for(let playerId in heros) {
+            const hero = heros[playerId]
+            if(hero.y > this.map.height + 100) {
+                this.onHeroFall(hero)
+            }
+        }
+    }
+
+    onHeroFall(hero) {
+        hero.mayTakeDamage(1, null, true)
+        if(hero.health > 0) this.spawnHero(hero)
+    }
+
+    handleHerosDeath() {
+        if(!this.onHeroDeath) return
+        const { heros } = this
+        for(let playerId in heros) {
+            const hero = heros[playerId]
+            if(hero.health <= 0) {
+                this.onHeroDeath(hero)
+            }
+        }
+    }
+
+    onHeroDeath(hero) {
+        if(hero.lives > 1) {
+            hero.lives -= 1
+            this.spawnHero(hero)
+        } else {
+            let nbLivingHeros = 0
+            for(let playerId in heros) {
+                const hero2 = heros[playerId]
+                if(hero2.lives > 0) nbLivingHeros += 1
+            }
+            if(this.step == "GAME" && nbLivingHeros == 0) this.step = "GAMEOVER"
+        }
+    }
+
+    updateView() {
+        const { heros, localHero } = this
+        if(!hasKeys(heros)) return
+        if(localHero) {
+            this.setView(
+                localHero.x - this.width/2,
+                localHero.y - this.height/2,
+            )
+        } else {
+            let sumX = 0, sumY = 0, nbHeros = 0
+            for(let playerId in heros) {
+                const hero = heros[playerId]
+                sumX += hero.x
+                sumY += hero.y
+                nbHeros += 1
+            }
+            this.setView(
+                sumX / nbHeros - this.width/2,
+                sumY / nbHeros - this.height/2,
+            )
+        }
     }
 
     drawTo(ctx) {
@@ -1549,7 +1675,7 @@ export class GameScene extends SceneCommon {
     }
 
     initHerosSpawnPos() {
-        const { heros } = this.game.map
+        const { heros } = this.map
         if(!heros || heros.length == 0) return
         const { x, y } = heros[0]
         this.setHerosSpawnPos(x, y)
@@ -1586,49 +1712,17 @@ export class GameScene extends SceneCommon {
 }
 
 
-class HerosManager {
-    constructor(scene) {
-        this.scene = scene
-    }
+export class FocusFirstHeroScene extends GameScene {
     update() {
-        this.updateView()
+        super.update()
         this.updateHerosPos()
     }
-    updateView() {
-        const { scene } = this
-        const { heros, localHero } = scene
-        if(!hasKeys(heros)) return
-        if(localHero) {
-            scene.setView(
-                localHero.x - scene.width/2,
-                localHero.y - scene.height/2,
-            )
-        } else {
-            // let sumX = 0, sumY = 0, nbHeros = 0
-            // for(let playerId in heros) {
-            //     const hero = heros[playerId]
-            //     sumX += hero.x
-            //     sumY += hero.y
-            //     nbHeros += 1
-            // }
-            // this.setView(
-            //     sumX / nbHeros - this.width/2,
-            //     sumY / nbHeros - this.height/2,
-            // )
-            const firstHero = scene.getFirstHero()
-            if(firstHero) scene.setView(
-                firstHero.x - scene.width/2,
-                firstHero.y - scene.height/2,
-            )
-        }
-    }
     updateHerosPos() {
-        const { scene } = this
-        const { heros, localHero } = scene
-        const firstHero = scene.getFirstHero()
+        const { heros } = this
+        const firstHero = this.getFirstHero()
         if(!firstHero) return
         const { x:fhx, y:fhy } = firstHero
-        const { width, height } = scene.game
+        const { width, height } = this.game
         for(let playerId in heros) {
             if(playerId === firstHero.playerId) continue
             const hero = heros[playerId]
@@ -1638,13 +1732,37 @@ class HerosManager {
             }
         }
     }
+    onHeroDeath(hero) {
+        if(hero.lives > 1) {
+            hero.lives -= 1
+            this.spawnHero(hero)
+        } else {
+            const firstHero = scene.getFirstHero()
+            if(this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
+        }
+    }
+    updateView() {
+        const { heros, localHero } = this
+        if(!hasKeys(heros)) return
+        if(localHero) {
+            this.setView(
+                localHero.x - this.width/2,
+                localHero.y - this.height/2,
+            )
+        } else {
+            const firstHero = this.getFirstHero()
+            if(firstHero) this.setView(
+                firstHero.x - this.width/2,
+                firstHero.y - this.height/2,
+            )
+        }
+    }
     spawnHero(hero) {
-        const { scene } = this
-        const firstHero = scene.getFirstHero()
+        const firstHero = this.getFirstHero()
         let spawnX, spawnY
         if(!firstHero || hero === firstHero) {
-            spawnX = scene.herosSpawnX
-            spawnY = scene.herosSpawnY
+            spawnX = this.herosSpawnX
+            spawnY = this.herosSpawnY
         } else {
             spawnX = firstHero.x
             spawnY = firstHero.y
@@ -1696,19 +1814,21 @@ export class LivingEntity extends Entity {
     takeDamage(val, damager) {
         if(val > 0) this.lastDamageAge = 0
         this.health = max(0, this.health - val)
+        this.trigger("damage", { damager })
         if(this.health == 0) {
-            this.onKill(damager)
+            this.onDeath(damager)
         } else if(damager) {
             this.speedY = -200
             this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
         }
     }
 
-    onKill(killer) {
+    onDeath(killer) {
         if(killer) {
             this.speedY = -500
             this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
         }
+        this.trigger("death", { killer })
     }
 
     getState() {
@@ -1781,7 +1901,7 @@ export class Hero extends LivingEntity {
         super.update()
         this.checkCollectablesHit()
         this.updateHearts()
-        this.mayResurect()
+        //this.mayResurect()
         this.updateSpawnEffect()
     }
 
@@ -1791,14 +1911,14 @@ export class Hero extends LivingEntity {
         })
     }
 
-    mayResurect() {
-        if(this.health > 0 || this.lastDamageAge < this.game.fps) return
-        if(this.lives > 0) this.lives -= 1
-        if(this.lives > 0) {
-            this.health = this.getMaxHealth()
-            this.scene.spawnHero(this)
-        }
-    }
+    // mayResurect() {
+    //     if(this.health > 0 || this.lastDamageAge < this.game.fps) return
+    //     if(this.lives > 0) this.lives -= 1
+    //     if(this.lives > 0) {
+    //         this.health = this.getMaxHealth()
+    //         this.scene.spawnHero(this)
+    //     }
+    // }
 
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
@@ -1952,11 +2072,11 @@ class Nico extends Hero {
         // inputs
         this.applyInputState()
         if(this.handRemIt == this.handDur) this.checkHandHit()
-        // fall
-        if(this.y > this.game.map.height + 100) {
-            this.mayTakeDamage(1, null, true)
-            if(this.health > 0) this.scene.spawnHero(this)
-        }
+        // // fall
+        // if(this.y > this.map.height + 100) {
+        //     this.mayTakeDamage(1, null, true)
+        //     if(this.health > 0) this.scene.spawnHero(this)
+        // }
     }
 
     checkHandHit() {
@@ -2112,7 +2232,7 @@ class Enemy extends LivingEntity {
         super(group, id, kwargs)
         this.team = "enemy"
     }
-    onKill() {
+    onDeath() {
         const { x, y } = this
         this.scene.newEntity(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAudPrm)
@@ -2209,7 +2329,7 @@ class Ghost extends Enemy {
         super.update()
         const { dt } = this.game
         const { iteration } = this.scene
-        const { width } = this.game.map
+        const { width } = this.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
@@ -2645,7 +2765,7 @@ class Star extends Collectable {
         super.onCollected(hero)
         this.remove()
         this.scene.nbStars -= 1
-        if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
+        //if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
     }
     getSprite() {
         return StarSprite

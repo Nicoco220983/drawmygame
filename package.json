@@ -19,6 +19,7 @@
   "homepage": "https://github.com/Nicoco220983/drawmygame#readme",
   "dependencies": {
     "express": "^4.21.2",
-    "express-ws": "^5.0.2"
+    "express-ws": "^5.0.2",
+    "pako": "^2.1.0"
   }
 }
