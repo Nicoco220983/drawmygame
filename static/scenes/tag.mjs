@@ -1,4 +1,4 @@
-import { GameScene, Entity, Sprite, Entities, Hero } from '../game.mjs'
+import { GameScene, Entity, Sprite, Entities, Hero, ScoresPanel } from '../game.mjs'
 
 
 const TagSprite = new Sprite("/static/assets/tag.png")
@@ -71,6 +71,7 @@ Entities.register("tag", Tag)
 export default class TagScene extends GameScene {
     constructor(game, scnId) {
         super(game, scnId)
+        this.duration = 300
         this.entities.on("new", "registerHerosTagEvent", ent => this.registerHerosTagEvent(ent))
     }
     loadMap(map) {
@@ -85,5 +86,26 @@ export default class TagScene extends GameScene {
             if(!tag || !damager || tag.owner != damager.id) return
             tag.setOwner(ent.id)
         })
+    }
+    updateStepGame() {
+        const { iteration, duration } = this
+        const { fps } = this.game
+        super.updateStepGame()
+        if(iteration % fps == 0) this.addNonTaggedPlayerScores()
+        if(iteration > duration * fps) this.step = "GAMEOVER"
+    }
+    addNonTaggedPlayerScores() {
+        const tag = this.entities.get("tag")
+        const taggedHero = this.entities.get(tag.owner)
+        if(!taggedHero) return
+        const taggedPlayerId = taggedHero.playerId
+        for(let playerId in this.game.players) {
+            if(playerId == taggedPlayerId) continue
+            this.addScore(playerId, 1)
+        }
+    }
+    updateStepGameOver() {
+        const { scores } = this
+        if(!this.scoresPanel) this.scoresPanel = this.notifs.new(ScoresPanel, { scores })
     }
 }

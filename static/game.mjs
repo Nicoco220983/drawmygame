@@ -1485,12 +1485,7 @@ export class GameScene extends SceneCommon {
         this.id = scnId
         this.step = "GAME"
         this.notifs = new EntityGroup(this)
-    }
-
-    loadMap(map) {
-        super.loadMap(map)
-        this.initVictoryNotifs()
-        this.initGameOverNotifs()
+        this.scores = {}
     }
 
     initHeros() {
@@ -1557,22 +1552,41 @@ export class GameScene extends SceneCommon {
         hero.spawn(this.herosSpawnX, this.herosSpawnY)
     }
 
+    addScore(playerId, val) {
+        const { scores } = this
+        if(scores[playerId] === undefined) scores[playerId] = 0
+        scores[playerId] = scores[playerId] + val
+   }
+
     update() {
-        const { step, entities, events } = this
-        const { physics, dt } = this.game
+        const { step } = this
         super.update()
         this.iteration += 1
         this.time = this.iteration * this.game.dt
-        if(step == "GAME" || step == "GAMEOVER") {
-            events.forEach(evt => evt.update())
-            physics.apply(dt, entities)
-            entities.update()
-            //this.checkHeros()
-            this.handleHerosFall()
-            this.handleHerosDeath()
-            this.updateView()
-        }
+        if(step == "GAME") this.updateStepGame()
+        else if(step == "GAMEOVER") this.updateStepGameOver()
+        else if(step == "VICTORY") this.updateStepVictory()
         this.notifs.update()
+    }
+
+    updateStepGame() {
+        const { entities, events } = this
+        const { physics, dt } = this.game
+        events.forEach(evt => evt.update())
+        physics.apply(dt, entities)
+        entities.update()
+        this.handleHerosFall()
+        this.handleHerosDeath()
+        this.updateView()
+    }
+
+    updateStepGameOver() {
+        this.updateStepGame()
+        this.initGameOverNotifs()
+    }
+
+    updateStepVictory() {
+        this.initVictoryNotifs()
     }
 
     handleHerosFall() {
@@ -1643,8 +1657,8 @@ export class GameScene extends SceneCommon {
     drawTo(ctx) {
         super.drawTo(ctx)
         this.notifs.drawTo(ctx)
-        if(this.step == "VICTORY") this.victoryNotifs.drawTo(ctx)
-        if(this.step == "GAMEOVER") this.gameOverNotifs.drawTo(ctx)
+        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.drawTo(ctx)
+        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.drawTo(ctx)
     }
 
     getTeam(team) {
@@ -1678,6 +1692,7 @@ export class GameScene extends SceneCommon {
     }
 
     initVictoryNotifs() {
+        if(this.victoryNotifs) return
         this.victoryNotifs = new EntityGroup(this)
         this.victoryNotifs.new(
             CenteredText,
@@ -1689,6 +1704,7 @@ export class GameScene extends SceneCommon {
     }
 
     initGameOverNotifs() {
+        if(this.gameOverNotifs) return
         this.gameOverNotifs = new EntityGroup(this)
         this.gameOverNotifs.new(
             CenteredText,
@@ -1721,6 +1737,7 @@ export class GameScene extends SceneCommon {
             state.step = this.step
             state.hsx = this.herosSpawnX
             state.hsy = this.herosSpawnY
+            state.sco = this.scores
         }
         const ent = state.entities = this.entities.getState(isFull)
         return (isFull || ent) ? state : null
@@ -1731,6 +1748,7 @@ export class GameScene extends SceneCommon {
         if(isFull) {
             this.step = state.step
             this.setHerosSpawnPos(state.hsx, state.hsy)
+            this.scores = state.sco
         }
         this.entities.setState(state.entities, isFull)
     }
@@ -2938,6 +2956,59 @@ class DebugScene extends SceneCommon {
         this.lagTxt.drawTo(ctx)
     }
 }
+
+
+export class ScoresPanel extends Entity {
+    constructor(scene, group, kwargs) {
+        super(scene, group, kwargs)
+        this.initScoreTxts(kwargs.scores)
+    }
+    initScoreTxts(scores) {
+        const { players } = this.game
+        this.scoresTxts = new EntityGroup(this.scene)
+        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores[pid] || 0]).sort((a, b) => b[1] - a[1])
+        const fontArgs = {
+            font: "30px arial",
+            fillStyle: "black"
+        }
+        const nbPlayers = sortedPlayerScores.length
+        this.scoresTxts.new(Text, {
+            x: this.scene.width / 2,
+            y: (-nbPlayers/2) * 40 - 100 + this.scene.height / 2,
+            text: "Scores:",
+            ...fontArgs,
+            font: "bold 30px arial",
+        })
+        for(let i in sortedPlayerScores) {
+            const [playerId, score] = sortedPlayerScores[i]
+            const playerName = players[playerId].name
+            this.scoresTxts.new(Text, {
+                x: this.scene.width / 2,
+                y: (i - nbPlayers/2) * 40 + this.scene.height / 2,
+                text: `${playerName}: ${score}`,
+                ...fontArgs,
+            })
+        }
+    }
+    drawTo(ctx) {
+        this.drawBackground(ctx)
+        this.scoresTxts.drawTo(ctx)
+    }
+    drawBackground(ctx) {
+        const { width: scnWidth, height: scnHeight } = this.scene
+        const x = scnWidth / 4, width = scnWidth / 2
+        const nbScores = this.scoresTxts.entArr.length
+        const height = nbScores * 40 + 100, y = scnHeight/2 - (height-100)/2 - 100
+        ctx.fillStyle = "lightgrey"
+        ctx.globalAlpha = .8
+        ctx.fillRect(x, y, width, height)
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 1
+        ctx.strokeRect(x, y, width, height)
+    }
+}
+
 
 function arrAvg(arr) {
     let sum = 0, nb = arr.length
