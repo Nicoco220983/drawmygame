@@ -2867,9 +2867,9 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.updDurTxt = new Text(this, "", this.game.width - 90, 15, fontArgs)
-        this.drawDurTxt = new Text(this, "", this.game.width - 90, 40, fontArgs)
-        this.lagTxt = new Text(this, "", this.game.width - 90, 65, fontArgs)
+        this.updDurTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
+        this.drawDurTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
+        this.lagTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
     }
     update() {
         const { metrics } = this.game
