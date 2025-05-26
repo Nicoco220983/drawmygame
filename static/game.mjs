@@ -900,8 +900,9 @@ export class GameCommon {
     update() {
         this.iteration += 1
         this.time = this.iteration * this.dt
-        if(this.gameScene.visible) this.gameScene.update()
-        if(this.joypadScene) this.joypadScene.update()
+        const { gameScene, joypadScene } = this
+        if(gameScene.visible && !gameScene.paused) gameScene.update()
+        if(joypadScene) joypadScene.update()
     }
 
     mayDraw() {
@@ -975,6 +976,19 @@ export class GameCommon {
         this.canvas.focus()
     }
 
+    hasFocus() {
+        return document.activeElement === this.canvas
+    }
+
+    pause(val) {
+        this.gameScene.paused = val
+    }
+
+    togglePause() {
+        this.pause(!this.gameScene.paused)
+    }
+
+    // TODO: remove me
     log(...args) {
         console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
         if(this.onLog) this.onLog(...args)
@@ -1003,6 +1017,7 @@ export class SceneCommon {
         this.color = "white"
         this.iteration = 0
         this.time = 0
+        this.paused = false
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
         }
@@ -1133,8 +1148,9 @@ export class Game extends GameCommon {
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
             const onKey = (evt, val) => {
-                if(document.activeElement !== this.canvas) return
+                if(!this.hasFocus()) return
                 this.setInputKey(evt.key, val)
+                if(val===false && evt.key=="o") this.togglePause()
                 evt.stopPropagation()
                 evt.preventDefault()
             }
@@ -1208,10 +1224,12 @@ export class Game extends GameCommon {
     }
 
     updateGame() {
+        const { gameScene } = this
+        if(gameScene.paused) return
         this.iteration += 1
         this.time = this.iteration * this.dt
         this.applyInputStates()
-        if(this.gameScene.visible) this.gameScene.update()
+        if(gameScene.visible) gameScene.update()
     }
 
     applyInputStates() {
@@ -1585,6 +1603,7 @@ export class GameScene extends SceneCommon {
     }
 
     onHeroDeath(hero) {
+        const { heros } = this
         if(hero.lives > 1) {
             hero.lives -= 1
             this.spawnHero(hero)
@@ -1743,7 +1762,7 @@ export class FocusFirstHeroScene extends GameScene {
             hero.lives -= 1
             this.spawnHero(hero)
         } else {
-            const firstHero = scene.getFirstHero()
+            const firstHero = this.getFirstHero()
             if(this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
         }
     }
@@ -2013,11 +2032,15 @@ export class Hero extends LivingEntity {
     initJoypadButtons(joypadScn) {}
 
     spawn(x, y) {
-        this.x = x + floor((random()-.5) * 50)
+        // this.x = x + floor((random()-.5) * 50)
+        // this.y = y
+        // this.speedX = 0
+        // this.speedY = -200
+        // this.lastSpawnIt = this.scene.iteration
+        this.x = x
         this.y = y
         this.speedX = 0
-        this.speedY = -200
-        this.lastSpawnIt = this.scene.iteration
+        this.speedY = 0
     }
 
     mayRemove() {

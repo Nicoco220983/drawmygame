@@ -112,7 +112,6 @@ export default class PhysicsEngine {
                         sMinX: entSMinX, sMinY: entSMinY, sMaxX: entSMaxX, sMaxY: entSMaxY,
                     } = entData
                     for(let wall of walls) {
-                        if(colWalls.has(wall)) continue
                         const wallData = wall._physicsData
                         // quick filteringgs
                         if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) continue
@@ -123,7 +122,6 @@ export default class PhysicsEngine {
                         if(colRes.time == 0) break
                     }
                     if(colRes.time == Infinity) break
-                    colWalls.add(colRes.wall)
                     nbCollisions += 1
                     const  { dx: entDx, dy: entDy } = entData
                     const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
@@ -144,8 +142,8 @@ export default class PhysicsEngine {
                         remD -= colD / entOrigD
                         if(hypot(ent.speedX, ent.speedY) * remD < 1) remD = 0
                     } else {
-                        ent.x += colNormalX * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
-                        ent.y += colNormalY * colDistFixSign * (colDist + FLOAT_PRECISION_CORRECTION)
+                        ent.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        ent.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                     }
                     if(nbCollisions==5) remD = 0
                 }
@@ -193,7 +191,7 @@ function _checkUniDir(physicsData1, physicsData2) {
 }
 
 function _checkUniDir2(physicsData1, physicsData2, res) {
-    if(physicsData1.uniDirX !== undefined && physicsData2.uniDirX !== undefined) return
+    if(physicsData1.uniDirX === undefined && physicsData2.uniDirX === undefined) return
     if(res.dist < -1) res.time = Infinity
 }
 
@@ -201,10 +199,9 @@ const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
 function _detectCollisionTime(physicsData1, physicsData2, num, res) {
     const pdata1 = (num==0) ? physicsData1 : physicsData2
     const pdata2 = (num==1) ? physicsData1 : physicsData2
-    const { polygon: poly1, dx: dx1, dy: dy1, uniDirX: uniDirX1, normals } = pdata1
-    const { polygon: poly2, dx: dx2, dy: dy2, uniDirX: uniDirX2 } = pdata2
+    const { polygon: poly1, dx: dx1, dy: dy1, normals } = pdata1
+    const { polygon: poly2, dx: dx2, dy: dy2} = pdata2
     const dx = dx1-dx2, dy = dy1-dy2
-    const isUniDir = uniDirX1 !== undefined || uniDirX2 !== undefined
     for(let i=0; i<normals.length; i+=2) {
         const ax = normals[i], ay = normals[i+1]
         projectPolygonOnAxis(poly1, ax, ay, resProj1) // TODO: cache me
@@ -229,7 +226,7 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
     const dist12 = proj1.min - proj2.max, dist21 = proj2.min - proj1.max
     const colDist = max(dist12, dist21)
     res.dist = colDist
-    res.distFixSign = (dist12 < dist21) ? 1 : -1
+    res.distFixSign = (dist12 > dist21) ? 1 : -1
     if(colDist <= 0) {
         // static collision detected
         res.time = 0
