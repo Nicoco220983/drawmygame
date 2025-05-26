@@ -101,9 +101,7 @@ async function decompress(compressedBytes) {
 
 async function decompressUsingDecompressionStream(compressedBytes) {
   const stream = new Blob([compressedBytes]).stream()
-  console.log("TMP stream", stream)
   const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"))
-  console.log("TMP decompressedStream", decompressedStream)
   const chunks = []
   for await (const chunk of decompressedStream)
     chunks.push(chunk)
@@ -965,8 +963,11 @@ export class GameCommon {
         return document.fullscreenElement == this.parentEl
     }
 
-    requestFullscreen() {
+    requestFullscreen(orientation) {
         this.parentEl.requestFullscreen()
+        if (orientation!==undefined && screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock(orientation).catch(console.error)
+        }
         this.focus()
     }
 

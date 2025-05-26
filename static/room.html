@@ -121,7 +121,6 @@ try {
     document.getElementById("section_join").style.display = (urlParams.get("join") != "0") ? "" : "none"
 
     document.getElementById("join").onclick = () => {
-        console.log("TMP join")
         joinGame(
             document.getElementById("player_name").value,
             document.getElementById("player_color").value,
@@ -183,7 +182,8 @@ try {
     gameParentEl.ontouchstart = evt => {
         if(!IS_MOBILE) return 
         if(!game || game.isFullscreened()) return
-        game.requestFullscreen()
+        const orientation = showGameEl.checked ? "portrait" : "landscape"
+        game.requestFullscreen(orientation)
         evt.stopPropagation()
     }
     fullscrenEl.onclick = () => {
@@ -194,7 +194,6 @@ try {
     // main
 
     async function main() {
-        console.log("TMP main")
         await getMap()
         await connectToRoom()
         startGame()
