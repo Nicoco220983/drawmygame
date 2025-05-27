@@ -1971,8 +1971,9 @@ export class Hero extends LivingEntity {
         if(this.playerId != this.game.localPlayerId) return
         const { lives, health } = this
         const { notifs } = this.scene
+        let livesHearts
         if(lives !== Infinity) {
-            const livesHearts = this.livesHearts ||= []
+            livesHearts = this.livesHearts ||= []
             for(let i=livesHearts.length; i<lives; ++i)
                 livesHearts.push(notifs.new(LifeHeartNotif, { num: i }))
             livesHearts.forEach(heart => {
@@ -1987,7 +1988,7 @@ export class Hero extends LivingEntity {
                 healthHearts.push(notifs.new(HealthHeartNotif, { num: i }))
             healthHearts.forEach(heart => {
                 heart.x = 15 + heart.num * 23
-                heart.y = (livesHearts.length > 0) ? 50 : 15
+                heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
                 heart.setFull(heart.num < health)
             })
         }
