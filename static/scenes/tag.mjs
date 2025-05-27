@@ -4,7 +4,7 @@ import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.
 export default class TagScene extends GameScene {
     constructor(game, scnId) {
         super(game, scnId)
-        this.duration = 1
+        this.duration = 300
         this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -17,7 +17,7 @@ export default class TagScene extends GameScene {
         hero.on("damage", "tag", kwargs => {
             const { damager } = kwargs
             const tag = this.entities.get("tag")
-            if(!tag || !damager || tag.owner != damager.id) return
+            if(!tag || !damager || tag.ownerId != damager.id) return
             tag.setOwner(hero.id)
         })
     }
@@ -30,7 +30,7 @@ export default class TagScene extends GameScene {
     }
     addNonTaggedPlayerScores() {
         const tag = this.entities.get("tag")
-        const taggedHero = this.entities.get(tag.owner)
+        const taggedHero = this.entities.get(tag.ownerId)
         if(!taggedHero) return
         const taggedPlayerId = taggedHero.playerId
         for(let playerId in this.game.players) {
