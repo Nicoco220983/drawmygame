@@ -1967,22 +1967,26 @@ export class Hero extends LivingEntity {
         if(this.playerId != this.game.localPlayerId) return
         const { lives, health } = this
         const { notifs } = this.scene
-        const livesHearts = this.livesHearts ||= []
-        for(let i=livesHearts.length; i<lives; ++i)
-            livesHearts.push(notifs.new(LifeHeartNotif, { num: i }))
-        const healthHearts = this.healthHearts ||= []
-        for(let i=healthHearts.length; i<health; ++i)
-            healthHearts.push(notifs.new(HealthHeartNotif, { num: i }))
-        livesHearts.forEach(heart => {
-            heart.x = 20 + heart.num * 35
-            heart.y = 20
-            heart.setFull(heart.num < lives)
-        })
-        healthHearts.forEach(heart => {
-            heart.x = 15 + heart.num * 23
-            heart.y = (livesHearts.length > 0) ? 50 : 15
-            heart.setFull(heart.num < health)
-        })
+        if(lives !== Infinity) {
+            const livesHearts = this.livesHearts ||= []
+            for(let i=livesHearts.length; i<lives; ++i)
+                livesHearts.push(notifs.new(LifeHeartNotif, { num: i }))
+            livesHearts.forEach(heart => {
+                heart.x = 20 + heart.num * 35
+                heart.y = 20
+                heart.setFull(heart.num < lives)
+            })
+        }
+        if(health !== Infinity) {
+            const healthHearts = this.healthHearts ||= []
+            for(let i=healthHearts.length; i<health; ++i)
+                healthHearts.push(notifs.new(HealthHeartNotif, { num: i }))
+            healthHearts.forEach(heart => {
+                heart.x = 15 + heart.num * 23
+                heart.y = (livesHearts.length > 0) ? 50 : 15
+                heart.setFull(heart.num < health)
+            })
+        }
     }
 
     updateSpawnEffect() {
