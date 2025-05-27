@@ -79,13 +79,11 @@ class GameServer {
       }).end(room.mapBuf)
     })
 
-    const decoder = new TextDecoder();
     this.app.ws('/client', (ws, req) => {
       ws.on('message', msg => {
         const key = msg.substring(0, MSG_KEY_LENGTH)
         const body = msg.substring(MSG_KEY_LENGTH)
         if(key === MSG_KEYS.STATE) this.handleState(ws, body)
-        else if(key === MSG_KEYS.REQ_STATE) this.handleReqState(ws)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
         else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)

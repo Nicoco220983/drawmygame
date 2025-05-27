@@ -246,7 +246,7 @@ try {
     }
 
     function requestState() {
-        ws.send(MSG_KEYS.REQ_STATE)
+        ws.send(MSG_KEYS.GAME_INSTRUCTION + "state")
     }
 
     function handleIdentifyClient(ws, data, next) {

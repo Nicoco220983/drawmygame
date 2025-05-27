@@ -17,9 +17,7 @@ export const MSG_KEYS = {
     IDENTIFY_CLIENT: 'IDC',
     JOIN_GAME: 'JOI',
     STATE: 'STT',
-    REQ_STATE: 'RST',
     GAME_INSTRUCTION: 'GMI',
-//   GAME_OVER: 'GOV',
 }
 
 const STATE_TYPE_FULL = "F"
