@@ -11,15 +11,14 @@ export default class TagScene extends GameScene {
         super.loadMap(map)
         this.newEntity(Tag, { id: "tag" })
     }
-    tuneHeros(ent) {
-        if(!(ent instanceof Hero)) return
-        ent.lives = Infinity
-        ent.health = Infinity
-        ent.on("damage", "tag", kwargs => {
+    tuneHeros(hero) {
+        if(!(hero instanceof Hero)) return
+        hero.lives = hero.health = Infinity
+        hero.on("damage", "tag", kwargs => {
             const { damager } = kwargs
             const tag = this.entities.get("tag")
             if(!tag || !damager || tag.owner != damager.id) return
-            tag.setOwner(ent.id)
+            tag.setOwner(hero.id)
         })
     }
     updateStepGame() {
@@ -53,7 +52,7 @@ class Tag extends Entity {
         super(group, id, kwargs)
         this.width = 30
         this.height = 30
-        this.owner = null
+        this.ownerId = null
     }
 
     getPhysicsProps() {
@@ -67,11 +66,11 @@ class Tag extends Entity {
     }
 
     checkOwner() {
-        if(this.owner) {
-            const owner = this.scene.entities.get(this.owner)
-            if(!owner || owner.deleted) this.owner = null
+        if(this.ownerId) {
+            const owner = this.scene.entities.get(this.ownerId)
+            if(!owner || owner.deleted) this.ownerId = null
         }
-        if(!this.owner) this.findOwner()
+        if(!this.ownerId) this.findOwner()
     }
 
     findOwner() {
@@ -83,31 +82,31 @@ class Tag extends Entity {
         this.setOwner(hero.id)
     }
 
-    setOwner(owner) {
-        this.owner = owner
+    setOwner(ownerId) {
+        this.ownerId = ownerId
         this.sync()
     }
 
     sync() {
-        if(!this.owner) return
-        const owner = this.scene.entities.get(this.owner)
+        if(!this.ownerId) return
+        const owner = this.scene.entities.get(this.ownerId)
         this.x = owner.x
         this.y = owner.y - 50
     }
 
     getSprite() {
-        return TagSprite
+        return this.ownerId ? TagSprite : null
     }
 
     getState() {
         const state = super.getState()
-        state.owner = this.owner
+        state.own = this.ownerId
         return state
     }
 
     setState(state) {
         super.setState(state)
-        this.owner = state.owner
+        this.ownerId = state.own
     }
 }
 Entities.register("tag", Tag)
