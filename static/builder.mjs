@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent } from './game.mjs'
+import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -513,13 +513,6 @@ class SpawnEntityTriggerFormElement extends TriggerFormElement {
     }
 }
 customElements.define("dmg-spawn-entity-event-trigger-form", SpawnEntityTriggerFormElement)
-
-
-function nbKeys(obj) {
-    let res = 0
-    for(let _ in obj) res += 1
-    return res
-}
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1

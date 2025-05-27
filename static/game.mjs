@@ -162,9 +162,15 @@ export function round(val, precision = 1) {
     return _round(val / precision) * precision
 }
 
-function hasKeys(obj) {
+export function hasKeys(obj) {
     for(let _ in obj) return true
     return false
+}
+
+export function nbKeys(obj) {
+    let res = 0
+    for(let _ in obj) res += 1
+    return res
 }
 
 export const Loads = []
@@ -219,7 +225,7 @@ export class Sprite {
         let res = this.transImgs[key]
         if(res) return res
         const { baseImg } = this
-        if(!baseImg || baseImg._loading) return null // TODO: deprecate it
+        if(!baseImg || baseImg._loading || baseImg.width==0 || baseImg.height==0) return null // TODO: deprecate it
         const { width: baseWidth, height: baseHeight } = baseImg
         const resImg = newCanvas(width, height)
         const ctx = resImg.getContext("2d")
@@ -1948,7 +1954,6 @@ export class Hero extends LivingEntity {
         super.update()
         this.checkCollectablesHit()
         this.updateHearts()
-        //this.mayResurect()
         this.updateSpawnEffect()
     }
 
@@ -1957,15 +1962,6 @@ export class Hero extends LivingEntity {
             if(checkHit(this, col)) col.onCollected(this)
         })
     }
-
-    // mayResurect() {
-    //     if(this.health > 0 || this.lastDamageAge < this.game.fps) return
-    //     if(this.lives > 0) this.lives -= 1
-    //     if(this.lives > 0) {
-    //         this.health = this.getMaxHealth()
-    //         this.scene.spawnHero(this)
-    //     }
-    // }
 
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
@@ -2967,54 +2963,62 @@ class DebugScene extends SceneCommon {
 }
 
 
-export class ScoresPanel extends Entity {
+export class ScoresBoard extends Entity {
     constructor(scene, group, kwargs) {
         super(scene, group, kwargs)
-        this.initScoreTxts(kwargs.scores)
+        this.scores = kwargs.scores
+        this.width = 300
+        this.headerHeight = 80
+        this.lineHeight = 40
+        this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
     }
-    initScoreTxts(scores) {
-        const { players } = this.game
-        this.scoresTxts = new EntityGroup(this.scene)
-        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores[pid] || 0]).sort((a, b) => b[1] - a[1])
-        const fontArgs = {
-            font: "30px arial",
-            fillStyle: "black"
-        }
-        const nbPlayers = sortedPlayerScores.length
-        this.scoresTxts.new(Text, {
-            x: this.scene.width / 2,
-            y: (-nbPlayers/2) * 40 - 100 + this.scene.height / 2,
-            text: "Scores:",
-            ...fontArgs,
-            font: "bold 30px arial",
-        })
-        for(let i in sortedPlayerScores) {
-            const [playerId, score] = sortedPlayerScores[i]
-            const playerName = players[playerId].name
-            this.scoresTxts.new(Text, {
-                x: this.scene.width / 2,
-                y: (i - nbPlayers/2) * 40 + this.scene.height / 2,
-                text: `${playerName}: ${score}`,
-                ...fontArgs,
-            })
-        }
+    getSprite() {
+        const sprite = this.sprite ||= new Sprite(
+            this.buildCanvas()
+        )
+        return sprite
     }
-    drawTo(ctx) {
-        this.drawBackground(ctx)
-        this.scoresTxts.drawTo(ctx)
+    buildCanvas() {
+        const can = document.createElement("canvas")
+        can.width = this.width
+        can.height = this.height
+        this.drawBackground(can)
+        this.drawScores(can)
+        return can
     }
-    drawBackground(ctx) {
-        const { width: scnWidth, height: scnHeight } = this.scene
-        const x = scnWidth / 4, width = scnWidth / 2
-        const nbScores = this.scoresTxts.entArr.length
-        const height = nbScores * 40 + 100, y = scnHeight/2 - (height-100)/2 - 100
+    drawBackground(can) {
+        const { width, height } = can
+        const ctx = can.getContext("2d")
         ctx.fillStyle = "lightgrey"
         ctx.globalAlpha = .8
-        ctx.fillRect(x, y, width, height)
+        ctx.fillRect(0, 0, width, height)
         ctx.globalAlpha = 1
         ctx.strokeStyle = "black"
         ctx.lineWidth = 1
-        ctx.strokeRect(x, y, width, height)
+        ctx.strokeRect(0, 0, width, height)
+    }
+    drawScores(can) {
+        const { headerHeight, lineHeight, scores } = this
+        const { width } = can
+        const { players } = this.game
+        const ctx = can.getContext("2d")
+        const fontHeight = floor(lineHeight *.7)
+        const fontArgs = {
+            font: `${fontHeight}px arial`,
+            fillStyle: "black"
+        }
+        const titleCan = newTextCanvas("Scores:", {
+            ...fontArgs,
+            font: `bold ${fontHeight}px arial`,
+        })
+        ctx.drawImage(titleCan, (width-titleCan.width)/2, lineHeight/4)
+        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores[pid] || 0]).sort((a, b) => b[1] - a[1])
+        for(let i in sortedPlayerScores) {
+            const [playerId, score] = sortedPlayerScores[i]
+            const playerName = players[playerId].name
+            const lineCan = newTextCanvas(`${playerName}: ${score}`, fontArgs)
+            ctx.drawImage(lineCan, (width-lineCan.width)/2, headerHeight + i * lineHeight)
+        }
     }
 }
 

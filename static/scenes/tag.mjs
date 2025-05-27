@@ -1,10 +1,10 @@
-import { GameScene, Entity, Sprite, Entities, Hero, ScoresPanel } from '../game.mjs'
+import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.mjs'
 
 
 export default class TagScene extends GameScene {
     constructor(game, scnId) {
         super(game, scnId)
-        this.duration = 300
+        this.duration = 1
         this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -40,7 +40,11 @@ export default class TagScene extends GameScene {
     }
     updateStepGameOver() {
         const { scores } = this
-        if(!this.scoresPanel) this.scoresPanel = this.notifs.new(ScoresPanel, { scores })
+        if(!this.scoresBoard) this.scoresBoard = this.notifs.new(ScoresBoard, {
+            x: this.width/2,
+            y: this.height/2,
+            scores,
+        })
     }
 }
 
