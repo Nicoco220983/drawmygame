@@ -197,6 +197,7 @@ try {
         await getMap()
         await connectToRoom()
         startGame()
+        requestState()
     }
 
 
@@ -242,6 +243,10 @@ try {
         })
         syncGameShow()
         game.play()
+    }
+
+    function requestState() {
+        ws.send(MSG_KEYS.REQ_STATE)
     }
 
     function handleIdentifyClient(ws, data, next) {

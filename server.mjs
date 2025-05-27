@@ -85,6 +85,7 @@ class GameServer {
         const key = msg.substring(0, MSG_KEY_LENGTH)
         const body = msg.substring(MSG_KEY_LENGTH)
         if(key === MSG_KEYS.STATE) this.handleState(ws, body)
+        else if(key === MSG_KEYS.REQ_STATE) this.handleReqState(ws)
         else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
         else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
         else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
@@ -169,10 +170,19 @@ class GameServer {
     if(game) game.receiveStatesFromPlayer(client.id, data)
   }
 
+  handleReqState(ws) {
+    const { client } = ws
+    if(!client || client.closed) { closeWs(ws); return }
+    const { game } = client.room
+    if(game) game.getAndSendFullState()
+  }
+
   handleGameInstruction(ws, data) {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
-    if(data == "restart" && client.room.game) client.room.game.restart()
+    const { game } = client.room
+    if(data == "restart" && game) game.restart()
+    if(game) game.getAndSendFullState()
   }
 
   async startGame(room) {

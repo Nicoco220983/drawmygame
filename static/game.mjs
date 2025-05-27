@@ -17,6 +17,7 @@ export const MSG_KEYS = {
     IDENTIFY_CLIENT: 'IDC',
     JOIN_GAME: 'JOI',
     STATE: 'STT',
+    REQ_STATE: 'RST',
     GAME_INSTRUCTION: 'GMI',
 //   GAME_OVER: 'GOV',
 }
@@ -1290,8 +1291,9 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        if(this.mode != MODE_CLIENT) this.gameScene.newHero(playerId)
+        this.gameScene.newHero(playerId)
         if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
+        if(this.mode == MODE_SERVER) this.getAndSendFullState()  // TODO: make it partial ?
     }
 
     rmPlayer(playerId) {
@@ -1392,9 +1394,7 @@ export class Game extends GameCommon {
             // full state
             this._lastSendFullStateTime ||= -SEND_STATE_PERIOD
             if(this.time > this._lastSendFullStateTime + SEND_STATE_PERIOD) {
-                const stateStr = this.getState(true)
-                statesToSend.push(stateStr)
-                this._lastSendFullStateTime = this.time
+                this.getAndSendFullState()
             }
             // forward
             while(receivedAppliedStates.length > 0) {
@@ -1408,6 +1408,12 @@ export class Game extends GameCommon {
             this.sendStates(statesToSendStr)
             statesToSend.length = 0
         }
+    }
+
+    getAndSendFullState() {
+        const stateStr = this.getState(true)
+        this.statesToSend.push(stateStr)
+        this._lastSendFullStateTime = this.time
     }
 
     receiveStatesFromPlayer(playerId, statesStr) {
