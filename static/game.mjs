@@ -1927,7 +1927,7 @@ export class Hero extends LivingEntity {
     }
 
     initExtras() {
-        const extras = this.extras ||= new EntityRefs(this.scene.entities)
+        const extras = this.extras ||= new EntityRefs(this.group)
         return extras
     }
 
@@ -2166,8 +2166,8 @@ class Nico extends Hero {
         else delete inputState.walkX
         if(game.isKeyPressed("ArrowUp")) inputState.jump = true
         else delete inputState.jump
-        if(game.isKeyPressed(" ")) inputState.attack = true
-        else delete inputState.attack
+        if(game.isKeyPressed(" ")) inputState.act = true
+        else delete inputState.act
         return inputState
     }
 
@@ -2188,12 +2188,14 @@ class Nico extends Hero {
             this.game.audio.playSound(JumpAudPrm)
         }
         if(this.handRemIt) this.handRemIt -= 1
-        if(inputState && inputState.attack) this.attack()
-        if(!(inputState && inputState.attack) && this.handRemIt === 0) this.handRemIt = null
+        if(inputState && inputState.act) this.act()
+        else if(this.handRemIt === 0) this.handRemIt = null
     }
 
-    attack() {
-        if(this.handRemIt===null) this.handRemIt = this.handDur
+    act() {
+        const actionExtra = this.getActionExtra()
+        if(actionExtra) actionExtra.act()
+        else if(this.handRemIt===null) this.handRemIt = this.handDur
     }
 
     getHitBox() {
@@ -2216,31 +2218,38 @@ class Nico extends Hero {
         joypadScn.newButton({ key:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
         joypadScn.newButton({ key:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
         joypadScn.newButton({ key:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.extraButton = joypadScn.newButton({ key:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
-        this.syncJoypadExtraButton()
+        joypadScn.actionButton = joypadScn.newButton({ key:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
+        this.syncJoypadActionButton()
     }
 
-    syncJoypadExtraButton() {
+    syncJoypadActionButton() {
         const { joypadScene } = this.game
-        const extraButton = joypadScene && joypadScene.extraButton
-        if(!extraButton) return
-        const mainExtra = this.getMainExtra()
-        extraButton.icon = mainExtra ? mainExtra.getSprite() : HandSprite
+        const actionButton = joypadScene && joypadScene.actionButton
+        if(!actionButton) return
+        const actionExtra = this.getActionExtra()
+        actionButton.icon = actionExtra ? actionExtra.getSprite() : HandSprite
     }
 
     addExtra(extra) {
+        if(extra.isActionExtra) {
+            const prevActionExtra = this.getActionExtra()
+            if(prevActionExtra) {
+                prevActionExtra.drop()
+                prevActionExtra.remove()  // TMP rm when infinite drop/collect solved
+            }
+        }
         super.addExtra(extra)
-        this.syncJoypadExtraButton()
+        if(extra.isActionExtra) this.syncJoypadActionButton()
     }
 
-    getMainExtra() {
+    getActionExtra() {
         const { extras } = this
         if(!extras) return null
-        let mainExtra = null
+        let actionExtra = null
         extras.forEach(extra => {
-            if(extra.isMainExtra) mainExtra = extra
+            if(extra.isActionExtra) actionExtra = extra
         })
-        return mainExtra
+        return actionExtra
     }
 
     getState() {
@@ -2377,7 +2386,7 @@ class Ghost extends Enemy {
         super.update()
         const { dt } = this.game
         const { iteration } = this.scene
-        const { width } = this.map
+        const { width } = this.scene.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
@@ -2451,7 +2460,13 @@ class Collectable extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.spriteRand = floor(random() * this.game.fps)
-        this.owner = null
+        this.ownerId = null
+    }
+
+    getOwner() {
+        const { ownerId } = this
+        if(ownerId === null) return null
+        return this.group.get(ownerId)
     }
 
     getPhysicsProps() {
@@ -2459,16 +2474,16 @@ class Collectable extends Entity {
     }
 
     isCollectableBy(team) {
-        return !this.owner && team.startsWith("hero")
+        return !this.ownerId && team.startsWith("hero")
     }
 
     onCollected(owner) {
         this.playCollectedSound()
-        this.owner = owner
+        this.ownerId = owner.id
     }
 
     drop() {
-        this.owner = null
+        this.ownerId = null
     }
 
     playCollectedSound() {
@@ -2477,7 +2492,7 @@ class Collectable extends Entity {
     
     scaleSprite(sprite) {
         super.scaleSprite(sprite)
-        if(this.owner) {
+        if(this.ownerId !== null) {
             this.spriteDy = 0
         } else {
             const { iteration } = this.scene
@@ -2488,14 +2503,14 @@ class Collectable extends Entity {
     }
     getState() {
         const state = super.getState()
-        if(this.owner === null) delete state.own
-        else state.own = this.owner.id
+        if(this.ownerId === null) delete state.own
+        else state.own = this.ownerId
         return state
     }
     setState(state) {
         super.setState(state)
-        if(state.own === undefined) this.owner = null
-        else this.owner = this.group.get(state.own)
+        if(state.own === undefined) this.ownerId = null
+        else this.ownerId = state.own
     }
 }
 
@@ -2573,7 +2588,8 @@ class HealthHeartNotif extends LifeHeartNotif {
 
 class Extra extends Collectable {
     getPriority() {
-        if(this.owner) return this.owner.getPriority() - 1
+        const owner = this.getOwner()
+        if(owner) return owner.getPriority() - 1
         else super.getPriority()
     }
     onCollected(owner) {
@@ -2581,7 +2597,8 @@ class Extra extends Collectable {
         owner.addExtra(this)
     }
     drop() {
-        this.owner.dropExtra(this)
+        const owner = this.getOwner()
+        if(owner) owner.dropExtra(this)
         super.drop()
     }
 }
@@ -2599,12 +2616,12 @@ class Sword extends Extra {
         super(group, id, kwargs)
         this.width = this.height = 40
         this.sprite = SwordSprite
-        this.isMainExtra = true
+        this.isActionExtra = true
         this.lastAttackAge = Infinity
     }
     update() {
         super.update()
-        const { owner } = this
+        const owner = this.getOwner()
         if(owner) {
             this.dirX = owner.dirX
             this.y = owner.y
@@ -2612,7 +2629,7 @@ class Sword extends Extra {
                 this.x = owner.x + 40 * owner.dirX
                 this.width = this.height = 60
             } else {
-                this.x = owner.x + 25 * this.owner.dirX
+                this.x = owner.x + 25 * owner.dirX
                 this.width = this.height = 40
             }
             if(this.lastAttackAge == 0) this.checkHit()
@@ -2622,12 +2639,12 @@ class Sword extends Extra {
     isAttacking() {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
-    attack() {
+    act() {
         if(this.isAttacking()) return
         this.lastAttackAge = 0
     }
     checkHit() {
-        const { owner } = this
+        const owner = this.getOwner()
         let hasHit = false
         const _checkHit = ent => {
             if(owner === ent) return
@@ -2642,28 +2659,11 @@ class Sword extends Extra {
     }
     hit(ent) {
         const damage = ent.team == this.team ? 0 : 1
-        ent.mayTakeDamage(damage, this.owner)
-    }
-    onCollected(owner) {
-        super.onCollected(owner)
-        this.lastAttackAge = Infinity
-        this.dropOwnerSimilarExtras()
-        owner.attack = () => this.attack()
-    }
-    drop() {
-        delete this.owner.attack
-        super.drop()
-        this.remove() // TODO: remove when non-infinite-collect managed
-    }
-    dropOwnerSimilarExtras() {
-        if(!this.owner.extras) return
-        this.owner.extras.forEach(extra => {
-            if(this!=extra && extra.isMainExtra) extra.drop()
-        })
+        ent.mayTakeDamage(damage, this.getOwner())
     }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
-        if(this.owner && ratioSinceLastAttack <= 1) {
+        if(this.ownerId !== null && ratioSinceLastAttack <= 1) {
             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
             return SwordSprite
@@ -2690,8 +2690,8 @@ class Bomb extends Extra {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
-        this.thrower = null
         this.itToLive = null
+        this.isActionExtra = true
     }
     getPhysicsProps() {
         const props = this._physicsProps ||= {
@@ -2704,44 +2704,30 @@ class Bomb extends Extra {
         if(this.itToLive !== null) return false
         return super.isCollectableBy(team)
     }
-    onCollected(hero) {
-        super.onCollected(hero)
-        this.dropOwnerSimilarExtras()
-        hero.attack = () => this.attack()
-    }
-    drop() {
-        delete this.owner.attack
-        super.drop()
-    }
-    dropOwnerSimilarExtras() {
-        if(!this.owner.extras) return
-        this.owner.extras.forEach(extra => {
-            if(this!=extra && extra.isMainExtra) extra.drop()
-        })
-    }
     update() {
         const { dt } = this.game
-        const { owner, x, y } = this
-        if(!owner) {
-            if(this.itToLive !== null) {
-                if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
-                if(this.itToLive <= 0) {
-                    this.scene.newEntity(Explosion, { x, y, owner: this.thrower })
-                    this.remove()
-                }
-                this.itToLive -= 1
+        const { x, y } = this
+        const owner = this.getOwner()
+        if(this.itToLive !== null) {
+            if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
+            if(this.itToLive <= 0) {
+                this.scene.newEntity(Explosion, { x, y, owner: this.getOwner() })
+                this.remove()
             }
-        } else {
-            this.x = this.owner.x
-            this.y = this.owner.y
+            this.itToLive -= 1
+        } else if(owner) {
+            this.x = owner.x
+            this.y = owner.y
         }
     }
-    attack() {
-        this.speedX = this.owner.dirX * 200
-        this.speedY = -500
-        this.itToLive = 3 * this.game.fps
-        this.thrower = this.owner
+    act() {
+        const owner = this.getOwner()
+        if(!owner) return
         this.drop()
+        this.ownerId = owner.id
+        this.speedX = owner.dirX * 200
+        this.speedY = -500
+        this.itToLive = 1 * this.game.fps
     }
     getSprite() {
         const { itToLive } = this
@@ -2754,16 +2740,12 @@ class Bomb extends Extra {
     }
     getState() {
         const state = super.getState()
-        if(this.thrower === null) delete state.thr
-        else state.thr = this.thrower.id
         if(this.itToLive === null) delete state.ttl
         else state.ttl = this.itToLive
         return state
     }
     setState(state) {
         super.setState(state)
-        if(state.thr === undefined) this.thrower = null
-        else this.thrower = this.group.get(state.thr)
         if(state.ttl === undefined) this.itToLive = null
         else this.itToLive = state.ttl
     }
@@ -2778,7 +2760,12 @@ class Explosion extends Entity {
         super(group, id, kwargs)
         this.width = this.height = 300
         this.iteration = 0
-        this.owner = (kwargs && kwargs.owner) || null
+        this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
+    }
+    getOwner() {
+        const { ownerId } = this
+        if(ownerId === null) return null
+        return this.group.get(ownerId)
     }
     getPhysicsProps() {
         return null
@@ -2795,7 +2782,7 @@ class Explosion extends Entity {
         const radius2 = pow(150, 2)
         const _checkOne = ent => {
             const dx = x - ent.x, dy = y - ent.y
-            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this.owner)
+            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this.getOwner())
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
@@ -2808,15 +2795,15 @@ class Explosion extends Entity {
     getState() {
         const state = super.getState()
         state.it = this.iteration
-        if(this.owner === null) delete state.own
-        else state.own = this.owner.id
+        if(this.ownerId === null) delete state.own
+        else state.own = this.ownerId
         return state
     }
     setState(state) {
         super.setState(state)
         this.iteration = state.it
-        if(state.own === undefined) this.owner = null
-        else this.owner = this.group.get(state.own)
+        if(state.own === undefined) this.ownerId = null
+        else this.ownerId = this.group.get(state.own)
     }
 }
 Entities.register("explos", Explosion)

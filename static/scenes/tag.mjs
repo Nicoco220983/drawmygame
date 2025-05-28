@@ -4,7 +4,7 @@ import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.
 export default class TagScene extends GameScene {
     constructor(game, scnId) {
         super(game, scnId)
-        this.duration = 300
+        this.duration = 3 * 60
         this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -59,6 +59,12 @@ class Tag extends Entity {
         this.ownerId = null
     }
 
+    getOwner() {
+        const { ownerId } = this
+        if(ownerId === null) return null
+        return this.group.get(ownerId)
+    }
+
     getPhysicsProps() {
         return null
     }
@@ -71,7 +77,7 @@ class Tag extends Entity {
 
     checkOwner() {
         if(this.ownerId) {
-            const owner = this.scene.entities.get(this.ownerId)
+            const owner = this.getOwner()
             if(!owner || owner.deleted) this.ownerId = null
         }
         if(!this.ownerId) this.findOwner()
@@ -92,25 +98,27 @@ class Tag extends Entity {
     }
 
     sync() {
-        if(!this.ownerId) return
-        const owner = this.scene.entities.get(this.ownerId)
+        const owner = this.getOwner()
+        if(!owner) return
         this.x = owner.x
         this.y = owner.y - 50
     }
 
     getSprite() {
-        return this.ownerId ? TagSprite : null
+        return (this.ownerId !== null) ? TagSprite : null
     }
 
     getState() {
         const state = super.getState()
-        state.own = this.ownerId
+        if(this.ownerId !== null) state.own = this.ownerId
+        else delete state.own
         return state
     }
 
     setState(state) {
         super.setState(state)
-        this.ownerId = state.own
+        if(state.own !== undefined) this.ownerId = state.own
+        else this.ownerId = null
     }
 }
 Entities.register("tag", Tag)
