@@ -2,7 +2,8 @@ const { abs, floor, ceil, min, max, pow, sqrt, hypot, atan2, PI, random } = Math
 const { assign } = Object
 
 const FLOAT_PRECISION_CORRECTION = .00001
-const GRAVITY = 1000
+const DEFAULT_GRAVITY_ACC = 1000
+const DEFAULT_GRAVITY_MAX_SPEED = 1000
 
 
 const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}, colWalls = new Set()
@@ -10,7 +11,8 @@ const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}
 export default class PhysicsEngine {
     constructor(game, kwargs) {
         this.game = game
-        this.gravity = kwargs && kwargs.gravity || GRAVITY
+        this.gravityAcc = kwargs && kwargs.gravityAcc || DEFAULT_GRAVITY_ACC
+        this.gravityMaxSpeed = kwargs && kwargs.gravityMaxSpeed || DEFAULT_GRAVITY_MAX_SPEED
         this.syncMap()
     }
     syncMap() {
@@ -91,12 +93,11 @@ export default class PhysicsEngine {
     }
     apply(dt, entities) {
         const { walls } = this.game.map
-        const { gravity } = this
         entities.forEach(ent => {
             const physicsProps = ent.getPhysicsProps()
             if(!physicsProps) return
             let remD = 1, nbCollisions = 0
-            if(physicsProps.affectedByGravity) ent.speedY += gravity * dt
+            if(physicsProps.affectedByGravity) this.applyGravity(dt, ent)
             const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent
             const entOrigDx = entOrigSpdX * dt, entOrigDy = entOrigSpdY * dt
             if(physicsProps.blockedByWalls && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
@@ -160,6 +161,12 @@ export default class PhysicsEngine {
                 ent.speedResY = ((ent.y - entOrigY) - entOrigDy) / dt
             }
         })
+    }
+
+    applyGravity(dt, ent) {
+        const { gravityAcc, gravityMaxSpeed } = this
+        if(ent.speedY >= gravityMaxSpeed) return
+        ent.speedY = min(ent.speedY + gravityAcc * dt, gravityMaxSpeed)
     }
 }
 

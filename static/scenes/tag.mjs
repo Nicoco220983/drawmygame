@@ -46,6 +46,15 @@ export default class TagScene extends GameScene {
             scores,
         })
     }
+    handleHerosOut() {
+        const { heros } = this
+        for(let playerId in heros) {
+            const hero = heros[playerId]
+            if(hero.y > this.map.height + 100) hero.y = -100
+            if(hero.x > this.map.width + 50) hero.x = -50
+            if(hero.x < -50) hero.x = this.map.width + 50
+        }
+    }
 }
 
 

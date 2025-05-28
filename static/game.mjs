@@ -509,7 +509,7 @@ export class EntityRefs extends Set {
         }
     }
     getState() {
-        const state = this.state |= []
+        const state = this.state ||= []
         state.length = 0
         this.forEach(ent => state.push(ent.id))
         return state
@@ -626,7 +626,7 @@ export class SpawnEntityEvent extends Event {
         if(trigger.nbEnts !== undefined) {
             return this.spawnedEntities.size < trigger.nbEnts
         } else if(trigger.prevEntFurther !== undefined) {
-            if(this.prevSpawnedEntity == null) return true
+            if(!this.prevSpawnedEntity) return true
             const { x: prevEntX, y: prevEntY } = this.prevSpawnedEntity
             const { x: stateX, y: stateY } = this.entState
             return hypot(prevEntX-stateX, prevEntY-stateY) > trigger.prevEntFurther
@@ -660,11 +660,16 @@ export class SpawnEntityEvent extends Event {
     }
     getState() {
         const state = super.getState()
-        state.ents = this.spawnedEntities.toState()
+        state.ents = this.spawnedEntities.getState()
+        if(this.prevSpawnedEntity) state.pse = this.prevSpawnedEntity.id
+        else delete state.pse
+        return state
     }
     setState(state) {
         super.setState(state)
         this.spawnedEntities.setState(state.ents)
+        if(state.pse!==undefined) this.prevSpawnedEntity = this.scene.entities.get(state.pse) || null
+        else this.prevSpawnedEntity = null
     }
 }
 Events.register("ent", SpawnEntityEvent)
@@ -1585,7 +1590,7 @@ export class GameScene extends SceneCommon {
         events.forEach(evt => evt.update())
         physics.apply(dt, entities)
         entities.update()
-        this.handleHerosFall()
+        this.handleHerosOut()
         this.handleHerosDeath()
         this.updateView()
     }
@@ -1599,18 +1604,18 @@ export class GameScene extends SceneCommon {
         this.initVictoryNotifs()
     }
 
-    handleHerosFall() {
-        if(!this.onHeroFall) return
+    handleHerosOut() {
+        if(!this.onHeroOut) return
         const { heros } = this
         for(let playerId in heros) {
             const hero = heros[playerId]
             if(hero.y > this.map.height + 100) {
-                this.onHeroFall(hero)
+                this.onHeroOut(hero)
             }
         }
     }
 
-    onHeroFall(hero) {
+    onHeroOut(hero) {
         hero.mayTakeDamage(1, null, true)
         if(hero.health > 0) this.spawnHero(hero)
     }
@@ -1750,6 +1755,7 @@ export class GameScene extends SceneCommon {
             state.sco = this.scores
         }
         const ent = state.entities = this.entities.getState(isFull)
+        state.events = this.events.map(e => e.getState())
         return (isFull || ent) ? state : null
     }
 
@@ -1761,6 +1767,7 @@ export class GameScene extends SceneCommon {
             this.scores = state.sco
         }
         this.entities.setState(state.entities, isFull)
+        for(let i in state.events) this.events[i].setState(state.events[i])
     }
 }
 
