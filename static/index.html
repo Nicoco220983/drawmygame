@@ -208,7 +208,6 @@ async function main() {
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
     initInputEls()
     if(urlParams.has("map")) {
-        console.log("TMP map", map)
         startAndShowGame()
     } else {
         startAndShowBuilder()

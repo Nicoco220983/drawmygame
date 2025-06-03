@@ -269,7 +269,88 @@ export class SpriteSheet {
 
 // BUILDER //////////////////////////
 
+export const INIT_STATE = 1 << 0
+export const UPD_STATE = 1 << 1
+
+export class StateField {
+    constructor(type, key, shortKey, defVal) {
+        this.type = type
+        this.key = key
+        this.shortKey = shortKey
+        this.defaultValue = defVal
+    }
+    toState(ent, state) {
+        const val = ent[this.key]
+        if(val !== this.defaultValue) state[this.shortKey] = val
+    }
+    fromState(ent, state) {
+        const val = state[this.shortKey]
+        ent[this.key] = (val === undefined) ? this.defaultValue : val
+    }
+    toInput(ent) {
+        const inputEl = newDomEl("input", {
+            value: ent[this.key]
+        })
+        return inputEl
+    }
+    fromInput(ent, inputEl) {
+        ent[this.key] = inputEl.value
+    }
+}
+
+export class StateInt extends StateField {
+    constructor(type, key, shortKey, defVal, kwargs) {
+        super(type, key, shortKey, defVal)
+        this.min = kwargs && kwargs.min
+        this.max = kwargs && kwargs.max
+    }
+    toInput(ent) {
+        const inputEl = super.toInput(ent)
+        inputEl.type = "number"
+        if(this.min !== undefined) inputEl.min = this.min
+        if(this.max !== undefined) inputEl.max = this.max
+        return inputEl
+    }
+    fromInput(ent, inputEl) {
+        ent[this.key] = parseInt(inputEl.value)
+    }
+}
+
+export class StateEnum extends StateField {
+    constructor(type, key, shortKey, defVal, options) {
+        super(type, key, shortKey, defVal)
+        this.options = options
+    }
+    toInput(ent) {
+        const { options } = this
+        const inputEl = newDomEl("select")
+        for(let optVal in options) {
+            inputEl.appendChild(newDomEl("option", {
+                value: optVal,
+                text: options[optVal],
+            }))
+        }
+        inputEl.value = ent[this.key]
+        return inputEl
+    }
+}
+
+export class StateIntEnum extends StateEnum {
+    fromInput(ent, inputEl) {
+        ent[this.key] = parseInt(inputEl.value)
+    }
+}
+
 export class Entity {
+
+    static STATE_PROPS = [
+        new StateInt(INIT_STATE | UPD_STATE, "x", "x", 0),
+        new StateInt(INIT_STATE | UPD_STATE, "y", "y", 0),
+        new StateIntEnum(INIT_STATE | UPD_STATE, "dirX", "dx", 1, { '1': "Right", '-1': "Left"}),
+        new StateIntEnum(INIT_STATE | UPD_STATE, "dirY", "dy", 1, { '1': "Up", '-1': "Down"}),
+        new StateInt(INIT_STATE | UPD_STATE, "speedX", "sx", 0),
+        new StateInt(INIT_STATE | UPD_STATE, "speedY", "sy", 0),
+    ]
 
     static {
         assign(this.prototype, {
@@ -360,30 +441,35 @@ export class Entity {
         this.removed = true
     }
 
+    getInitState() {
+        const state = {}
+        state.key = this.constructor.key
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
+            prop.toState(this, state)
+        }
+        return state
+    }
+
+    setInitState(state) {
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
+            prop.fromState(this, state)
+        }
+    }
+
     getState() {
-        const state = this.state ||= {}
+        const state = {}
         state.id = this.id
         state.key = this.constructor.key
-        state.x = this.x
-        state.y = this.y
-        if(this.hasOwnProperty("dirX")) state.dirX = this.dirX
-        if(this.hasOwnProperty("dirY")) state.dirY = this.dirY
-        if(this.hasOwnProperty("speedX")) state.speedX = this.speedX
-        if(this.hasOwnProperty("speedY")) state.speedY = this.speedY
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
+            prop.toState(this, state)
+        }
         return state
     }
 
     setState(state) {
-        this.x = state.x
-        this.y = state.y
-        if(state.dirX !== undefined) this.dirX = state.dirX
-        else delete this.dirX
-        if(state.dirY !== undefined) this.dirY = state.dirY
-        else delete this.dirY
-        if(state.speedX !== undefined) this.speedX = state.speedX
-        else delete this.speedX
-        if(state.speedY !== undefined) this.speedY = state.speedY
-        else delete this.speedY
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
+            prop.fromState(this, state)
+        }
     }
 
     getPhysicsProps() {
@@ -645,7 +731,7 @@ export class SpawnEntityEvent extends Event {
     executeAction() {
         super.executeAction()
         const ent = this.scene.newEntity(this.entState.key)
-        ent.setState(this.entState)
+        ent.setInitState(this.entState)
         this.spawnedEntities.add(ent.id)
         this.prevSpawnedEntity = ent
     }
@@ -1292,11 +1378,7 @@ export class Game extends GameCommon {
             const player = kwargs
             if(!player.hero) {
                 const defaultHero = this.map.heros[0]
-                if(defaultHero) player.hero = {
-                    x: defaultHero.x,
-                    y: defaultHero.y,
-                    key: defaultHero.key,
-                }
+                if(defaultHero) player.hero = defaultHero
             }
             this.players[playerId] = player
         }
@@ -1512,7 +1594,7 @@ export class GameScene extends SceneCommon {
     initEntities() {
         this.map.entities.forEach(entState => {
             const ent = this.newEntity(entState.key)
-            ent.setState(entState)
+            ent.setInitState(entState)
         })
     }
 
@@ -1530,8 +1612,9 @@ export class GameScene extends SceneCommon {
         if(this.getHero(playerId)) return
         const { hero: heroDef } = player
         if(!heroDef) return
-        const { x, y, key } = heroDef
+        const { key } = heroDef
         const hero = this.newEntity(key, { playerId })
+        hero.setInitState(heroDef)
         this.spawnHero(hero)
         return hero.id
     }
@@ -1835,6 +1918,12 @@ export class FocusFirstHeroScene extends GameScene {
 // ENTITIES ///////////////////////////////////
 
 export class LivingEntity extends Entity {
+
+    static STATE_PROPS = Entity.STATE_PROPS.concat([
+        new StateInt(INIT_STATE | UPD_STATE, "health", "hea", Infinity),
+        new StateInt(UPD_STATE, "lastDamageAge", "lda", null),
+    ])
+    
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.health = (kwargs && kwargs.health !== undefined) ? kwargs.health : this.getMaxHealth()
@@ -1891,20 +1980,20 @@ export class LivingEntity extends Entity {
         this.trigger("death", { killer })
     }
 
-    getState() {
-        const state = super.getState()
-        state.hea = this.health
-        if(this.lastDamageAge !== null) state.lda = this.lastDamageAge
-        else delete state.lda
-        return state
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     state.hea = this.health
+    //     if(this.lastDamageAge !== null) state.lda = this.lastDamageAge
+    //     else delete state.lda
+    //     return state
+    // }
 
-    setState(state) {
-        super.setState(state)
-        this.health = state.hea
-        if(state.lda === undefined) this.lastDamageAge = null
-        else this.lastDamageAge = state.lda
-    }
+    // setState(state) {
+    //     super.setState(state)
+    //     this.health = state.hea
+    //     if(state.lda === undefined) this.lastDamageAge = null
+    //     else this.lastDamageAge = state.lda
+    // }
 
     mayRemove() {
         if(this.health <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
@@ -1915,6 +2004,12 @@ export class LivingEntity extends Entity {
 
 
 export class Hero extends LivingEntity {
+
+    static STATE_PROPS = LivingEntity.STATE_PROPS.concat([
+        new StateInt(INIT_STATE | UPD_STATE, "lives", "liv", Infinity),
+        new StateInt(UPD_STATE, "lastSpawnIt", "lsi", -Infinity),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.team = "hero"
@@ -2029,23 +2124,23 @@ export class Hero extends LivingEntity {
             stExtras.length = 0
             for(let exId of extras) stExtras.push(exId)
         } else if(state.extras) state.extras.length = 0
-        if(this.lastSpawnIt === -Infinity) delete state.lsi
-        else state.lsi = this.lastSpawnIt
+        // if(this.lastSpawnIt === -Infinity) delete state.lsi
+        // else state.lsi = this.lastSpawnIt
         return state
     }
 
     setState(state) {
         super.setState(state)
         this.setPlayerId(state.pid)
-        this.lives = state.liv
+        // this.lives = state.liv
         this.inputState = state.ist
         if(this.extras || state.extras) {
             const extras = this.initExtras()
             extras.clear()
             if(state.extras) for(let exId of state.extras) extras.add(exId)
         }
-        if(state.lsi) this.lastSpawnIt = state.lsi
-        else this.lastSpawnIt = -Infinity
+        // if(state.lsi) this.lastSpawnIt = state.lsi
+        // else this.lastSpawnIt = -Infinity
     }
 
     getInputState() {
@@ -2115,6 +2210,11 @@ const JumpAudPrm = loadAud("/static/assets/jump.opus")
 const ItemAudPrm = loadAud("/static/assets/item.opus")
 
 class Nico extends Hero {
+
+    static STATE_PROPS = Hero.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "handRemIt", "hri", null),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 50
@@ -2242,7 +2342,7 @@ class Nico extends Hero {
             const prevActionExtra = this.getActionExtra()
             if(prevActionExtra) {
                 prevActionExtra.drop()
-                prevActionExtra.remove()  // TMP rm when infinite drop/collect solved
+                prevActionExtra.remove()  // TODO rm when infinite drop/collect solved
             }
         }
         super.addExtra(extra)
@@ -2259,18 +2359,18 @@ class Nico extends Hero {
         return actionExtra
     }
 
-    getState() {
-        const state = super.getState()
-        if(this.handRemIt!==null) state.hri = this.handRemIt
-        else delete state.hri
-        return state
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     if(this.handRemIt!==null) state.hri = this.handRemIt
+    //     else delete state.hri
+    //     return state
+    // }
 
-    setState(state) {
-        super.setState(state)
-        if(this.hri!==undefined) this.handRemIt = this.hri
-        else this.handRemIt = null
-    }
+    // setState(state) {
+    //     super.setState(state)
+    //     if(this.hri!==undefined) this.handRemIt = this.hri
+    //     else this.handRemIt = null
+    // }
 
     drawTo(ctx) {
         if(this.disabled) return
@@ -2308,6 +2408,11 @@ class Enemy extends LivingEntity {
 const BlobSprite = new Sprite("/static/assets/blob.png")
 
 class BlobEnemy extends Enemy {
+
+    static STATE_PROPS = Enemy.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "lastChangeDirAge", "cda", 0),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = 50
@@ -2357,16 +2462,16 @@ class BlobEnemy extends Enemy {
         }
     }
 
-    getState() {
-        const state = super.getState()
-        state.cda = this.lastChangeDirAge
-        return state
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     state.cda = this.lastChangeDirAge
+    //     return state
+    // }
 
-    setState(state) {
-        super.setState(state)
-        this.lastChangeDirAge = state.cda
-    }
+    // setState(state) {
+    //     super.setState(state)
+    //     this.lastChangeDirAge = state.cda
+    // }
 }
 Entities.register("blob", BlobEnemy)
 
@@ -2464,6 +2569,11 @@ Entities.register("spiky", Spiky)
 
 
 class Collectable extends Entity {
+
+    static STATE_PROPS = Entity.STATE_PROPS.concat([
+        new StateField(UPD_STATE, "ownerId", "own", null),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.spriteRand = floor(random() * this.game.fps)
@@ -2508,17 +2618,17 @@ class Collectable extends Entity {
             this.spriteDy = -this.spriteWidth * .05 * cosAngle
         }
     }
-    getState() {
-        const state = super.getState()
-        if(this.ownerId === null) delete state.own
-        else state.own = this.ownerId
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        if(state.own === undefined) this.ownerId = null
-        else this.ownerId = state.own
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     if(this.ownerId === null) delete state.own
+    //     else state.own = this.ownerId
+    //     return state
+    // }
+    // setState(state) {
+    //     super.setState(state)
+    //     if(state.own === undefined) this.ownerId = null
+    //     else this.ownerId = state.own
+    // }
 }
 
 
@@ -2619,6 +2729,11 @@ const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
 const SwordHitAudPrm = loadAud("/static/assets/sword_hit.opus")
 
 class Sword extends Extra {
+
+    static STATE_PROPS = Extra.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
@@ -2676,17 +2791,17 @@ class Sword extends Extra {
             return SwordSprite
         }
     }
-    getState() {
-        const state = super.getState()
-        if(this.lastAttackAge == Infinity) delete state.laa
-        else state.laa = this.lastAttackAge
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        if(state.laa === undefined) this.lastAttackAge = Infinity
-        else this.lastAttackAge = state.laa
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     if(this.lastAttackAge == Infinity) delete state.laa
+    //     else state.laa = this.lastAttackAge
+    //     return state
+    // }
+    // setState(state) {
+    //     super.setState(state)
+    //     if(state.laa === undefined) this.lastAttackAge = Infinity
+    //     else this.lastAttackAge = state.laa
+    // }
 }
 Entities.register("sword", Sword)
 
@@ -2694,6 +2809,11 @@ Entities.register("sword", Sword)
 const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
 
 class Bomb extends Extra {
+
+    static STATE_PROPS = Extra.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "itToLive", "ttl", null),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
@@ -2745,17 +2865,17 @@ class Bomb extends Extra {
         if(this.itToLive !== null) this.spriteDy = 0
         else super.scaleSprite(sprite)
     }
-    getState() {
-        const state = super.getState()
-        if(this.itToLive === null) delete state.ttl
-        else state.ttl = this.itToLive
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        if(state.ttl === undefined) this.itToLive = null
-        else this.itToLive = state.ttl
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     if(this.itToLive === null) delete state.ttl
+    //     else state.ttl = this.itToLive
+    //     return state
+    // }
+    // setState(state) {
+    //     super.setState(state)
+    //     if(state.ttl === undefined) this.itToLive = null
+    //     else this.itToLive = state.ttl
+    // }
 }
 Entities.register("bomb", Bomb)
 
@@ -2763,6 +2883,12 @@ Entities.register("bomb", Bomb)
 const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
 
 class Explosion extends Entity {
+
+    static STATE_PROPS = Entity.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "iteration", "it", 0),
+        new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 300
@@ -2799,19 +2925,19 @@ class Explosion extends Entity {
             this.iteration / this.game.fps * 8 * 6
         ))
     }
-    getState() {
-        const state = super.getState()
-        state.it = this.iteration
-        if(this.ownerId === null) delete state.own
-        else state.own = this.ownerId
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.iteration = state.it
-        if(state.own === undefined) this.ownerId = null
-        else this.ownerId = this.group.get(state.own)
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     state.it = this.iteration
+    //     if(this.ownerId === null) delete state.own
+    //     else state.own = this.ownerId
+    //     return state
+    // }
+    // setState(state) {
+    //     super.setState(state)
+    //     this.iteration = state.it
+    //     if(state.own === undefined) this.ownerId = null
+    //     else this.ownerId = this.group.get(state.own)
+    // }
 }
 Entities.register("explos", Explosion)
 
@@ -2868,6 +2994,11 @@ Entities.register("checkpt", Checkpoint)
 const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
 
 class SmokeExplosion extends Entity {
+
+    static STATE_PROPS = Entity.STATE_PROPS.concat([
+        new StateInt(UPD_STATE, "iteration", "it", 0),
+    ])
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 100
@@ -2885,15 +3016,15 @@ class SmokeExplosion extends Entity {
         const time = this.iteration * this.game.dt
         return SmokeExplosionSpriteSheet.get(floor(time/.5*4))
     }
-    getState() {
-        const state = super.getState()
-        state.it = this.iteration
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.iteration = state.it
-    }
+    // getState() {
+    //     const state = super.getState()
+    //     state.it = this.iteration
+    //     return state
+    // }
+    // setState(state) {
+    //     super.setState(state)
+    //     this.iteration = state.it
+    // }
 }
 Entities.register("smokee", SmokeExplosion)
 

@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys, INIT_STATE } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -85,7 +85,7 @@ class BuilderScene extends SceneCommon {
     initEntities() {
         this.map.entities.forEach(entState => {
             const ent = this.newEntity(entState.key)
-            ent.setState(entState)
+            ent.setInitState(entState)
         })
     }
 
@@ -289,15 +289,12 @@ class BuilderScene extends SceneCommon {
         map.events.length = 0
         this.entities.forEach(ent => {
             if(ent.removed) return
-            if(ent instanceof Hero) map.heros.push(ent.getState())
+            const state = ent.getInitState()
+            if(ent instanceof Hero) map.heros.push(state)
             else {
-                // const evt = new SpawnEntityEvent(this, ent.builderTrigger)
-                // evt.entState = ent.getState()
-                // map.events.push(evt.getInitState())
-                const state = ent.getState()
                 if(ent.builderTrigger) {
                     const evt = new SpawnEntityEvent(this, ent.builderTrigger)
-                    evt.entState = ent.getState()
+                    evt.entState = state
                     map.events.push(evt.getInitState())
                 } else {
                     map.entities.push(state)
@@ -357,7 +354,12 @@ class SelectionMenu {
     }
     addSelection(ent) {
         this.selections.push(ent)
-        if(ent.addMenuInputs) ent.addMenuInputs(this)
+        //if(ent.addMenuInputs) ent.addMenuInputs(this)
+        for(let prop of ent.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
+            const inputEl = prop.toInput(ent)
+            inputEl.onchange = () => prop.fromInput(ent, inputEl)
+            this.addInput("section", prop.key, inputEl)
+        }
         this.addSpawnEntityTriggerInputs(ent)
     }
     getSection(section) {
@@ -501,7 +503,7 @@ class SpawnEntityTriggerFormElement extends TriggerFormElement {
         const { selEl, triggerEl, trigger } = this
         const key = selEl.value
         if(key == "nbEnts") {
-            if(trigger[key] === null) trigger[key] = 0
+            if(trigger[key] === null) trigger[key] = 1
             const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
             inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
         }
@@ -513,6 +515,7 @@ class SpawnEntityTriggerFormElement extends TriggerFormElement {
     }
 }
 customElements.define("dmg-spawn-entity-event-trigger-form", SpawnEntityTriggerFormElement)
+
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1
