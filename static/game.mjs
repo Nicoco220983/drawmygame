@@ -946,12 +946,18 @@ export class GameCommon {
         this.game = this
         this.iteration = -1
         this.time = 0
+        this.paused = false
         this.fps = FPS
         this.dt = 1/this.fps
         this.lib = lib
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
+        this.scenesSizeAndPos = {
+            game: { x:0, y:0, width:0, height:0 },
+            joypad: { x:0, y:0, width:0, height:0 },
+        }
+        this.scenes = {}
         this.initGameScene()
         this.syncSize()
     }
@@ -990,21 +996,21 @@ export class GameCommon {
     }
 
     onTouch() {
-        if(this.joypadScene) this.joypadScene.onTouch()
+        if(this.scenes.joypad) this.scenes.joypad.onTouch()
     }
 
     update() {
         this.iteration += 1
         this.time = this.iteration * this.dt
-        const { gameScene, joypadScene } = this
-        if(gameScene.visible && !gameScene.paused) gameScene.update()
-        if(joypadScene) joypadScene.update()
+        const { scenes } = this
+        if(scenes.game.visible && !this.paused) scenes.game.update()
+        if(scenes.joypad) scenes.joypad.update()
     }
 
     mayDraw() {
         this._drawing ||= false
         if(!this._drawing) {
-            if(this.iteration == this._lastDrawIteration) return
+            if(this.iteration == this._lastDrawIteration && !this.paused) return
             this._drawing = true
             this._lastDrawIteration = this.iteration
             window.requestAnimationFrame(() => {
@@ -1015,28 +1021,29 @@ export class GameCommon {
     }
 
     draw() {
-        if(this.gameScene.visible) this.gameScene.draw()
-        if(this.joypadScene) this.joypadScene.draw()
+        const scns = Object.values(this.scenes)
+        scns.sort((a, b) => (b.getPriority() - a.getPriority()))
+        for(let scn of scns) if(scn.visible) scn.draw()
         const ctx = this.canvas.getContext("2d")
-        if(this.gameScene.visible) ctx.drawImage(this.gameScene.canvas, 0, this.gameScene.y)
-        if(this.joypadScene) ctx.drawImage(this.joypadScene.canvas, 0, this.joypadScene.y)
+        for(let scn of scns) if(scn.visible) ctx.drawImage(scn.canvas, scn.x, scn.y)
         return ctx
     }
 
     syncSize() {
         const width = min(this.map.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
-        if(this.gameScene.visible) this.gameScene.setPosAndSize(
-            0,
-            0,
-            width,
-            min(this.map.height, CANVAS_MAX_HEIGHT),
-        )
-        if(this.joypadScene) this.joypadScene.setPos(
-            0,
-            this.gameScene.visible ? this.gameScene.height : 0,
-        )
-        const height = max(height169, (this.gameScene.visible ? this.gameScene.height : 0) + (this.joypadScene ? this.joypadScene.height : 0))
+        const { game: gameScn, joypad: joypadScn } = this.scenes 
+        const { game: gameSP, joypad: joypadSP } = this.scenesSizeAndPos
+        gameSP.x = 0
+        gameSP.y = 0
+        gameSP.width = width
+        gameSP.height = min(this.map.height, CANVAS_MAX_HEIGHT)
+        joypadSP.x = 0
+        joypadSP.y = gameScn.visible ? gameSP.height : 0
+        joypadSP.width = width
+        joypadSP.height = height169
+        for(let scnId in this.scenes) this.scenes[scnId].syncSizeAndPos()
+        const height = max(height169, (gameScn.visible ? gameSP.height : 0) + (joypadScn ? joypadSP.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -1077,11 +1084,11 @@ export class GameCommon {
     }
 
     pause(val) {
-        this.gameScene.paused = val
+        this.paused = val
     }
 
     togglePause() {
-        this.pause(!this.gameScene.paused)
+        this.pause(!this.paused)
     }
 
     // TODO: remove me
@@ -1107,19 +1114,26 @@ export class SceneCommon {
         this.viewX = 0
         this.viewY = 0
         this.viewSpeed = 100
-        this.width = 100
-        this.height = 100
+        this.width = 0
+        this.height = 0
         this.visible = true
-        this.color = "white"
+        this.backgroundColor = "white"
+        this.backgroundAlpha = 1
         this.iteration = 0
         this.time = 0
         this.paused = false
         if(!this.game.isServerEnv) {
+            this.backgroundCanvas = null
             this.canvas = document.createElement("canvas")
         }
         this.walls = new EntityGroup(this)
         this.entities = new EntityGroup(this)
         this.heros = {}
+        this.syncSizeAndPos()
+    }
+
+    getPriority() {
+        return 0
     }
 
     loadMap(map) {
@@ -1130,12 +1144,8 @@ export class SceneCommon {
         this.initEvents()
     }
 
-    setPosAndSize(x, y, width, height) {
-        assign(this, { x, y, width, height })
-        if(this.canvas) {
-            this.canvas.width = width
-            this.canvas.height = height
-        }
+    syncSizeAndPos() {
+        assign(this, this.game.scenesSizeAndPos.game)
     }
 
     setView(viewX, viewY) {
@@ -1180,12 +1190,13 @@ export class SceneCommon {
     update() {}
 
     draw() {
-        const ctx = this.canvas.getContext("2d")
+        const can = this.canvas
+        can.width = this.width
+        can.height = this.height
+        const ctx = can.getContext("2d")
         ctx.reset()
-        if(this.color) {
-            ctx.fillStyle = "white"
-            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
-        }
+        const backgroundCanvas = this.initBackGround()
+        if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
         this.drawTo(ctx)
     }
 
@@ -1194,6 +1205,22 @@ export class SceneCommon {
         this.walls.drawTo(ctx)
         this.entities.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
+    }
+
+    initBackGround() {
+        if(this.game.isServerEnv) return
+        let { width, height, backgroundCanvas: can } = this
+        if(!can || can.width != width || can.height != height) {
+            can = this.backgroundCanvas = document.createElement("canvas")
+            assign(can, { width, height })
+            const ctx = can.getContext("2d")
+            if(this.backgroundColor) {
+                ctx.fillStyle = this.backgroundColor
+                ctx.globalAlpha = this.backgroundAlpha
+                ctx.fillRect(0, 0, width, height)
+            }
+        }
+        return can
     }
 }
 
@@ -1221,10 +1248,23 @@ export class Wall extends Entity {
 
 // GAME //////////////////////////
 
+export const GAME_STEP_WAITING = 0
+export const GAME_STEP_GAMING = 1
+export const GAME_STEP_DEFEAT = 2
+export const GAME_STEP_VICTORY = 3
+
 export class Game extends GameCommon {
 
     constructor(parentEl, lib, map, playerId, kwargs) {
         super(parentEl, lib, map, kwargs)
+
+        this.step = kwargs && kwargs.step
+        if(this.step === undefined) this.step = GAME_STEP_GAMING
+
+        this.PauseSceneClass = PauseScene
+        this.WaitingSceneClass = WaitingScene
+        this.VictorySceneClass = VictoryScene
+        this.DefeatSceneClass = DefeatScene
 
         this.players = {}
         this.localPlayerId = playerId
@@ -1241,6 +1281,15 @@ export class Game extends GameCommon {
             this.receivedAppliedStates = []
         }
 
+        this.initKeyListeners()
+        if(this.isDebugMode) this.showDebugScene()
+
+        this.audio = new AudioEngine(this)
+        this.physics = new PhysicsEngine(this)
+        //this.graphics = new GraphicsEngine(this)
+    }
+
+    initKeyListeners() {
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
             const onKey = (evt, val) => {
@@ -1253,12 +1302,6 @@ export class Game extends GameCommon {
             document.addEventListener('keydown', evt => onKey(evt, true))
             document.addEventListener('keyup', evt => onKey(evt, false))
         }
-
-        if(this.isDebugMode) this.showDebugScene()
-
-        this.audio = new AudioEngine(this)
-        this.physics = new PhysicsEngine(this)
-        //this.graphics = new GraphicsEngine(this)
     }
 
     play() {
@@ -1288,49 +1331,66 @@ export class Game extends GameCommon {
     initGameScene(scnId, visible=true) {
         if(scnId === undefined) scnId = max(0, this.iteration)
         const cls = this.lib.scenes[this.map.scenes["0"].key]
-        this.gameScene = new cls(this, scnId)
-        this.gameScene.loadMap(this.map)
+        const scn = this.scenes.game = new cls(this, scnId)
+        scn.loadMap(this.map)
         this.showGameScene(visible, true)
     }
 
     showGameScene(visible, force=false) {
-        if(!force && visible == this.gameScene.visible) return
-        this.gameScene.visible = visible
-        this.syncSize()
+        const scn = this.scenes.game
+        if(!force && visible == scn.visible) return
+        scn.visible = visible
+        //this.syncSize()
     }
 
     showDebugScene() {
         this.debugScene = new DebugScene(this)
-        this.syncSize()
+        //this.syncSize()
     }
 
     syncSize() {
         super.syncSize()
-        if(this.debugScene) {
-            const { width, height } = this.game
-            this.debugScene.setPosAndSize(0, 0, width, height)
-        }
+        if(this.debugScene) his.debugScene.syncPosAndSize()
     }
 
     update() {
-        if(this.mode == MODE_LOCAL) this.updateGame()
-        else this.updateGameApplyingReceivedStates()
-        if(this.joypadScene) this.joypadScene.update()
+        if(!this.paused) {
+            if(this.mode == MODE_LOCAL) this.updateGame()
+            else this.updateGameApplyingReceivedStates()
+        }
+        if(this.scenes.joypad) this.scenes.joypad.update()
+        // if(this.step == STEP_WAITING) this.waitingScene ||= this.newWaitingScene()
+        // else this.waitingScene = null
+        // if(this.waitingScene) this.waitingScene.update()
+        // if(this.step == STEP_ENDING) this.endingScene ||= this.newEndingScene()
+        // else this.endingScene = null
+        // if(this.endingScene) this.endingScene.update()
+        this.mayInitAndUpdateScene("pause", this.paused, this.PauseSceneClass)
+        this.mayInitAndUpdateScene("waiting", this.step == GAME_STEP_WAITING, this.WaitingSceneClass)
+        this.mayInitAndUpdateScene("victory", this.step == GAME_STEP_VICTORY, this.VictorySceneClass)
+        this.mayInitAndUpdateScene("defeat", this.step == GAME_STEP_DEFEAT, this.DefeatSceneClass)
         if(this.debugScene) this.debugScene.update()
     }
 
+    mayInitAndUpdateScene(scnId, cond, constructor) {
+        if(cond) {
+            const scn = this.scenes[scnId] ||= new constructor(this)
+            //this.syncSize()
+            scn.update()
+        } else delete this.scenes[scnId]
+    }
+
     updateGame() {
-        const { gameScene } = this
-        if(gameScene.paused) return
+        const { game: scn } = this.scenes
         this.iteration += 1
         this.time = this.iteration * this.dt
         this.applyInputStates()
-        if(gameScene.visible) gameScene.update()
+        if(scn.visible) scn.update()
     }
 
     applyInputStates() {
         for(const inputState of this.inputStates) {
-            const hero = this.gameScene.getHero(inputState.pid)
+            const hero = this.scenes.game.getHero(inputState.pid)
             if(hero) hero.setInputState(inputState.is)
         }
         this.inputStates.length = 0
@@ -1368,8 +1428,13 @@ export class Game extends GameCommon {
         }
     }
 
+    start() {
+        if(this.mode == MODE_CLIENT) this.ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
+        else if(this.step == GAME_STEP_WAITING) this.step = GAME_STEP_GAMING
+    }
+
     restart(scnId) {
-        this.initGameScene(scnId, this.gameScene.visible)
+        this.initGameScene(scnId, this.scenes.game.visible)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
 
@@ -1382,15 +1447,15 @@ export class Game extends GameCommon {
             }
             this.players[playerId] = player
         }
-        this.gameScene.newHero(playerId)
-        if(this.joypadScene && playerId === this.localPlayerId) this.joypadScene.syncLocalPlayerButtons()
+        this.scenes.game.newHero(playerId)
+        if(this.scenes.joypad && playerId === this.localPlayerId) this.scenes.joypad.syncLocalPlayerButtons()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()  // TODO: make it partial ?
     }
 
     rmPlayer(playerId) {
         const player = this.players[playerId]
         if(!player) return
-        this.gameScene.rmHero(playerId)
+        this.scenes.game.rmHero(playerId)
         delete this.players[playerId]
     }
 
@@ -1418,7 +1483,7 @@ export class Game extends GameCommon {
     }
 
     getAndMayPushLocalHeroInputState() {
-        const localHero = this.gameScene.getHero(this.localPlayerId)
+        const localHero = this.scenes.game.getHero(this.localPlayerId)
         if(!localHero) return
         let inputState = localHero.getInputState()
         if(!inputState || !hasKeys(inputState)) inputState = null
@@ -1462,19 +1527,23 @@ export class Game extends GameCommon {
         this.partialState ||= {}
         const state = isFull ? this.fullState : this.partialState
         state.it = this.iteration
-        if(isFull) state.players = this.players
-        state.game = this.gameScene.getState(isFull)
+        if(isFull) {
+            state.step = this.step
+            state.players = this.players
+        }
+        state.game = this.scenes.game.getState(isFull)
         return (isFull || state.game) ? state : null
     }
 
     setState(state) {
         const isFull = (state.t == STATE_TYPE_FULL)
         if(isFull) this.iteration = state.it
+        if(state.step !== undefined) this.step = state.step
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.game) {
-            if(isFull && state.game.id != this.gameScene.id)
+            if(isFull && state.game.id != this.scenes.game.id)
                 this.restart(state.game.id)
-            this.gameScene.setState(state.game, isFull)
+            this.scenes.game.setState(state.game, isFull)
         }
     }
 
@@ -1563,16 +1632,16 @@ export class Game extends GameCommon {
     }
 
     async showJoypadScene(val) {
-        if(val == Boolean(this.joypadScene)) return
+        if(val == Boolean(this.scenes.joypad)) return
         if(val) {
             const joypadMod = await import("./joypad.mjs")
-            if(this.joypadScene) return
+            if(this.scenes.joypad) return
             const { JoypadScene } = joypadMod
-            this.joypadScene = new JoypadScene(this)
+            this.scenes.joypad = new JoypadScene(this)
         } else {
-            this.joypadScene = null
+            this.scenes.joypad = null
         }
-        this.syncSize()
+        // this.syncSize()
     }
 }
 
@@ -2330,8 +2399,8 @@ class Nico extends Hero {
     }
 
     syncJoypadActionButton() {
-        const { joypadScene } = this.game
-        const actionButton = joypadScene && joypadScene.actionButton
+        const { scenes } = this.game
+        const actionButton = scenes.joypad && scenes.joypad.actionButton
         if(!actionButton) return
         const actionExtra = this.getActionExtra()
         actionButton.icon = actionExtra ? actionExtra.getSprite() : HandSprite
@@ -3053,6 +3122,99 @@ class Pop extends Entity {
     }
     getSprite() {
         return PopSprite
+    }
+}
+
+
+class PauseScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.notifs = new EntityGroup(this)
+        this.pauseText = this.notifs.new(Text, {
+            text: "PAUSE",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+    }
+    update() {
+        assign(this.pauseText, { x: this.width/2, y: this.height/2 })
+    }
+    drawTo(ctx) {
+        this.notifs.drawTo(ctx)
+    }
+}
+
+
+class WaitingScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.notifs = new EntityGroup(this)
+        this.waitingText = this.notifs.new(Text, {
+            text: "WAITING",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+    }
+    getPriority() {
+        return -1
+    }
+    update() {
+        assign(this.waitingText, { x: this.width/2, y: this.height/2 })
+    }
+    drawTo(ctx) {
+        this.notifs.drawTo(ctx)
+    }
+}
+
+
+class VictoryScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.notifs = new EntityGroup(this)
+        this.victoryText = this.notifs.new(Text, {
+            text: "VICTORY",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+    }
+    getPriority() {
+        return -1
+    }
+    update() {
+        assign(this.victoryText, { x: this.width/2, y: this.height/2 })
+    }
+    drawTo(ctx) {
+        this.notifs.drawTo(ctx)
+    }
+}
+
+
+class DefeatScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.notifs = new EntityGroup(this)
+        this.defeatText = this.notifs.new(Text, {
+            text: "DEFEAT",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+    }
+    getPriority() {
+        return -1
+    }
+    update() {
+        assign(this.defeatText, { x: this.width/2, y: this.height/2 })
+    }
+    drawTo(ctx) {
+        this.notifs.drawTo(ctx)
     }
 }
 

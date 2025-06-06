@@ -26,9 +26,8 @@ export class JoypadScene {
         this.syncLocalPlayerButtons()
     }
 
-    setPos(x, y) {
-        this.x = x
-        this.y = y
+    syncSizeAndPos() {
+        assign(this, this.game.scenesSizeAndPos.joypad)
     }
 
     syncLocalPlayerButtons() {
@@ -62,6 +61,21 @@ export class JoypadScene {
     drawTo(ctx) {
         this.buttons.drawTo(ctx)
     }
+}
+
+
+export class JoypadWaitingScene extends JoypadScene {
+    constructor(game) {
+        super(game)
+        initStartButton()
+    }
+    initStartButton() {
+        const { width, height } = this
+        const size = height*.45
+        this.startButton = this.newButton({ x:width/2, y:height/2, size })
+        this.startButton.onClick = () => this.game.start()
+    }
+    syncLocalPlayerButtons() {}
 }
 
 

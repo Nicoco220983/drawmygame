@@ -9,7 +9,7 @@ import express from "express"
 import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
-import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH } from './static/game.mjs'
+import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH, GAME_STEP_WAITING } from './static/game.mjs'
 import lib from './static/lib.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
@@ -180,6 +180,9 @@ class GameServer {
     if(!client || client.closed) { closeWs(ws); return }
     const { game } = client.room
     if(data == "restart" && game) game.restart()
+    else if(data == "start" && game) game.start()
+    else if(data == "pause" && game) game.pause(true)
+    else if(data == "unpause" && game) game.pause(false)
     if(game) game.getAndSendFullState()
   }
 

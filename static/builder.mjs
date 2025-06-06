@@ -18,8 +18,8 @@ export class GameBuilder extends GameCommon {
     }
 
     initGameScene() {
-        this.gameScene = new BuilderScene(this)
-        this.gameScene.loadMap(this.map)
+        this.scenes.game = new BuilderScene(this)
+        this.scenes.game.loadMap(this.map)
         this.syncSize()
     }
 
@@ -48,15 +48,15 @@ export class GameBuilder extends GameCommon {
         this.modeKey = modeKey
         if(mode == "move") this.canvas.style.cursor = "move"
         else this.canvas.style.cursor = "cell"
-        this.gameScene.syncMode()
+        this.scenes.game.syncMode()
     }
 
     syncMap() {
-        this.gameScene.syncMap()
+        this.scenes.game.syncMap()
     }
 
     clearSelection() {
-        this.gameScene.selections.length = 0
+        this.scenes.game.selections.length = 0
         this.selectionMenu.clear()
     }
 }
@@ -69,8 +69,8 @@ class BuilderScene extends SceneCommon {
         this.selections = []
     }
 
-    setPosAndSize(x, y, width, height) {
-        super.setPosAndSize(x, y, width, height)
+    syncSizeAndPos() {
+        super.syncSizeAndPos()
         this.syncGrid()
     }
 
@@ -101,12 +101,15 @@ class BuilderScene extends SceneCommon {
     }
 
     syncGrid() {
-        this.grid ||= new Entity(this)
+        if(!this.map) return
         const { width, height } = this.map
-        this.grid.x = width / 2
-        this.grid.y = height / 2
-        this.grid.width = width
-        this.grid.height = height
+        let { grid } = this
+        if(grid && grid.width == width && grid.height == height) return
+        grid = this.grid ||= new Entity(this)
+        grid.x = width / 2
+        grid.y = height / 2
+        grid.width = width
+        grid.height = height
         const can = newCanvas(width, height)
         const ctx = can.getContext("2d")
         ctx.strokeStyle = "lightgrey"
@@ -119,7 +122,7 @@ class BuilderScene extends SceneCommon {
         const boxSize = 20, nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
         for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
         for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
-        this.grid.sprite = new Sprite(can)
+        grid.sprite = new Sprite(can)
     }
 
     syncMode() {
@@ -385,7 +388,7 @@ class SelectionMenu {
         return input
     }
     updateState(key, val) {
-        for(let sel of this.game.gameScene.selections) {
+        for(let sel of this.game.scenes.game.selections) {
             sel[key] = val
         }
     }
