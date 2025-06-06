@@ -9,14 +9,14 @@ const DEFAULT_GRAVITY_MAX_SPEED = 1000
 const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}, colWalls = new Set()
 
 export default class PhysicsEngine {
-    constructor(game, kwargs) {
-        this.game = game
+    constructor(scn, kwargs) {
+        this.scene = scn
         this.gravityAcc = kwargs && kwargs.gravityAcc || DEFAULT_GRAVITY_ACC
         this.gravityMaxSpeed = kwargs && kwargs.gravityMaxSpeed || DEFAULT_GRAVITY_MAX_SPEED
         this.syncMap()
     }
     syncMap() {
-        this.game.map.walls.forEach(wall => this.initWall(wall))
+        this.scene.map.walls.forEach(wall => this.initWall(wall))
     }
     initWall(wall) {
         const data = wall._physicsData ||= {}
@@ -92,7 +92,7 @@ export default class PhysicsEngine {
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
     }
     apply(dt, entities) {
-        const { walls } = this.game.map
+        const { walls } = this.scene.map
         entities.forEach(ent => {
             const physicsProps = ent.getPhysicsProps()
             if(!physicsProps) return

@@ -116,16 +116,18 @@ function initInputEls() {
     for(let key in lib.scenes) {
         sceneEl.appendChild(newDomEl("option", { value: key, text: key }))
     }
-    sceneEl.value = map.scenes["0"].key
-    mapWidthEl.value = map.width
-    mapHeightEl.value = map.height
+    const scnMap = map.scenes["0"]
+    sceneEl.value = scnMap.key
+    mapWidthEl.value = scnMap.width
+    mapHeightEl.value = scnMap.height
 }
 function updScene() {
-    map.scenes["0"] = { key: sceneEl.value }
+    map.scenes["0"].key = sceneEl.value
 }
 function updSize() {
-    map.width = parseInt(mapWidthEl.value)
-    map.height = parseInt(mapHeightEl.value)
+    const scnMap = map.scenes["0"]
+    scnMap.width = parseInt(mapWidthEl.value)
+    scnMap.height = parseInt(mapHeightEl.value)
     if(mode == "builder") gameBuilder.syncSize()
 }
 sceneEl.onchange = updScene

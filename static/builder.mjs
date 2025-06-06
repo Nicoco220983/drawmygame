@@ -76,6 +76,7 @@ class BuilderScene extends SceneCommon {
 
     initHeros() {
         const mapHeros = this.map.heros
+        if(!mapHeros) return
         for(let heroDef of mapHeros) {
             const { key, x, y } = heroDef
             this.newEntity(key, { x, y })
@@ -83,14 +84,18 @@ class BuilderScene extends SceneCommon {
     }
 
     initEntities() {
-        this.map.entities.forEach(entState => {
+        const mapEnts = this.map.entities
+        if(!mapEnts) return
+        mapEnts.forEach(entState => {
             const ent = this.newEntity(entState.key)
             ent.setInitState(entState)
         })
     }
 
     initEvents() {
-        this.map.events.forEach(evt => {
+        const mapEvts = this.map.events
+        if(!mapEvts) return
+        mapEvts.forEach(evt => {
             const { key: evtKey } = evt
             if(evtKey == "ent") {
                 const ent = this.newEntity(evt.state.key)
@@ -102,7 +107,7 @@ class BuilderScene extends SceneCommon {
 
     syncGrid() {
         if(!this.map) return
-        const { width, height } = this.map
+        const { width, height } = this.map.scenes["0"]
         let { grid } = this
         if(grid && grid.width == width && grid.height == height) return
         grid = this.grid ||= new Entity(this)
@@ -281,26 +286,31 @@ class BuilderScene extends SceneCommon {
         if(this.draftEntity) this.draftEntity.remove()
         this.draftEntity = null
         const { map } = this.game
-        map.walls.length = 0
+        const mapScn = map.scenes["0"]
+        const mapScnWalls = mapScn.walls ||= []
+        mapScnWalls.length = 0
         this.walls.forEach(wall => {
             if(wall.removed) return
             const { x1, y1, x2, y2, key } = wall
-            map.walls.push({ x1, y1, x2, y2, key })
+            mapScnWalls.push({ x1, y1, x2, y2, key })
         })
-        map.heros.length = 0
-        map.entities.length = 0
-        map.events.length = 0
+        const mapScnHeros = mapScn.heros ||= []
+        mapScnHeros.length = 0
+        const mapScnEnts = mapScn.entities ||= []
+        mapScnEnts.length = 0
+        const mapScnEvts = mapScn.events ||= []
+        mapScnEvts.length = 0
         this.entities.forEach(ent => {
             if(ent.removed) return
             const state = ent.getInitState()
-            if(ent instanceof Hero) map.heros.push(state)
+            if(ent instanceof Hero) mapScnHeros.push(state)
             else {
                 if(ent.builderTrigger) {
                     const evt = new SpawnEntityEvent(this, ent.builderTrigger)
                     evt.entState = state
-                    map.events.push(evt.getInitState())
+                    mapScnEvts.push(evt.getInitState())
                 } else {
-                    map.entities.push(state)
+                    mapScnEnts.push(state)
                 }
             }
         })

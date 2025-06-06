@@ -34,24 +34,29 @@ const RESEND_INPUT_STATE_PERIOD = .5
 
 export class GameMap {
     constructor() {
-        this.width = MAP_DEFAULT_WIDTH
-        this.height = MAP_DEFAULT_HEIGHT
-        this.scenes = { "0": { key: "catch_all_stars" } }
-        this.walls = []
-        this.heros = []
-        this.entities = []
-        this.events = []
+        this.scenes = { "0": {
+            key: "catch_all_stars",
+            width: MAP_DEFAULT_WIDTH,
+            height: MAP_DEFAULT_HEIGHT,
+        }}
     }
 
     async exportAsBinary() {
+        const outScns = {}
+        for(let scnId in this.scenes) {
+            const scnState = this.scenes[scnId]
+            outScns[scnId] = {
+                key: scnState.key,
+                w: scnState.width,
+                h: scnState.height,
+                ws: scnState.walls,
+                hs: scnState.heros,
+                ents: scnState.entities,
+                evts: scnState.events,
+            }
+        }
         const outObj = {
-            w: this.width,
-            h: this.height,
-            ss: this.scenes,
-            ws: this.walls,
-            hs: this.heros,
-            ents: this.entities,
-            evts: this.events,
+            ss: outScns,
         }
         const outStr = JSON.stringify(outObj)
         const outBin = await compress(outStr)
@@ -70,13 +75,18 @@ export class GameMap {
     async importFromBinary(inBin) {
         const inStr = await decompress(inBin)
         const inObj = JSON.parse(inStr)
-        this.width = inObj.w
-        this.height = inObj.h
-        this.scenes = inObj.ss
-        this.walls = inObj.ws
-        this.heros = inObj.hs
-        this.entities = inObj.ents
-        this.events = inObj.evts
+        const scns = this.scenes = {}
+        for(let scnId in inObj.ss) {
+            const inScn = inObj.ss[scnId]
+            const scn = scns[scnId] = {}
+            scn.key = inScn.key
+            scn.width = inScn.w
+            scn.height = inScn.h
+            scn.walls = inScn.ws
+            scn.heros = inScn.hs
+            scn.entities = inScn.ents
+            scn.events = inScn.evts
+        }
     }
 }
 
@@ -1030,14 +1040,15 @@ export class GameCommon {
     }
 
     syncSize() {
-        const width = min(this.map.width, CANVAS_MAX_WIDTH)
+        const scnMap = this.map.scenes["0"]
+        const width = min(scnMap.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
         const { game: gameScn, joypad: joypadScn } = this.scenes 
         const { game: gameSP, joypad: joypadSP } = this.scenesSizeAndPos
         gameSP.x = 0
         gameSP.y = 0
         gameSP.width = width
-        gameSP.height = min(this.map.height, CANVAS_MAX_HEIGHT)
+        gameSP.height = min(scnMap.height, CANVAS_MAX_HEIGHT)
         joypadSP.x = 0
         joypadSP.y = gameScn.visible ? gameSP.height : 0
         joypadSP.width = width
@@ -1158,8 +1169,9 @@ export class SceneCommon {
     }
 
     initWalls() {
-        const { walls } = this.map
-        walls.forEach(w => {
+        const mapWalls = this.map.walls
+        if(!mapWalls) return
+        mapWalls.forEach(w => {
             const { x1, y1, x2, y2, key } = w
             this.newWall({ x1, y1, x2, y2, key })
         })
@@ -1285,7 +1297,6 @@ export class Game extends GameCommon {
         if(this.isDebugMode) this.showDebugScene()
 
         this.audio = new AudioEngine(this)
-        this.physics = new PhysicsEngine(this)
         //this.graphics = new GraphicsEngine(this)
     }
 
@@ -1330,9 +1341,10 @@ export class Game extends GameCommon {
 
     initGameScene(scnId, visible=true) {
         if(scnId === undefined) scnId = max(0, this.iteration)
-        const cls = this.lib.scenes[this.map.scenes["0"].key]
+        const scnMap = this.map.scenes["0"]
+        const cls = this.lib.scenes[scnMap.key]
         const scn = this.scenes.game = new cls(this, scnId)
-        scn.loadMap(this.map)
+        scn.loadMap(scnMap)
         this.showGameScene(visible, true)
     }
 
@@ -1440,12 +1452,12 @@ export class Game extends GameCommon {
 
     addPlayer(playerId, kwargs) {
         if(this.players[playerId] === undefined) {
-            const player = kwargs
-            if(!player.hero) {
-                const defaultHero = this.map.heros[0]
-                if(defaultHero) player.hero = defaultHero
-            }
-            this.players[playerId] = player
+            // const player = kwargs
+            // if(!player.hero) {
+            //     const defaultHero = this.map.heros[0]
+            //     if(defaultHero) player.hero = defaultHero
+            // }
+            this.players[playerId] = kwargs
         }
         this.scenes.game.newHero(playerId)
         if(this.scenes.joypad && playerId === this.localPlayerId) this.scenes.joypad.syncLocalPlayerButtons()
@@ -1654,6 +1666,11 @@ export class GameScene extends SceneCommon {
         this.scores = {}
     }
 
+    loadMap(map) {
+        super.loadMap(map)
+        this.physics = new PhysicsEngine(this)
+    }
+
     initHeros() {
         this.initHerosSpawnPos()
         if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
@@ -1661,15 +1678,19 @@ export class GameScene extends SceneCommon {
     }
 
     initEntities() {
-        this.map.entities.forEach(entState => {
+        const mapEnts = this.map.entities
+        if(!mapEnts) return
+        mapEnts.forEach(entState => {
             const ent = this.newEntity(entState.key)
             ent.setInitState(entState)
         })
     }
 
     initEvents() {
+        const mapEvts = this.map.events
+        if(!mapEvts) return
         this.events = []
-        this.map.events.forEach(evtState => {
+        mapEvts.forEach(evtState => {
             let evt = new Events[evtState.key](this, evtState)
             this.events.push(evt)
         })
@@ -1679,7 +1700,7 @@ export class GameScene extends SceneCommon {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
-        const { hero: heroDef } = player
+        const heroDef = this.map.heros && this.map.heros[0]
         if(!heroDef) return
         const { key } = heroDef
         const hero = this.newEntity(key, { playerId })
@@ -1737,8 +1758,8 @@ export class GameScene extends SceneCommon {
     }
 
     updateStepGame() {
-        const { entities, events } = this
-        const { physics, dt } = this.game
+        const { entities, events, physics } = this
+        const { dt } = this.game
         events.forEach(evt => evt.update())
         physics.apply(dt, entities)
         entities.update()
