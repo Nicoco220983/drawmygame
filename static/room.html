@@ -239,6 +239,7 @@ try {
             mode: MODE_CLIENT,
             sendPing: () => ws.send(MSG_KEYS.PING),
             sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
+            sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
             debug: isDebugMode,
         })
         syncGameShow()

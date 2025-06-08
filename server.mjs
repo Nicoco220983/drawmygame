@@ -179,8 +179,8 @@ class GameServer {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
     const { game } = client.room
-    if(data == "restart" && game) game.restart()
-    else if(data == "start" && game) game.start()
+    if(data == "restart" && game) game.restartGame()
+    else if(data == "start" && game) game.startGame()
     else if(data == "pause" && game) game.pause(true)
     else if(data == "unpause" && game) game.pause(false)
     if(game) game.getAndSendFullState()

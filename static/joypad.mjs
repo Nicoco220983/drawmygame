@@ -15,6 +15,7 @@ export class JoypadScene {
         this.y = 0
         this.width = 800
         this.height = floor(this.width * 9 / 16)
+        this.visible = true
         // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
@@ -26,12 +27,16 @@ export class JoypadScene {
         this.syncLocalPlayerButtons()
     }
 
+    getPriority() {
+        return 0
+    }
+
     syncSizeAndPos() {
         assign(this, this.game.scenesSizeAndPos.joypad)
     }
 
     syncLocalPlayerButtons() {
-        const hero = this.game.gameScene.getHero(this.game.localPlayerId)
+        const hero = this.game.scenes.game.getHero(this.game.localPlayerId)
         if(hero && hero == this._lastHeroSynced) return
         this.buttons.clear()
         if(!hero) return
@@ -52,9 +57,12 @@ export class JoypadScene {
     }
 
     draw() {
-        const ctx = this.canvas.getContext("2d")
+        const { width, height, canvas } = this
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
         ctx.fillStyle = "black"
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+        ctx.fillRect(0, 0, width, height)
         this.drawTo(ctx)
     }
 

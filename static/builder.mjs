@@ -19,7 +19,8 @@ export class GameBuilder extends GameCommon {
 
     initGameScene() {
         this.scenes.game = new BuilderScene(this)
-        this.scenes.game.loadMap(this.map)
+        const scnMap = this.map.scenes["0"]
+        this.scenes.game.loadMap(scnMap)
         this.syncSize()
     }
 
@@ -107,7 +108,7 @@ class BuilderScene extends SceneCommon {
 
     syncGrid() {
         if(!this.map) return
-        const { width, height } = this.map.scenes["0"]
+        const { width, height } = this.map
         let { grid } = this
         if(grid && grid.width == width && grid.height == height) return
         grid = this.grid ||= new Entity(this)

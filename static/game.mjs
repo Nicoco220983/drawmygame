@@ -969,7 +969,6 @@ export class GameCommon {
         }
         this.scenes = {}
         this.initGameScene()
-        this.syncSize()
     }
 
     // pure abstract
@@ -1033,9 +1032,9 @@ export class GameCommon {
     draw() {
         const scns = Object.values(this.scenes)
         scns.sort((a, b) => (b.getPriority() - a.getPriority()))
-        for(let scn of scns) if(scn.visible) scn.draw()
+        for(let scn of scns) if(scn && scn.visible) scn.draw()
         const ctx = this.canvas.getContext("2d")
-        for(let scn of scns) if(scn.visible) ctx.drawImage(scn.canvas, scn.x, scn.y)
+        for(let scn of scns) if(scn && scn.visible) ctx.drawImage(scn.canvas, scn.x, scn.y)
         return ctx
     }
 
@@ -1053,7 +1052,10 @@ export class GameCommon {
         joypadSP.y = gameScn.visible ? gameSP.height : 0
         joypadSP.width = width
         joypadSP.height = height169
-        for(let scnId in this.scenes) this.scenes[scnId].syncSizeAndPos()
+        for(let scnId in this.scenes) {
+            const scn = this.scenes[scnId]
+            if(scn) scn.syncSizeAndPos()
+        }
         const height = max(height169, (gameScn.visible ? gameSP.height : 0) + (joypadScn ? joypadSP.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
@@ -1236,6 +1238,7 @@ export class SceneCommon {
     }
 }
 
+
 export class Wall extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -1270,8 +1273,7 @@ export class Game extends GameCommon {
     constructor(parentEl, lib, map, playerId, kwargs) {
         super(parentEl, lib, map, kwargs)
 
-        this.step = kwargs && kwargs.step
-        if(this.step === undefined) this.step = GAME_STEP_GAMING
+        this.step = null
 
         this.PauseSceneClass = PauseScene
         this.WaitingSceneClass = WaitingScene
@@ -1284,6 +1286,7 @@ export class Game extends GameCommon {
         this.lag = 0
         this.sendPing = (kwargs && kwargs.sendPing) || null
         this.sendStates = (kwargs && kwargs.sendStates) || null
+        this.sendGameInstruction = (kwargs && kwargs.sendGameInstruction) || null
         this.onLog = (kwargs && kwargs.onLog) || null
 
         this.inputStates = []
@@ -1339,20 +1342,20 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
-    initGameScene(scnId, visible=true) {
+    initGameScene(scnId) {
         if(scnId === undefined) scnId = max(0, this.iteration)
         const scnMap = this.map.scenes["0"]
         const cls = this.lib.scenes[scnMap.key]
         const scn = this.scenes.game = new cls(this, scnId)
         scn.loadMap(scnMap)
-        this.showGameScene(visible, true)
+        this.syncSize()
     }
 
-    showGameScene(visible, force=false) {
+    showGameScene(visible) {
         const scn = this.scenes.game
-        if(!force && visible == scn.visible) return
+        if(!scn) return
         scn.visible = visible
-        //this.syncSize()
+        this.syncSize()
     }
 
     showDebugScene() {
@@ -1440,13 +1443,24 @@ export class Game extends GameCommon {
         }
     }
 
-    start() {
-        if(this.mode == MODE_CLIENT) this.ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
-        else if(this.step == GAME_STEP_WAITING) this.step = GAME_STEP_GAMING
+    startWaiting() {
+        if(this.scenes.game) return
+        const gameScn = this.scenes.game = new this.WaitingSceneClass(this)
+        gameScn.id = SCENE_WAITING_ID
     }
 
-    restart(scnId) {
-        this.initGameScene(scnId, this.scenes.game.visible)
+    startGame() {
+        if(this.mode == MODE_CLIENT) this.sendGameInstruction("start")
+        const gameScn = this.scenes.game
+        if(gameScn && gameScn.id != SCENE_WAITING_ID) return
+        this.initGameScene()
+    }
+
+    restartGame(scnId) {
+        if(this.mode == MODE_CLIENT) this.sendGameInstruction("restart")
+        const gameScn = this.scenes.game
+        if(!gameScn && gameScn.id == SCENE_WAITING_ID) return
+        this.initGameScene(scnId)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
 
@@ -1554,7 +1568,7 @@ export class Game extends GameCommon {
         if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
         if(state.game) {
             if(isFull && state.game.id != this.scenes.game.id)
-                this.restart(state.game.id)
+                this.initGameScene(state.game.id)
             this.scenes.game.setState(state.game, isFull)
         }
     }
@@ -1651,9 +1665,9 @@ export class Game extends GameCommon {
             const { JoypadScene } = joypadMod
             this.scenes.joypad = new JoypadScene(this)
         } else {
-            this.scenes.joypad = null
+            delete this.scenes.joypad
         }
-        // this.syncSize()
+        this.syncSize()
     }
 }
 
