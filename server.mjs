@@ -195,6 +195,7 @@ class GameServer {
       sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
       debug: IS_DEBUG_MODE,
     })
+    room.game.initGameScene()
     room.game.play()
   }
 

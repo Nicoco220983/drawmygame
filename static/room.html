@@ -242,6 +242,7 @@ try {
             sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
             debug: isDebugMode,
         })
+        game.initGameScene()
         syncGameShow()
         game.play()
     }

@@ -13,11 +13,12 @@ export class GameBuilder extends GameCommon {
         super(canvasParentEl, lib, map, kwargs)
         this.menuEl = menuEl
         this.selectionMenu = new SelectionMenu(this)
+        this.initBuilderScene()
         this.setMode("move")
         this.initTouches()
     }
 
-    initGameScene() {
+    initBuilderScene() {
         this.scenes.game = new BuilderScene(this)
         const scnMap = this.map.scenes["0"]
         this.scenes.game.loadMap(scnMap)
@@ -49,7 +50,8 @@ export class GameBuilder extends GameCommon {
         this.modeKey = modeKey
         if(mode == "move") this.canvas.style.cursor = "move"
         else this.canvas.style.cursor = "cell"
-        this.scenes.game.syncMode()
+        const gameScn = this.scenes.game
+        gameScn.syncMode()
     }
 
     syncMap() {

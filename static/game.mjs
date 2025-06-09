@@ -968,7 +968,12 @@ export class GameCommon {
             joypad: { x:0, y:0, width:0, height:0 },
         }
         this.scenes = {}
-        this.initGameScene()
+        this.initDefaultScene()
+        this.syncSize()
+    }
+
+    initDefaultScene() {
+        this.scenes.game = new DefaultScene(this)
     }
 
     // pure abstract
@@ -1032,9 +1037,9 @@ export class GameCommon {
     draw() {
         const scns = Object.values(this.scenes)
         scns.sort((a, b) => (b.getPriority() - a.getPriority()))
-        for(let scn of scns) if(scn && scn.visible) scn.draw()
+        for(let scn of scns) if(scn.visible) scn.draw()
         const ctx = this.canvas.getContext("2d")
-        for(let scn of scns) if(scn && scn.visible) ctx.drawImage(scn.canvas, scn.x, scn.y)
+        for(let scn of scns) if(scn.visible) ctx.drawImage(scn.canvas, scn.x, scn.y)
         return ctx
     }
 
@@ -1209,7 +1214,7 @@ export class SceneCommon {
         can.height = this.height
         const ctx = can.getContext("2d")
         ctx.reset()
-        const backgroundCanvas = this.initBackGround()
+        const backgroundCanvas = this.initBackground()
         if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
         this.drawTo(ctx)
     }
@@ -1221,18 +1226,24 @@ export class SceneCommon {
         ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
-    initBackGround() {
+    initBackground() {
         if(this.game.isServerEnv) return
         let { width, height, backgroundCanvas: can } = this
         if(!can || can.width != width || can.height != height) {
-            can = this.backgroundCanvas = document.createElement("canvas")
-            assign(can, { width, height })
-            const ctx = can.getContext("2d")
-            if(this.backgroundColor) {
-                ctx.fillStyle = this.backgroundColor
-                ctx.globalAlpha = this.backgroundAlpha
-                ctx.fillRect(0, 0, width, height)
-            }
+            can = this.backgroundCanvas = this.buildBackground()
+        }
+        return can
+    }
+
+    buildBackground() {
+        const { width, height } = this
+        const can = document.createElement("canvas")
+        assign(can, { width, height })
+        const ctx = can.getContext("2d")
+        if(this.backgroundColor) {
+            ctx.fillStyle = this.backgroundColor
+            ctx.globalAlpha = this.backgroundAlpha
+            ctx.fillRect(0, 0, width, height)
         }
         return can
     }
@@ -1267,6 +1278,9 @@ export const GAME_STEP_WAITING = 0
 export const GAME_STEP_GAMING = 1
 export const GAME_STEP_DEFEAT = 2
 export const GAME_STEP_VICTORY = 3
+
+export const SCENE_DEFAULT_ID = "D"
+export const SCENE_WAITING_ID = "W"
 
 export class Game extends GameCommon {
 
@@ -1348,7 +1362,6 @@ export class Game extends GameCommon {
         const cls = this.lib.scenes[scnMap.key]
         const scn = this.scenes.game = new cls(this, scnId)
         scn.loadMap(scnMap)
-        this.syncSize()
     }
 
     showGameScene(visible) {
@@ -1452,14 +1465,14 @@ export class Game extends GameCommon {
     startGame() {
         if(this.mode == MODE_CLIENT) this.sendGameInstruction("start")
         const gameScn = this.scenes.game
-        if(gameScn && gameScn.id != SCENE_WAITING_ID) return
+        if(gameScn.id != SCENE_DEFAULT_ID && gameScn.id != SCENE_WAITING_ID) return
         this.initGameScene()
     }
 
     restartGame(scnId) {
         if(this.mode == MODE_CLIENT) this.sendGameInstruction("restart")
         const gameScn = this.scenes.game
-        if(!gameScn && gameScn.id == SCENE_WAITING_ID) return
+        if(gameScn.id == SCENE_DEFAULT_ID || gameScn.id == SCENE_WAITING_ID) return
         this.initGameScene(scnId)
         this.lastSendStateTime = -SEND_STATE_PERIOD
     }
@@ -1473,7 +1486,8 @@ export class Game extends GameCommon {
             // }
             this.players[playerId] = kwargs
         }
-        this.scenes.game.newHero(playerId)
+        const gameScn = this.scenes.game
+        if(gameScn.newHero) gameScn.newHero(playerId)
         if(this.scenes.joypad && playerId === this.localPlayerId) this.scenes.joypad.syncLocalPlayerButtons()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()  // TODO: make it partial ?
     }
@@ -1670,6 +1684,26 @@ export class Game extends GameCommon {
         this.syncSize()
     }
 }
+
+
+export class DefaultScene extends SceneCommon {
+    constructor(game) {
+        super(game)
+        this.id = SCENE_DEFAULT_ID
+    }
+    buildBackground() {
+        const { width, height } = this
+        const can = document.createElement("canvas")
+        assign(can, { width, height })
+        const ctx = can.getContext("2d")
+        ctx.fillStyle = "black"
+        ctx.fillRect(0, 0, width, height)
+        const text = newTextCanvas("DRAWMYGAME", { fillStyle: "white" })
+        ctx.drawImage(text, floor((width-text.width)/2), floor((height-text.height)/2))
+        return can
+    }
+}
+
 
 export class GameScene extends SceneCommon {
     constructor(game, scnId) {
@@ -3185,6 +3219,7 @@ class PauseScene extends SceneCommon {
 class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
+        this.id = SCENE_WAITING_ID
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
         this.notifs = new EntityGroup(this)
