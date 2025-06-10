@@ -190,13 +190,13 @@ class GameServer {
     const map = new GameMap()
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
-    room.game = new Game(null, lib, map, null, {
+    const game = room.game = new Game(null, lib, map, null, {
       mode: MODE_SERVER,
       sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
       debug: IS_DEBUG_MODE,
     })
-    room.game.initGameScene()
-    room.game.play()
+    game.startWaiting()
+    game.run()
   }
 
   handlePing(ws) {

@@ -221,7 +221,7 @@ function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, lib, map)
-    gameBuilder.play()
+    gameBuilder.run()
     mode = "builder"
     builderParentEl.style.display = ""
 }
@@ -246,7 +246,7 @@ function startAndShowGame() {
             name: null,
             color: "blue",
         })
-        game.play()
+        game.run()
     } else {
         game.restart()
     }

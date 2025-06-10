@@ -797,6 +797,8 @@ class Text extends Entity {
 
     updateText(text) {
         if(this.game.isServerEnv) return
+        if(this.text == text) return
+        this.text = text
         const canvas = newTextCanvas(text, this.textArgs)
         this.width = canvas.width
         this.height = canvas.height
@@ -968,12 +970,8 @@ export class GameCommon {
             joypad: { x:0, y:0, width:0, height:0 },
         }
         this.scenes = {}
-        this.initDefaultScene()
-        this.syncSize()
-    }
-
-    initDefaultScene() {
         this.scenes.game = new DefaultScene(this)
+        this.syncSize()
     }
 
     // pure abstract
@@ -1247,6 +1245,14 @@ export class SceneCommon {
         }
         return can
     }
+
+    getState() {
+        const state = {}
+        state.id = this.id
+        return state
+    }
+
+    setState(state) {}
 }
 
 
@@ -1332,7 +1338,7 @@ export class Game extends GameCommon {
         }
     }
 
-    play() {
+    run() {
         if(this.gameLoop) return
         this.startTime = now()
         this.gameLoop = setInterval(() => this.updateGameLoop(), 1000 * this.dt)
@@ -1356,19 +1362,19 @@ export class Game extends GameCommon {
         this.gameLoop = null
     }
 
+    showGameScene(visible) {
+        const scn = this.scenes.game
+        if(!scn) return
+        scn.visible = visible
+        this.syncSize()
+    }
+
     initGameScene(scnId) {
         if(scnId === undefined) scnId = max(0, this.iteration)
         const scnMap = this.map.scenes["0"]
         const cls = this.lib.scenes[scnMap.key]
         const scn = this.scenes.game = new cls(this, scnId)
         scn.loadMap(scnMap)
-    }
-
-    showGameScene(visible) {
-        const scn = this.scenes.game
-        if(!scn) return
-        scn.visible = visible
-        this.syncSize()
     }
 
     showDebugScene() {
@@ -1378,34 +1384,20 @@ export class Game extends GameCommon {
 
     syncSize() {
         super.syncSize()
-        if(this.debugScene) his.debugScene.syncPosAndSize()
+        if(this.debugScene) this.debugScene.syncSizeAndPos()
     }
 
     update() {
         if(!this.paused) {
             if(this.mode == MODE_LOCAL) this.updateGame()
             else this.updateGameApplyingReceivedStates()
+            delete this.scenes.pause
+        } else {
+            const pauseScn = this.scenes.pause ||= new PauseScene(this)
+            pauseScn.update()
         }
         if(this.scenes.joypad) this.scenes.joypad.update()
-        // if(this.step == STEP_WAITING) this.waitingScene ||= this.newWaitingScene()
-        // else this.waitingScene = null
-        // if(this.waitingScene) this.waitingScene.update()
-        // if(this.step == STEP_ENDING) this.endingScene ||= this.newEndingScene()
-        // else this.endingScene = null
-        // if(this.endingScene) this.endingScene.update()
-        this.mayInitAndUpdateScene("pause", this.paused, this.PauseSceneClass)
-        this.mayInitAndUpdateScene("waiting", this.step == GAME_STEP_WAITING, this.WaitingSceneClass)
-        this.mayInitAndUpdateScene("victory", this.step == GAME_STEP_VICTORY, this.VictorySceneClass)
-        this.mayInitAndUpdateScene("defeat", this.step == GAME_STEP_DEFEAT, this.DefeatSceneClass)
         if(this.debugScene) this.debugScene.update()
-    }
-
-    mayInitAndUpdateScene(scnId, cond, constructor) {
-        if(cond) {
-            const scn = this.scenes[scnId] ||= new constructor(this)
-            //this.syncSize()
-            scn.update()
-        } else delete this.scenes[scnId]
     }
 
     updateGame() {
@@ -1457,45 +1449,41 @@ export class Game extends GameCommon {
     }
 
     startWaiting() {
-        if(this.scenes.game) return
-        const gameScn = this.scenes.game = new this.WaitingSceneClass(this)
-        gameScn.id = SCENE_WAITING_ID
+        const gameScn = this.scenes.game
+        if(gameScn.id != SCENE_DEFAULT_ID) return
+        this.scenes.game = new this.WaitingSceneClass(this)
     }
 
     startGame() {
-        if(this.mode == MODE_CLIENT) this.sendGameInstruction("start")
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction("start")
         const gameScn = this.scenes.game
         if(gameScn.id != SCENE_DEFAULT_ID && gameScn.id != SCENE_WAITING_ID) return
         this.initGameScene()
+        if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
     restartGame(scnId) {
-        if(this.mode == MODE_CLIENT) this.sendGameInstruction("restart")
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction("restart")
         const gameScn = this.scenes.game
         if(gameScn.id == SCENE_DEFAULT_ID || gameScn.id == SCENE_WAITING_ID) return
         this.initGameScene(scnId)
-        this.lastSendStateTime = -SEND_STATE_PERIOD
+        if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
     addPlayer(playerId, kwargs) {
         if(this.players[playerId] === undefined) {
-            // const player = kwargs
-            // if(!player.hero) {
-            //     const defaultHero = this.map.heros[0]
-            //     if(defaultHero) player.hero = defaultHero
-            // }
             this.players[playerId] = kwargs
         }
         const gameScn = this.scenes.game
         if(gameScn.newHero) gameScn.newHero(playerId)
-        if(this.scenes.joypad && playerId === this.localPlayerId) this.scenes.joypad.syncLocalPlayerButtons()
-        if(this.mode == MODE_SERVER) this.getAndSendFullState()  // TODO: make it partial ?
+        if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
     rmPlayer(playerId) {
         const player = this.players[playerId]
         if(!player) return
-        this.scenes.game.rmHero(playerId)
+        const gameScn = this.scenes.game
+        if(gameScn.rmHero) gameScn.rmHero(playerId)
         delete this.players[playerId]
     }
 
@@ -1562,29 +1550,27 @@ export class Game extends GameCommon {
         this.waitingPing = false
     }
 
-    getState(isFull) {
-        this.fullState ||= { t: STATE_TYPE_FULL }
-        this.partialState ||= {}
-        const state = isFull ? this.fullState : this.partialState
+    getState() {
+        const state = { t: STATE_TYPE_FULL }
         state.it = this.iteration
-        if(isFull) {
-            state.step = this.step
-            state.players = this.players
-        }
-        state.game = this.scenes.game.getState(isFull)
-        return (isFull || state.game) ? state : null
+        state.step = this.step
+        state.players = this.players
+        const gameScn = this.scenes.game
+        state.game = gameScn.getState()
+        return state
     }
 
     setState(state) {
-        const isFull = (state.t == STATE_TYPE_FULL)
-        if(isFull) this.iteration = state.it
-        if(state.step !== undefined) this.step = state.step
-        if(state.players) for(let playerId in state.players) this.addPlayer(playerId, state.players[playerId])
-        if(state.game) {
-            if(isFull && state.game.id != this.scenes.game.id)
-                this.initGameScene(state.game.id)
-            this.scenes.game.setState(state.game, isFull)
+        this.iteration = state.it
+        this.step = state.step
+        this.players = state.players
+        const gameState = state.game, gameScn = this.scenes.game
+        if(gameState.id != gameScn.id) {
+            if(gameState.id == SCENE_DEFAULT_ID) this.scenes.game = new DefaultScene(this)
+            if(gameState.id == SCENE_WAITING_ID) this.scenes.game = new WaitingScene(this)
+            else this.initGameScene(gameState.id)
         }
+        gameScn.setState(gameState)
     }
 
     // server only
@@ -1611,7 +1597,7 @@ export class Game extends GameCommon {
     }
 
     getAndSendFullState() {
-        const stateStr = this.getState(true)
+        const stateStr = this.getState()
         this.statesToSend.push(stateStr)
         this._lastSendFullStateTime = this.time
     }
@@ -1963,32 +1949,26 @@ export class GameScene extends SceneCommon {
         this.herosSpawnY = floor(y)
     }
 
-    getState(isFull) {
-        this.fullState ||= {}
-        this.partialState ||= {}
-        const state = isFull ? this.fullState : this.partialState
+    getState() {
+        const state = super.getState()
         state.it = this.iteration
-        if(isFull) {
-            state.id = this.id
-            state.step = this.step
-            state.hsx = this.herosSpawnX
-            state.hsy = this.herosSpawnY
-            state.sco = this.scores
-        }
-        const ent = state.entities = this.entities.getState(isFull)
-        state.events = this.events.map(e => e.getState())
-        return (isFull || ent) ? state : null
+        state.step = this.step
+        state.hsx = this.herosSpawnX
+        state.hsy = this.herosSpawnY
+        state.sco = this.scores
+        state.ents = this.entities.getState()
+        state.evts = this.events.map(e => e.getState())
+        return state
     }
 
-    setState(state, isFull) {
+    setState(state) {
+        super.setState(state)
         this.iteration = state.it
-        if(isFull) {
-            this.step = state.step
-            this.setHerosSpawnPos(state.hsx, state.hsy)
-            this.scores = state.sco
-        }
-        this.entities.setState(state.entities, isFull)
-        for(let i in state.events) this.events[i].setState(state.events[i])
+        this.step = state.step
+        this.setHerosSpawnPos(state.hsx, state.hsy)
+        this.scores = state.sco
+        this.entities.setState(state.ents)
+        for(let i in state.evts) this.events[i].setState(state.events[i])
     }
 }
 
@@ -3220,20 +3200,63 @@ class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.id = SCENE_WAITING_ID
-        this.backgroundColor = "lightgrey"
-        this.backgroundAlpha = .5
+        this.backgroundColor = "black"
         this.notifs = new EntityGroup(this)
-        this.waitingText = this.notifs.new(Text, {
-            text: "WAITING",
+        this.titleTxt = this.notifs.new(Text, {
+            text: "WAITING PLAYERS",
             font: "bold 50px arial",
-            fillStyle: "black",
+            fillStyle: "white",
         })
+        this.playerTxts = []
     }
     getPriority() {
         return -1
     }
     update() {
-        assign(this.waitingText, { x: this.width/2, y: this.height/2 })
+        this.syncPlayerTexts()
+        this.syncTextPositions()
+    }
+    syncPlayerTexts() {
+        const { playerTxts } = this
+        const { players } = this.game
+        for(let playerId in players) {
+            const player = players[playerId]
+            let playerTxt = playerTxts[playerId]
+            // add new players
+            if(playerTxt === undefined) {
+                playerTxt = playerTxts[playerId] = this.notifs.new(Text, {
+                    text: "",
+                    font: "20px arial",
+                    fillStyle: "white",
+                })
+                playerTxt.playerId = playerId
+            }
+            // sync names
+            if(playerTxt === null) continue
+            playerTxt.updateText(player.name)
+        }
+        // rm removed players
+        for(let idx in playerTxts) {
+            const playerTxt = playerTxts[idx]
+            if(!playerTxt) continue
+            if(!players[playerTxt.playerId]) {
+                playerTxt.remove()
+                playerTxts[idx] = null
+            }
+        }
+    }
+    syncTextPositions() {
+        const { playerTxts } = this
+        // title
+        assign(this.titleTxt, { x: this.width/2, y: this.height/6 })
+        // players
+        let numPlayer = 0
+        for(let idx in playerTxts) {
+            const playerTxt = playerTxts[idx]
+            if(!playerTxt) continue
+            assign(playerTxt, { x: this.width/2, y: this.height/3 + (numPlayer * 30) })
+            numPlayer += 1
+        }
     }
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
@@ -3292,7 +3315,7 @@ class DefeatScene extends SceneCommon {
 class DebugScene extends SceneCommon {
     constructor(game) {
         super(game)
-        this.color = null
+        this.backgroundColor = null
         const fontArgs = {
             font: "20px arial",
             fillStyle: "grey"

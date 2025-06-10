@@ -24,7 +24,6 @@ export class JoypadScene {
         }
         this.game.initTouches()
         this.buttons = new EntityGroup(this)
-        this.syncLocalPlayerButtons()
     }
 
     getPriority() {
@@ -49,6 +48,7 @@ export class JoypadScene {
     }
 
     update() {
+        this.syncLocalPlayerButtons()
         this.buttons.update()
     }
 

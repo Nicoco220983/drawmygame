@@ -25,7 +25,7 @@ export class GameBuilder extends GameCommon {
         this.syncSize()
     }
 
-    play() {
+    run() {
         if(this.gameLoop) return
         const beginTime = now()
         this.gameLoop = setInterval(() => {
