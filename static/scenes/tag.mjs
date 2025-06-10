@@ -1,4 +1,5 @@
 import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.mjs'
+const { floor, random } = Math
 
 
 export default class TagScene extends GameScene {
@@ -93,11 +94,12 @@ class Tag extends Entity {
     }
 
     findOwner() {
-        let hero = null
+        let heros = []
         this.scene.entities.forEach(ent => {
-            if(!hero && ent instanceof Hero) hero = ent
+            if(ent instanceof Hero) heros.push(ent)
         })
-        if(!hero) return
+        if(heros.length == 0) return
+        const hero = heros[floor(random()*heros.length)]
         this.setOwner(hero.id)
     }
 
