@@ -1698,6 +1698,7 @@ export class GameScene extends SceneCommon {
         this.step = "GAME"
         this.notifs = new EntityGroup(this)
         this.scores = {}
+        this.seed = floor(random()*1000)
     }
 
     loadMap(map) {
@@ -1958,6 +1959,7 @@ export class GameScene extends SceneCommon {
         state.sco = this.scores
         state.ents = this.entities.getState()
         state.evts = this.events.map(e => e.getState())
+        state.seed = this.seed
         return state
     }
 
@@ -1969,6 +1971,21 @@ export class GameScene extends SceneCommon {
         this.scores = state.sco
         this.entities.setState(state.ents)
         for(let i in state.evts) this.events[i].setState(state.events[i])
+        this.seed = state.seed
+    }
+
+    rand(key) {
+        let seed = 0
+        for(let i=0; i<key.length; ++i) {
+            seed = ((seed << 5) - seed) + key.charCodeAt(i)
+        }
+        seed = (seed + this.iteration + this.seed) & 0x7FFFFFFF
+        if(seed === 0) seed = 1
+        const a = 1103515245
+        const c = 12345
+        const m = 2147483647
+        seed = (a * seed + c) % m
+        return seed / m
     }
 }
 

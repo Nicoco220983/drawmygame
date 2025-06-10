@@ -1,5 +1,5 @@
 import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.mjs'
-const { floor, random } = Math
+const { floor } = Math
 
 
 export default class TagScene extends GameScene {
@@ -99,7 +99,8 @@ class Tag extends Entity {
             if(ent instanceof Hero) heros.push(ent)
         })
         if(heros.length == 0) return
-        const hero = heros[floor(random()*heros.length)]
+        const numHero = floor(this.scene.rand("tag")*heros.length)
+        const hero = heros[numHero]
         this.setOwner(hero.id)
     }
 
