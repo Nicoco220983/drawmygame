@@ -3196,6 +3196,38 @@ class PauseScene extends SceneCommon {
 }
 
 
+class PlayerText extends Entity {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.player = kwargs.player
+    }
+    getSprite() {
+        const sprite = this.sprite ||= this.buildSprite()
+        return sprite
+    }
+    buildSprite() {
+        const { player } = this
+        const text = newTextCanvas(player.name, {
+            font: "30px arial",
+            fillStyle: "white",
+        })
+        const can = document.createElement("canvas")
+        this.width = can.width = text.width + 40
+        this.height = can.height = 35
+        const ctx = can.getContext("2d")
+        ctx.beginPath()
+        ctx.arc(floor(can.height/2), floor(can.height/2), 15, 0, 2 * PI)
+        ctx.strokeStyle = "white"
+        ctx.lineWidth = 3
+        ctx.stroke()
+        ctx.fillStyle = player.color
+        ctx.fill()
+        ctx.drawImage(text, 40, floor((can.height-text.height)/2))
+        return new Sprite(can)
+    }
+}
+
+
 class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
@@ -3224,16 +3256,9 @@ class WaitingScene extends SceneCommon {
             let playerTxt = playerTxts[playerId]
             // add new players
             if(playerTxt === undefined) {
-                playerTxt = playerTxts[playerId] = this.notifs.new(Text, {
-                    text: "",
-                    font: "20px arial",
-                    fillStyle: "white",
-                })
+                playerTxt = playerTxts[playerId] = this.notifs.new(PlayerText, { player })
                 playerTxt.playerId = playerId
             }
-            // sync names
-            if(playerTxt === null) continue
-            playerTxt.updateText(player.name)
         }
         // rm removed players
         for(let idx in playerTxts) {
@@ -3254,7 +3279,7 @@ class WaitingScene extends SceneCommon {
         for(let idx in playerTxts) {
             const playerTxt = playerTxts[idx]
             if(!playerTxt) continue
-            assign(playerTxt, { x: this.width/2, y: this.height/3 + (numPlayer * 30) })
+            assign(playerTxt, { x: this.width/3+playerTxt.width/2, y: this.height/3 + (numPlayer * 40) })
             numPlayer += 1
         }
     }
