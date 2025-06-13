@@ -2,7 +2,7 @@
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
 import * as utils from './utils.mjs'
-import { loadImg, Sprite, SpriteSheet, Entity, EntityGroup, Entities, range } from "./game.mjs"
+import { loadImg, Sprite, SpriteSheet, Entity, Text, EntityGroup, Entities, range } from "./game.mjs"
 import { cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
 
@@ -24,6 +24,7 @@ export class JoypadScene {
         }
         this.game.initTouches()
         this.buttons = new EntityGroup(this)
+        this.syncSizeAndPos()
     }
 
     getPriority() {
@@ -73,15 +74,15 @@ export class JoypadScene {
 
 
 export class JoypadWaitingScene extends JoypadScene {
-    constructor(game) {
-        super(game)
-        initStartButton()
+    update() {
+        this.initStartButton()
     }
     initStartButton() {
-        const { width, height } = this
-        const size = height*.45
-        this.startButton = this.newButton({ x:width/2, y:height/2, size })
-        this.startButton.onClick = () => this.game.start()
+        const { game, width, height } = this, { localPlayerId } = game
+        if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
+        const size = height * .45
+        this.startButton = this.newButton({ x:width/2, y:height/2, size, text: "START" })
+        this.startButton.onClick = () => this.game.startGame()
     }
     syncLocalPlayerButtons() {}
 }
@@ -102,10 +103,11 @@ const ButtonSpriteSheets = {
 class Button extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
-        this.key = kwargs.key
-        this.width = this.height = kwargs.size
+        this.inputKey = kwargs && kwargs.inputKey
         this.isDown = false
-        assign(this, kwargs)
+        this.disabled = kwargs && kwargs.disabled
+        this.text = kwargs && kwargs.text
+        this.icon = kwargs && kwargs.icon
     }
 
     checkClick() {
@@ -118,7 +120,7 @@ class Button extends Entity {
     }
 
     onClick() {
-        this.game.setInputKey(this.key, this.isDown)
+        if(this.inputKey) this.game.setInputKey(this.inputKey, this.isDown)
     }
 
     getSprite() {
@@ -139,5 +141,20 @@ class Button extends Entity {
             )
             if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
         }
+        if(this.text) {
+            const textSprite = this.textSprite ||= this.newTextSprite()
+            const img = textSprite.getImg(
+                ~~(this.width * .5),
+                ~~(this.width * .5 / textSprite.width * textSprite.height),
+                1, 1, 1,
+            )
+            ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
+        }
+    }
+    newTextSprite() {
+        return new Text(this.group, null, {
+            text: this.text,
+            fillStyle: "white",
+        })
     }
 }

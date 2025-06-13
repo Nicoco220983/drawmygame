@@ -386,6 +386,9 @@ export class Entity {
         if(kwargs) {
             if(kwargs.x !== undefined) this.x = kwargs.x
             if(kwargs.y !== undefined) this.y = kwargs.y
+            if(kwargs.size !== undefined) this.width = this.height = kwargs.size
+            if(kwargs.width !== undefined) this.width = kwargs.width
+            if(kwargs.height !== undefined) this.height = kwargs.height
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
             if(kwargs.speedX !== undefined) this.speedX = kwargs.speedX
@@ -788,7 +791,7 @@ function newTextCanvas(text, kwargs) {
     return canvas
 }
 
-class Text extends Entity {
+export class Text extends Entity {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.textArgs = kwargs
@@ -1381,7 +1384,9 @@ export class Game extends GameCommon {
     }
 
     async loadJoypadScene() {
-        this.scenes.joypad = await this.scenes.game.loadJoypadScene()
+        const joypadScn = await this.scenes.game.loadJoypadScene()
+        if(joypadScn) this.scenes.joypad = joypadScn
+        else delete this.scenes.joypad
     }
 
     async loadWaitingScenes() {
@@ -2456,10 +2461,10 @@ class Nico extends Hero {
     initJoypadButtons(joypadScn) {
         const { width, height } = joypadScn
         const size = height*.45
-        joypadScn.newButton({ key:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
-        joypadScn.newButton({ key:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
-        joypadScn.newButton({ key:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.actionButton = joypadScn.newButton({ key:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
+        joypadScn.newButton({ inputKey:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
+        joypadScn.newButton({ inputKey:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
+        joypadScn.newButton({ inputKey:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
+        joypadScn.actionButton = joypadScn.newButton({ inputKey:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
         this.syncJoypadActionButton()
     }
 
@@ -3302,6 +3307,11 @@ export class WaitingScene extends SceneCommon {
     }
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
+    }
+
+    async loadJoypadScene() {
+        const { JoypadWaitingScene } = await import("./joypad.mjs")
+        return new JoypadWaitingScene(this.game)
     }
 }
 
