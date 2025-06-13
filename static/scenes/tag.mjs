@@ -3,6 +3,8 @@ const { floor } = Math
 
 
 export default class TagScene extends GameScene {
+    static KEY = "tag"
+    
     constructor(game, scnId) {
         super(game, scnId)
         this.duration = 3 * 60
@@ -26,17 +28,17 @@ export default class TagScene extends GameScene {
         const { iteration, duration } = this
         const { fps } = this.game
         super.updateStepGame()
-        if(iteration % fps == 0) this.addNonTaggedPlayerScores()
+        if(iteration % fps == 0) this.incrNonTaggedPlayerScores()
         if(iteration > duration * fps) this.step = "GAMEOVER"
     }
-    addNonTaggedPlayerScores() {
+    incrNonTaggedPlayerScores() {
         const tag = this.entities.get("tag")
         const taggedHero = this.entities.get(tag.ownerId)
         if(!taggedHero) return
         const taggedPlayerId = taggedHero.playerId
         for(let playerId in this.game.players) {
             if(playerId == taggedPlayerId) continue
-            this.addScore(playerId, 1)
+            this.incrScore(playerId, 1)
         }
     }
     updateStepGameOver() {

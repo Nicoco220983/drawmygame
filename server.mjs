@@ -195,7 +195,7 @@ class GameServer {
       sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
       debug: IS_DEBUG_MODE,
     })
-    game.startWaiting()
+    await game.loadWaitingScenes()
     game.run()
   }
 

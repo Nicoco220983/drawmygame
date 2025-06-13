@@ -20,8 +20,7 @@ export class GameBuilder extends GameCommon {
 
     initBuilderScene() {
         this.scenes.game = new BuilderScene(this)
-        const scnMap = this.map.scenes["0"]
-        this.scenes.game.loadMap(scnMap)
+        this.scenes.game.loadMap("0")
         this.syncSize()
     }
 
@@ -75,6 +74,12 @@ class BuilderScene extends SceneCommon {
     syncSizeAndPos() {
         super.syncSizeAndPos()
         this.syncGrid()
+    }
+
+    loadMap(map) {
+        super.loadMap(map)
+        this.initHeros()
+        this.initEvents()
     }
 
     initHeros() {

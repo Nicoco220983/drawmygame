@@ -191,7 +191,7 @@ fullscreenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
 const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.onchange = () => { if(game) game.showJoypadScene(showJoypadEl.checked) }
+showJoypadEl.onchange = () => { if(game) game.setJoypadVisibility(showJoypadEl.checked) }
 
 let keyLastTime = -1, currentKey = ""
 document.addEventListener('keydown', evt => {
@@ -240,7 +240,7 @@ function startAndShowGame() {
             mode: MODE_LOCAL,
             debug: isDebugMode
         })
-        game.startGame()
+        game.loadGameScenes()
         game.addPlayer(playerId, {
             num: 0,
             name: null,

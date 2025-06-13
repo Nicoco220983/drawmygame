@@ -143,7 +143,7 @@ try {
     const isJoypadVisible = () => joined && showJoypadEl.checked
     const syncGameShow = () => {
         if(game) game.showGameScene(showGameEl.checked)
-        if(game) game.showJoypadScene(showJoypadEl.checked)
+        if(game) game.setJoypadVisibility(showJoypadEl.checked)
         document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
         document.getElementById("section_show_game").style.display = ""
     }

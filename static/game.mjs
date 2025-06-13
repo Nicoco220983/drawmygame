@@ -974,9 +974,6 @@ export class GameCommon {
         this.syncSize()
     }
 
-    // pure abstract
-    // initGameScene()
-
     initTouches() {
         if(this.touches) return
         this.touches = []
@@ -1152,12 +1149,11 @@ export class SceneCommon {
         return 0
     }
 
-    loadMap(map) {
-        this.map = map
+    loadMap(mapId) {
+        this.mapId = mapId
+        this.map = this.game.map.scenes[mapId]
         this.initWalls()
-        this.initHeros()
         this.initEntities()
-        this.initEvents()
     }
 
     syncSizeAndPos() {
@@ -1184,6 +1180,15 @@ export class SceneCommon {
 
     newWall(kwargs) {
         return this.walls.new(Wall, kwargs)
+    }
+
+    initEntities() {
+        const mapEnts = this.map.entities
+        if(!mapEnts) return
+        mapEnts.forEach(entState => {
+            const ent = this.newEntity(entState.key)
+            ent.setInitState(entState)
+        })
     }
 
     newEntity(cls, kwargs) {
@@ -1246,9 +1251,14 @@ export class SceneCommon {
         return can
     }
 
+    async loadJoypadScene() {
+        return null
+    }
+
     getState() {
         const state = {}
-        state.id = this.id
+        state.key = this.constructor.KEY
+        state.mapId = this.mapId
         return state
     }
 
@@ -1280,25 +1290,18 @@ export class Wall extends Entity {
 
 // GAME //////////////////////////
 
-export const GAME_STEP_WAITING = 0
-export const GAME_STEP_GAMING = 1
-export const GAME_STEP_DEFEAT = 2
-export const GAME_STEP_VICTORY = 3
-
-export const SCENE_DEFAULT_ID = "D"
-export const SCENE_WAITING_ID = "W"
+export const GAME_STEP_DEFAULT = 0
+export const GAME_STEP_WAITING = 1
+export const GAME_STEP_GAMING = 2
 
 export class Game extends GameCommon {
 
     constructor(parentEl, lib, map, playerId, kwargs) {
         super(parentEl, lib, map, kwargs)
 
-        this.step = null
+        this.step = GAME_STEP_DEFAULT
 
-        this.PauseSceneClass = PauseScene
-        this.WaitingSceneClass = WaitingScene
-        this.VictorySceneClass = VictoryScene
-        this.DefeatSceneClass = DefeatScene
+        this.joypadVisible = false
 
         this.players = {}
         this.localPlayerId = playerId
@@ -1369,12 +1372,26 @@ export class Game extends GameCommon {
         this.syncSize()
     }
 
-    initGameScene(scnId) {
-        if(scnId === undefined) scnId = max(0, this.iteration)
-        const scnMap = this.map.scenes["0"]
-        const cls = this.lib.scenes[scnMap.key]
-        const scn = this.scenes.game = new cls(this, scnId)
-        scn.loadMap(scnMap)
+    async loadScenes(cls, mapId) {
+        if(typeof cls === 'string') cls = this.lib.scenes[cls]
+        const scn = new cls(this)
+        if(mapId) scn.loadMap(mapId)
+        this.scenes.game = scn
+        if(this.joypadVisible) await this.loadJoypadScene()
+    }
+
+    async loadJoypadScene() {
+        this.scenes.joypad = await this.scenes.game.loadJoypadScene()
+    }
+
+    async loadWaitingScenes() {
+        await this.loadScenes(WaitingScene)
+    }
+
+    async loadGameScenes() {
+        const mapId = "0"
+        const key = this.map.scenes[mapId].key
+        await this.loadScenes(key, mapId)
     }
 
     showDebugScene() {
@@ -1448,25 +1465,17 @@ export class Game extends GameCommon {
         }
     }
 
-    startWaiting() {
-        const gameScn = this.scenes.game
-        if(gameScn.id != SCENE_DEFAULT_ID) return
-        this.scenes.game = new this.WaitingSceneClass(this)
-    }
-
-    startGame() {
+    async startGame() {
         if(this.mode == MODE_CLIENT) return this.sendGameInstruction("start")
-        const gameScn = this.scenes.game
-        if(gameScn.id != SCENE_DEFAULT_ID && gameScn.id != SCENE_WAITING_ID) return
-        this.initGameScene()
+        if(this.scenes.game instanceof GameScene) return
+        await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
-    restartGame(scnId) {
+    async restartGame() {
         if(this.mode == MODE_CLIENT) return this.sendGameInstruction("restart")
-        const gameScn = this.scenes.game
-        if(gameScn.id == SCENE_DEFAULT_ID || gameScn.id == SCENE_WAITING_ID) return
-        this.initGameScene(scnId)
+        if(!(this.scenes.game instanceof GameScene)) return
+        await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
@@ -1560,15 +1569,15 @@ export class Game extends GameCommon {
         return state
     }
 
-    setState(state) {
+    async setState(state) {
         this.iteration = state.it
         this.step = state.step
         this.players = state.players
-        const gameState = state.game, gameScn = this.scenes.game
-        if(gameState.id != gameScn.id) {
-            if(gameState.id == SCENE_DEFAULT_ID) this.scenes.game = new DefaultScene(this)
-            if(gameState.id == SCENE_WAITING_ID) this.scenes.game = new WaitingScene(this)
-            else this.initGameScene(gameState.id)
+        let gameScn = this.scenes.game, gameState = state.game
+        const { mapId, key: mapKey } = gameState
+        if(gameScn.mapId != mapId || gameScn.constructor.KEY != mapKey) {
+            await this.loadScenes(mapKey, mapId)
+            gameScn = this.scenes.game
         }
         gameScn.setState(gameState)
     }
@@ -1657,26 +1666,19 @@ export class Game extends GameCommon {
         if(receivedStates.length >= 2) receivedStates.sort((a, b) => getOrder(a) - getOrder(b))
     }
 
-    async showJoypadScene(val) {
-        if(val == Boolean(this.scenes.joypad)) return
-        if(val) {
-            const joypadMod = await import("./joypad.mjs")
-            if(this.scenes.joypad) return
-            const { JoypadScene } = joypadMod
-            this.scenes.joypad = new JoypadScene(this)
-        } else {
-            delete this.scenes.joypad
-        }
+    async setJoypadVisibility(val) {
+        if(val == this.joypadVisible) return
+        this.joypadVisible = val
+        if(val) await this.loadJoypadScene()
+        else delete this.scenes.joypad
         this.syncSize()
     }
 }
 
 
 export class DefaultScene extends SceneCommon {
-    constructor(game) {
-        super(game)
-        this.id = SCENE_DEFAULT_ID
-    }
+    static KEY =  "default"
+
     buildBackground() {
         const { width, height } = this
         const can = document.createElement("canvas")
@@ -1692,17 +1694,18 @@ export class DefaultScene extends SceneCommon {
 
 
 export class GameScene extends SceneCommon {
-    constructor(game, scnId) {
+    constructor(game) {
         super(game)
-        this.id = scnId
         this.step = "GAME"
         this.notifs = new EntityGroup(this)
         this.scores = {}
         this.seed = floor(random()*1000)
     }
 
-    loadMap(map) {
-        super.loadMap(map)
+    loadMap(mapId) {
+        super.loadMap(mapId)
+        this.initHeros()
+        this.initEvents()
         this.physics = new PhysicsEngine(this)
     }
 
@@ -1712,19 +1715,10 @@ export class GameScene extends SceneCommon {
         for(let playerId in this.game.players) this.newHero(playerId)
     }
 
-    initEntities() {
-        const mapEnts = this.map.entities
-        if(!mapEnts) return
-        mapEnts.forEach(entState => {
-            const ent = this.newEntity(entState.key)
-            ent.setInitState(entState)
-        })
-    }
-
     initEvents() {
+        this.events = []
         const mapEvts = this.map.events
         if(!mapEvts) return
-        this.events = []
         mapEvts.forEach(evtState => {
             let evt = new Events[evtState.key](this, evtState)
             this.events.push(evt)
@@ -1775,7 +1769,7 @@ export class GameScene extends SceneCommon {
         hero.spawn(this.herosSpawnX, this.herosSpawnY)
     }
 
-    addScore(playerId, val) {
+    incrScore(playerId, val) {
         const { scores } = this
         if(scores[playerId] === undefined) scores[playerId] = 0
         scores[playerId] = scores[playerId] + val
@@ -1948,6 +1942,11 @@ export class GameScene extends SceneCommon {
     setHerosSpawnPos(x, y) {
         this.herosSpawnX = floor(x)
         this.herosSpawnY = floor(y)
+    }
+
+    async loadJoypadScene() {
+        const { JoypadScene } = await import("./joypad.mjs")
+        return new JoypadScene(this.game)
     }
 
     getState() {
@@ -3245,10 +3244,11 @@ class PlayerText extends Entity {
 }
 
 
-class WaitingScene extends SceneCommon {
+export class WaitingScene extends SceneCommon {
+    static KEY =  "waiting"
+
     constructor(game) {
         super(game)
-        this.id = SCENE_WAITING_ID
         this.backgroundColor = "black"
         this.notifs = new EntityGroup(this)
         this.titleTxt = this.notifs.new(Text, {
