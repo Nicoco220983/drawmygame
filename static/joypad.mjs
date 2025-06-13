@@ -75,6 +75,7 @@ export class JoypadScene {
 
 export class JoypadWaitingScene extends JoypadScene {
     update() {
+        super.update()
         this.initStartButton()
     }
     initStartButton() {
