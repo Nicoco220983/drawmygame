@@ -70,6 +70,10 @@ export class JoypadScene {
     drawTo(ctx) {
         this.buttons.drawTo(ctx)
     }
+
+    newPauseScene() {
+        return new JoypadPauseScene(this.game)
+    }
 }
 
 
@@ -86,6 +90,34 @@ export class JoypadWaitingScene extends JoypadScene {
         this.startButton.onClick = () => this.game.startGame()
     }
     syncLocalPlayerButtons() {}
+}
+
+
+class JoypadPauseScene extends JoypadScene {
+    constructor(game) {
+        super(game)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.notifs = new EntityGroup(this)
+        this.pauseText = this.notifs.new(Text, {
+            text: "PAUSE",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+    }
+    initResumeButton() {
+        const { game, width, height } = this, { localPlayerId } = game
+        if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
+        const size = height * .45
+        this.resumeButton = this.newButton({ x:width/2, y:height/2, size, text: "RESUME" })
+        this.resumeButton.onClick = () => this.game.pauseGame(false)
+    }
+    update() {
+        assign(this.pauseText, { x: this.width/2, y: this.height/4 })
+    }
+    drawTo(ctx) {
+        this.notifs.drawTo(ctx)
+    }
 }
 
 
