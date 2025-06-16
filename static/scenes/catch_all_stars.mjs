@@ -1,6 +1,8 @@
-import { FocusFirstHeroScene } from '../game.mjs'
+import { ModuleLibrary, FocusFirstHeroScene } from '../game.mjs'
 
-export default class CatchAllStarsScene extends FocusFirstHeroScene {
+export const LIB = new ModuleLibrary()
+
+export class CatchAllStarsScene extends FocusFirstHeroScene {
     static KEY = "catch_all_stars"
 
     update() {
@@ -8,3 +10,4 @@ export default class CatchAllStarsScene extends FocusFirstHeroScene {
         if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
     }
 }
+LIB.addScene(CatchAllStarsScene, {})

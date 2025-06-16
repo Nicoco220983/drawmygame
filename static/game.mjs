@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl } = utils
-import { loadAud, AudioEngine } from './audio.mjs'
+import { AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 
 export const FPS = 30
@@ -27,8 +27,123 @@ const IS_SERVER_ENV = (typeof window === 'undefined')
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
-const SEND_STATE_PERIOD = 1
+const SEND_STATE_PERIOD = 5
 const RESEND_INPUT_STATE_PERIOD = .5
+
+
+// LIB
+
+// export const Loads = []
+
+// function _waitLoad(load) {
+//     return new Promise((ok, ko) => {
+//         const __waitLoad = () => {
+//             if (!load._loading) return ok()
+//             if (load.loadError) return ko(load.loadError)
+//             setTimeout(__waitLoad, 10)
+//         }
+//         __waitLoad()
+//     })
+// }
+
+// function waitLoads() {
+//     return Promise.all(Loads.map(_waitLoad))
+// }
+
+const cachedFetchPrms = {}
+async function cachedFetch(src) {
+    const fetchPrm = cachedFetchPrms[src] ||= fetch(src)
+    return await fetchPrm
+}
+
+class None {}
+const Image = (!IS_SERVER_ENV && window.Image) || None
+export class Img extends Image {
+    constructor(src) {
+        super()
+        if(IS_SERVER_ENV) return
+        this._loading = true
+        cachedFetch(src).then(res => res.blob()).then(blob => {
+          const url = URL.createObjectURL(blob)
+          this.src = url
+        })
+    }
+}
+
+export class Aud {
+    constructor(src) {
+        if(IS_SERVER_ENV) return
+        this._loading = true
+        cachedFetch(src).then(async res => {
+            this.raw = await res.arrayBuffer()
+            this._loading = false
+        })
+    }
+}
+
+// export function loadImg(src) {
+//     return new Promise((ok, ko) => {
+//         //if(IS_SERVER_ENV) return
+//         const img = new Image()
+//         img.src = src
+//         img.onload = () => ok(img)
+//         img.onerror = () => ko(`load error: ${src}`)
+//     })
+// }
+
+export class Library {
+    constructor() {
+        this.modLibs = {}
+        this.entities = {}
+        this.scenes = {}
+    }
+    async addModuleLibraries(paths) {
+        const modPrms = paths.map(path => import(path))
+        const mods = await Promise.all(modPrms)
+        const addItems = (path, modItems, items) => {
+            for(let key in modItems) {
+                const item = { ...modItems[key] }
+                item.path = path
+                items[key] = item
+            }
+        }
+        for(let i in paths) {
+            const path = paths[i], mod = mods[i]
+            this.modLibs[path] = {
+                assets: mod.LIB.assets
+            }
+            addItems(path, mod.LIB.entities, this.entities)
+            addItems(path, mod.LIB.scenes, this.scenes)
+        }
+    }
+}
+
+export class ModuleLibrary {
+    constructor() {
+        this.entities = {}
+        this.scenes = {}
+        this.assets = []
+    }
+    addEntity(cls, kwargs) {
+        const ent = this.entities[cls.KEY] = kwargs
+        ent.name = cls.name
+    }
+    addScene(cls, kwargs) {
+        const scn = this.scenes[cls.KEY] = kwargs
+        scn.name = cls.name
+    }
+    addImage(path) {
+        this.assets.push(path)
+        return new Img(path)
+    }
+    addAudio(path) {
+        this.assets.push(path)
+        return new Aud(path)
+    }
+}
+
+export const LIB = new ModuleLibrary()
+
 
 // MAP
 
@@ -183,46 +298,6 @@ export function nbKeys(obj) {
     return res
 }
 
-export const Loads = []
-
-function _waitLoad(load) {
-    return new Promise((ok, ko) => {
-        const __waitLoad = () => {
-            if (!load._loading) return ok()
-            if (load.loadError) return ko(load.loadError)
-            setTimeout(__waitLoad, 10)
-        }
-        __waitLoad()
-    })
-}
-
-function waitLoads() {
-    return Promise.all(Loads.map(_waitLoad))
-}
-
-class None {}
-const Image = (!IS_SERVER_ENV && window.Image) || None
-export class Img extends Image {
-    constructor(src) {
-        super()
-        this.src = src
-        this._loading = true
-        Loads.push(this)
-        this.onload = () => this._loading = false
-        this.onerror = () => this.loadError = `load error: ${src}`
-    }
-}
-
-export function loadImg(src) {
-    return new Promise((ok, ko) => {
-        //if(IS_SERVER_ENV) return
-        const img = new Image()
-        img.src = src
-        img.onload = () => ok(img)
-        img.onerror = () => ko(`load error: ${src}`)
-    })
-}
-
 export class Sprite {
     constructor(src) {
         if(typeof src === "string") src = loadImg(src)  
@@ -252,6 +327,7 @@ export class Sprite {
 export class SpriteSheet {
     constructor(src, nbCols, nbRows) {
         this.sprites = []
+        if(IS_SERVER_ENV) return
         for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
         if(typeof src === "string") src = loadImg(src)  
         if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
@@ -1167,6 +1243,7 @@ export class SceneCommon {
         this.entities = new EntityGroup(this)
         this.heros = {}
         this.syncSizeAndPos()
+        this.map = null
     }
 
     isPausable() {
@@ -1178,9 +1255,9 @@ export class SceneCommon {
         this.paused = val
     }
 
-    loadMap(mapId) {
-        this.mapId = mapId
-        this.map = this.game.map.scenes[mapId]
+    loadMap(scnMapId) {
+        this.mapId = scnMapId
+        this.map = this.game.map.scenes[scnMapId]
         this.initWalls()
         this.initEntities()
     }
@@ -1199,7 +1276,7 @@ export class SceneCommon {
     }
 
     initWalls() {
-        const mapWalls = this.map.walls
+        const mapWalls = this.map?.walls
         if(!mapWalls) return
         mapWalls.forEach(w => {
             const { x1, y1, x2, y2, key } = w
@@ -1212,7 +1289,7 @@ export class SceneCommon {
     }
 
     initEntities() {
-        const mapEnts = this.map.entities
+        const mapEnts = this.map?.entities
         if(!mapEnts) return
         mapEnts.forEach(entState => {
             const ent = this.newEntity(entState.key)
@@ -1291,7 +1368,7 @@ export class SceneCommon {
     getState() {
         const state = {}
         state.key = this.constructor.KEY
-        state.mapId = this.mapId
+        if(this.mapId) state.map = this.mapId
         if(this.paused) state.paused = true
         return state
     }
@@ -1408,10 +1485,28 @@ export class Game extends GameCommon {
         this.syncSize()
     }
 
-    async loadScenes(cls, mapId) {
-        if(typeof cls === 'string') cls = this.lib.scenes[cls]
+    async loadScenesFromMap(scnKey, scnMapId=undefined) {
+        const { lib } = this, scnLib = lib.scenes[scnKey]
+        const scnMap = (scnMapId !== undefined) ? this.game.map.scenes[scnMapId] : null
+        const paths = new Set([scnLib.path])
+        if(scnMap) {
+            scnMap.entities.forEach(entMap => paths.add(lib.entities[entMap.key].path))
+            scnMap.heros.forEach(heroMap => paths.add(lib.entities[heroMap.key].path))
+        }
+        const assets = new Set()
+        if(!IS_SERVER_ENV) {
+            for(let path of paths) for(let asset of lib.modLibs[path].assets) assets.add(asset)
+        }
+        const mods = await Promise.all(
+            Array.from(paths).map(p => import(p))
+            .concat(Array.from(assets).map(a => cachedFetch(a)))
+        )
+        await this.loadScenes(mods[0][scnLib.name], scnMapId)
+    }
+
+    async loadScenes(cls, scnMapId=undefined) {
         const scn = new cls(this)
-        if(mapId) scn.loadMap(mapId)
+        if(scnMapId !== undefined) scn.loadMap(scnMapId)
         this.scenes.game = scn
         if(this.joypadVisible) await this.loadJoypadScene()
     }
@@ -1427,9 +1522,9 @@ export class Game extends GameCommon {
     }
 
     async loadGameScenes() {
-        const mapId = "0"
-        const key = this.map.scenes[mapId].key
-        await this.loadScenes(key, mapId)
+        const scnMapId = "0"
+        const scnMap = this.map.scenes[scnMapId]
+        await this.loadScenesFromMap(scnMap.key, scnMapId)
     }
 
     showDebugScene() {
@@ -1444,8 +1539,6 @@ export class Game extends GameCommon {
 
     update() {
         // TODO solve code duplication with GameCommon
-        this.iteration += 1
-        this.time = this.iteration * this.dt
         const { game: gameScn, joypad: joypadScn } = this.scenes
         if(this.mode == MODE_LOCAL) this.updateGame()
         else this.updateGameApplyingReceivedStates()
@@ -1638,9 +1731,9 @@ export class Game extends GameCommon {
         this.step = state.step
         this.players = state.players
         let gameScn = this.scenes.game, gameState = state.game
-        const { mapId, key: mapKey } = gameState
-        if(gameScn.mapId != mapId || gameScn.constructor.KEY != mapKey) {
-            await this.loadScenes(mapKey, mapId)
+        const { map: scnMapId, key: scnMapKey } = gameState
+        if(gameScn.mapId != scnMapId || gameScn.constructor.KEY != scnMapKey) {
+            await this.loadScenesFromMap(scnMapKey, scnMapId)
             gameScn = this.scenes.game
         }
         gameScn.setState(gameState)
@@ -1651,7 +1744,7 @@ export class Game extends GameCommon {
         const { receivedAppliedStates, statesToSend } = this
         if(this.mode == MODE_SERVER) {
             // full state
-            this._lastSendFullStateTime ||= -SEND_STATE_PERIOD
+            this._lastSendFullStateTime ||= -Infinity
             if(this.time > this._lastSendFullStateTime + SEND_STATE_PERIOD) {
                 this.getAndSendFullState()
             }
@@ -1670,8 +1763,9 @@ export class Game extends GameCommon {
     }
 
     getAndSendFullState() {
-        const stateStr = this.getState()
-        this.statesToSend.push(stateStr)
+        const state = this.getState()
+        this.statesToSend.length = 0
+        this.statesToSend.push(state)
         this._lastSendFullStateTime = this.time
     }
 
@@ -1755,6 +1849,7 @@ export class DefaultScene extends SceneCommon {
         return can
     }
 }
+LIB.addScene(DefaultScene, {})
 
 
 export class GameScene extends SceneCommon {
@@ -1770,8 +1865,8 @@ export class GameScene extends SceneCommon {
         return true
     }
 
-    loadMap(mapId) {
-        super.loadMap(mapId)
+    loadMap(scnMapId) {
+        super.loadMap(scnMapId)
         this.initHeros()
         this.initEvents()
         this.physics = new PhysicsEngine(this)
@@ -1785,7 +1880,7 @@ export class GameScene extends SceneCommon {
 
     initEvents() {
         this.events = []
-        const mapEvts = this.map.events
+        const mapEvts = this.map?.events
         if(!mapEvts) return
         mapEvts.forEach(evtState => {
             let evt = new Events[evtState.key](this, evtState)
@@ -1797,7 +1892,7 @@ export class GameScene extends SceneCommon {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
-        const heroDef = this.map.heros && this.map.heros[0]
+        const heroDef = this.map?.heros && this.map.heros[0]
         if(!heroDef) return
         const { key } = heroDef
         const hero = this.newEntity(key, { playerId })
@@ -2001,7 +2096,7 @@ export class GameScene extends SceneCommon {
     }
 
     initHerosSpawnPos() {
-        const { heros } = this.map
+        const heros = this.map?.heros
         if(!heros || heros.length == 0) return
         const { x, y } = heros[0]
         this.setHerosSpawnPos(x, y)
@@ -2391,31 +2486,30 @@ export class Hero extends LivingEntity {
 }
 
 
-const NicoImgPrm = loadImg("/static/assets/nico_full.png")
-const NicoColorableImgPrm = loadImg("/static/assets/nico_full_colorable.png")
+const NicoImg = LIB.addImage("/static/assets/nico_full.png")
+const NicoColorableImg = LIB.addImage("/static/assets/nico_full_colorable.png")
 const NicoSpriteSheets = {
     spritesheets: {},
     get: function(color) {
-        return this.spritesheets[color] ||= new SpriteSheet((async () => {
-            const img = await NicoImgPrm
-            if(!color) return img
-            const colorableImg = await NicoColorableImgPrm
-            const coloredImg = colorizeCanvas(cloneCanvas(colorableImg), color)
-            return addCanvas(cloneCanvas(img), coloredImg)
+        return this.spritesheets[color] ||= new SpriteSheet((() => {
+            if(!color) return NicoImg
+            const coloredImg = colorizeCanvas(cloneCanvas(NicoColorableImg), color)
+            return addCanvas(cloneCanvas(NicoImg), coloredImg)
         })(), 4, 1)
     },
 }
 
-const HandSprite = new Sprite("/static/assets/hand.png")
-const ArrowsSpriteSheet = new SpriteSheet("/static/assets/arrows.png", 4, 1)
+const HandSprite = new Sprite(LIB.addImage("/static/assets/hand.png"))
+const ArrowsSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/arrows.png"), 4, 1)
 
-const OuchAudPrm = loadAud("/static/assets/ouch.opus")
-const SlashAudPrm = loadAud("/static/assets/slash.opus")
-const HandHitAudPrm = loadAud("/static/assets/hand_hit.opus")
-const JumpAudPrm = loadAud("/static/assets/jump.opus")
-const ItemAudPrm = loadAud("/static/assets/item.opus")
+const OuchAud = LIB.addAudio("/static/assets/ouch.opus")
+const SlashAud = LIB.addAudio("/static/assets/slash.opus")
+const HandHitAud = LIB.addAudio("/static/assets/hand_hit.opus")
+const JumpAud = LIB.addAudio("/static/assets/jump.opus")
+const ItemAud = LIB.addAudio("/static/assets/item.opus")
 
 class Nico extends Hero {
+    static KEY = "nico"
 
     static STATE_PROPS = Hero.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "handRemIt", "hri", null),
@@ -2457,7 +2551,7 @@ class Nico extends Hero {
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.scene.getTeam("hero").forEach(_checkHit)
-        this.game.audio.playSound(hasHit ? HandHitAudPrm : SlashAudPrm)
+        this.game.audio.playSound(hasHit ? HandHitAud : SlashAud)
     }
 
     getSprite() {
@@ -2498,7 +2592,7 @@ class Nico extends Hero {
         }
         if(inputState && inputState.jump && this.speedResY < 0) {
             this.speedY = -500
-            this.game.audio.playSound(JumpAudPrm)
+            this.game.audio.playSound(JumpAud)
         }
         if(this.handRemIt) this.handRemIt -= 1
         if(inputState && inputState.act) this.act()
@@ -2522,7 +2616,7 @@ class Nico extends Hero {
 
     takeDamage(val, damager) {
         super.takeDamage(val, damager)
-        this.game.audio.playSound(OuchAudPrm)
+        this.game.audio.playSound(OuchAud)
     }
 
     initJoypadButtons(joypadScn) {
@@ -2592,10 +2686,11 @@ class Nico extends Hero {
         }
     }
 }
+LIB.addEntity(Nico, {})
 Entities.register("nico", Nico)
 
 
-const PuffAudPrm = loadAud("/static/assets/puff.opus")
+const PuffAud = LIB.addAudio("/static/assets/puff.opus")
 
 class Enemy extends LivingEntity {
     constructor(group, id, kwargs) {
@@ -2605,15 +2700,16 @@ class Enemy extends LivingEntity {
     onDeath() {
         const { x, y } = this
         this.scene.newEntity(SmokeExplosion, { x, y })
-        this.game.audio.playSound(PuffAudPrm)
+        this.game.audio.playSound(PuffAud)
         this.remove()
     }
 }
 
 
-const BlobSprite = new Sprite("/static/assets/blob.png")
+const BlobSprite = new Sprite(LIB.addImage("/static/assets/blob.png"))
 
 class BlobEnemy extends Enemy {
+    static KEY = "blob"
 
     static STATE_PROPS = Enemy.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "lastChangeDirAge", "cda", 0),
@@ -2679,12 +2775,15 @@ class BlobEnemy extends Enemy {
     //     this.lastChangeDirAge = state.cda
     // }
 }
+LIB.addEntity(BlobEnemy, {})
 Entities.register("blob", BlobEnemy)
 
 
-const GhostSprite = new Sprite("/static/assets/ghost.png")
+const GhostSprite = new Sprite(LIB.addImage("/static/assets/ghost.png"))
 
 class Ghost extends Enemy {
+    static KEY = "ghost"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = 45
@@ -2736,12 +2835,15 @@ class Ghost extends Enemy {
         }
     }
 }
+LIB.addEntity(Ghost, {})
 Entities.register("ghost", Ghost)
 
 
-const SpikySprite = new Sprite(new Img("/static/assets/spiky.png"))
+const SpikySprite = new Sprite(LIB.addImage("/static/assets/spiky.png"))
 
 class Spiky extends Enemy {
+    static KEY = "spiky"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 45
@@ -2771,6 +2873,7 @@ class Spiky extends Enemy {
         this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
+LIB.addEntity(Spiky, {})
 Entities.register("spiky", Spiky)
 
 
@@ -2810,7 +2913,7 @@ class Collectable extends Entity {
     }
 
     playCollectedSound() {
-        this.game.audio.playSound(ItemAudPrm)
+        this.game.audio.playSound(ItemAud)
     }
     
     scaleSprite(sprite) {
@@ -2838,19 +2941,20 @@ class Collectable extends Entity {
 }
 
 
-const HeartImgPrm = loadImg("/static/assets/colorable_heart.png")
+const HeartImg = LIB.addImage("/static/assets/colorable_heart.png")
 const HeartSpriteSheets = {
     spritesheets: {},
     get: function(color) {
-        return this.spritesheets[color] ||= new SpriteSheet((async () => {
-            const img = await HeartImgPrm
-            if(!color) return img
-            return colorizeCanvas(cloneCanvas(img), color)
+        return this.spritesheets[color] ||= new SpriteSheet((() => {
+            if(!color) return HeartImg
+            return colorizeCanvas(cloneCanvas(HeartImg), color)
         })(), 2, 1)
     },
 }
 
 class Heart extends Collectable {
+    static KEY = "heart"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 30
@@ -2883,6 +2987,7 @@ class Heart extends Collectable {
         this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
+LIB.addEntity(Heart, {})
 Entities.register("heart", Heart)
 
 
@@ -2929,12 +3034,13 @@ class Extra extends Collectable {
 
 const SWORD_ATTACK_PERIOD = .5
 
-const SwordSlashSpriteSheet = new SpriteSheet("/static/assets/slash.png", 3, 2)
-const SwordSprite = new Sprite(new Img("/static/assets/sword.png"))
+const SwordSlashSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/slash.png"), 3, 2)
+const SwordSprite = new Sprite(LIB.addImage("/static/assets/sword.png"))
 
-const SwordHitAudPrm = loadAud("/static/assets/sword_hit.opus")
+const SwordHitAud = LIB.addAudio("/static/assets/sword_hit.opus")
 
 class Sword extends Extra {
+    static KEY = "sword"
 
     static STATE_PROPS = Extra.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
@@ -2983,7 +3089,7 @@ class Sword extends Extra {
         }
         this.scene.getTeam("hero").forEach(_checkHit)
         this.scene.getTeam("enemy").forEach(_checkHit)
-        this.game.audio.playSound(hasHit ? SwordHitAudPrm : SlashAudPrm)
+        this.game.audio.playSound(hasHit ? SwordHitAud : SlashAud)
     }
     hit(ent) {
         const damage = ent.team == this.team ? 0 : 1
@@ -3009,12 +3115,14 @@ class Sword extends Extra {
     //     else this.lastAttackAge = state.laa
     // }
 }
+LIB.addEntity(Sword, {})
 Entities.register("sword", Sword)
 
 
-const BombSpriteSheet = new SpriteSheet("/static/assets/bomb.png", 2, 1)
+const BombSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/bomb.png"), 2, 1)
 
 class Bomb extends Extra {
+    static KEY = "bomb"
 
     static STATE_PROPS = Extra.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "itToLive", "ttl", null),
@@ -3083,12 +3191,14 @@ class Bomb extends Extra {
     //     else this.itToLive = state.ttl
     // }
 }
+LIB.addEntity(Bomb, {})
 Entities.register("bomb", Bomb)
 
 
-const ExplosionSpriteSheet = new SpriteSheet("/static/assets/explosion.png", 8, 6)
+const ExplosionSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/explosion.png"), 8, 6)
 
 class Explosion extends Entity {
+    static KEY = "explos"
 
     static STATE_PROPS = Entity.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "iteration", "it", 0),
@@ -3145,12 +3255,15 @@ class Explosion extends Entity {
     //     else this.ownerId = this.group.get(state.own)
     // }
 }
+LIB.addEntity(Explosion, {})
 Entities.register("explos", Explosion)
 
 
-const StarSprite = new Sprite("/static/assets/star.png")
+const StarSprite = new Sprite(LIB.addImage("/static/assets/star.png"))
 
 class Star extends Collectable {
+    static KEY = "star"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 30
@@ -3170,13 +3283,16 @@ class Star extends Collectable {
         return StarSprite
     }
 }
+LIB.addEntity(Star, {})
 Entities.register("star", Star)
 
 
 
-const CheckpointSprite = new Sprite("/static/assets/checkpoint.png")
+const CheckpointSprite = new Sprite(LIB.addImage("/static/assets/checkpoint.png"))
 
 class Checkpoint extends Collectable {
+    static KEY = "checkpt"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
@@ -3194,12 +3310,14 @@ class Checkpoint extends Collectable {
         return CheckpointSprite
     }
 }
+LIB.addEntity(Checkpoint, {})
 Entities.register("checkpt", Checkpoint)
 
 
-const SmokeExplosionSpriteSheet = new SpriteSheet("/static/assets/smoke_explosion.png", 4, 1)
+const SmokeExplosionSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/smoke_explosion.png"), 4, 1)
 
 class SmokeExplosion extends Entity {
+    static KEY = "smokee"
 
     static STATE_PROPS = Entity.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "iteration", "it", 0),
@@ -3232,11 +3350,12 @@ class SmokeExplosion extends Entity {
     //     this.iteration = state.it
     // }
 }
+LIB.addEntity(SmokeExplosion, {})
 Entities.register("smokee", SmokeExplosion)
 
 
-const PopSprite = new Sprite("/static/assets/pop.png")
-const PopAudPrm = loadAud("/static/assets/pop.opus")
+const PopSprite = new Sprite(LIB.addImage("/static/assets/pop.png"))
+const PopAud = LIB.addAudio("/static/assets/pop.opus")
 
 class Pop extends Entity {
     constructor(group, id, kwargs) {
@@ -3250,7 +3369,7 @@ class Pop extends Entity {
     }
     update() {
         if(!this._soundPlayed) {
-            this.game.audio.playSound(PopAudPrm)
+            this.game.audio.playSound(PopAud)
             this._soundPlayed = true
         }
         this.width = this.height = 10 + 100 * (1 - this.remIt/this.duration)
@@ -3390,6 +3509,7 @@ export class WaitingScene extends SceneCommon {
         return new JoypadWaitingScene(this.game)
     }
 }
+LIB.addScene(WaitingScene, {})
 
 
 class VictoryScene extends SceneCommon {

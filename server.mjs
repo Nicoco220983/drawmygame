@@ -183,7 +183,6 @@ class GameServer {
     else if(data == "start" && game) game.startGame()
     else if(data == "pause" && game) game.pause(true)
     else if(data == "unpause" && game) game.pause(false)
-    if(game) game.getAndSendFullState()
   }
 
   async startGame(room) {

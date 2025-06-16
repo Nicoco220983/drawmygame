@@ -1,8 +1,9 @@
-import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard } from '../game.mjs'
+import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard, ModuleLibrary } from '../game.mjs'
 const { floor } = Math
 
+export const LIB = new ModuleLibrary()
 
-export default class TagScene extends GameScene {
+export class TagScene extends GameScene {
     static KEY = "tag"
     
     constructor(game, scnId) {
@@ -59,11 +60,14 @@ export default class TagScene extends GameScene {
         }
     }
 }
+LIB.addScene(TagScene, {})
 
 
-const TagSprite = new Sprite("/static/assets/tag.png")
+const TagSprite = new Sprite(LIB.addImage("/static/assets/tag.png"))
 
 class Tag extends Entity {
+    static KEY = "tag"
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = 30
@@ -135,4 +139,5 @@ class Tag extends Entity {
         else this.ownerId = null
     }
 }
+LIB.addEntity(Tag, {})
 Entities.register("tag", Tag)

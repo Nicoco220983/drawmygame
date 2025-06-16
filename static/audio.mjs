@@ -16,14 +16,13 @@ export class AudioEngine {
         return this.context ||= new (window.AudioContext || window.webkitAudioContext)()
     }
 
-    async playSound(audPrm, volume = 1.0, loop = false) {
+    async playSound(aud, volume = 1.0, loop = false) {
         if(IS_SERVER_ENV) return
-        const aud = await audPrm
 
         const ctx = this.getContext()
   
         const sound = ctx.createBufferSource()
-        aud.data ||= ctx.decodeAudioData(aud)
+        aud.data ||= ctx.decodeAudioData(aud.raw)
         sound.buffer = await aud.data
       
         const gainNode = ctx.createGain()
