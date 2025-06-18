@@ -41,6 +41,7 @@ export class TagScene extends GameScene {
     updateStepInit() {
         const { iteration, initDuration } = this
         const { fps } = this.game
+        this.updateWorld()
         if(iteration > initDuration * fps) this.step = "GAME"
     }
     updateStepGame() {
@@ -138,6 +139,8 @@ class Tag extends Entity {
         if(!owner) return
         this.x = owner.x
         this.y = owner.y - 50
+        if(this.scene.step == "INIT") owner.getInputState = () => null
+        else delete owner.getInputState
     }
 
     getSprite() {

@@ -2004,7 +2004,7 @@ export class GameScene extends SceneCommon {
         this.notifs.update()
     }
 
-    updateStepGame() {
+    updateWorld() {
         const { entities, events, physics } = this
         const { dt } = this.game
         events.forEach(evt => evt.update())
@@ -2012,11 +2012,16 @@ export class GameScene extends SceneCommon {
         entities.update()
         this.handleHerosOut()
         this.handleHerosDeath()
+    }
+
+    updateStepGame() {
+        this.updateWorld()
         this.updateView()
     }
 
     updateStepGameOver() {
-        this.updateStepGame()
+        this.updateWorld()
+        this.updateView()
         this.initGameOverNotifs()
     }
 
