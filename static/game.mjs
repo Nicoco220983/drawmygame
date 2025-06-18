@@ -1178,7 +1178,8 @@ export class GameCommon {
         const scnMap = this.map.scenes["0"]
         const width = min(scnMap.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
-        const { game: gameScn, joypad: joypadScn } = this.scenes 
+        const { game: gameScn } = this.scenes
+        const { joypadVisible } = this
         const { game: gameSP, joypad: joypadSP } = this.scenesSizeAndPos
         gameSP.x = 0
         gameSP.y = 0
@@ -1192,7 +1193,7 @@ export class GameCommon {
             const scn = this.scenes[scnId]
             if(scn) scn.syncSizeAndPos()
         }
-        const height = max(height169, (gameScn.visible ? gameSP.height : 0) + (joypadScn ? joypadSP.height : 0))
+        const height = max(height169, (gameScn.visible ? gameSP.height : 0) + (joypadVisible ? joypadSP.height : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })

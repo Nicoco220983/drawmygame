@@ -81,8 +81,14 @@ export class JoypadGameScene extends JoypadScene {
         if(hero && hero == this._lastHeroSynced) return
         this.buttons.clear()
         if(!hero) return
+        this.addPauseButton()
         hero.initJoypadButtons(this)
         this._lastHeroSynced = hero
+    }
+
+    addPauseButton() {
+        this.pauseButton = this.newButton({ x:this.width/2, y:40, width: 200, height: 60, text: "PAUSE" })
+        this.pauseButton.onClickUp = () => this.game.pause(true)
     }
 
     newPauseScene() {
@@ -94,7 +100,7 @@ export class JoypadGameScene extends JoypadScene {
 export class JoypadWaitingScene extends JoypadScene {
 
     update() {
-        this.update()
+        super.update()
         this.initStartButton()
     }
 
@@ -102,7 +108,7 @@ export class JoypadWaitingScene extends JoypadScene {
         const { game, width, height } = this, { localPlayerId } = game
         if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
         this.startButton = this.newButton({ x:width/2, y:height/2, width: 300, height: 100, text: "START" })
-        this.startButton.onClick = () => this.game.startGame()
+        this.startButton.onClickUp = () => this.game.startGame()
     }
 }
 
@@ -125,9 +131,9 @@ class JoypadPauseScene extends JoypadScene {
 
     initButtons() {
         this.resumeButton = this.newButton({ width: 300, height: 100, text: "RESUME" })
-        this.resumeButton.onClick = () => this.game.pause(false)
+        this.resumeButton.onClickUp = () => this.game.pause(false)
         this.restartButton = this.newButton({ width: 300, height: 100, text: "RESTART" })
-        this.restartButton.onClick = () => this.game.restartGame()
+        this.restartButton.onClickUp = () => this.game.restartGame()
     }
 
     update() {
@@ -167,12 +173,17 @@ class Button extends Entity {
         const isDown = this.checkHitTouches()
         if(isDown != this.isDown) {
             this.isDown = isDown
-            this.onClick()
+            if(isDown) this.onClickDown()
+            else this.onClickUp()
         }
     }
 
-    onClick() {
-        if(this.inputKey) this.game.setInputKey(this.inputKey, this.isDown)
+    onClickDown() {
+        if(this.inputKey) this.game.setInputKey(this.inputKey, true)
+    }
+
+    onClickUp() {
+        if(this.inputKey) this.game.setInputKey(this.inputKey, false)
     }
 
     getSprite() {
@@ -203,10 +214,11 @@ class Button extends Entity {
     }
     
     newTextSprite() {
+        const fontSize = floor(this.height/2)
         return new Text(this.group, null, {
             text: this.text,
             fillStyle: "white",
-            font: "bold 40px serif",
+            font: `bold ${fontSize}px serif`,
         })
     }
 
