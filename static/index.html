@@ -98,7 +98,7 @@
 import { newDomEl } from './static/utils.mjs'
 import { GameMap, Game, MODE_LOCAL } from './static/game.mjs'
 import { GameBuilder } from './static/builder.mjs'
-import lib from './static/lib.mjs'
+import LIB from './static/lib.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -112,8 +112,9 @@ let mode = null, map = null, gameBuilder = null, game = null
 const sceneEl = document.getElementById("scene")
 const mapWidthEl = document.getElementById("map_width")
 const mapHeightEl = document.getElementById("map_height")
-function initInputEls() {
-    for(let key in lib.scenes) {
+async function initInputEls() {
+    await LIB.loader
+    for(let key in LIB.scenes) {
         sceneEl.appendChild(newDomEl("option", { value: key, text: key }))
     }
     const scnMap = map.scenes["0"]
@@ -220,7 +221,7 @@ async function main() {
 function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
-    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, lib, map)
+    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, LIB, map)
     gameBuilder.run()
     mode = "builder"
     builderParentEl.style.display = ""
@@ -236,7 +237,7 @@ function startAndShowGame() {
     if(mode == "builder") gameBuilder.syncMap()
     if(!game) {
         const playerId = "0"
-        game = new Game(gameParentEl, lib, map, playerId, {
+        game = new Game(gameParentEl, LIB, map, playerId, {
             mode: MODE_LOCAL,
             debug: isDebugMode
         })
@@ -248,7 +249,7 @@ function startAndShowGame() {
         })
         game.run()
     } else {
-        game.restart()
+        game.restartGame()
     }
     mode = "game"
     gameParentEl.style.display = ""

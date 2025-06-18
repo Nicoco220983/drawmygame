@@ -1,4 +1,4 @@
-import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard, ModuleLibrary } from '../game.mjs'
+import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard, ModuleLibrary, CountDown } from '../game.mjs'
 const { floor } = Math
 
 export const LIB = new ModuleLibrary()
@@ -8,7 +8,16 @@ export class TagScene extends GameScene {
     
     constructor(game, scnId) {
         super(game, scnId)
-        this.duration = 3 * 60
+        this.step = "INIT"
+        this.initDuration = 3
+        this.duration = 3 * 60 + this.initDuration
+        this.notifs.new(CountDown, {
+            x: this.width/2,
+            y: this.height/2,
+            duration: 3,
+            font: "bold 200px arial",
+            fillStyle: "black",
+        })
         this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -24,6 +33,15 @@ export class TagScene extends GameScene {
             if(!tag || !damager || tag.ownerId != damager.id) return
             tag.setOwner(hero.id)
         })
+    }
+    update() {
+        super.update()
+        if(this.step == "INIT") this.updateStepInit()
+    }
+    updateStepInit() {
+        const { iteration, initDuration } = this
+        const { fps } = this.game
+        if(iteration > initDuration * fps) this.step = "GAME"
     }
     updateStepGame() {
         const { iteration, duration } = this

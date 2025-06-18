@@ -4,9 +4,16 @@
 import { Library } from './game.mjs'
 
 const LIB = new Library()
-LIB.addModuleLibraries(["./game.mjs"])
-LIB.addModuleLibraries(["./scenes/catch_all_stars.mjs"])
-LIB.addModuleLibraries(["./scenes/tag.mjs"])
+
+async function load() {
+    await Promise.all([
+        LIB.addModuleLibraries(["./game.mjs"]),
+        LIB.addModuleLibraries(["./scenes/catch_all_stars.mjs"]),
+        LIB.addModuleLibraries(["./scenes/tag.mjs"]),
+    ])
+}
+LIB.loader = load()
+
 export default LIB
 
 // export default {

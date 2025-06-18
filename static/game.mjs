@@ -3576,9 +3576,7 @@ export class WaitingScene extends SceneCommon {
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
         if(this.qrcodeSprite) {
-            const qrcodeImg = this.qrcodeSprite.getImg(
-                200, 200, 1, 1,
-            )
+            const qrcodeImg = this.qrcodeSprite.getImg(200, 200, 1, 1)
             if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))
         }
     }
@@ -3720,6 +3718,27 @@ export class ScoresBoard extends Entity {
             const lineCan = newTextCanvas(`${playerName}: ${score}`, fontArgs)
             ctx.drawImage(lineCan, (width-lineCan.width)/2, headerHeight + i * lineHeight)
         }
+    }
+}
+
+
+export class CountDown extends Text {
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.duration = kwargs && kwargs.duration || 3
+        this.syncText()
+    }
+    update() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        if(this.startIt === undefined) this.startIt = iteration
+        if((iteration - this.startIt)/fps > this.duration) this.remove()
+        this.syncText()
+    }
+    syncText() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
     }
 }
 
