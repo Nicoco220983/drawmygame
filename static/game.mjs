@@ -27,7 +27,7 @@ const IS_SERVER_ENV = (typeof window === 'undefined')
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
-const SEND_STATE_PERIOD = 5
+const SEND_STATE_PERIOD = 1
 const RESEND_INPUT_STATE_PERIOD = .5
 
 
@@ -49,6 +49,12 @@ const RESEND_INPUT_STATE_PERIOD = .5
 // function waitLoads() {
 //     return Promise.all(Loads.map(_waitLoad))
 // }
+
+export async function importAndPreload(path) {
+    const mod = await import(path)
+    if(mod.LIB) await mod.LIB.preloadAssets()
+    return mod
+}
 
 const cachedFetchPrms = {}
 async function cachedFetch(src) {
@@ -2129,8 +2135,7 @@ export class GameScene extends SceneCommon {
     }
 
     async loadJoypadScene() {
-        const { LIB, JoypadScene } = await import("./joypad.mjs")
-        await LIB.preloadAssets()
+        const { JoypadScene } = await importAndPreload("./joypad.mjs")
         return new JoypadScene(this.game)
     }
 
@@ -3527,7 +3532,7 @@ export class WaitingScene extends SceneCommon {
     }
 
     async loadJoypadScene() {
-        const { JoypadWaitingScene } = await import("./joypad.mjs")
+        const { JoypadWaitingScene } = await importAndPreload("./joypad.mjs")
         return new JoypadWaitingScene(this.game)
     }
 }

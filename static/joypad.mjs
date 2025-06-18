@@ -1,9 +1,8 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
-import * as utils from './utils.mjs'
-import { Sprite, SpriteSheet, Entity, Text, EntityGroup, Entities, range, ModuleLibrary } from "./game.mjs"
-import { cachedTransform, cloneCanvas, colorizeCanvas } from "./utils.mjs"
+import { Sprite, Entity, Text, EntityGroup, ModuleLibrary } from "./game.mjs"
+import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
 export const LIB = new ModuleLibrary()
 
@@ -87,8 +86,7 @@ export class JoypadWaitingScene extends JoypadScene {
     initStartButton() {
         const { game, width, height } = this, { localPlayerId } = game
         if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
-        const size = height * .45
-        this.startButton = this.newButton({ x:width/2, y:height/2, size, text: "START" })
+        this.startButton = this.newButton({ x:width/2, y:height/2, width: 300, height: 100, text: "START" })
         this.startButton.onClick = () => this.game.startGame()
     }
     syncLocalPlayerButtons() {}
@@ -124,15 +122,6 @@ class JoypadPauseScene extends JoypadScene {
 
 
 const BurronImg = LIB.addImage("/static/assets/button_colorable.png")
-const ButtonSpriteSheets = {
-    spritesheets: {},
-    get: function(color) {
-        return this.spritesheets[color] ||= new SpriteSheet((async () => {
-            if(color) img = colorizeCanvas(cloneCanvas(BurronImg), color)
-            return BurronImg
-        })(), 2, 1)
-    },
-}
 
 class Button extends Entity {
     constructor(group, id, kwargs) {
@@ -170,16 +159,15 @@ class Button extends Entity {
             const res = cloneCanvas(img)
             return color ? colorizeCanvas(res, color) : res
         })
-        const sizeRatio = this.width / this.height
+        const sizeRatio = this.width/this.height
         const sprite = cachedTransform(img, sizeRatio, () => {
             if(sizeRatio == 1) return new Sprite(cloneCanvas(img))
-            const res = newCanvas(ceil(img.height * sizeRatio), img.height)
-            const ctx = res.getContext("2d")
-            ctx.drawImage(img, 0, 0, img.width/2, img.height, 0, 0, img.width/2, img.height)
-            ctx.drawImage(img, img.width/2, 0, img.width/2, img.height, res.width - img.width/2, 0, img.width/2, img.height)
-            for(let i=img.width/2+1; i<res.width - img.width/2; ++i) {
-                ctx.drawImage(img, img.width/2, 0, 1, img.height, img.width/2 + i, 0, 1, img.height)
-            }
+            const { width:iw, height:ih } = img, iw2 = ceil(iw/2)
+            const rw = ceil(ih * sizeRatio), rh = ih
+            const res = newCanvas(rw, rh), ctx = res.getContext("2d")
+            ctx.drawImage(img, 0, 0, iw2, ih, 0, 0, iw2, ih)
+            ctx.drawImage(img, iw2, 0, iw2, ih, rw-iw2, 0, iw2, ih)
+            for(let x=iw2; x<rw-iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
             return new Sprite(res)
         })
         return sprite
@@ -211,6 +199,7 @@ class Button extends Entity {
         return new Text(this.group, null, {
             text: this.text,
             fillStyle: "white",
+            font: "bold 40px serif",
         })
     }
 }
