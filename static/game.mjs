@@ -63,10 +63,9 @@ export class Img extends Image {
         super()
         if(IS_SERVER_ENV) return
         this._loading = true
-        cachedFetch(src).then(res => res.blob()).then(blob => {
-          const url = URL.createObjectURL(blob)
-          this.src = url
-        })
+        this.src = src
+        this.onload = () => this._loading = false
+        this.onerror = () => this._loading = false
     }
 }
 
@@ -116,6 +115,15 @@ export class Library {
             addItems(path, mod.LIB.scenes, this.scenes)
         }
     }
+    async preload(paths) {
+        const assets = new Set()
+        if(!IS_SERVER_ENV) {
+            for(let path of paths) for(let asset of this.modLibs[path].assets) assets.add(asset)
+        }
+        const mods = await Promise.all(Array.from(paths).map(p => import(p)))
+        await Promise.all(mods.map(m => m.LIB).filter(l => l).map(l => l.preloadAssets()))
+        return mods
+    }
 }
 
 export class ModuleLibrary {
@@ -133,12 +141,23 @@ export class ModuleLibrary {
         scn.name = cls.name
     }
     addImage(path) {
-        this.assets.push(path)
-        return new Img(path)
+        const img =  new Img(path)
+        this.assets.push(img)
+        return img
     }
     addAudio(path) {
-        this.assets.push(path)
-        return new Aud(path)
+        const aud = new Aud(path)
+        this.assets.push(aud)
+        return aud
+    }
+    async preloadAssets() {
+        if(IS_SERVER_ENV) return
+        // TODO: improve this code
+        while(true) {
+            await new Promise(ok => setTimeout(ok, 100))
+            for(let asset of this.assets) if(asset._loading) continue
+            break
+        }
     }
 }
 
@@ -325,15 +344,22 @@ export class Sprite {
 
 
 export class SpriteSheet {
-    constructor(src, nbCols, nbRows) {
+    constructor(img, nbCols, nbRows) {
+        this.img = img
+        this.nbCols = nbCols
+        this.nbRows = nbRows
         this.sprites = []
         if(IS_SERVER_ENV) return
-        for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
-        if(typeof src === "string") src = loadImg(src)  
-        if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
-        else this.initSprites(src, nbCols, nbRows)
+        this._loading = true
+        //if(typeof src === "string") src = loadImg(src)  
+        //if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
+        this.initSprites()
     }
-    initSprites(img, nbCols, nbRows) {
+    initSprites() {
+        if(!this._loading) return
+        const { img, nbRows, nbCols } = this
+        if(img._loading) return
+        for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
         const frameWidth = floor(img.width / nbCols)
         const frameHeight = floor(img.height / nbRows)
         for (let j = 0; j < nbRows; ++j) for (let i = 0; i < nbCols; ++i) {
@@ -341,10 +367,12 @@ export class SpriteSheet {
             can.width = frameWidth
             can.height = frameHeight
             can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
-            this.get(i + j*nbCols).baseImg = can
+            this.sprites[i + j*nbCols].baseImg = can
         }
+        this._loading = false
     }
     get(num, loop = false) {
+        this.initSprites()
         const { sprites } = this
         if(loop) num = num % sprites.length
         else if(num >= sprites.length) return null
@@ -1493,14 +1521,7 @@ export class Game extends GameCommon {
             scnMap.entities.forEach(entMap => paths.add(lib.entities[entMap.key].path))
             scnMap.heros.forEach(heroMap => paths.add(lib.entities[heroMap.key].path))
         }
-        const assets = new Set()
-        if(!IS_SERVER_ENV) {
-            for(let path of paths) for(let asset of lib.modLibs[path].assets) assets.add(asset)
-        }
-        const mods = await Promise.all(
-            Array.from(paths).map(p => import(p))
-            .concat(Array.from(assets).map(a => cachedFetch(a)))
-        )
+        const mods = await lib.preload(paths)
         await this.loadScenes(mods[0][scnLib.name], scnMapId)
     }
 
@@ -2108,7 +2129,8 @@ export class GameScene extends SceneCommon {
     }
 
     async loadJoypadScene() {
-        const { JoypadScene } = await import("./joypad.mjs")
+        const { LIB, JoypadScene } = await import("./joypad.mjs")
+        await LIB.preloadAssets()
         return new JoypadScene(this.game)
     }
 

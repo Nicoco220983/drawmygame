@@ -229,6 +229,13 @@ function addCanvas(canvas, canvas2, x=0, y=0) {
     return canvas
 }
 
+function cachedTransform(obj, cacheKey, tranformFun) {
+    const cache = obj._transformCache ||= {}
+    let res = cache[cacheKey]
+    if(res === undefined) res = cache[cacheKey] = tranformFun()
+    return res
+}
+
 function getHitBox(obj) {
     if(obj.getHitBox) return obj.getHitBox()
     if(obj.getBoundingClientRect) return obj.getBoundingClientRect()
@@ -281,6 +288,7 @@ export {
     cloneCanvas,
     colorizeCanvas,
     addCanvas,
+    cachedTransform,
     checkAllLoadsDone,
     checkHit,
     getHitBox,

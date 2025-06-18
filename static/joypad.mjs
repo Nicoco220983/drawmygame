@@ -2,8 +2,10 @@
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
 import * as utils from './utils.mjs'
-import { loadImg, Sprite, SpriteSheet, Entity, Text, EntityGroup, Entities, range } from "./game.mjs"
-import { cloneCanvas, colorizeCanvas } from "./utils.mjs"
+import { Sprite, SpriteSheet, Entity, Text, EntityGroup, Entities, range, ModuleLibrary } from "./game.mjs"
+import { cachedTransform, cloneCanvas, colorizeCanvas } from "./utils.mjs"
+
+export const LIB = new ModuleLibrary()
 
 
 export class JoypadScene {
@@ -121,14 +123,13 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImgPrm = loadImg("/static/assets/button_colorable.png")
+const BurronImg = LIB.addImage("/static/assets/button_colorable.png")
 const ButtonSpriteSheets = {
     spritesheets: {},
     get: function(color) {
         return this.spritesheets[color] ||= new SpriteSheet((async () => {
-            let img = await BurronImgPrm
-            if(color) img = colorizeCanvas(cloneCanvas(img), color)
-            return img
+            if(color) img = colorizeCanvas(cloneCanvas(BurronImg), color)
+            return BurronImg
         })(), 2, 1)
     },
 }
@@ -157,9 +158,31 @@ class Button extends Entity {
     }
 
     getSprite() {
-        const localPlayer = this.game.players[this.game.localPlayerId]
+        const { game } = this
+        const localPlayer = game.players[game.localPlayerId]
         const color = localPlayer ? localPlayer.color : null
-        return ButtonSpriteSheets.get(color).get(this.isDown ? 1 : 0)
+        let img = BurronImg
+        const numCol = this.isDown ? 1 : 0
+        img = cachedTransform(img, numCol, () => {
+            return cloneCanvas(img, { col:[numCol,2] })
+        })
+        img = cachedTransform(img, color, () => {
+            const res = cloneCanvas(img)
+            return color ? colorizeCanvas(res, color) : res
+        })
+        const sizeRatio = this.width / this.height
+        const sprite = cachedTransform(img, sizeRatio, () => {
+            if(sizeRatio == 1) return new Sprite(cloneCanvas(img))
+            const res = newCanvas(ceil(img.height * sizeRatio), img.height)
+            const ctx = res.getContext("2d")
+            ctx.drawImage(img, 0, 0, img.width/2, img.height, 0, 0, img.width/2, img.height)
+            ctx.drawImage(img, img.width/2, 0, img.width/2, img.height, res.width - img.width/2, 0, img.width/2, img.height)
+            for(let i=img.width/2+1; i<res.width - img.width/2; ++i) {
+                ctx.drawImage(img, img.width/2, 0, 1, img.height, img.width/2 + i, 0, 1, img.height)
+            }
+            return new Sprite(res)
+        })
+        return sprite
     }
 
     drawTo(ctx) {
