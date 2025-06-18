@@ -2140,8 +2140,8 @@ export class GameScene extends SceneCommon {
     }
 
     async loadJoypadScene() {
-        const { JoypadScene } = await importAndPreload("./joypad.mjs")
-        return new JoypadScene(this.game)
+        const { JoypadGameScene } = await importAndPreload("./joypad.mjs")
+        return new JoypadGameScene(this.game)
     }
 
     getState() {

@@ -6,7 +6,7 @@ import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils
 
 export const LIB = new ModuleLibrary()
 
-// TODO: split it into HeroJoypadScene
+
 export class JoypadScene {
 
     constructor(game) {
@@ -19,7 +19,6 @@ export class JoypadScene {
         this.visible = true
         this.backgroundColor = "black"
         this.backgroundAlpha = 1
-        // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
             this.canvas.width = this.width
@@ -30,34 +29,24 @@ export class JoypadScene {
         this.syncSizeAndPos()
     }
 
-    getPriority() {
-        return 0
-    }
-
     syncSizeAndPos() {
         assign(this, this.game.scenesSizeAndPos.joypad)
     }
 
-    syncLocalPlayerButtons() {
-        const hero = this.game.scenes.game.getHero(this.game.localPlayerId)
-        if(hero && hero == this._lastHeroSynced) return
-        this.buttons.clear()
-        if(!hero) return
-        hero.initJoypadButtons(this)
-        this._lastHeroSynced = hero
-    }
-
-    newButton(kwargs) {
-        return this.buttons.new(Button, kwargs)
-    }
-
     update() {
-        this.syncLocalPlayerButtons()
         this.buttons.update()
     }
 
     onTouch() {
         this.buttons.forEach(but => but.checkClick())
+    }
+ 
+    newButton(kwargs) {
+        return this.buttons.new(Button, kwargs)
+    }
+
+    newPauseScene() {
+        return null
     }
 
     draw() {
@@ -77,6 +66,24 @@ export class JoypadScene {
     drawTo(ctx) {
         this.buttons.drawTo(ctx)
     }
+}
+
+
+export class JoypadGameScene extends JoypadScene {
+
+    update() {
+        super.update()
+        this.syncLocalPlayerButtons()
+    }
+
+    syncLocalPlayerButtons() {
+        const hero = this.game.scenes.game.getHero(this.game.localPlayerId)
+        if(hero && hero == this._lastHeroSynced) return
+        this.buttons.clear()
+        if(!hero) return
+        hero.initJoypadButtons(this)
+        this._lastHeroSynced = hero
+    }
 
     newPauseScene() {
         return new JoypadPauseScene(this.game)
@@ -85,10 +92,12 @@ export class JoypadScene {
 
 
 export class JoypadWaitingScene extends JoypadScene {
+
     update() {
+        this.update()
         this.initStartButton()
-        this.buttons.update()
     }
+
     initStartButton() {
         const { game, width, height } = this, { localPlayerId } = game
         if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
@@ -99,6 +108,7 @@ export class JoypadWaitingScene extends JoypadScene {
 
 
 class JoypadPauseScene extends JoypadScene {
+
     constructor(game) {
         super(game)
         this.backgroundColor = "lightgrey"
@@ -110,24 +120,28 @@ class JoypadPauseScene extends JoypadScene {
             fillStyle: "white",
         })
         this.initButtons()
-        this.syncPos()
+        this.syncEntitiesPos()
     }
+
     initButtons() {
         this.resumeButton = this.newButton({ width: 300, height: 100, text: "RESUME" })
         this.resumeButton.onClick = () => this.game.pause(false)
         this.restartButton = this.newButton({ width: 300, height: 100, text: "RESTART" })
         this.restartButton.onClick = () => this.game.restartGame()
     }
-    syncPos() {
+
+    update() {
+        super.update()
+        this.syncEntitiesPos()
+    }
+
+    syncEntitiesPos() {
         const { width, height } = this
         assign(this.pauseText, { x: floor(width/2), y: floor(height/6) })
         assign(this.resumeButton, { x: floor(width/2), y:floor(height/2) })
         assign(this.restartButton, { x: floor(width/2), y:floor(height/2)+120 })
     }
-    update() {
-        this.syncPos()
-        this.buttons.update()
-    }
+
     drawTo(ctx) {
         super.drawTo(ctx)
         this.notifs.drawTo(ctx)
@@ -138,6 +152,7 @@ class JoypadPauseScene extends JoypadScene {
 const BurronImg = LIB.addImage("/static/assets/button_colorable.png")
 
 class Button extends Entity {
+
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.inputKey = kwargs && kwargs.inputKey
@@ -186,6 +201,14 @@ class Button extends Entity {
         })
         return sprite
     }
+    
+    newTextSprite() {
+        return new Text(this.group, null, {
+            text: this.text,
+            fillStyle: "white",
+            font: "bold 40px serif",
+        })
+    }
 
     drawTo(ctx) {
         if(this.disabled) return
@@ -208,12 +231,5 @@ class Button extends Entity {
             )
             ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
         }
-    }
-    newTextSprite() {
-        return new Text(this.group, null, {
-            text: this.text,
-            fillStyle: "white",
-            font: "bold 40px serif",
-        })
     }
 }
