@@ -1117,7 +1117,9 @@ export class GameCommon {
     }
 
     onTouch() {
-        if(this.scenes.joypad) this.scenes.joypad.onTouch()
+        const { joypad: joypadScn, joypadPause: joypadPauseScn } = this.scenes
+        if(joypadPauseScn) joypadPauseScn.onTouch()
+        else if(joypadScn) joypadScn.onTouch()
     }
 
     update() {
@@ -1131,13 +1133,16 @@ export class GameCommon {
             this.scenes.pause ||= gameScn.newPauseScene()
         }
         if(joypadScn) {
-            if(!joypadScn.paused) {
+            if(!gameScn.paused) {
                 joypadScn.update()
                 delete this.scenes.joypadPause
             } else {
                 this.scenes.joypadPause ||= joypadScn.newPauseScene()
             }
         }
+        const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
+        if(pauseScn) pauseScn.update()
+        if(joypadPauseScn) joypadPauseScn.update()
     }
 
     mayDraw() {
@@ -1575,7 +1580,7 @@ export class Game extends GameCommon {
             this.scenes.pause ||= gameScn.newPauseScene()
         }
         if(joypadScn) {
-            if(!joypadScn.paused) {
+            if(!gameScn.paused) {
                 joypadScn.update()
                 delete this.scenes.joypadPause
             } else {

@@ -6,7 +6,7 @@ import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils
 
 export const LIB = new ModuleLibrary()
 
-
+// TODO: split it into HeroJoypadScene
 export class JoypadScene {
 
     constructor(game) {
@@ -17,6 +17,8 @@ export class JoypadScene {
         this.width = 800
         this.height = floor(this.width * 9 / 16)
         this.visible = true
+        this.backgroundColor = "black"
+        this.backgroundAlpha = 1
         // this.pointer = null
         if(!this.game.isServerEnv) {
             this.canvas = document.createElement("canvas")
@@ -63,8 +65,12 @@ export class JoypadScene {
         canvas.width = width
         canvas.height = height
         const ctx = canvas.getContext("2d")
-        ctx.fillStyle = "black"
-        ctx.fillRect(0, 0, width, height)
+        if(this.backgroundColor) {
+            ctx.fillStyle = this.backgroundColor
+            ctx.globalAlpha = this.backgroundAlpha
+            ctx.fillRect(0, 0, width, height)
+            ctx.globalAlpha = 1
+        }
         this.drawTo(ctx)
     }
 
@@ -80,8 +86,8 @@ export class JoypadScene {
 
 export class JoypadWaitingScene extends JoypadScene {
     update() {
-        super.update()
         this.initStartButton()
+        this.buttons.update()
     }
     initStartButton() {
         const { game, width, height } = this, { localPlayerId } = game
@@ -89,7 +95,6 @@ export class JoypadWaitingScene extends JoypadScene {
         this.startButton = this.newButton({ x:width/2, y:height/2, width: 300, height: 100, text: "START" })
         this.startButton.onClick = () => this.game.startGame()
     }
-    syncLocalPlayerButtons() {}
 }
 
 
@@ -102,20 +107,29 @@ class JoypadPauseScene extends JoypadScene {
         this.pauseText = this.notifs.new(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
-            fillStyle: "black",
+            fillStyle: "white",
         })
+        this.initButtons()
+        this.syncPos()
     }
-    initResumeButton() {
-        const { game, width, height } = this, { localPlayerId } = game
-        if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
-        const size = height * .45
-        this.resumeButton = this.newButton({ x:width/2, y:height/2, size, text: "RESUME" })
-        this.resumeButton.onClick = () => this.game.pauseGame(false)
+    initButtons() {
+        this.resumeButton = this.newButton({ width: 300, height: 100, text: "RESUME" })
+        this.resumeButton.onClick = () => this.game.pause(false)
+        this.restartButton = this.newButton({ width: 300, height: 100, text: "RESTART" })
+        this.restartButton.onClick = () => this.game.restartGame()
+    }
+    syncPos() {
+        const { width, height } = this
+        assign(this.pauseText, { x: floor(width/2), y: floor(height/6) })
+        assign(this.resumeButton, { x: floor(width/2), y:floor(height/2) })
+        assign(this.restartButton, { x: floor(width/2), y:floor(height/2)+120 })
     }
     update() {
-        assign(this.pauseText, { x: this.width/2, y: this.height/4 })
+        this.syncPos()
+        this.buttons.update()
     }
     drawTo(ctx) {
+        super.drawTo(ctx)
         this.notifs.drawTo(ctx)
     }
 }
