@@ -71,6 +71,7 @@
     </flexcol>
 <script type="module">
 
+import { cloneCanvas, importJs } from '../static/utils.mjs'
 import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
 import lib from '../static/lib.mjs'
 
@@ -166,20 +167,23 @@ try {
             joypadQrcodeEl.style.display = "none"
         } else {
             showJoypadLinkBut.textContent = "Hide joypad link"
-            await importJs('../static/qrcode.min.js')
-            const url = URL.parse(window.location)
-            url.searchParams.set("game", "0")
-            url.searchParams.set("joypad", "1")
+            const qrcodeImg = await game.initQrcodeImg()
             joypadQrcodeEl.innerHTML = ""
             joypadQrcodeEl.style.display = ""
-            var qrcode = new QRCode(joypadQrcodeEl, {
-                text: url.toString(),
-                width: 256,
-                height: 256,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            })
+            joypadQrcodeEl.appendChild(cloneCanvas(qrcodeImg))
+            // await importJs('../static/qrcode.min.js')
+            // const url = URL.parse(window.location)
+            // url.searchParams.set("game", "0")
+            // url.searchParams.set("joypad", "1")
+            // var qrcode = new QRCode(joypadQrcodeEl, {
+            //     text: url.toString(),
+            //     width: 256,
+            //     height: 256,
+            //     colorDark : "#000000",
+            //     colorLight : "#ffffff",
+            //     correctLevel : QRCode.CorrectLevel.H
+            // })
+            if(game) game.initQrcodeSprite()
         }
     }
     syncJoypadLink()
@@ -279,9 +283,7 @@ try {
     function joinGame(name, color) {
         if(!ws || joined) return
         joined = true
-        ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({
-            name, color,
-        }))
+        ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({ name, color }))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         initGame()
@@ -305,17 +307,6 @@ try {
     function restartGame() {
         if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
         if(game) game.focus()
-    }
-
-    const importJsPrms = {}
-    function importJs(src) {
-        return importJsPrms[src] ||= new Promise((ok, ko) => {
-            const scriptEl = document.createElement("script")
-            scriptEl.src = src
-            document.body.appendChild(scriptEl)
-            scriptEl.onload = ok
-            scriptEl.onerror = ko
-        })
     }
 
     await main()

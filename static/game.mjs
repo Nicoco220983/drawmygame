@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
 import { AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 
@@ -1864,6 +1864,28 @@ export class Game extends GameCommon {
         else delete this.scenes.joypad
         this.syncSize()
     }
+
+    async initQrcodeImg() {
+        if(IS_SERVER_ENV) return
+        let { qrcodeImg } = this
+        if(!qrcodeImg) {
+            await importJs('../static/qrcode.min.js')
+            const wrapperEl = document.createElement("div")
+            const url = URL.parse(window.location)
+            url.searchParams.set("game", "0")
+            url.searchParams.set("joypad", "1")
+            new QRCode(wrapperEl, {
+                text: url.toString(),
+                width: 256,
+                height: 256,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            })
+            qrcodeImg = this.qrcodeImg = wrapperEl.children[0]
+        }
+        return qrcodeImg
+    }
 }
 
 
@@ -3482,14 +3504,14 @@ export class WaitingScene extends SceneCommon {
         this.notifs = new EntityGroup(this)
         this.playerTxts = []
         this.initTitleText()
+        this.initQrcodeSprite()
     }
-    getPriority() {
-        return -1
-    }
+
     update() {
         this.syncPlayerTexts()
         this.syncTextPositions()
     }
+
     initTitleText() {
         this.titleTxt = this.notifs.new(Text, {
             text: "WAITING PLAYERS",
@@ -3498,6 +3520,22 @@ export class WaitingScene extends SceneCommon {
         })
         this.syncTextPositions()
     }
+
+    async initQrcodeSprite() {
+        if(IS_SERVER_ENV) return
+        let qrcodeSprite = this.qrcodeSprite
+        if(!qrcodeSprite) {
+            const qrcodeImg = await this.game.initQrcodeImg()
+            const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
+            const ctx = can.getContext("2d")
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, can.width, can.height)
+            ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
+            qrcodeSprite = this.qrcodeSprite = new Sprite(can)
+        }
+        return qrcodeSprite
+    }
+
     syncPlayerTexts() {
         const { playerTxts } = this
         const { players } = this.game
@@ -3520,6 +3558,7 @@ export class WaitingScene extends SceneCommon {
             }
         }
     }
+
     syncTextPositions() {
         const { playerTxts, width, height } = this
         // title
@@ -3529,12 +3568,19 @@ export class WaitingScene extends SceneCommon {
         for(let idx in playerTxts) {
             const playerTxt = playerTxts[idx]
             if(!playerTxt) continue
-            assign(playerTxt, { x: width/3+playerTxt.width/2, y: height/3 + (numPlayer * 40) })
+            assign(playerTxt, { x: width/2+playerTxt.width/2, y: height/3 + (numPlayer * 40) })
             numPlayer += 1
         }
     }
+
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
+        if(this.qrcodeSprite) {
+            const qrcodeImg = this.qrcodeSprite.getImg(
+                200, 200, 1, 1,
+            )
+            if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))
+        }
     }
 
     async loadJoypadScene() {
@@ -3557,9 +3603,6 @@ class VictoryScene extends SceneCommon {
             fillStyle: "black",
         })
     }
-    getPriority() {
-        return -1
-    }
     update() {
         assign(this.victoryText, { x: this.width/2, y: this.height/2 })
     }
@@ -3580,9 +3623,6 @@ class DefeatScene extends SceneCommon {
             font: "bold 50px arial",
             fillStyle: "black",
         })
-    }
-    getPriority() {
-        return -1
     }
     update() {
         assign(this.defeatText, { x: this.width/2, y: this.height/2 })

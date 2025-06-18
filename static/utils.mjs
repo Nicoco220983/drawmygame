@@ -275,6 +275,18 @@ function newDomEl(tag, kwargs) {
 }
 
 
+const importJsPrms = {}
+function importJs(src) {
+    return importJsPrms[src] ||= new Promise((ok, ko) => {
+        const scriptEl = document.createElement("script")
+        scriptEl.src = src
+        document.body.appendChild(scriptEl)
+        scriptEl.onload = ok
+        scriptEl.onerror = ko
+    })
+}
+
+
 export {
     // Group,
     // GameAudio,
@@ -294,4 +306,5 @@ export {
     getHitBox,
     sumTo,
     newDomEl,
+    importJs,
 }
