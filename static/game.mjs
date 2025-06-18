@@ -3731,12 +3731,12 @@ export class CountDown extends Text {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.duration = kwargs && kwargs.duration || 3
+        this.startIt = this.scene.iteration
         this.syncText()
     }
     update() {
         const { iteration } = this.scene
         const { fps } = this.game
-        if(this.startIt === undefined) this.startIt = iteration
         if((iteration - this.startIt)/fps > this.duration) this.remove()
         this.syncText()
     }

@@ -11,13 +11,6 @@ export class TagScene extends GameScene {
         this.step = "INIT"
         this.initDuration = 3
         this.duration = 3 * 60 + this.initDuration
-        this.notifs.new(CountDown, {
-            x: this.width/2,
-            y: this.height/2,
-            duration: 3,
-            font: "bold 200px arial",
-            fillStyle: "black",
-        })
         this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -34,6 +27,15 @@ export class TagScene extends GameScene {
             tag.setOwner(hero.id)
         })
     }
+    initCountDown() {
+        this.countDown ||= this.notifs.new(CountDown, {
+            x: this.width/2,
+            y: this.height/2,
+            duration: 3,
+            font: "bold 200px arial",
+            fillStyle: "black",
+        })
+    }
     update() {
         super.update()
         if(this.step == "INIT") this.updateStepInit()
@@ -41,8 +43,12 @@ export class TagScene extends GameScene {
     updateStepInit() {
         const { iteration, initDuration } = this
         const { fps } = this.game
+        this.initCountDown()
         this.updateWorld()
-        if(iteration > initDuration * fps) this.step = "GAME"
+        if(iteration > initDuration * fps) {
+            this.step = "GAME"
+            delete this.countDown
+        }
     }
     updateStepGame() {
         const { iteration, duration } = this
