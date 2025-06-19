@@ -187,10 +187,11 @@ class Button extends Entity {
     }
 
     getSprite() {
+        if(BurronImg.unloaded) return
+        let img = BurronImg
         const { game } = this
         const localPlayer = game.players[game.localPlayerId]
         const color = localPlayer ? localPlayer.color : null
-        let img = BurronImg
         const numCol = this.isDown ? 1 : 0
         img = cachedTransform(img, numCol, () => {
             return cloneCanvas(img, { col:[numCol,2] })

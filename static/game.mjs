@@ -67,38 +67,39 @@ const Image = (!IS_SERVER_ENV && window.Image) || None
 export class Img extends Image {
     constructor(src) {
         super()
+        this._src = src
+        this.unloaded = true
+    }
+    async load() {
         if(IS_SERVER_ENV) return
-        this._loading = true
-        this.src = src
-        this.onload = () => this._loading = false
-        this.onerror = () => this._loading = false
+        const loadPrm = this._loadPrm ||= new Promise((ok, ko) => {
+            this.src = this._src
+            this.onload = () => { this.unloaded = false; ok() }
+            this.onerror = () => { this.unloaded = false; ko() }
+        })
+        return await loadPrm
     }
 }
 
 export class Aud {
     constructor(src) {
+        this.src = src
+        this.unloaded = true
+    }
+    async load() {
         if(IS_SERVER_ENV) return
-        this._loading = true
-        cachedFetch(src).then(async res => {
+        const loadPrm = this._loadPrm ||= new Promise(async (ok, ko) => {
+            const res = await cachedFetch(this.src)
             this.raw = await res.arrayBuffer()
-            this._loading = false
+            this.unloaded = false
+            ok()
         })
+        return await loadPrm
     }
 }
 
-// export function loadImg(src) {
-//     return new Promise((ok, ko) => {
-//         //if(IS_SERVER_ENV) return
-//         const img = new Image()
-//         img.src = src
-//         img.onload = () => ok(img)
-//         img.onerror = () => ko(`load error: ${src}`)
-//     })
-// }
-
 export class Library {
     constructor() {
-        this.modLibs = {}
         this.entities = {}
         this.scenes = {}
     }
@@ -114,18 +115,11 @@ export class Library {
         }
         for(let i in paths) {
             const path = paths[i], mod = mods[i]
-            this.modLibs[path] = {
-                assets: mod.LIB.assets
-            }
             addItems(path, mod.LIB.entities, this.entities)
             addItems(path, mod.LIB.scenes, this.scenes)
         }
     }
     async preload(paths) {
-        const assets = new Set()
-        if(!IS_SERVER_ENV) {
-            for(let path of paths) for(let asset of this.modLibs[path].assets) assets.add(asset)
-        }
         const mods = await Promise.all(Array.from(paths).map(p => import(p)))
         await Promise.all(mods.map(m => m.LIB).filter(l => l).map(l => l.preloadAssets()))
         return mods
@@ -158,12 +152,7 @@ export class ModuleLibrary {
     }
     async preloadAssets() {
         if(IS_SERVER_ENV) return
-        // TODO: improve this code
-        while(true) {
-            await new Promise(ok => setTimeout(ok, 100))
-            for(let asset of this.assets) if(asset._loading) continue
-            break
-        }
+        await Promise.all(this.assets.map(a => a.load()))
     }
 }
 
@@ -335,7 +324,7 @@ export class Sprite {
         let res = this.transImgs[key]
         if(res) return res
         const { baseImg } = this
-        if(!baseImg || baseImg._loading || baseImg.width==0 || baseImg.height==0) return null // TODO: deprecate it
+        if(!baseImg || baseImg.unloaded || baseImg.width==0 || baseImg.height==0) return null // TODO: deprecate it
         const { width: baseWidth, height: baseHeight } = baseImg
         const resImg = newCanvas(width, height)
         const ctx = resImg.getContext("2d")
@@ -356,15 +345,15 @@ export class SpriteSheet {
         this.nbRows = nbRows
         this.sprites = []
         if(IS_SERVER_ENV) return
-        this._loading = true
+        this.unloaded = true
         //if(typeof src === "string") src = loadImg(src)  
         //if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
         this.initSprites()
     }
     initSprites() {
-        if(!this._loading) return
+        if(!this.unloaded) return
         const { img, nbRows, nbCols } = this
-        if(img._loading) return
+        if(img.unloaded) return
         for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
         const frameWidth = floor(img.width / nbCols)
         const frameHeight = floor(img.height / nbRows)
@@ -375,7 +364,7 @@ export class SpriteSheet {
             can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
             this.sprites[i + j*nbCols].baseImg = can
         }
-        this._loading = false
+        this.unloaded = false
     }
     get(num, loop = false) {
         this.initSprites()
