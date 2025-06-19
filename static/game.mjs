@@ -2099,6 +2099,20 @@ export class GameScene extends SceneCommon {
         return teams[team]
     }
 
+    filterEntities(key, filter) {
+        const entsCache = this._entitiesCache ||= {}
+        const keyEntsIts = this._keyEntitiesCacheIts ||= {}
+        if(keyEntsIts[key] != this.iteration) {
+            const keyEnts = entsCache[key] ||= []
+            keyEnts.length = 0
+            this.entities.forEach(ent => {
+                if(filter(ent)) keyEnts.push(ent)
+            })
+            keyEntsIts[key] = this.iteration
+        }
+        return entsCache[key]
+    }
+
     getCollectables(team) {
         const collectables = this._collectables ||= {}
         const collectablesIts = this._collectablesIt ||= {}
@@ -3729,6 +3743,42 @@ export class CountDown extends Text {
         this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
     }
 }
+
+
+const PortalSprite = new Sprite(LIB.addImage("/static/assets/portal.png"))
+
+class Portal extends Entity {
+    static KEY = "portal"
+
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.width = 50
+        this.height = 50
+    }
+    getPhysicsProps(){
+        return null
+    }
+    update() {
+        this.scene.entities.forEach(ent => {
+            if(hypot(ent.x-this.x, ent.y-this.y)<30 && (ent.speedX * (this.x-ent.x) + ent.speedY * (this.y-ent.y))>0) {
+                this.teleport(ent)
+            }
+        })
+    }
+    teleport(ent) {
+        const portals = this.scene.filterEntities("portals", ent => (ent instanceof Portal))
+        if(portals.length < 2) return
+        let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
+        if(targetPortal === this) targetPortal = portals[portals.length - 1]
+        ent.x = targetPortal.x + (this.x - ent.x)
+        ent.y = targetPortal.y + (this.y - ent.y)
+    }
+    getSprite() {
+        return PortalSprite
+    }
+}
+LIB.addEntity(Portal, {})
+Entities.register("portal", Portal)
 
 
 function arrAvg(arr) {

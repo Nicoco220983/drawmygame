@@ -62,6 +62,7 @@
                 <button id="mode_bomb">Bo[m]b</button>
                 <button id="mode_checkpoint">[C]heckpoint</button>
                 <button id="mode_star">[S]tar</button>
+                <button id="mode_portal">Portal</button>
             </flexrow>
             <!-- <flexrow>
                 <input id="lives" placeholder="lives" type="number" />
@@ -152,6 +153,7 @@ document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setBuilderMod
 document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setBuilderMode('entity', 'spiky')
 document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setBuilderMode('entity', 'checkpt')
 document.getElementById("mode_star").onclick = Keys["es"] = () => setBuilderMode('entity', 'star')
+document.getElementById("mode_portal").onclick = () => setBuilderMode('entity', 'portal')
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, builderModeKey)
@@ -207,6 +209,7 @@ document.addEventListener('keydown', evt => {
 // main
 
 async function main() {
+    await LIB.preload(["./game.mjs"])
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
     initInputEls()
