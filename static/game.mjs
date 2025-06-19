@@ -56,12 +56,6 @@ export async function importAndPreload(path) {
     return mod
 }
 
-const cachedFetchPrms = {}
-async function cachedFetch(src) {
-    const fetchPrm = cachedFetchPrms[src] ||= fetch(src)
-    return await fetchPrm
-}
-
 class None {}
 const Image = (!IS_SERVER_ENV && window.Image) || None
 export class Img extends Image {
@@ -89,7 +83,7 @@ export class Aud {
     async load() {
         if(IS_SERVER_ENV) return
         const loadPrm = this._loadPrm ||= new Promise(async (ok, ko) => {
-            const res = await cachedFetch(this.src)
+            const res = await fetch(this.src, { cache: 'force-cache' })
             this.raw = await res.arrayBuffer()
             this.unloaded = false
             ok()

@@ -1,10 +1,5 @@
 const IS_SERVER_ENV = (typeof window === 'undefined')
 
-export async function loadAud(src) {
-    if(IS_SERVER_ENV) return
-    const res = await fetch(src)
-    return await res.arrayBuffer()
-}
 
 export class AudioEngine {
     constructor(game) {

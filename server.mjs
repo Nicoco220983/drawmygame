@@ -18,6 +18,8 @@ const DIRNAME = dirname(fileURLToPath(import.meta.url))
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
 const MAX_BODY_SIZE = '2mb'
+const ASSETS_STATIC_CACHE_MAX_AGE = PROD ? "1d" : "1h"
+const DEFAULT_STATIC_CACHE_MAX_AGE = IS_DEBUG_MODE ? "1d" : 0
 
 const RM_PLAYER_COUNTDOWN = 10
 const CLOSE_ROOM_COUNTDOWN = 60
@@ -40,7 +42,15 @@ class GameServer {
       limit : MAX_BODY_SIZE
     }))
 
-    this.app.use('/static', express.static('static'))
+    if(IS_DEBUG_MODE) {
+      this.app.use((req, res, next) => {
+        console.log(`${req.method} ${req.url}`)
+        next()
+      })
+    }
+
+    this.app.use('/static/assets', express.static('static/assets', { maxAge: ASSETS_STATIC_CACHE_MAX_AGE }))
+    this.app.use('/static', express.static('static', { maxAge: DEFAULT_STATIC_CACHE_MAX_AGE }))
     this.app.get("/", (req, res) => {
       res.sendFile(join(DIRNAME, "static/index.html"))
     })
