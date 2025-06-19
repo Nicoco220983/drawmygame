@@ -79,9 +79,9 @@ export class TagScene extends GameScene {
         const { heros } = this
         for(let playerId in heros) {
             const hero = heros[playerId]
-            if(hero.y > this.map.height + 100) hero.y = -100
-            if(hero.x > this.map.width + 50) hero.x = -50
-            if(hero.x < -50) hero.x = this.map.width + 50
+            if(hero.y > this.map.height) hero.y -= this.map.height
+            if(hero.x > this.map.width) hero.x -= this.map.width
+            if(hero.x < 0) hero.x += this.map.width
         }
     }
 }
