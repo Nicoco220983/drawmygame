@@ -3746,6 +3746,7 @@ export class CountDown extends Text {
 
 
 const PortalSprite = new Sprite(LIB.addImage("/static/assets/portal.png"))
+const PortalJumpAud = LIB.addAudio("/static/assets/portal_jump.opus")
 
 class Portal extends Entity {
     static KEY = "portal"
@@ -3772,6 +3773,7 @@ class Portal extends Entity {
         if(targetPortal === this) targetPortal = portals[portals.length - 1]
         ent.x = targetPortal.x + (this.x - ent.x)
         ent.y = targetPortal.y + (this.y - ent.y)
+        this.game.audio.playSound(PortalJumpAud)
     }
     getSprite() {
         return PortalSprite
