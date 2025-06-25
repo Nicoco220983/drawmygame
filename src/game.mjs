@@ -248,7 +248,7 @@ async function concatUint8Arrays(uint8arrays) {
 }
 
 async function decompressUsingPako(compressedBytes) {
-    const { ungzip } = await import('./deps/pako.mjs')
+    const { ungzip } = await import('../deps/pako.mjs')
     const decompressedBytes = ungzip(new Uint8Array(compressedBytes))
     return new TextDecoder().decode(decompressedBytes)
 }

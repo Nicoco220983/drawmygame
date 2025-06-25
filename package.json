@@ -4,6 +4,7 @@
   "description": "Draw your own games",
   "main": "server.mjs",
   "scripts": {
+    "build": "node dev/build.js",
     "start": "node server.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -22,5 +23,11 @@
     "express-static": "^1.2.6",
     "express-ws": "^5.0.2",
     "pako": "^2.1.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.27.2",
+    "@babel/core": "^7.27.4",
+    "@babel/plugin-proposal-decorators": "^7.27.1",
+    "@babel/preset-env": "^7.27.2"
   }
 }

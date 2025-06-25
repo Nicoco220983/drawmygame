@@ -71,9 +71,9 @@
     </flexcol>
 <script type="module">
 
-import { cloneCanvas, importJs } from '../static/utils.mjs'
-import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/game.mjs'
-import lib from '../static/lib.mjs'
+import { cloneCanvas, importJs } from '../static/src/utils.mjs'
+import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/src/game.mjs'
+import lib from '../static/src/lib.mjs'
 
 const url = new URL(window.location.href)
 const isDebugMode = url.searchParams.get("debug") == "1"
@@ -171,18 +171,6 @@ try {
             joypadQrcodeEl.innerHTML = ""
             joypadQrcodeEl.style.display = ""
             joypadQrcodeEl.appendChild(cloneCanvas(qrcodeImg))
-            // await importJs('../static/qrcode.min.js')
-            // const url = URL.parse(window.location)
-            // url.searchParams.set("game", "0")
-            // url.searchParams.set("joypad", "1")
-            // var qrcode = new QRCode(joypadQrcodeEl, {
-            //     text: url.toString(),
-            //     width: 256,
-            //     height: 256,
-            //     colorDark : "#000000",
-            //     colorLight : "#ffffff",
-            //     correctLevel : QRCode.CorrectLevel.H
-            // })
             if(game) game.initQrcodeSprite()
         }
     }
