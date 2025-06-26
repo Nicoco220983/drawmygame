@@ -10,6 +10,5 @@ export async function loadLib() {
         LIB.addModuleLibraries(["./scenes/tag.mjs"]),
     ])
     await loader
-    console.log("lib loaded", LIB)
     return LIB
 }

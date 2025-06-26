@@ -392,12 +392,29 @@ export class SpriteSheet {
 export const INIT_STATE = 1 << 0
 export const UPD_STATE = 1 << 1
 
-export class StateField {
-    constructor(type, key, shortKey, defVal) {
-        this.type = type
+
+export function defineStateProperty(type, cls, key, kwargs) {
+    return target => {
+        if((type & INIT_STATE) === INIT_STATE) {
+            if(!target.hasOwnProperty('INIT_STATE_PROPS')) target.INIT_STATE_PROPS = Array.from(target.INIT_STATE_PROPS ?? [])
+            target.INIT_STATE_PROPS.push(new cls(key, kwargs))
+        }
+        if((type & UPD_STATE) === UPD_STATE) {
+            if(!target.hasOwnProperty('UPD_STATE_PROPS')) target.UPD_STATE_PROPS = Array.from(target.UPD_STATE_PROPS ?? [])
+            target.UPD_STATE_PROPS.push(new cls(key, kwargs))
+        }
+        return target
+    }
+}
+
+
+export class StateProperty {
+    static DEFAULT_VALUE = null
+
+    constructor(key, kwargs) {
         this.key = key
-        this.shortKey = shortKey
-        this.defaultValue = defVal
+        this.shortKey = kwargs?.shortKey ?? key
+        this.defaultValue = kwargs?.default ?? this.constructor.DEFAULT_VALUE
     }
     toState(ent, state) {
         const val = ent[this.key]
@@ -418,17 +435,19 @@ export class StateField {
     }
 }
 
-export class StateInt extends StateField {
-    constructor(type, key, shortKey, defVal, kwargs) {
-        super(type, key, shortKey, defVal)
-        this.min = kwargs && kwargs.min
-        this.max = kwargs && kwargs.max
+export class StateInt extends StateProperty {
+    static DEFAULT_VALUE = 0
+
+    constructor(key, kwargs) {
+        super(key, kwargs)
+        this.min = kwargs?.min ?? null
+        this.max = kwargs?.max ?? null
     }
     toInput(ent) {
         const inputEl = super.toInput(ent)
         inputEl.type = "number"
-        if(this.min !== undefined) inputEl.min = this.min
-        if(this.max !== undefined) inputEl.max = this.max
+        if(this.min !== null) inputEl.min = this.min
+        if(this.max !== null) inputEl.max = this.max
         return inputEl
     }
     fromInput(ent, inputEl) {
@@ -436,10 +455,10 @@ export class StateInt extends StateField {
     }
 }
 
-export class StateEnum extends StateField {
-    constructor(type, key, shortKey, defVal, options) {
-        super(type, key, shortKey, defVal)
-        this.options = options
+export class StateEnum extends StateProperty {
+    constructor(key, kwargs) {
+        super(key, kwargs)
+        this.options = kwargs.options
     }
     toInput(ent) {
         const { options } = this
@@ -456,6 +475,8 @@ export class StateEnum extends StateField {
 }
 
 export class StateIntEnum extends StateEnum {
+    static DEFAULT_VALUE = 0
+
     fromInput(ent, inputEl) {
         ent[this.key] = parseInt(inputEl.value)
     }
@@ -463,28 +484,22 @@ export class StateIntEnum extends StateEnum {
 
 
 export class Component {
-    static STATE_PROPS = []
+    static INIT_STATE_PROPS = []
+    static UPD_STATE_PROPS = []
+
     init(ent, kwargs) {}
     update(ent) {}
     getInitState(ent, state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
-            prop.toState(ent, state)
-        }
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(ent, state)
     }
     setInitState(ent, state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
-            prop.fromState(ent, state)
-        }
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(ent, state)
     }
     getState(ent, state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
-            prop.toState(ent, state)
-        }
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(ent, state)
     }
     setState(ent, state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
-            prop.fromState(ent, state)
-        }
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(ent, state)
     }
 }
 
@@ -525,16 +540,13 @@ export class PhysicsComponent extends Component {
 }
 
 
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "x")
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "y")
+@defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirX", { shortKey: "dx", default: 1, options: { '1': "Right", '-1': "Left"}})
+@defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirY", { shortKey: "dy", default: 1, options: { '1': "Up", '-1': "Down"}})
 export class Entity {
 
     static COMPONENTS = new Map()
-
-    static STATE_PROPS = [
-        new StateInt(INIT_STATE | UPD_STATE, "x", "x", 0),
-        new StateInt(INIT_STATE | UPD_STATE, "y", "y", 0),
-        new StateIntEnum(INIT_STATE | UPD_STATE, "dirX", "dx", 1, { '1': "Right", '-1': "Left"}),
-        new StateIntEnum(INIT_STATE | UPD_STATE, "dirY", "dy", 1, { '1': "Up", '-1': "Down"}),
-    ]
 
     static {
         assign(this.prototype, {
@@ -628,35 +640,28 @@ export class Entity {
     getInitState() {
         const state = {}
         state.key = this.constructor.KEY
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
-            prop.toState(this, state)
-        }
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.getInitState(this, state))
         return state
     }
 
     setInitState(state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
-            prop.fromState(this, state)
-        }
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.setInitState(this, state))
     }
 
+    // TODO: rename this getUpdState
     getState() {
         const state = {}
         state.id = this.id
         state.key = this.constructor.KEY
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
-            prop.toState(this, state)
-        }
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
         return state
     }
 
     setState(state) {
-        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
-            prop.fromState(this, state)
-        }
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
     }
 
@@ -1919,7 +1924,7 @@ export class Game extends GameCommon {
         if(IS_SERVER_ENV) return
         let { qrcodeImg } = this
         if(!qrcodeImg) {
-            await importJs('../static/qrcode.min.js')
+            await importJs('../static/deps/qrcode.min.js')
             const wrapperEl = document.createElement("div")
             const url = URL.parse(window.location)
             url.searchParams.set("game", "0")
@@ -2341,12 +2346,9 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ENTITIES ///////////////////////////////////
 
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "health", { shortKey: "hea", default: Infinity })
+@defineStateProperty(UPD_STATE, StateInt, "lastDamageAge", { shortKey: "lda", default: null })
 export class LivingEntity extends Entity {
-
-    static STATE_PROPS = Entity.STATE_PROPS.concat([
-        new StateInt(INIT_STATE | UPD_STATE, "health", "hea", Infinity),
-        new StateInt(UPD_STATE, "lastDamageAge", "lda", null),
-    ])
     
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2398,21 +2400,6 @@ export class LivingEntity extends Entity {
         this.trigger("death", { killer })
     }
 
-    // getState() {
-    //     const state = super.getState()
-    //     state.hea = this.health
-    //     if(this.lastDamageAge !== null) state.lda = this.lastDamageAge
-    //     else delete state.lda
-    //     return state
-    // }
-
-    // setState(state) {
-    //     super.setState(state)
-    //     this.health = state.hea
-    //     if(state.lda === undefined) this.lastDamageAge = null
-    //     else this.lastDamageAge = state.lda
-    // }
-
     mayRemove() {
         if(this.health <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
             this.remove()
@@ -2421,12 +2408,9 @@ export class LivingEntity extends Entity {
 }
 
 
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "lives", { shortKey: "liv", default: Infinity })
+@defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey: "lsi", default: -Infinity })
 export class Hero extends LivingEntity {
-
-    static STATE_PROPS = LivingEntity.STATE_PROPS.concat([
-        new StateInt(INIT_STATE | UPD_STATE, "lives", "liv", Infinity),
-        new StateInt(UPD_STATE, "lastSpawnIt", "lsi", -Infinity),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2627,12 +2611,9 @@ const ItemAud = LIB.registerAudio("/static/assets/item.opus")
 
 
 @LIB.registerEntity("nico")
+@defineStateProperty(UPD_STATE, StateInt, "handRemIt", { shortKey: "hri", default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
-
-    static STATE_PROPS = Hero.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "handRemIt", "hri", null),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2826,12 +2807,9 @@ class Enemy extends LivingEntity {
 const BlobSprite = new Sprite(LIB.registerImage("/static/assets/blob.png"))
 
 @LIB.registerEntity("blob")
+@defineStateProperty(UPD_STATE, StateInt, "lastChangeDirAge", { shortKey: "cda" })
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
-
-    static STATE_PROPS = Enemy.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "lastChangeDirAge", "cda", 0),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2968,11 +2946,8 @@ export class Spiky extends Enemy {
 }
 
 
+@defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own", default: null })
 class Collectable extends Entity {
-
-    static STATE_PROPS = Entity.STATE_PROPS.concat([
-        new StateField(UPD_STATE, "ownerId", "own", null),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3121,11 +3096,8 @@ const SwordSprite = new Sprite(LIB.registerImage("/static/assets/sword.png"))
 const SwordHitAud = LIB.registerAudio("/static/assets/sword_hit.opus")
 
 @LIB.registerEntity("sword")
+@defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Sword extends Extra {
-
-    static STATE_PROPS = Extra.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3190,11 +3162,8 @@ export class Sword extends Extra {
 const BombSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/bomb.png"), 2, 1)
 
 @LIB.registerEntity("bomb")
+@defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
-
-    static STATE_PROPS = Extra.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "itToLive", "ttl", null),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3254,12 +3223,9 @@ export class Bomb extends Extra {
 const ExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/explosion.png"), 8, 6)
 
 @LIB.registerEntity("explos")
+@defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
+@defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Explosion extends Entity {
-
-    static STATE_PROPS = Entity.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "iteration", "it", 0),
-        new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3345,11 +3311,8 @@ export class Checkpoint extends Collectable {
 const SmokeExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/smoke_explosion.png"), 4, 1)
 
 @LIB.registerEntity("smokee")
+@defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 export class SmokeExplosion extends Entity {
-
-    static STATE_PROPS = Entity.STATE_PROPS.concat([
-        new StateInt(UPD_STATE, "iteration", "it", 0),
-    ])
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
