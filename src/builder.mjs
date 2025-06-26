@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, Entity, Wall, Entities, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys, INIT_STATE } from './game.mjs'
+import { GameCommon, SceneCommon, Entity, Wall, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys, INIT_STATE } from './game.mjs'
 
 
 // BUILDER //////////////////////////

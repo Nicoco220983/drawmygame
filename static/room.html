@@ -73,7 +73,7 @@
 
 import { cloneCanvas, importJs } from '../static/src/utils.mjs'
 import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/src/game.mjs'
-import lib from '../static/src/lib.mjs'
+import { loadLib } from '../static/src/lib.mjs'
 
 const url = new URL(window.location.href)
 const isDebugMode = url.searchParams.get("debug") == "1"
@@ -133,7 +133,7 @@ try {
 
     const gameParentEl = document.getElementById("game")
     const map = new GameMap()
-    let game = null, ws = null, joined = false
+    let lib = null, game = null, ws = null, joined = false
 
     const showGameEl = document.getElementById("show_game")
     showGameEl.checked = IS_MOBILE ? (url.searchParams.get("game") == "1") : (url.searchParams.get("game") != "0")
@@ -196,6 +196,7 @@ try {
     // main
 
     async function main() {
+        lib = await loadLib()
         await getMap()
         await connectToRoom()
         initGame()

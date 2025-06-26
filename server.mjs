@@ -10,7 +10,7 @@ import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
 import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH, GAME_STEP_WAITING } from './static/src/game.mjs'
-import lib from './static/src/lib.mjs'
+import { loadLib } from './static/src/lib.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
 const PORT = parseInt(process.env.PORT || 8080)
@@ -196,6 +196,7 @@ class GameServer {
   }
 
   async startGame(room) {
+    const lib = await loadLib()
     const map = new GameMap()
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)

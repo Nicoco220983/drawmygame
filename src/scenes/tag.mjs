@@ -1,4 +1,4 @@
-import { GameScene, Entity, Sprite, Entities, Hero, ScoresBoard, ModuleLibrary, CountDown } from '../game.mjs'
+import { GameScene, Entity, Sprite, Hero, ScoresBoard, ModuleLibrary, CountDown } from '../game.mjs'
 const { floor } = Math
 
 export const LIB = new ModuleLibrary()
@@ -90,7 +90,7 @@ export class TagScene extends GameScene {
 const TagSprite = new Sprite(LIB.registerImage("/static/assets/tag.png"))
 
 @LIB.registerEntity("tag")
-class Tag extends Entity {
+export class Tag extends Entity {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -165,4 +165,3 @@ class Tag extends Entity {
         else this.ownerId = null
     }
 }
-Entities.register("tag", Tag)
