@@ -3,8 +3,8 @@ const { floor } = Math
 
 export const LIB = new ModuleLibrary()
 
+@LIB.registerScene("tag")
 export class TagScene extends GameScene {
-    static KEY = "tag"
     
     constructor(game, scnId) {
         super(game, scnId)
@@ -85,13 +85,12 @@ export class TagScene extends GameScene {
         }
     }
 }
-LIB.addScene(TagScene, {})
 
 
-const TagSprite = new Sprite(LIB.addImage("/static/assets/tag.png"))
+const TagSprite = new Sprite(LIB.registerImage("/static/assets/tag.png"))
 
+@LIB.registerEntity("tag")
 class Tag extends Entity {
-    static KEY = "tag"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -166,5 +165,4 @@ class Tag extends Entity {
         else this.ownerId = null
     }
 }
-LIB.addEntity(Tag, {})
 Entities.register("tag", Tag)

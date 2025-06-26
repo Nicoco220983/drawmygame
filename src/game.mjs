@@ -126,20 +126,30 @@ export class ModuleLibrary {
         this.scenes = {}
         this.assets = []
     }
-    addEntity(cls, kwargs) {
-        const ent = this.entities[cls.KEY] = kwargs
-        ent.name = cls.name
+    registerEntity(key, kwargs) {
+        return target => {
+            target.KEY = key
+            const entLib = this.entities[key] = {}
+            entLib.name = target.name
+            entLib.showInBuilder = kwargs?.showInBuilder ?? true
+            return target
+        }
     }
-    addScene(cls, kwargs) {
-        const scn = this.scenes[cls.KEY] = kwargs
-        scn.name = cls.name
+    registerScene(key, kwargs) {
+        return target => {
+            target.KEY = key
+            const scnLib = this.scenes[key] = {}
+            scnLib.name = target.name
+            scnLib.showInBuilder = kwargs?.showInBuilder ?? true
+            return target
+        }
     }
-    addImage(path) {
+    registerImage(path) {
         const img =  new Img(path)
         this.assets.push(img)
         return img
     }
-    addAudio(path) {
+    registerAudio(path) {
         const aud = new Aud(path)
         this.assets.push(aud)
         return aud
@@ -1872,8 +1882,8 @@ export class Game extends GameCommon {
 }
 
 
+@LIB.registerScene("default")
 export class DefaultScene extends SceneCommon {
-    static KEY =  "default"
 
     buildBackground() {
         const { width, height } = this
@@ -1887,7 +1897,6 @@ export class DefaultScene extends SceneCommon {
         return can
     }
 }
-LIB.addScene(DefaultScene, {})
 
 
 export class GameScene extends SceneCommon {
@@ -2543,8 +2552,8 @@ export class Hero extends LivingEntity {
 }
 
 
-const NicoImg = LIB.addImage("/static/assets/nico_full.png")
-const NicoColorableImg = LIB.addImage("/static/assets/nico_full_colorable.png")
+const NicoImg = LIB.registerImage("/static/assets/nico_full.png")
+const NicoColorableImg = LIB.registerImage("/static/assets/nico_full_colorable.png")
 const NicoSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -2556,17 +2565,18 @@ const NicoSpriteSheets = {
     },
 }
 
-const HandSprite = new Sprite(LIB.addImage("/static/assets/hand.png"))
-const ArrowsSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/arrows.png"), 4, 1)
+const HandSprite = new Sprite(LIB.registerImage("/static/assets/hand.png"))
+const ArrowsSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/arrows.png"), 4, 1)
 
-const OuchAud = LIB.addAudio("/static/assets/ouch.opus")
-const SlashAud = LIB.addAudio("/static/assets/slash.opus")
-const HandHitAud = LIB.addAudio("/static/assets/hand_hit.opus")
-const JumpAud = LIB.addAudio("/static/assets/jump.opus")
-const ItemAud = LIB.addAudio("/static/assets/item.opus")
+const OuchAud = LIB.registerAudio("/static/assets/ouch.opus")
+const SlashAud = LIB.registerAudio("/static/assets/slash.opus")
+const HandHitAud = LIB.registerAudio("/static/assets/hand_hit.opus")
+const JumpAud = LIB.registerAudio("/static/assets/jump.opus")
+const ItemAud = LIB.registerAudio("/static/assets/item.opus")
 
+
+@LIB.registerEntity("nico")
 class Nico extends Hero {
-    static KEY = "nico"
 
     static STATE_PROPS = Hero.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "handRemIt", "hri", null),
@@ -2743,11 +2753,10 @@ class Nico extends Hero {
         }
     }
 }
-LIB.addEntity(Nico, {})
 Entities.register("nico", Nico)
 
 
-const PuffAud = LIB.addAudio("/static/assets/puff.opus")
+const PuffAud = LIB.registerAudio("/static/assets/puff.opus")
 
 class Enemy extends LivingEntity {
     constructor(group, id, kwargs) {
@@ -2763,10 +2772,10 @@ class Enemy extends LivingEntity {
 }
 
 
-const BlobSprite = new Sprite(LIB.addImage("/static/assets/blob.png"))
+const BlobSprite = new Sprite(LIB.registerImage("/static/assets/blob.png"))
 
+@LIB.registerEntity("blob")
 class BlobEnemy extends Enemy {
-    static KEY = "blob"
 
     static STATE_PROPS = Enemy.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "lastChangeDirAge", "cda", 0),
@@ -2820,26 +2829,15 @@ class BlobEnemy extends Enemy {
             height: 60,
         }
     }
-
-    // getState() {
-    //     const state = super.getState()
-    //     state.cda = this.lastChangeDirAge
-    //     return state
-    // }
-
-    // setState(state) {
-    //     super.setState(state)
-    //     this.lastChangeDirAge = state.cda
-    // }
 }
-LIB.addEntity(BlobEnemy, {})
 Entities.register("blob", BlobEnemy)
 
 
-const GhostSprite = new Sprite(LIB.addImage("/static/assets/ghost.png"))
+const GhostSprite = new Sprite(LIB.registerImage("/static/assets/ghost.png"))
 
+
+@LIB.registerEntity("ghost")
 class Ghost extends Enemy {
-    static KEY = "ghost"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2892,14 +2890,13 @@ class Ghost extends Enemy {
         }
     }
 }
-LIB.addEntity(Ghost, {})
 Entities.register("ghost", Ghost)
 
 
-const SpikySprite = new Sprite(LIB.addImage("/static/assets/spiky.png"))
+const SpikySprite = new Sprite(LIB.registerImage("/static/assets/spiky.png"))
 
+@LIB.registerEntity("spiky")
 class Spiky extends Enemy {
-    static KEY = "spiky"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2930,7 +2927,6 @@ class Spiky extends Enemy {
         this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
-LIB.addEntity(Spiky, {})
 Entities.register("spiky", Spiky)
 
 
@@ -2998,7 +2994,7 @@ class Collectable extends Entity {
 }
 
 
-const HeartImg = LIB.addImage("/static/assets/colorable_heart.png")
+const HeartImg = LIB.registerImage("/static/assets/colorable_heart.png")
 const HeartSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -3009,8 +3005,8 @@ const HeartSpriteSheets = {
     },
 }
 
+@LIB.registerEntity("heart")
 class Heart extends Collectable {
-    static KEY = "heart"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3044,7 +3040,6 @@ class Heart extends Collectable {
         this.spriteDy = -this.spriteWidth * .05 * cosAngle
     }
 }
-LIB.addEntity(Heart, {})
 Entities.register("heart", Heart)
 
 
@@ -3091,13 +3086,13 @@ class Extra extends Collectable {
 
 const SWORD_ATTACK_PERIOD = .5
 
-const SwordSlashSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/slash.png"), 3, 2)
-const SwordSprite = new Sprite(LIB.addImage("/static/assets/sword.png"))
+const SwordSlashSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/slash.png"), 3, 2)
+const SwordSprite = new Sprite(LIB.registerImage("/static/assets/sword.png"))
 
-const SwordHitAud = LIB.addAudio("/static/assets/sword_hit.opus")
+const SwordHitAud = LIB.registerAudio("/static/assets/sword_hit.opus")
 
+@LIB.registerEntity("sword")
 class Sword extends Extra {
-    static KEY = "sword"
 
     static STATE_PROPS = Extra.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "lastAttackAge", "laa", Infinity),
@@ -3160,26 +3155,14 @@ class Sword extends Extra {
             return SwordSprite
         }
     }
-    // getState() {
-    //     const state = super.getState()
-    //     if(this.lastAttackAge == Infinity) delete state.laa
-    //     else state.laa = this.lastAttackAge
-    //     return state
-    // }
-    // setState(state) {
-    //     super.setState(state)
-    //     if(state.laa === undefined) this.lastAttackAge = Infinity
-    //     else this.lastAttackAge = state.laa
-    // }
 }
-LIB.addEntity(Sword, {})
 Entities.register("sword", Sword)
 
 
-const BombSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/bomb.png"), 2, 1)
+const BombSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/bomb.png"), 2, 1)
 
+@LIB.registerEntity("bomb")
 class Bomb extends Extra {
-    static KEY = "bomb"
 
     static STATE_PROPS = Extra.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "itToLive", "ttl", null),
@@ -3236,26 +3219,14 @@ class Bomb extends Extra {
         if(this.itToLive !== null) this.spriteDy = 0
         else super.scaleSprite(sprite)
     }
-    // getState() {
-    //     const state = super.getState()
-    //     if(this.itToLive === null) delete state.ttl
-    //     else state.ttl = this.itToLive
-    //     return state
-    // }
-    // setState(state) {
-    //     super.setState(state)
-    //     if(state.ttl === undefined) this.itToLive = null
-    //     else this.itToLive = state.ttl
-    // }
 }
-LIB.addEntity(Bomb, {})
 Entities.register("bomb", Bomb)
 
 
-const ExplosionSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/explosion.png"), 8, 6)
+const ExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/explosion.png"), 8, 6)
 
+@LIB.registerEntity("explos")
 class Explosion extends Entity {
-    static KEY = "explos"
 
     static STATE_PROPS = Entity.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "iteration", "it", 0),
@@ -3298,28 +3269,14 @@ class Explosion extends Entity {
             this.iteration / this.game.fps * 8 * 6
         ))
     }
-    // getState() {
-    //     const state = super.getState()
-    //     state.it = this.iteration
-    //     if(this.ownerId === null) delete state.own
-    //     else state.own = this.ownerId
-    //     return state
-    // }
-    // setState(state) {
-    //     super.setState(state)
-    //     this.iteration = state.it
-    //     if(state.own === undefined) this.ownerId = null
-    //     else this.ownerId = this.group.get(state.own)
-    // }
 }
-LIB.addEntity(Explosion, {})
 Entities.register("explos", Explosion)
 
 
-const StarSprite = new Sprite(LIB.addImage("/static/assets/star.png"))
+const StarSprite = new Sprite(LIB.registerImage("/static/assets/star.png"))
 
+@LIB.registerEntity("star")
 class Star extends Collectable {
-    static KEY = "star"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3340,15 +3297,14 @@ class Star extends Collectable {
         return StarSprite
     }
 }
-LIB.addEntity(Star, {})
 Entities.register("star", Star)
 
 
 
-const CheckpointSprite = new Sprite(LIB.addImage("/static/assets/checkpoint.png"))
+const CheckpointSprite = new Sprite(LIB.registerImage("/static/assets/checkpoint.png"))
 
+@LIB.registerEntity("checkpt")
 class Checkpoint extends Collectable {
-    static KEY = "checkpt"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3367,14 +3323,13 @@ class Checkpoint extends Collectable {
         return CheckpointSprite
     }
 }
-LIB.addEntity(Checkpoint, {})
 Entities.register("checkpt", Checkpoint)
 
 
-const SmokeExplosionSpriteSheet = new SpriteSheet(LIB.addImage("/static/assets/smoke_explosion.png"), 4, 1)
+const SmokeExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/smoke_explosion.png"), 4, 1)
 
+@LIB.registerEntity("smokee")
 class SmokeExplosion extends Entity {
-    static KEY = "smokee"
 
     static STATE_PROPS = Entity.STATE_PROPS.concat([
         new StateInt(UPD_STATE, "iteration", "it", 0),
@@ -3407,12 +3362,11 @@ class SmokeExplosion extends Entity {
     //     this.iteration = state.it
     // }
 }
-LIB.addEntity(SmokeExplosion, {})
 Entities.register("smokee", SmokeExplosion)
 
 
-const PopSprite = new Sprite(LIB.addImage("/static/assets/pop.png"))
-const PopAud = LIB.addAudio("/static/assets/pop.opus")
+const PopSprite = new Sprite(LIB.registerImage("/static/assets/pop.png"))
+const PopAud = LIB.registerAudio("/static/assets/pop.opus")
 
 class Pop extends Entity {
     constructor(group, id, kwargs) {
@@ -3497,8 +3451,8 @@ class PlayerText extends Entity {
 }
 
 
+@LIB.registerScene("waiting")
 export class WaitingScene extends SceneCommon {
-    static KEY =  "waiting"
 
     constructor(game) {
         super(game)
@@ -3588,7 +3542,6 @@ export class WaitingScene extends SceneCommon {
         return new JoypadWaitingScene(this.game)
     }
 }
-LIB.addScene(WaitingScene, {})
 
 
 class VictoryScene extends SceneCommon {
@@ -3745,11 +3698,11 @@ export class CountDown extends Text {
 }
 
 
-const PortalSprite = new Sprite(LIB.addImage("/static/assets/portal.png"))
-const PortalJumpAud = LIB.addAudio("/static/assets/portal_jump.opus")
+const PortalSprite = new Sprite(LIB.registerImage("/static/assets/portal.png"))
+const PortalJumpAud = LIB.registerAudio("/static/assets/portal_jump.opus")
 
+@LIB.registerEntity("portal")
 class Portal extends Entity {
-    static KEY = "portal"
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3779,7 +3732,6 @@ class Portal extends Entity {
         return PortalSprite
     }
 }
-LIB.addEntity(Portal, {})
 Entities.register("portal", Portal)
 
 
