@@ -461,15 +461,79 @@ export class StateIntEnum extends StateEnum {
     }
 }
 
+
+export class Component {
+    static STATE_PROPS = []
+    init(ent, kwargs) {}
+    update(ent) {}
+    getInitState(ent, state) {
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
+            prop.toState(ent, state)
+        }
+    }
+    setInitState(ent, state) {
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
+            prop.fromState(ent, state)
+        }
+    }
+    getState(ent, state) {
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
+            prop.toState(ent, state)
+        }
+    }
+    setState(ent, state) {
+        for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
+            prop.fromState(ent, state)
+        }
+    }
+}
+
+
+export function addComponent(comp, kwargs) {
+    return target => {
+        if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
+        target.COMPONENTS.set(comp.KEY, new comp(kwargs))
+        return target
+    }
+}
+
+
+export class PhysicsComponent extends Component {
+    static KEY = "physics"
+
+    static STATE_PROPS = [
+        new StateInt(INIT_STATE | UPD_STATE, "speedX", "sx", 0),
+        new StateInt(INIT_STATE | UPD_STATE, "speedY", "sy", 0),
+    ]
+    constructor(kwargs) {
+        super()
+        this.affectedByGravity = kwargs?.affectedByGravity ?? true
+        this.blockedByWalls = kwargs?.blockedByWalls ?? true
+    }
+    init(ent, kwargs) {
+        ent.physicsComponent = this
+        ent.speedX = kwargs?.speedX ?? 0
+        ent.speedY = kwargs?.speedY ?? 0
+        ent.speedResX = 0
+        ent.speedResY = 0
+        if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
+        if(kwargs?.blockedByWalls !== undefined) this.blockedByWalls = kwargs.blockedByWalls
+    }
+    update(ent) {
+        // done by physics engine
+    }
+}
+
+
 export class Entity {
+
+    static COMPONENTS = new Map()
 
     static STATE_PROPS = [
         new StateInt(INIT_STATE | UPD_STATE, "x", "x", 0),
         new StateInt(INIT_STATE | UPD_STATE, "y", "y", 0),
         new StateIntEnum(INIT_STATE | UPD_STATE, "dirX", "dx", 1, { '1': "Right", '-1': "Left"}),
         new StateIntEnum(INIT_STATE | UPD_STATE, "dirY", "dy", 1, { '1': "Up", '-1': "Down"}),
-        new StateInt(INIT_STATE | UPD_STATE, "speedX", "sx", 0),
-        new StateInt(INIT_STATE | UPD_STATE, "speedY", "sy", 0),
     ]
 
     static {
@@ -478,10 +542,6 @@ export class Entity {
             height: 10,
             dirX: 1,
             dirY: 1,
-            speedX: 0,
-            speedY: 0,
-            speedResX: 0,
-            speedResY: 0,
             spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
@@ -501,16 +561,17 @@ export class Entity {
             if(kwargs.height !== undefined) this.height = kwargs.height
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
-            if(kwargs.speedX !== undefined) this.speedX = kwargs.speedX
-            if(kwargs.speedY !== undefined) this.speedY = kwargs.speedY
         }
+        this.constructor.COMPONENTS.forEach(comp => comp.init(this))
     }
 
     getPriority() {
         return 0
     }
 
-    update() {}
+    update() {
+        this.constructor.COMPONENTS.forEach(comp => comp.update(this))
+    }
 
     drawTo(ctx) {
         const img = this.getImg()
@@ -570,6 +631,7 @@ export class Entity {
         for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
             prop.toState(this, state)
         }
+        this.constructor.COMPONENTS.forEach(comp => comp.getInitState(this, state))
         return state
     }
 
@@ -577,6 +639,7 @@ export class Entity {
         for(let prop of this.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
             prop.fromState(this, state)
         }
+        this.constructor.COMPONENTS.forEach(comp => comp.setInitState(this, state))
     }
 
     getState() {
@@ -586,6 +649,7 @@ export class Entity {
         for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
             prop.toState(this, state)
         }
+        this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
         return state
     }
 
@@ -593,14 +657,7 @@ export class Entity {
         for(let prop of this.constructor.STATE_PROPS) if((prop.type & UPD_STATE) === UPD_STATE) {
             prop.fromState(this, state)
         }
-    }
-
-    getPhysicsProps() {
-        const props = this._physicsProps ||= {
-            affectedByGravity: true,
-            blockedByWalls: true,
-        }
-        return props
+        this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
     }
 
     addMenuInputs(menu) {
@@ -2297,12 +2354,6 @@ export class LivingEntity extends Entity {
         this.lastDamageAge = null
     }
 
-    getPhysicsProps() {
-        const props = super.getPhysicsProps()
-        props.blockedByWalls = (this.health > 0)
-        return props
-    }
-
     getMaxHealth() {
         return 1
     }
@@ -2576,6 +2627,7 @@ const ItemAud = LIB.registerAudio("/static/assets/item.opus")
 
 
 @LIB.registerEntity("nico")
+@addComponent(PhysicsComponent)
 export class Nico extends Hero {
 
     static STATE_PROPS = Hero.STATE_PROPS.concat([
@@ -2774,6 +2826,7 @@ class Enemy extends LivingEntity {
 const BlobSprite = new Sprite(LIB.registerImage("/static/assets/blob.png"))
 
 @LIB.registerEntity("blob")
+@addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
 
     static STATE_PROPS = Enemy.STATE_PROPS.concat([
@@ -2835,6 +2888,7 @@ const GhostSprite = new Sprite(LIB.registerImage("/static/assets/ghost.png"))
 
 
 @LIB.registerEntity("ghost")
+@addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
     constructor(group, id, kwargs) {
@@ -2842,14 +2896,6 @@ export class Ghost extends Enemy {
         this.width = 45
         this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
-    }
-
-    getPhysicsProps() {
-        const props = this._physicsProps ||= {
-            affectedByGravity: false,
-            blockedByWalls: true,
-        }
-        return props
     }
 
     update() {
@@ -2901,10 +2947,6 @@ export class Spiky extends Enemy {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    getPhysicsProps() {
-        return null
-    }
-
     update() {
         // attack
         this.scene.getTeam("hero").forEach(hero => {
@@ -2942,10 +2984,6 @@ class Collectable extends Entity {
         const { ownerId } = this
         if(ownerId === null) return null
         return this.group.get(ownerId)
-    }
-
-    getPhysicsProps() {
-        return null
     }
 
     isCollectableBy(team) {
@@ -3008,10 +3046,6 @@ export class Heart extends Collectable {
         super(group, id, kwargs)
         this.width = this.height = 30
         this.spriteRand = floor(random() * this.game.fps)
-    }
-
-    getPhysicsProps() {
-        return null
     }
 
     onCollected(hero) {
@@ -3168,13 +3202,14 @@ export class Bomb extends Extra {
         this.itToLive = null
         this.isActionExtra = true
     }
-    getPhysicsProps() {
-        const props = this._physicsProps ||= {
-            affectedByGravity: true,
-            blockedByWalls: true,
-        }
-        return (this.itToLive !== null) ? props : null
-    }
+    // TODO: split bomb into 2 distinct objects
+    // getPhysicsProps() {
+    //     const props = this._physicsProps ||= {
+    //         affectedByGravity: true,
+    //         blockedByWalls: true,
+    //     }
+    //     return (this.itToLive !== null) ? props : null
+    // }
     isCollectableBy(team) {
         if(this.itToLive !== null) return false
         return super.isCollectableBy(team)
@@ -3237,9 +3272,6 @@ export class Explosion extends Entity {
         if(ownerId === null) return null
         return this.group.get(ownerId)
     }
-    getPhysicsProps() {
-        return null
-    }
     update() {
         super.update()
         if(this.iteration == 0) this.checkEntitiesToDamage()
@@ -3276,9 +3308,6 @@ export class Star extends Collectable {
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
     }
-    getPhysicsProps() {
-        return null
-    }
     onCollected(hero) {
         super.onCollected(hero)
         this.remove()
@@ -3300,9 +3329,6 @@ export class Checkpoint extends Collectable {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 40
-    }
-    getPhysicsProps() {
-        return null
     }
     onCollected(hero) {
         super.onCollected(hero)
@@ -3330,9 +3356,6 @@ export class SmokeExplosion extends Entity {
         this.width = this.height = 100
         this.iteration = 0
     }
-    getPhysicsProps() {
-        return null
-    }
     update() {
         this.iteration += 1
         const time = this.iteration * this.game.dt
@@ -3354,9 +3377,6 @@ class Pop extends Entity {
         this.width = this.height = 10
         this.duration = floor(this.game.fps * .25)
         this.remIt = this.duration
-    }
-    getPhysicsProps() {
-        return null
     }
     update() {
         if(!this._soundPlayed) {
@@ -3688,9 +3708,6 @@ export class Portal extends Entity {
         super(group, id, kwargs)
         this.width = 50
         this.height = 50
-    }
-    getPhysicsProps(){
-        return null
     }
     update() {
         this.scene.entities.forEach(ent => {

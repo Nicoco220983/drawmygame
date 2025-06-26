@@ -94,13 +94,13 @@ export default class PhysicsEngine {
     apply(dt, entities) {
         const { walls } = this.scene.map
         entities.forEach(ent => {
-            const physicsProps = ent.getPhysicsProps()
-            if(!physicsProps) return
+            const comp = ent.physicsComponent
+            if(!comp) return
             let remD = 1, nbCollisions = 0
-            if(physicsProps.affectedByGravity) this.applyGravity(dt, ent)
+            if(this.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, ent)
             const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent
             const entOrigDx = entOrigSpdX * dt, entOrigDy = entOrigSpdY * dt
-            if(physicsProps.blockedByWalls && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
+            if((this.blockedByWalls ?? comp.blockedByWalls) && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
                 const entOrigD = dist(entOrigDx, entOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
