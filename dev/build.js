@@ -4,14 +4,17 @@ const { spawnSync } = require("child_process");
 
 const srcDir = path.resolve("src");
 const distDir = path.resolve("dist");
+const modulesDir = path.resolve("node_modules");
+const staticDir = path.resolve("static");
 
-function* walk(dir) {
+function* walk(dir, kwargs) {
   const files = fs.readdirSync(dir, { withFileTypes: true });
   for (const file of files) {
     const fullPath = path.join(dir, file.name);
     if (file.isDirectory()) {
-      yield* walk(fullPath);
-    } else if (file.isFile() && file.name.endsWith(".mjs")) {
+      yield* walk(fullPath, kwargs);
+    } else if (file.isFile()) {
+      if(kwargs?.extension && !file.name.endsWith(kwargs.extension)) continue
       yield fullPath;
     }
   }
@@ -24,8 +27,7 @@ function isOutdated(srcFile, distFile) {
   return srcStat.mtime > distStat.mtime;
 }
 
-function ensureDirectoryExistence(filePath) {
-  const dir = path.dirname(filePath);
+function ensureDirectoryExistence(dir) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -33,7 +35,7 @@ function ensureDirectoryExistence(filePath) {
 
 function compileFile(srcFile, distFile) {
   try {
-    ensureDirectoryExistence(distFile);
+    ensureDirectoryExistence(path.dirname(distFile))
 
     const result = spawnSync("npx", [
       "babel",
@@ -63,9 +65,14 @@ function compileFile(srcFile, distFile) {
 }
 
 function build() {
-  if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
+  compileAll()
+  copyAll()
+}
 
-  for (const srcFile of walk(srcDir)) {
+
+function compileAll() {
+  ensureDirectoryExistence(distDir)
+  for (const srcFile of walk(srcDir, { extension: ".mjs" })) {
     const relativePath = path.relative(srcDir, srcFile);
     const distFile = path.join(distDir, relativePath);
 
@@ -78,6 +85,26 @@ function build() {
     } else {
       console.log(`⏩ Skipped (up-to-date): ${relativePath}`);
     }
+  }
+}
+
+
+function copyAll() {
+  copyIfOutdated(
+    path.join(modulesDir, "pako/dist/pako.esm.mjs"),
+    path.join(staticDir, "deps/pako.mjs"),
+  )
+  for (const distFile of walk(distDir)) {
+    const relativePath = path.relative(distDir, distFile)
+    const staticSrcFile = path.join(staticDir, "src", relativePath)
+    copyIfOutdated(distFile, staticSrcFile)
+  }
+}
+
+function copyIfOutdated(srcFile, destFile) {
+  if (isOutdated(srcFile, destFile)) {
+    ensureDirectoryExistence(path.dirname(destFile))
+    fs.copyFileSync(srcFile, destFile)
   }
 }
 
