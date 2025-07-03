@@ -24,20 +24,6 @@ export class GameBuilder extends GameCommon {
         this.syncSize()
     }
 
-    run() {
-        if(this.gameLoop) return
-        const beginTime = now()
-        this.gameLoop = setInterval(() => {
-            this.update()
-            this.mayDraw()
-        }, 1000 / FPS)
-    }
-
-    stop() {
-        if(this.gameLoop) clearInterval(this.gameLoop)
-        this.gameLoop = null
-    }
-
     update() {
         super.update()
         const touch = this.touches[0]

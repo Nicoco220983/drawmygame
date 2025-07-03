@@ -1177,6 +1177,32 @@ export class GameCommon {
         else if(joypadScn) joypadScn.onTouch()
     }
 
+    run() {
+        if(this.gameLoop) return
+        this.startTime = this.nextFrameTime = now()
+        const tryUpdateGameLoop = () => {
+            this.gameLoop = setTimeout(() => {
+                if(now() >= this.nextFrameTime) {
+                    this.updateGameLoop()
+                    this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
+                }
+                tryUpdateGameLoop()
+            }, 5)
+        }
+        tryUpdateGameLoop()
+    }
+
+    stop() {
+        if(this.gameLoop) clearTimeout(this.gameLoop)
+        this.gameLoop = null
+    }
+
+    updateGameLoop() {
+        const { mode } = this
+        this.update()
+        if(mode != MODE_SERVER) this.mayDraw()
+    }
+
     update() {
         this.iteration += 1
         this.time = this.iteration * this.dt
@@ -1202,15 +1228,12 @@ export class GameCommon {
 
     mayDraw() {
         this._drawing ||= false
-        if(!this._drawing) {
-            //if(this.iteration == this._lastDrawIteration && !this.paused) return  // TODO: move this optim in Scenes
-            this._drawing = true
-            this._lastDrawIteration = this.iteration
-            window.requestAnimationFrame(() => {
-                this.draw()
-                this._drawing = false
-            })
-        }
+        if(this._drawing) return
+        this._drawing = true
+        window.requestAnimationFrame(() => {
+            this.draw()
+            this._drawing = false
+        })
     }
 
     draw() {
@@ -1549,30 +1572,6 @@ export class Game extends GameCommon {
         }
     }
 
-    run() {
-        if(this.gameLoop) return
-        this.startTime = now()
-        this.gameLoop = setInterval(() => this.updateGameLoop(), 1000 * this.dt)
-    }
-
-    updateGameLoop() {
-        if(this.updating) return
-        this._updating = true
-        const { mode } = this
-        const updStartTime = now()
-        this.update()
-        if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
-        if(mode != MODE_LOCAL) this.getAndMaySendStates()
-        if(mode != MODE_SERVER) this.mayDraw()
-        if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
-        this.updating = false
-    }
-
-    stop() {
-        if(this.gameLoop) clearInterval(this.gameLoop)
-        this.gameLoop = null
-    }
-
     showGameScene(visible) {
         const scn = this.scenes.game
         if(!scn) return
@@ -1623,6 +1622,15 @@ export class Game extends GameCommon {
     syncSize() {
         super.syncSize()
         if(this.debugScene) this.debugScene.syncSizeAndPos()
+    }
+
+    updateGameLoop() {
+        super.updateGameLoop()
+        const { mode } = this
+        const updStartTime = now()
+        if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
+        if(mode != MODE_LOCAL) this.getAndMaySendStates()
+        if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
     }
 
     update() {
