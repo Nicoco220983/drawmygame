@@ -3170,6 +3170,7 @@ export class Sword extends Extra {
 const BombSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/bomb.png"), 2, 1)
 
 @LIB.registerEntity("bomb")
+@addComponent(PhysicsComponent)
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
 
@@ -3178,15 +3179,8 @@ export class Bomb extends Extra {
         this.width = this.height = 40
         this.itToLive = null
         this.isActionExtra = true
+        this.affectedByGravity = this.blockedByWalls = false
     }
-    // TODO: split bomb into 2 distinct objects
-    // getPhysicsProps() {
-    //     const props = this._physicsProps ||= {
-    //         affectedByGravity: true,
-    //         blockedByWalls: true,
-    //     }
-    //     return (this.itToLive !== null) ? props : null
-    // }
     isCollectableBy(team) {
         if(this.itToLive !== null) return false
         return super.isCollectableBy(team)
@@ -3195,6 +3189,7 @@ export class Bomb extends Extra {
         const { dt } = this.game
         const { x, y } = this
         const owner = this.getOwner()
+        this.affectedByGravity = this.blockedByWalls = (this.itToLive !== null)
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
