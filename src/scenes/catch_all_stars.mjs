@@ -1,8 +1,8 @@
-import { ModuleLibrary, FocusFirstHeroScene } from '../game.mjs'
+import { ModuleCatalog, FocusFirstHeroScene } from '../game.mjs'
 
-export const LIB = new ModuleLibrary()
+export const CATALOG = new ModuleCatalog()
 
-@LIB.registerScene("catch_all_stars")
+@CATALOG.registerScene("catch_all_stars")
 export class CatchAllStarsScene extends FocusFirstHeroScene {
 
     update() {

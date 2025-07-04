@@ -1,10 +1,10 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
-import { Sprite, Entity, Text, EntityGroup, ModuleLibrary } from "./game.mjs"
+import { Sprite, Entity, Text, EntityGroup, ModuleCatalog } from "./game.mjs"
 import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
-export const LIB = new ModuleLibrary()
+export const CATALOG = new ModuleCatalog()
 
 
 export class JoypadScene {
@@ -155,7 +155,7 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImg = LIB.addImage("/static/assets/button_colorable.png")
+const BurronImg = CATALOG.addImage("/static/assets/button_colorable.png")
 
 class Button extends Entity {
 

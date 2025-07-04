@@ -9,8 +9,8 @@ import { GameCommon, SceneCommon, Entity, Wall, Sprite, Hero, now, FPS, SpawnEnt
 
 export class GameBuilder extends GameCommon {
 
-    constructor(canvasParentEl, menuEl, lib, map, kwargs) {
-        super(canvasParentEl, lib, map, kwargs)
+    constructor(canvasParentEl, menuEl, catalog, map, kwargs) {
+        super(canvasParentEl, catalog, map, kwargs)
         this.menuEl = menuEl
         this.selectionMenu = new SelectionMenu(this)
         this.initBuilderScene()
@@ -166,7 +166,8 @@ class BuilderScene extends SceneCommon {
                 y: touch.y + this.viewY,
             }
             if(mode == "entity") {
-                this.draftEntity = draftPos
+                this.draftEntity.x = draftPos.x
+                this.draftEntity.y = draftPos.y
             } else if(mode == "wall") {
                 if(this.anchor) this.applyAnchor(draftPos)
                 this.draftEntity.x2 = draftPos.x

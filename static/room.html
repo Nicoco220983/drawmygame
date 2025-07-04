@@ -73,7 +73,7 @@
 
 import { cloneCanvas, importJs } from '../static/src/utils.mjs'
 import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/src/game.mjs'
-import { loadLib } from '../static/src/lib.mjs'
+import { loadCatalog } from '../static/src/catalog.mjs'
 
 const url = new URL(window.location.href)
 const isDebugMode = url.searchParams.get("debug") == "1"
@@ -133,7 +133,7 @@ try {
 
     const gameParentEl = document.getElementById("game")
     const map = new GameMap()
-    let lib = null, game = null, ws = null, joined = false
+    let catalog = null, game = null, ws = null, joined = false
 
     const showGameEl = document.getElementById("show_game")
     showGameEl.checked = IS_MOBILE ? (url.searchParams.get("game") == "1") : (url.searchParams.get("game") != "0")
@@ -196,7 +196,7 @@ try {
     // main
 
     async function main() {
-        lib = await loadLib()
+        catalog = await loadCatalog()
         await getMap()
         await connectToRoom()
         initGame()
@@ -238,7 +238,7 @@ try {
     function initGame() {
         if(game) return
         if(!isGameVisible() && !isJoypadVisible()) return
-        game = new Game(gameParentEl, lib, map, ws.id, {
+        game = new Game(gameParentEl, catalog, map, ws.id, {
             mode: MODE_CLIENT,
             sendPing: () => ws.send(MSG_KEYS.PING),
             sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),

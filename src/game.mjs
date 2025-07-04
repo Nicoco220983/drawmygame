@@ -31,7 +31,7 @@ const SEND_STATE_PERIOD = 1
 const RESEND_INPUT_STATE_PERIOD = .5
 
 
-// LIB
+// CATALOG
 
 // export const Loads = []
 
@@ -52,7 +52,7 @@ const RESEND_INPUT_STATE_PERIOD = .5
 
 export async function importAndPreload(path) {
     const mod = await import(path)
-    if(mod.LIB) await mod.LIB.preloadAssets()
+    if(mod.CATALOG) await mod.CATALOG.preloadAssets()
     return mod
 }
 
@@ -92,13 +92,13 @@ export class Aud {
     }
 }
 
-export class Library {
+export class Catalog {
     constructor() {
         this.mods = {}
         this.entities = {}
         this.scenes = {}
     }
-    async addModuleLibraries(paths) {
+    async addModuleCatalogs(paths) {
         const modPrms = paths.map(path => import(path))
         const mods = await Promise.all(modPrms)
         const addItems = (path, modItems, items) => {
@@ -110,24 +110,24 @@ export class Library {
         }
         for(let i in paths) {
             const path = paths[i], mod = mods[i]
-            addItems(path, mod.LIB.entities, this.entities)
-            addItems(path, mod.LIB.scenes, this.scenes)
+            addItems(path, mod.CATALOG.entities, this.entities)
+            addItems(path, mod.CATALOG.scenes, this.scenes)
         }
     }
     async preload(paths) {
         const mods = await Promise.all(paths.map(p => import(p)))
         for(let i=0; i<paths.length; ++i) this.mods[paths[i]] = mods[i]
-        await Promise.all(mods.map(m => m.LIB).filter(l => l).map(l => l.preloadAssets()))
+        await Promise.all(mods.map(m => m.CATALOG).filter(l => l).map(l => l.preloadAssets()))
         return mods
     }
     getEntityClass(key) {
-        const entLib = this.entities[key]
-        const mod = this.mods[entLib.path]
-        return mod[entLib.name]
+        const entCat = this.entities[key]
+        const mod = this.mods[entCat.path]
+        return mod[entCat.name]
     }
 }
 
-export class ModuleLibrary {
+export class ModuleCatalog {
     constructor() {
         this.entities = {}
         this.scenes = {}
@@ -136,18 +136,18 @@ export class ModuleLibrary {
     registerEntity(key, kwargs) {
         return target => {
             target.KEY = key
-            const entLib = this.entities[key] = {}
-            entLib.name = target.name
-            entLib.showInBuilder = kwargs?.showInBuilder ?? true
+            const entCat = this.entities[key] = {}
+            entCat.name = target.name
+            entCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
         }
     }
     registerScene(key, kwargs) {
         return target => {
             target.KEY = key
-            const scnLib = this.scenes[key] = {}
-            scnLib.name = target.name
-            scnLib.showInBuilder = kwargs?.showInBuilder ?? true
+            const scnCat = this.scenes[key] = {}
+            scnCat.name = target.name
+            scnCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
         }
     }
@@ -167,7 +167,7 @@ export class ModuleLibrary {
     }
 }
 
-export const LIB = new ModuleLibrary()
+export const CATALOG = new ModuleCatalog()
 
 
 // MAP
@@ -1009,7 +1009,7 @@ export class EntityGroup {
     new(cls, kwargs) {
         let id = kwargs && kwargs.id
         if(id === undefined) id = this.nextAutoId()
-        if(typeof cls === 'string') cls = this.game.lib.getEntityClass(cls)
+        if(typeof cls === 'string') cls = this.game.catalog.getEntityClass(cls)
         const ent = new cls(this, id, kwargs)
         this.entMap.set(id, ent)
         this.entArr.push(ent)
@@ -1083,7 +1083,7 @@ export class EntityGroup {
                 let { id } = entState
                 let ent = entMap.get(id)
                 if(!ent) {
-                    const cls = this.game.lib.getEntityClass(entState.key)
+                    const cls = this.game.catalog.getEntityClass(entState.key)
                     ent = new cls(this, id)
                     entMap.set(ent.id, ent)
                 }
@@ -1110,7 +1110,7 @@ export const MODE_CLIENT = 2
 
 export class GameCommon {
 
-    constructor(parentEl, lib, map, kwargs) {
+    constructor(parentEl, catalog, map, kwargs) {
         this.mode = (kwargs && kwargs.mode) || MODE_LOCAL
         this.isServerEnv = IS_SERVER_ENV
         if(!this.isServerEnv) {
@@ -1128,7 +1128,7 @@ export class GameCommon {
         this.time = 0
         this.fps = FPS
         this.dt = 1/this.fps
-        this.lib = lib
+        this.catalog = catalog
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
@@ -1527,8 +1527,8 @@ export const GAME_STEP_GAMING = 2
 
 export class Game extends GameCommon {
 
-    constructor(parentEl, lib, map, playerId, kwargs) {
-        super(parentEl, lib, map, kwargs)
+    constructor(parentEl, catalog, map, playerId, kwargs) {
+        super(parentEl, catalog, map, kwargs)
 
         this.step = GAME_STEP_DEFAULT
 
@@ -1580,15 +1580,15 @@ export class Game extends GameCommon {
     }
 
     async loadScenesFromMap(scnKey, scnMapId=undefined) {
-        const { lib } = this, scnLib = lib.scenes[scnKey]
+        const { catalog } = this, scnCat = catalog.scenes[scnKey]
         const scnMap = (scnMapId !== undefined) ? this.game.map.scenes[scnMapId] : null
-        const paths = new Set([scnLib.path])
+        const paths = new Set([scnCat.path])
         if(scnMap) {
-            scnMap.entities.forEach(entMap => paths.add(lib.entities[entMap.key].path))
-            scnMap.heros.forEach(heroMap => paths.add(lib.entities[heroMap.key].path))
+            scnMap.entities.forEach(entMap => paths.add(catalog.entities[entMap.key].path))
+            scnMap.heros.forEach(heroMap => paths.add(catalog.entities[heroMap.key].path))
         }
-        const mods = await lib.preload(Array.from(paths))
-        await this.loadScenes(mods[0][scnLib.name], scnMapId)
+        const mods = await catalog.preload(Array.from(paths))
+        await this.loadScenes(mods[0][scnCat.name], scnMapId)
     }
 
     async loadScenes(cls, scnMapId=undefined) {
@@ -1952,7 +1952,7 @@ export class Game extends GameCommon {
 }
 
 
-@LIB.registerScene("default")
+@CATALOG.registerScene("default")
 export class DefaultScene extends SceneCommon {
 
     buildBackground() {
@@ -2595,8 +2595,8 @@ export class Hero extends LivingEntity {
 }
 
 
-const NicoImg = LIB.registerImage("/static/assets/nico_full.png")
-const NicoColorableImg = LIB.registerImage("/static/assets/nico_full_colorable.png")
+const NicoImg = CATALOG.registerImage("/static/assets/nico_full.png")
+const NicoColorableImg = CATALOG.registerImage("/static/assets/nico_full_colorable.png")
 const NicoSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -2608,17 +2608,17 @@ const NicoSpriteSheets = {
     },
 }
 
-const HandSprite = new Sprite(LIB.registerImage("/static/assets/hand.png"))
-const ArrowsSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/arrows.png"), 4, 1)
+const HandSprite = new Sprite(CATALOG.registerImage("/static/assets/hand.png"))
+const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/arrows.png"), 4, 1)
 
-const OuchAud = LIB.registerAudio("/static/assets/ouch.opus")
-const SlashAud = LIB.registerAudio("/static/assets/slash.opus")
-const HandHitAud = LIB.registerAudio("/static/assets/hand_hit.opus")
-const JumpAud = LIB.registerAudio("/static/assets/jump.opus")
-const ItemAud = LIB.registerAudio("/static/assets/item.opus")
+const OuchAud = CATALOG.registerAudio("/static/assets/ouch.opus")
+const SlashAud = CATALOG.registerAudio("/static/assets/slash.opus")
+const HandHitAud = CATALOG.registerAudio("/static/assets/hand_hit.opus")
+const JumpAud = CATALOG.registerAudio("/static/assets/jump.opus")
+const ItemAud = CATALOG.registerAudio("/static/assets/item.opus")
 
 
-@LIB.registerEntity("nico")
+@CATALOG.registerEntity("nico")
 @defineStateProperty(UPD_STATE, StateInt, "handRemIt", { shortKey: "hri", default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
@@ -2783,7 +2783,7 @@ export class Nico extends Hero {
 }
 
 
-const PuffAud = LIB.registerAudio("/static/assets/puff.opus")
+const PuffAud = CATALOG.registerAudio("/static/assets/puff.opus")
 
 class Enemy extends LivingEntity {
     constructor(group, id, kwargs) {
@@ -2799,9 +2799,9 @@ class Enemy extends LivingEntity {
 }
 
 
-const BlobSprite = new Sprite(LIB.registerImage("/static/assets/blob.png"))
+const BlobSprite = new Sprite(CATALOG.registerImage("/static/assets/blob.png"))
 
-@LIB.registerEntity("blob")
+@CATALOG.registerEntity("blob")
 @defineStateProperty(UPD_STATE, StateInt, "lastChangeDirAge", { shortKey: "cda" })
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
@@ -2857,10 +2857,10 @@ export class BlobEnemy extends Enemy {
 }
 
 
-const GhostSprite = new Sprite(LIB.registerImage("/static/assets/ghost.png"))
+const GhostSprite = new Sprite(CATALOG.registerImage("/static/assets/ghost.png"))
 
 
-@LIB.registerEntity("ghost")
+@CATALOG.registerEntity("ghost")
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
@@ -2909,9 +2909,9 @@ export class Ghost extends Enemy {
 }
 
 
-const SpikySprite = new Sprite(LIB.registerImage("/static/assets/spiky.png"))
+const SpikySprite = new Sprite(CATALOG.registerImage("/static/assets/spiky.png"))
 
-@LIB.registerEntity("spiky")
+@CATALOG.registerEntity("spiky")
 export class Spiky extends Enemy {
 
     constructor(group, id, kwargs) {
@@ -2987,7 +2987,7 @@ class Collectable extends Entity {
 }
 
 
-const HeartImg = LIB.registerImage("/static/assets/colorable_heart.png")
+const HeartImg = CATALOG.registerImage("/static/assets/colorable_heart.png")
 const HeartSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -2998,7 +2998,7 @@ const HeartSpriteSheets = {
     },
 }
 
-@LIB.registerEntity("heart")
+@CATALOG.registerEntity("heart")
 export class Heart extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3074,12 +3074,12 @@ class Extra extends Collectable {
 
 const SWORD_ATTACK_PERIOD = .5
 
-const SwordSlashSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/slash.png"), 3, 2)
-const SwordSprite = new Sprite(LIB.registerImage("/static/assets/sword.png"))
+const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/slash.png"), 3, 2)
+const SwordSprite = new Sprite(CATALOG.registerImage("/static/assets/sword.png"))
 
-const SwordHitAud = LIB.registerAudio("/static/assets/sword_hit.opus")
+const SwordHitAud = CATALOG.registerAudio("/static/assets/sword_hit.opus")
 
-@LIB.registerEntity("sword")
+@CATALOG.registerEntity("sword")
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Sword extends Extra {
 
@@ -3143,9 +3143,9 @@ export class Sword extends Extra {
 }
 
 
-const ShurikenSprite = new Sprite(LIB.registerImage("/static/assets/shuriken.png"))
+const ShurikenSprite = new Sprite(CATALOG.registerImage("/static/assets/shuriken.png"))
 
-@LIB.registerEntity("shurik")
+@CATALOG.registerEntity("shurik")
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "nb")
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
@@ -3220,9 +3220,9 @@ export class Shurikens extends Extra {
 }
 
 
-const BombSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/bomb.png"), 2, 1)
+const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/bomb.png"), 2, 1)
 
-@LIB.registerEntity("bomb")
+@CATALOG.registerEntity("bomb")
 @addComponent(PhysicsComponent)
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
@@ -3276,9 +3276,9 @@ export class Bomb extends Extra {
 }
 
 
-const ExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/explosion.png"), 8, 6)
+const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/explosion.png"), 8, 6)
 
-@LIB.registerEntity("explos")
+@CATALOG.registerEntity("explos")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Explosion extends Entity {
@@ -3319,9 +3319,9 @@ export class Explosion extends Entity {
 }
 
 
-const StarSprite = new Sprite(LIB.registerImage("/static/assets/star.png"))
+const StarSprite = new Sprite(CATALOG.registerImage("/static/assets/star.png"))
 
-@LIB.registerEntity("star")
+@CATALOG.registerEntity("star")
 export class Star extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3343,9 +3343,9 @@ export class Star extends Collectable {
 
 
 
-const CheckpointSprite = new Sprite(LIB.registerImage("/static/assets/checkpoint.png"))
+const CheckpointSprite = new Sprite(CATALOG.registerImage("/static/assets/checkpoint.png"))
 
-@LIB.registerEntity("checkpt")
+@CATALOG.registerEntity("checkpt")
 export class Checkpoint extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3364,9 +3364,9 @@ export class Checkpoint extends Collectable {
 }
 
 
-const SmokeExplosionSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/smoke_explosion.png"), 4, 1)
+const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/smoke_explosion.png"), 4, 1)
 
-@LIB.registerEntity("smokee")
+@CATALOG.registerEntity("smokee")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 export class SmokeExplosion extends Entity {
 
@@ -3387,8 +3387,8 @@ export class SmokeExplosion extends Entity {
 }
 
 
-const PopSprite = new Sprite(LIB.registerImage("/static/assets/pop.png"))
-const PopAud = LIB.registerAudio("/static/assets/pop.opus")
+const PopSprite = new Sprite(CATALOG.registerImage("/static/assets/pop.png"))
+const PopAud = CATALOG.registerAudio("/static/assets/pop.opus")
 
 class Pop extends Entity {
     constructor(group, id, kwargs) {
@@ -3470,7 +3470,7 @@ class PlayerText extends Entity {
 }
 
 
-@LIB.registerScene("waiting")
+@CATALOG.registerScene("waiting")
 export class WaitingScene extends SceneCommon {
 
     constructor(game) {
@@ -3717,10 +3717,10 @@ export class CountDown extends Text {
 }
 
 
-const PortalSprite = new Sprite(LIB.registerImage("/static/assets/portal.png"))
-const PortalJumpAud = LIB.registerAudio("/static/assets/portal_jump.opus")
+const PortalSprite = new Sprite(CATALOG.registerImage("/static/assets/portal.png"))
+const PortalJumpAud = CATALOG.registerAudio("/static/assets/portal_jump.opus")
 
-@LIB.registerEntity("portal")
+@CATALOG.registerEntity("portal")
 export class Portal extends Entity {
 
     constructor(group, id, kwargs) {

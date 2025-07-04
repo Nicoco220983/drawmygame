@@ -101,7 +101,7 @@
 import { newDomEl } from './static/src/utils.mjs'
 import { GameMap, Game, MODE_LOCAL } from './static/src/game.mjs'
 import { GameBuilder } from './static/src/builder.mjs'
-import { loadLib } from './static/src/lib.mjs'
+import { loadCatalog } from './static/src/catalog.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -110,13 +110,13 @@ const isDebugMode = urlParams.get("debug") == "1"
 const builderParentEl = document.getElementById("builder")
 const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
-let mode = null, lib = null, map = null, gameBuilder = null, game = null
+let mode = null, catalog = null, map = null, gameBuilder = null, game = null
 
 const sceneEl = document.getElementById("scene")
 const mapWidthEl = document.getElementById("map_width")
 const mapHeightEl = document.getElementById("map_height")
 async function initInputEls() {
-    for(let key in lib.scenes) {
+    for(let key in catalog.scenes) {
         sceneEl.appendChild(newDomEl("option", { value: key, text: key }))
     }
     const scnMap = map.scenes["0"]
@@ -218,8 +218,8 @@ document.addEventListener('keydown', evt => {
 // main
 
 async function main() {
-    lib = await loadLib()
-    await lib.preload(["./game.mjs"])  // TODO remove this
+    catalog = await loadCatalog()
+    await catalog.preload(["./game.mjs"])  // TODO remove this
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
     initInputEls()
@@ -234,7 +234,7 @@ async function main() {
 function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
-    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, lib, map)
+    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
     syncAnchor()
     gameBuilder.run()
     mode = "builder"
@@ -251,7 +251,7 @@ async function startAndShowGame(pause) {
     if(mode == "builder") gameBuilder.syncMap()
     if(!game) {
         const playerId = "0"
-        game = new Game(gameParentEl, lib, map, playerId, {
+        game = new Game(gameParentEl, catalog, map, playerId, {
             mode: MODE_LOCAL,
             debug: isDebugMode
         })

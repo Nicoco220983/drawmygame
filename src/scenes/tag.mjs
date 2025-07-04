@@ -1,9 +1,9 @@
-import { GameScene, Entity, StateProperty, UPD_STATE, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleLibrary, CountDown } from '../game.mjs'
+import { GameScene, Entity, StateProperty, UPD_STATE, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../game.mjs'
 const { floor } = Math
 
-export const LIB = new ModuleLibrary()
+export const CATALOG = new ModuleCatalog()
 
-@LIB.registerScene("tag")
+@CATALOG.registerScene("tag")
 export class TagScene extends GameScene {
     
     constructor(game, scnId) {
@@ -87,9 +87,9 @@ export class TagScene extends GameScene {
 }
 
 
-const TagSprite = new Sprite(LIB.registerImage("/static/assets/tag.png"))
+const TagSprite = new Sprite(CATALOG.registerImage("/static/assets/tag.png"))
 
-@LIB.registerEntity("tag")
+@CATALOG.registerEntity("tag")
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })
 export class Tag extends Entity {
 
