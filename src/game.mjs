@@ -916,8 +916,9 @@ export class SpawnActorEvent extends Event {
         if(this.actState !== undefined) state.state = this.actState
         else delete state.state
         if(this.trigger.nbActs !== undefined) state.nbActs = this.trigger.nbActs
-        if(this.trigger.prevActFurther !== undefined) state.prevActFur = this.trigger.prevActFurther
         else delete state.nbActs
+        if(this.trigger.prevActFurther !== undefined) state.prevActFur = this.trigger.prevActFurther
+        else delete state.prevActFur
         return state
     }
     getState() {
