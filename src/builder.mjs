@@ -134,47 +134,47 @@ class BuilderScene extends SceneCommon {
     syncMode() {
         const { mode, modeKey } = this.game
         this.prevPos = null
-        if(this.draftEntity) {
-            this.draftEntity.remove()
-            this.draftEntity = null
+        if(this.draftActor) {
+            this.draftActor.remove()
+            this.draftActor = null
         }
-        if(mode == "entity") {
-            this.draftEntity = this.newActor(modeKey)
-            this.draftEntity.spriteVisibility = 0
+        if(mode == "actor") {
+            this.draftActor = this.newActor(modeKey)
+            this.draftActor.spriteVisibility = 0
         }
     }
 
     update() {
         super.update()
         const { mode } = this.game
-        this.updateDraftEntity()
+        this.updateDraftActor()
         if(mode == "move") this.updateMove()
         else if(mode == "select") this.updateSelect()
         else if(mode == "wall") this.addPointedWall()
-        else if(mode == "erase") this.erasePointedEntityOrWall()
-        else if(mode == "entity") this.addPointedEntity()
+        else if(mode == "erase") this.erasePointedActorOrWall()
+        else if(mode == "actor") this.addPointedActor()
     }
 
-    updateDraftEntity() {
-        if(!this.draftEntity) return
+    updateDraftActor() {
+        if(!this.draftActor) return
         const { mode } = this.game
         const touch = this.game.touches[0]
         if(touch) {
-            this.draftEntity.spriteVisibility = .5
+            this.draftActor.spriteVisibility = .5
             const draftPos = {
                 x: touch.x + this.viewX,
                 y: touch.y + this.viewY,
             }
-            if(mode == "entity") {
-                this.draftEntity.x = draftPos.x
-                this.draftEntity.y = draftPos.y
+            if(mode == "actor") {
+                this.draftActor.x = draftPos.x
+                this.draftActor.y = draftPos.y
             } else if(mode == "wall") {
                 if(this.anchor) this.applyAnchor(draftPos)
-                this.draftEntity.x2 = draftPos.x
-                this.draftEntity.y2 = draftPos.y
+                this.draftActor.x2 = draftPos.x
+                this.draftActor.y2 = draftPos.y
             }
         } else {
-            this.draftEntity.spriteVisibility = 0
+            this.draftActor.spriteVisibility = 0
         }
     }
 
@@ -236,12 +236,12 @@ class BuilderScene extends SceneCommon {
             if(this.prevPos !== null) {
                 this.newWall({ key:modeKey, x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
-            if(!this.draftEntity) {
-                this.draftEntity = this.newWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
-                this.draftEntity.visibility = .5
+            if(!this.draftActor) {
+                this.draftActor = this.newWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
+                this.draftActor.visibility = .5
             } else {
-                this.draftEntity.x1 = pos.x
-                this.draftEntity.y1 = pos.y
+                this.draftActor.x1 = pos.x
+                this.draftActor.y1 = pos.y
             }
             this.prevPos = pos
         }
@@ -251,14 +251,14 @@ class BuilderScene extends SceneCommon {
         const act = super.newActor(key, kwargs)
         if(act instanceof Hero) {
             this.actors.forEach(act2 => {
-                if(act2 !== act && act2 instanceof Hero && act2 != this.draftEntity)
+                if(act2 !== act && act2 instanceof Hero && act2 != this.draftActor)
                     act2.remove()
             })
         }
         return act
     }
 
-    erasePointedEntityOrWall() {
+    erasePointedActorOrWall() {
         const { touches, prevTouchIsDown } = this.game
         const touch = touches[0]
         if(touch && touch.isDown && !prevTouchIsDown) {
@@ -278,7 +278,7 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    addPointedEntity() {
+    addPointedActor() {
         const { touches, prevTouchIsDown } = this.game
         const { modeKey } = this.game
         const touch = touches[0]
@@ -298,8 +298,8 @@ class BuilderScene extends SceneCommon {
     }
 
     syncMap() {
-        if(this.draftEntity) this.draftEntity.remove()
-        this.draftEntity = null
+        if(this.draftActor) this.draftActor.remove()
+        this.draftActor = null
         const { map } = this.game
         const mapScn = map.scenes["0"]
         const mapScnWalls = mapScn.walls ||= []
@@ -424,7 +424,7 @@ class SelectionMenu {
         const syncTriggerInputs = () => {
             trigWrapperEl.innerHTML = ""
             if(checkEl.checked) {
-                const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-entity-event-trigger-form"))
+                const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-actor-event-trigger-form"))
                 trigEl.setTrigger(act.builderTrigger)
             }
         }
@@ -541,7 +541,7 @@ class SpawnActorTriggerFormElement extends TriggerFormElement {
         }
     }
 }
-customElements.define("dmg-spawn-entity-event-trigger-form", SpawnActorTriggerFormElement)
+customElements.define("dmg-spawn-actor-event-trigger-form", SpawnActorTriggerFormElement)
 
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
