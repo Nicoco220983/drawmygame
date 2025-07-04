@@ -83,8 +83,8 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    initEntities() {
-        const mapEnts = this.map.entities
+    initActors() {
+        const mapEnts = this.map.actors
         if(!mapEnts) return
         mapEnts.forEach(entState => {
             const ent = this.newEntity(entState.key)
@@ -207,8 +207,8 @@ class BuilderScene extends SceneCommon {
                 if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
                     this.select(wall)
             })
-            // entities
-            this.entities.forEach(ent  => {
+            // actors
+            this.actors.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
                     this.select(ent)
@@ -250,7 +250,7 @@ class BuilderScene extends SceneCommon {
     newEntity(key, kwargs) {
         const ent = super.newEntity(key, kwargs)
         if(ent instanceof Hero) {
-            this.entities.forEach(ent2 => {
+            this.actors.forEach(ent2 => {
                 if(ent2 !== ent && ent2 instanceof Hero && ent2 != this.draftEntity)
                     ent2.remove()
             })
@@ -268,8 +268,8 @@ class BuilderScene extends SceneCommon {
                 if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
                     wall.remove()
             })
-            // entities
-            this.entities.forEach(ent  => {
+            // actors
+            this.actors.forEach(ent  => {
                 const { left, width, top, height } = ent.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
                     ent.remove()
@@ -311,11 +311,11 @@ class BuilderScene extends SceneCommon {
         })
         const mapScnHeros = mapScn.heros ||= []
         mapScnHeros.length = 0
-        const mapScnEnts = mapScn.entities ||= []
+        const mapScnEnts = mapScn.actors ||= []
         mapScnEnts.length = 0
         const mapScnEvts = mapScn.events ||= []
         mapScnEvts.length = 0
-        this.entities.forEach(ent => {
+        this.actors.forEach(ent => {
             if(ent.removed) return
             const state = ent.getInitState()
             if(ent instanceof Hero) mapScnHeros.push(state)
@@ -517,7 +517,7 @@ class SpawnEntityTriggerFormElement extends TriggerFormElement {
     initSelEl() {
         super.initSelEl()
         const { selEl } = this
-        selEl.appendChild(newDomEl("option", { value: "nbEnts", text: "nb entities" }))
+        selEl.appendChild(newDomEl("option", { value: "nbEnts", text: "nb actors" }))
         selEl.appendChild(newDomEl("option", { value: "prevEntFur", text: "previous entity further" }))
     }
     syncSel() {

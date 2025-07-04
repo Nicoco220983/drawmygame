@@ -91,9 +91,9 @@ export default class PhysicsEngine {
         }
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
     }
-    apply(dt, entities) {
+    apply(dt, actors) {
         const { walls } = this.scene.map
-        entities.forEach(ent => {
+        actors.forEach(ent => {
             const comp = ent.physicsComponent
             if(!comp) return
             let remD = 1, nbCollisions = 0

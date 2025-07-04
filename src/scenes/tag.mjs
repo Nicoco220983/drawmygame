@@ -11,7 +11,7 @@ export class TagScene extends GameScene {
         this.step = "INIT"
         this.initDuration = 3
         this.duration = 3 * 60 + this.initDuration
-        this.entities.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
+        this.actors.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
         super.loadMap(map)
@@ -22,7 +22,7 @@ export class TagScene extends GameScene {
         hero.lives = hero.health = Infinity
         hero.on("damage", "tag", kwargs => {
             const { damager } = kwargs
-            const tag = this.entities.get("tag")
+            const tag = this.actors.get("tag")
             if(!tag || !damager || tag.ownerId != damager.id) return
             tag.setOwner(hero.id)
         })
@@ -58,8 +58,8 @@ export class TagScene extends GameScene {
         if(iteration > duration * fps) this.step = "GAMEOVER"
     }
     incrNonTaggedPlayerScores() {
-        const tag = this.entities.get("tag")
-        const taggedHero = this.entities.get(tag.ownerId)
+        const tag = this.actors.get("tag")
+        const taggedHero = this.actors.get(tag.ownerId)
         if(!taggedHero) return
         const taggedPlayerId = taggedHero.playerId
         for(let playerId in this.game.players) {
@@ -126,7 +126,7 @@ export class Tag extends Entity {
 
     findOwner() {
         let heros = []
-        this.scene.entities.forEach(ent => {
+        this.scene.actors.forEach(ent => {
             if(ent instanceof Hero) heros.push(ent)
         })
         if(heros.length == 0) return

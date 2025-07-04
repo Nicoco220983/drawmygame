@@ -126,7 +126,7 @@ class JoypadPauseScene extends JoypadScene {
             fillStyle: "white",
         })
         this.initButtons()
-        this.syncEntitiesPos()
+        this.syncObjectsPos()
     }
 
     initButtons() {
@@ -138,10 +138,10 @@ class JoypadPauseScene extends JoypadScene {
 
     update() {
         super.update()
-        this.syncEntitiesPos()
+        this.syncObjectsPos()
     }
 
-    syncEntitiesPos() {
+    syncObjectsPos() {
         const { width, height } = this
         assign(this.pauseText, { x: floor(width/2), y: floor(height/6) })
         assign(this.resumeButton, { x: floor(width/2), y:floor(height/2) })

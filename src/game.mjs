@@ -95,7 +95,7 @@ export class Aud {
 export class Catalog {
     constructor() {
         this.mods = {}
-        this.entities = {}
+        this.actors = {}
         this.scenes = {}
     }
     async addModuleCatalogs(paths) {
@@ -110,7 +110,7 @@ export class Catalog {
         }
         for(let i in paths) {
             const path = paths[i], mod = mods[i]
-            addItems(path, mod.CATALOG.entities, this.entities)
+            addItems(path, mod.CATALOG.actors, this.actors)
             addItems(path, mod.CATALOG.scenes, this.scenes)
         }
     }
@@ -121,7 +121,7 @@ export class Catalog {
         return mods
     }
     getEntityClass(key) {
-        const entCat = this.entities[key]
+        const entCat = this.actors[key]
         const mod = this.mods[entCat.path]
         return mod[entCat.name]
     }
@@ -129,14 +129,14 @@ export class Catalog {
 
 export class ModuleCatalog {
     constructor() {
-        this.entities = {}
+        this.actors = {}
         this.scenes = {}
         this.assets = []
     }
     registerEntity(key, kwargs) {
         return target => {
             target.KEY = key
-            const entCat = this.entities[key] = {}
+            const entCat = this.actors[key] = {}
             entCat.name = target.name
             entCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
@@ -191,7 +191,7 @@ export class GameMap {
                 h: scnState.height,
                 ws: scnState.walls,
                 hs: scnState.heros,
-                ents: scnState.entities,
+                ents: scnState.actors,
                 evts: scnState.events,
             }
         }
@@ -224,7 +224,7 @@ export class GameMap {
             scn.height = inScn.h
             scn.walls = inScn.ws
             scn.heros = inScn.hs
-            scn.entities = inScn.ents
+            scn.actors = inScn.ents
             scn.events = inScn.evts
         }
     }
@@ -883,12 +883,12 @@ export class SpawnEntityEvent extends Event {
             if(initState.nbEnts !== undefined) this.trigger.nbEnts = initState.nbEnts
             if(initState.prevEntFur !== undefined) this.trigger.prevEntFurther = initState.prevEntFur
         }
-        this.spawnedEntities = new EntityRefs(scn.entities)
+        this.spawnedActors = new EntityRefs(scn.actors)
         this.prevSpawnedEntity = null
     }
     checkTrigger(trigger) {
         if(trigger.nbEnts !== undefined) {
-            return this.spawnedEntities.size < trigger.nbEnts
+            return this.spawnedActors.size < trigger.nbEnts
         } else if(trigger.prevEntFurther !== undefined) {
             if(!this.prevSpawnedEntity) return true
             const { x: prevEntX, y: prevEntY } = this.prevSpawnedEntity
@@ -903,14 +903,14 @@ export class SpawnEntityEvent extends Event {
         super.update()
     }
     clearRemoved() {
-        this.spawnedEntities.clearRemoved()
+        this.spawnedActors.clearRemoved()
         if(this.prevSpawnedEntity && this.prevSpawnedEntity.removed) this.prevSpawnedEntity = null
     }
     executeAction() {
         super.executeAction()
         const ent = this.scene.newEntity(this.entState.key)
         ent.setInitState(this.entState)
-        this.spawnedEntities.add(ent.id)
+        this.spawnedActors.add(ent.id)
         this.prevSpawnedEntity = ent
     }
     getInitState() {
@@ -924,15 +924,15 @@ export class SpawnEntityEvent extends Event {
     }
     getState() {
         const state = super.getState()
-        state.ents = this.spawnedEntities.getState()
+        state.ents = this.spawnedActors.getState()
         if(this.prevSpawnedEntity) state.pse = this.prevSpawnedEntity.id
         else delete state.pse
         return state
     }
     setState(state) {
         super.setState(state)
-        this.spawnedEntities.setState(state.ents)
-        if(state.pse!==undefined) this.prevSpawnedEntity = this.scene.entities.get(state.pse) || null
+        this.spawnedActors.setState(state.ents)
+        if(state.pse!==undefined) this.prevSpawnedEntity = this.scene.actors.get(state.pse) || null
         else this.prevSpawnedEntity = null
     }
 }
@@ -1050,11 +1050,11 @@ export class EntityGroup {
 
     update() {
         this.clearRemoved()
-        this.sortEntities()
+        this.sortItems()
         this.forEach(ent => ent.update())
     }
 
-    sortEntities() {
+    sortItems() {
         this.entArr.sort((a, b) => (b.getPriority() - a.getPriority()))
     }
 
@@ -1358,7 +1358,7 @@ export class SceneCommon {
             this.canvas = document.createElement("canvas")
         }
         this.walls = new EntityGroup(this)
-        this.entities = new EntityGroup(this)
+        this.actors = new EntityGroup(this)
         this.heros = {}
         this.syncSizeAndPos()
         this.map = null
@@ -1377,7 +1377,7 @@ export class SceneCommon {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
         this.initWalls()
-        this.initEntities()
+        this.initActors()
     }
 
     syncSizeAndPos() {
@@ -1406,8 +1406,8 @@ export class SceneCommon {
         return this.walls.new(Wall, kwargs)
     }
 
-    initEntities() {
-        const mapEnts = this.map?.entities
+    initActors() {
+        const mapEnts = this.map?.actors
         if(!mapEnts) return
         mapEnts.forEach(entState => {
             const ent = this.newEntity(entState.key)
@@ -1416,7 +1416,7 @@ export class SceneCommon {
     }
 
     newEntity(cls, kwargs) {
-        return this.entities.new(cls, kwargs)
+        return this.actors.new(cls, kwargs)
     }
 
     syncHero(hero) {
@@ -1449,7 +1449,7 @@ export class SceneCommon {
     drawTo(ctx) {
         ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.walls.drawTo(ctx)
-        this.entities.drawTo(ctx)
+        this.actors.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
@@ -1584,8 +1584,8 @@ export class Game extends GameCommon {
         const scnMap = (scnMapId !== undefined) ? this.game.map.scenes[scnMapId] : null
         const paths = new Set([scnCat.path])
         if(scnMap) {
-            scnMap.entities.forEach(entMap => paths.add(catalog.entities[entMap.key].path))
-            scnMap.heros.forEach(heroMap => paths.add(catalog.entities[heroMap.key].path))
+            scnMap.actors.forEach(entMap => paths.add(catalog.actors[entMap.key].path))
+            scnMap.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
         }
         const mods = await catalog.preload(Array.from(paths))
         await this.loadScenes(mods[0][scnCat.name], scnMapId)
@@ -1991,7 +1991,7 @@ export class GameScene extends SceneCommon {
 
     initHeros() {
         this.initHerosSpawnPos()
-        if(this.game.mode == MODE_CLIENT) return  // entities are init by first full state
+        if(this.game.mode == MODE_CLIENT) return  // actors are init by first full state
         for(let playerId in this.game.players) this.newHero(playerId)
     }
 
@@ -2067,11 +2067,11 @@ export class GameScene extends SceneCommon {
     }
 
     updateWorld() {
-        const { entities, events, physics } = this
+        const { actors, events, physics } = this
         const { dt } = this.game
         events.forEach(evt => evt.update())
-        physics.apply(dt, entities)
-        entities.update()
+        physics.apply(dt, actors)
+        actors.update()
         this.handleHerosOut()
         this.handleHerosDeath()
     }
@@ -2169,7 +2169,7 @@ export class GameScene extends SceneCommon {
         if(teamsIts[team] != this.iteration) {
             const teamEnts = teams[team] ||= []
             teamEnts.length = 0
-            this.entities.forEach(ent => {
+            this.actors.forEach(ent => {
                 const entTeam = ent.team
                 if(entTeam && entTeam.startsWith(team)) teamEnts.push(ent)
             })
@@ -2178,13 +2178,13 @@ export class GameScene extends SceneCommon {
         return teams[team]
     }
 
-    filterEntities(key, filter) {
-        const entsCache = this._entitiesCache ||= {}
-        const keyEntsIts = this._keyEntitiesCacheIts ||= {}
+    filterActors(key, filter) {
+        const entsCache = this._actorsCache ||= {}
+        const keyEntsIts = this._keyActorsCacheIts ||= {}
         if(keyEntsIts[key] != this.iteration) {
             const keyEnts = entsCache[key] ||= []
             keyEnts.length = 0
-            this.entities.forEach(ent => {
+            this.actors.forEach(ent => {
                 if(filter(ent)) keyEnts.push(ent)
             })
             keyEntsIts[key] = this.iteration
@@ -2198,7 +2198,7 @@ export class GameScene extends SceneCommon {
         if(collectablesIts[team] != this.iteration) {
             const teamCols = collectables[team] ||= []
             teamCols.length = 0
-            this.entities.forEach(ent => {
+            this.actors.forEach(ent => {
                 if(ent.isCollectableBy && ent.isCollectableBy(team)) teamCols.push(ent)
             })
             collectablesIts[team] = this.iteration
@@ -2255,7 +2255,7 @@ export class GameScene extends SceneCommon {
         state.hsx = this.herosSpawnX
         state.hsy = this.herosSpawnY
         state.sco = this.scores
-        state.ents = this.entities.getState()
+        state.ents = this.actors.getState()
         state.evts = this.events.map(e => e.getState())
         state.seed = this.seed
         return state
@@ -2267,7 +2267,7 @@ export class GameScene extends SceneCommon {
         this.step = state.step
         this.setHerosSpawnPos(state.hsx, state.hsy)
         this.scores = state.sco
-        this.entities.setState(state.ents)
+        this.actors.setState(state.ents)
         for(let i in state.evts) this.events[i].setState(state.events[i])
         this.seed = state.seed
     }
@@ -2352,7 +2352,7 @@ export class FocusFirstHeroScene extends GameScene {
 }
 
 
-// ENTITIES ///////////////////////////////////
+// ACTORS ///////////////////////////////////
 
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "health", { shortKey: "hea", default: Infinity })
 @defineStateProperty(UPD_STATE, StateInt, "lastDamageAge", { shortKey: "lda", default: null })
@@ -3296,12 +3296,12 @@ export class Explosion extends Entity {
     }
     update() {
         super.update()
-        if(this.iteration == 0) this.checkEntitiesToDamage()
+        if(this.iteration == 0) this.checkActorsToDamage()
         const age = this.iteration/this.game.fps
         if(age >= 1) return this.remove()
         this.iteration += 1
     }
-    checkEntitiesToDamage() {
+    checkActorsToDamage() {
         const { x, y } = this
         const radius2 = pow(150, 2)
         const _checkOne = ent => {
@@ -3729,14 +3729,14 @@ export class Portal extends Entity {
         this.height = 50
     }
     update() {
-        this.scene.entities.forEach(ent => {
+        this.scene.actors.forEach(ent => {
             if(hypot(ent.x-this.x, ent.y-this.y)<30 && (ent.speedX * (this.x-ent.x) + ent.speedY * (this.y-ent.y))>0) {
                 this.teleport(ent)
             }
         })
     }
     teleport(ent) {
-        const portals = this.scene.filterEntities("portals", ent => (ent instanceof Portal))
+        const portals = this.scene.filterActors("portals", ent => (ent instanceof Portal))
         if(portals.length < 2) return
         let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
         if(targetPortal === this) targetPortal = portals[portals.length - 1]
