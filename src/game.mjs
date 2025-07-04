@@ -542,7 +542,7 @@ export class PhysicsComponent extends Component {
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "y")
 @defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirX", { shortKey: "dx", default: 1, options: { '1': "Right", '-1': "Left"}})
 @defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirY", { shortKey: "dy", default: 1, options: { '1': "Up", '-1': "Down"}})
-export class Entity {
+export class GameObject {
 
     static COMPONENTS = new Map()
 
@@ -743,12 +743,12 @@ function trigger(trigKey, kwargs) {
     }
 }
 
-Entity.prototype.on = on
-Entity.prototype.off = off
-Entity.prototype.trigger = trigger
+GameObject.prototype.on = on
+GameObject.prototype.off = off
+GameObject.prototype.trigger = trigger
 
 
-export class EntityRefs extends Set {
+export class GameObjectRefs extends Set {
     constructor(refGroup) {
         super()
         this.refGroup = refGroup
@@ -881,7 +881,7 @@ export class SpawnActorEvent extends Event {
             if(initState.nbActs !== undefined) this.trigger.nbActs = initState.nbActs
             if(initState.prevActFur !== undefined) this.trigger.prevActFurther = initState.prevActFur
         }
-        this.spawnedActors = new EntityRefs(scn.actors)
+        this.spawnedActors = new GameObjectRefs(scn.actors)
         this.prevSpawnedActor = null
     }
     checkTrigger(trigger) {
@@ -955,7 +955,7 @@ function newTextCanvas(text, kwargs) {
     return canvas
 }
 
-export class Text extends Entity {
+export class Text extends GameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.textArgs = kwargs
@@ -985,7 +985,7 @@ class CenteredText extends Text {
     }
 }
 
-export class EntityGroup {
+export class GameObjectGroup {
 
     constructor(scene) {
         this.x = 0
@@ -1098,9 +1098,9 @@ export class EntityGroup {
     }
 }
 
-EntityGroup.prototype.on = on
-EntityGroup.prototype.off = off
-EntityGroup.prototype.trigger = trigger
+GameObjectGroup.prototype.on = on
+GameObjectGroup.prototype.off = off
+GameObjectGroup.prototype.trigger = trigger
 
 
 export const MODE_LOCAL = 0
@@ -1356,8 +1356,8 @@ export class SceneCommon {
             this.backgroundCanvas = null
             this.canvas = document.createElement("canvas")
         }
-        this.walls = new EntityGroup(this)
-        this.actors = new EntityGroup(this)
+        this.walls = new GameObjectGroup(this)
+        this.actors = new GameObjectGroup(this)
         this.heros = {}
         this.syncSizeAndPos()
         this.map = null
@@ -1496,7 +1496,7 @@ export class SceneCommon {
 }
 
 
-export class Wall extends Entity {
+export class Wall extends GameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.x1 = kwargs.x1
@@ -1972,7 +1972,7 @@ export class GameScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.step = "GAME"
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.scores = {}
         this.seed = floor(random()*1000)
     }
@@ -2208,7 +2208,7 @@ export class GameScene extends SceneCommon {
 
     initVictoryNotifs() {
         if(this.victoryNotifs) return
-        this.victoryNotifs = new EntityGroup(this)
+        this.victoryNotifs = new GameObjectGroup(this)
         this.victoryNotifs.new(
             CenteredText,
             {
@@ -2220,7 +2220,7 @@ export class GameScene extends SceneCommon {
 
     initGameOverNotifs() {
         if(this.gameOverNotifs) return
-        this.gameOverNotifs = new EntityGroup(this)
+        this.gameOverNotifs = new GameObjectGroup(this)
         this.gameOverNotifs.new(
             CenteredText,
             {
@@ -2355,7 +2355,7 @@ export class FocusFirstHeroScene extends GameScene {
 
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "health", { shortKey: "hea", default: Infinity })
 @defineStateProperty(UPD_STATE, StateInt, "lastDamageAge", { shortKey: "lda", default: null })
-export class LivingEntity extends Entity {
+export class LivingGameObject extends GameObject {
     
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2417,7 +2417,7 @@ export class LivingEntity extends Entity {
 
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "lives", { shortKey: "liv", default: Infinity })
 @defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey: "lsi", default: -Infinity })
-export class Hero extends LivingEntity {
+export class Hero extends LivingGameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -2438,7 +2438,7 @@ export class Hero extends LivingEntity {
     }
 
     initExtras() {
-        const extras = this.extras ||= new EntityRefs(this.group)
+        const extras = this.extras ||= new GameObjectRefs(this.group)
         return extras
     }
 
@@ -2784,7 +2784,7 @@ export class Nico extends Hero {
 
 const PuffAud = CATALOG.registerAudio("/static/assets/puff.opus")
 
-class Enemy extends LivingEntity {
+class Enemy extends LivingGameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.team = "enemy"
@@ -2941,7 +2941,7 @@ export class Spiky extends Enemy {
 
 
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own", default: null })
-class Collectable extends Entity {
+class Collectable extends GameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3030,7 +3030,7 @@ export class Heart extends Collectable {
 }
 
 
-class LifeHeartNotif extends Entity {
+class LifeHeartNotif extends GameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.num = kwargs.num
@@ -3280,7 +3280,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/asse
 @CATALOG.registerActor("explos")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
-export class Explosion extends Entity {
+export class Explosion extends GameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3367,7 +3367,7 @@ const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static
 
 @CATALOG.registerActor("smokee")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
-export class SmokeExplosion extends Entity {
+export class SmokeExplosion extends GameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
@@ -3389,7 +3389,7 @@ export class SmokeExplosion extends Entity {
 const PopSprite = new Sprite(CATALOG.registerImage("/static/assets/pop.png"))
 const PopAud = CATALOG.registerAudio("/static/assets/pop.opus")
 
-class Pop extends Entity {
+class Pop extends GameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.width = this.height = 10
@@ -3416,7 +3416,7 @@ class PauseScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.pauseText = this.notifs.new(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
@@ -3436,7 +3436,7 @@ class PauseScene extends SceneCommon {
 }
 
 
-class PlayerText extends Entity {
+class PlayerText extends GameObject {
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
         this.player = kwargs.player
@@ -3475,7 +3475,7 @@ export class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.backgroundColor = "black"
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.playerTxts = []
         this.initTitleText()
         this.initQrcodeSprite()
@@ -3567,7 +3567,7 @@ class VictoryScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.victoryText = this.notifs.new(Text, {
             text: "VICTORY",
             font: "bold 50px arial",
@@ -3588,7 +3588,7 @@ class DefeatScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.defeatText = this.notifs.new(Text, {
             text: "DEFEAT",
             font: "bold 50px arial",
@@ -3635,7 +3635,7 @@ class DebugScene extends SceneCommon {
 }
 
 
-export class ScoresBoard extends Entity {
+export class ScoresBoard extends GameObject {
     constructor(scene, group, kwargs) {
         super(scene, group, kwargs)
         this.scores = kwargs.scores
@@ -3720,7 +3720,7 @@ const PortalSprite = new Sprite(CATALOG.registerImage("/static/assets/portal.png
 const PortalJumpAud = CATALOG.registerAudio("/static/assets/portal_jump.opus")
 
 @CATALOG.registerActor("portal")
-export class Portal extends Entity {
+export class Portal extends GameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)

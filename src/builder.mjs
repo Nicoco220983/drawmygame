@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, Entity, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys, INIT_STATE } from './game.mjs'
+import { GameCommon, SceneCommon, GameObject, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys, INIT_STATE } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -110,7 +110,7 @@ class BuilderScene extends SceneCommon {
         const { width, height } = this.map
         let { grid } = this
         if(grid && grid.width == width && grid.height == height) return
-        grid = this.grid ||= new Entity(this)
+        grid = this.grid ||= new GameObject(this)
         grid.x = width / 2
         grid.y = height / 2
         grid.width = width
@@ -349,7 +349,7 @@ class BuilderScene extends SceneCommon {
                 top = min(sel.y1, sel.y2)
                 width = abs(sel.x1 - sel.x2)
                 height = abs(sel.y1 - sel.y2)
-            } else if(sel instanceof Entity) {
+            } else if(sel instanceof GameObject) {
                 const hitBox = sel.getHitBox()
                 left = hitBox.left
                 top = hitBox.top

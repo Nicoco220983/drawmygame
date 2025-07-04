@@ -1,7 +1,7 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
-import { Sprite, Entity, Text, EntityGroup, ModuleCatalog } from "./game.mjs"
+import { Sprite, GameObject, Text, GameObjectGroup, ModuleCatalog } from "./game.mjs"
 import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils.mjs"
 
 export const CATALOG = new ModuleCatalog()
@@ -25,7 +25,7 @@ export class JoypadScene {
             this.canvas.height = this.height
         }
         this.game.initTouches()
-        this.buttons = new EntityGroup(this)
+        this.buttons = new GameObjectGroup(this)
         this.syncSizeAndPos()
     }
 
@@ -119,7 +119,7 @@ class JoypadPauseScene extends JoypadScene {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new EntityGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.pauseText = this.notifs.new(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
@@ -157,7 +157,7 @@ class JoypadPauseScene extends JoypadScene {
 
 const BurronImg = CATALOG.addImage("/static/assets/button_colorable.png")
 
-class Button extends Entity {
+class Button extends GameObject {
 
     constructor(group, id, kwargs) {
         super(group, id, kwargs)
