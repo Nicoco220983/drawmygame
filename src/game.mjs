@@ -513,13 +513,11 @@ export function addComponent(comp, kwargs) {
 }
 
 
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "speedX", { shortKey:"sx" })
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "speedY", { shortKey:"sy" })
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
-    static STATE_PROPS = [
-        new StateInt(INIT_STATE | UPD_STATE, "speedX", "sx", 0),
-        new StateInt(INIT_STATE | UPD_STATE, "speedY", "sy", 0),
-    ]
     constructor(kwargs) {
         super()
         this.affectedByGravity = kwargs?.affectedByGravity ?? true
