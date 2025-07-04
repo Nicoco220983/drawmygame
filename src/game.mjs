@@ -574,7 +574,7 @@ export class Entity {
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
         }
-        this.constructor.COMPONENTS.forEach(comp => comp.init(this))
+        this.constructor.COMPONENTS.forEach(comp => comp.init(this, kwargs))
     }
 
     getPriority() {
@@ -2767,19 +2767,6 @@ export class Nico extends Hero {
         return actionExtra
     }
 
-    // getState() {
-    //     const state = super.getState()
-    //     if(this.handRemIt!==null) state.hri = this.handRemIt
-    //     else delete state.hri
-    //     return state
-    // }
-
-    // setState(state) {
-    //     super.setState(state)
-    //     if(this.hri!==undefined) this.handRemIt = this.hri
-    //     else this.handRemIt = null
-    // }
-
     drawTo(ctx) {
         if(this.disabled) return
         super.drawTo(ctx)
@@ -2997,17 +2984,6 @@ class Collectable extends Entity {
             this.spriteDy = -this.spriteWidth * .05 * cosAngle
         }
     }
-    // getState() {
-    //     const state = super.getState()
-    //     if(this.ownerId === null) delete state.own
-    //     else state.own = this.ownerId
-    //     return state
-    // }
-    // setState(state) {
-    //     super.setState(state)
-    //     if(state.own === undefined) this.ownerId = null
-    //     else this.ownerId = state.own
-    // }
 }
 
 
@@ -3167,6 +3143,83 @@ export class Sword extends Extra {
 }
 
 
+const ShurikenSprite = new Sprite(LIB.registerImage("/static/assets/shuriken.png"))
+
+@LIB.registerEntity("shurik")
+@addComponent(PhysicsComponent, { affectedByGravity: false })
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "nb")
+@defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
+export class Shurikens extends Extra {
+
+    constructor(group, id, kwargs) {
+        super(group, id, kwargs)
+        this.isActionExtra = true
+        this.width = this.height = 30
+        this.nb = kwargs?.nb ?? 5
+        this.actLastTryIt = -Infinity
+        this.actRemIt = 0
+        this.itToLive = kwargs?.itToLive ?? null
+        this.throwPeriod = .3
+    }
+    isCollectableBy(team) {
+        if(this.itToLive !== null) return false
+        return super.isCollectableBy(team)
+    }
+    act() {
+        const prevActLastTryIt = this.actLastTryIt
+        this.actLastTryIt = this.scene.iteration
+        if(this.actLastTryIt <= prevActLastTryIt+1 || this.actRemIt > 0) return
+        this.actRemIt = ceil(this.throwPeriod * this.game.fps)
+        this.throwOneShuriken()
+        this.nb -= 1
+        if(this.nb <= 0) this.remove()
+    }
+    throwOneShuriken() {
+        const owner = this.getOwner()
+        if(!owner) return
+        this.scene.newEntity(Shurikens, {
+            x: this.x, y: this.y,
+            ownerId: this.ownerId,
+            nb: 1, itToLive: 2 * this.game.fps,
+            speedX: owner.dirX * 500,
+        })
+        this.game.audio.playSound(SlashAud)
+    }
+    update() {
+        const owner = this.getOwner()
+        if(this.itToLive) {
+            this.checkHit()
+            this.itToLive -= 1
+            if(this.itToLive <= 0) this.remove()
+            if(this.speedResX || this.speedResY) this.remove()
+        } else if(owner) {
+            this.x = owner.x
+            this.y = owner.y
+        }
+        if(this.actRemIt > 0) this.actRemIt -= 1
+    }
+    checkHit() {
+        const _checkHit = ent => {
+            if(!this.removed && checkHit(this, ent)) {
+                this.hit(ent)
+                this.remove()
+            }
+        }
+        this.scene.getTeam("enemy").forEach(_checkHit)
+    }
+    hit(ent) {
+        ent.mayTakeDamage(1, this.getOwner())
+    }
+    getSprite() {
+        return ShurikenSprite
+    }
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
+        if(this.itToLive !== null) this.spriteDy = 0
+    }
+}
+
+
 const BombSpriteSheet = new SpriteSheet(LIB.registerImage("/static/assets/bomb.png"), 2, 1)
 
 @LIB.registerEntity("bomb")
@@ -3217,8 +3270,8 @@ export class Bomb extends Extra {
         return BombSpriteSheet.get(floor(pow(3 - (itToLive / this.game.fps), 2)*2) % 2)
     }
     scaleSprite(sprite) {
+        super.scaleSprite(sprite)
         if(this.itToLive !== null) this.spriteDy = 0
-        else super.scaleSprite(sprite)
     }
 }
 

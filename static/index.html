@@ -59,6 +59,7 @@
                 <button id="mode_nico">[N]ico</button>
                 <button id="mode_heart">Heart</button>
                 <button id="mode_sword">Sw[o]rd</button>
+                <button id="mode_shurik">Shuriken</button>
                 <button id="mode_bomb">Bo[m]b</button>
                 <button id="mode_checkpoint">[C]heckpoint</button>
                 <button id="mode_star">[S]tar</button>
@@ -146,6 +147,7 @@ document.getElementById("mode_erase").onclick = Keys["e"] = () => setBuilderMode
 document.getElementById("mode_nico").onclick = Keys["en"] = () => setBuilderMode('entity', 'nico')
 document.getElementById("mode_heart").onclick = () => setBuilderMode('entity', 'heart')
 document.getElementById("mode_sword").onclick = Keys["eo"] = () => setBuilderMode('entity', 'sword')
+document.getElementById("mode_shurik").onclick = () => setBuilderMode('entity', 'shurik')
 document.getElementById("mode_bomb").onclick = Keys["em"] = () => setBuilderMode('entity', 'bomb')
 document.getElementById("mode_blob").onclick = Keys["el"] = () => setBuilderMode('entity', 'blob')
 document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setBuilderMode('entity', 'ghost')
