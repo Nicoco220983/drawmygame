@@ -758,22 +758,22 @@ export class GameObjectRefs extends Set {
     clearRemoved() {
         const { refGroup } = this
         for(let id of this) {
-            const ent = refGroup.get(id)
-            if(!ent || ent.removed) this.delete(id)
+            const obj = refGroup.get(id)
+            if(!obj || obj.removed) this.delete(id)
         }
     }
     forEach(next) {
         const { refGroup } = this
         for(let id of this) {
-            const ent = refGroup.get(id)
-            if(!ent || ent.removed) this.delete(id)
-            else next(ent)
+            const obj = refGroup.get(id)
+            if(!obj || obj.removed) this.delete(id)
+            else next(obj)
         }
     }
     getState() {
         const state = this.state ||= []
         state.length = 0
-        this.forEach(ent => state.push(ent.id))
+        this.forEach(obj => state.push(obj.id))
         return state
     }
     setState(state) {
@@ -992,8 +992,8 @@ export class GameObjectGroup {
         this.y = 0
         this.scene = scene
         this.game = scene.game
-        this.entArr = []
-        this.entMap = new Map()
+        this.objArr = []
+        this.objMap = new Map()
         this._lastAutoId = 0
     }
 
@@ -1009,31 +1009,31 @@ export class GameObjectGroup {
         let id = kwargs && kwargs.id
         if(id === undefined) id = this.nextAutoId()
         if(typeof cls === 'string') cls = this.game.catalog.getActorClass(cls)
-        const ent = new cls(this, id, kwargs)
-        this.entMap.set(id, ent)
-        this.entArr.push(ent)
-        this.trigger("new", ent)
-        return ent
+        const obj = new cls(this, id, kwargs)
+        this.objMap.set(id, obj)
+        this.objArr.push(obj)
+        this.trigger("new", obj)
+        return obj
     }
 
     get(id) {
-        return this.entMap.get(id)
+        return this.objMap.get(id)
     }
 
     forEach(next) {
-        this.entArr.forEach(ent => {
-            if(!ent.removed) next(ent)
+        this.objArr.forEach(obj => {
+            if(!obj.removed) next(obj)
         })
     }
 
     clearRemoved() {
-        const { entArr, entMap } = this
-        let idx = 0, nbEnts = entArr.length
+        const { objArr, objMap } = this
+        let idx = 0, nbEnts = objArr.length
         while(idx < nbEnts) {
-            const ent = entArr[idx]
-            if(ent.removed) {
-                entArr.splice(idx, 1)
-                entMap.delete(ent.id)
+            const obj = objArr[idx]
+            if(obj.removed) {
+                objArr.splice(idx, 1)
+                objMap.delete(obj.id)
                 nbEnts -= 1
             } else {
                 idx += 1
@@ -1043,56 +1043,56 @@ export class GameObjectGroup {
 
     clear() {
         this.forEach(item => item.remove())
-        this.entArr.length = 0
-        this.entMap.clear()
+        this.objArr.length = 0
+        this.objMap.clear()
     }
 
     update() {
         this.clearRemoved()
         this.sortItems()
-        this.forEach(ent => ent.update())
+        this.forEach(obj => obj.update())
     }
 
     sortItems() {
-        this.entArr.sort((a, b) => (b.getPriority() - a.getPriority()))
+        this.objArr.sort((a, b) => (b.getPriority() - a.getPriority()))
     }
 
     drawTo(gameCtx) {
         this.clearRemoved()
         const x = ~~this.x, y = ~~this.y
         gameCtx.translate(x, y)
-        this.forEach(ent => ent.drawTo(gameCtx))
+        this.forEach(obj => obj.drawTo(gameCtx))
         gameCtx.translate(-x, -y)
     }
 
     getState() {
         const state = this._state ||= []
         state.length = 0
-        this.forEach(ent => {
-            if(ent.constructor.KEY) state.push(ent.getState())
+        this.forEach(act => {
+            if(act.constructor.KEY) state.push(act.getState())
         })
         return state
     }
 
     setState(state) {
-        const { entArr, entMap } = this
-        entArr.length = 0
+        const { objArr, objMap } = this
+        objArr.length = 0
         if(state) {
-            for(let entState of state) {
-                let { id } = entState
-                let ent = entMap.get(id)
-                if(!ent) {
-                    const cls = this.game.catalog.getActorClass(entState.key)
-                    ent = new cls(this, id)
-                    entMap.set(ent.id, ent)
+            for(let actState of state) {
+                let { id } = actState
+                let act = objMap.get(id)
+                if(!act) {
+                    const cls = this.game.catalog.getActorClass(actState.key)
+                    act = new cls(this, id)
+                    objMap.set(act.id, act)
                 }
-                ent.setState(entState)
-                entArr.push(ent)
-                this.trigger("new", ent)
+                act.setState(actState)
+                objArr.push(act)
+                this.trigger("new", act)
             }
-            if(entMap.size != entArr.length) {
-                entMap.clear()
-                for(let ent of entArr) entMap.set(ent.id, ent)
+            if(objMap.size != objArr.length) {
+                objMap.clear()
+                for(let act of objArr) objMap.set(act.id, act)
             }
         } else this.clear()
     }
