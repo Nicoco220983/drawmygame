@@ -35,11 +35,11 @@ export default class PhysicsEngine {
         }
         this.initPhysicsData(data)
     }
-    initEntity(dt, ent) {
-        const data = ent._physicsData ||= {}
+    initActor(dt, act) {
+        const data = act._physicsData ||= {}
         const polygon = data.polygon ||= []
         polygon.length = 0
-        const { x, y, width, height, speedX, speedY } = ent
+        const { x, y, width, height, speedX, speedY } = act
         const hWidth = width/2, hHeight = height/2
         const xMin = x - hWidth, yMin = data.yMin = y - hHeight, xMax = data.xMax = x + hWidth, yMax = data.yMax = y + hHeight
         polygon.push(
@@ -93,80 +93,80 @@ export default class PhysicsEngine {
     }
     apply(dt, actors) {
         const { walls } = this.scene.map
-        actors.forEach(ent => {
-            const comp = ent.physicsComponent
+        actors.forEach(act => {
+            const comp = act.physicsComponent
             if(!comp) return
             let remD = 1, nbCollisions = 0
-            if(ent.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, ent)
-            const { x: entOrigX, y: entOrigY, speedX: entOrigSpdX, speedY: entOrigSpdY } = ent
-            const entOrigDx = entOrigSpdX * dt, entOrigDy = entOrigSpdY * dt
-            if((ent.blockedByWalls ?? comp.blockedByWalls) && (entOrigSpdX != 0 || entOrigSpdY != 0)) {
-                const entOrigD = dist(entOrigDx, entOrigDy) * dt
+            if(act.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, act)
+            const { x: actOrigX, y: actOrigY, speedX: actOrigSpdX, speedY: actOrigSpdY } = act
+            const actOrigDx = actOrigSpdX * dt, actOrigDy = actOrigSpdY * dt
+            if((act.blockedByWalls ?? comp.blockedByWalls) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
+                const actOrigD = dist(actOrigDx, actOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
                     colRes.time = Infinity
-                    this.initEntity(dt*remD, ent)
-                    let { speedX: entSpdX, speedY: entSpdY } = ent
-                    const entData = ent._physicsData
+                    this.initActor(dt*remD, act)
+                    let { speedX: actSpdX, speedY: actSpdY } = act
+                    const actData = act._physicsData
                     const {
-                        minX: entMinX, minY: entMinY, maxX: entMaxX, maxY: entMaxY,
-                        sMinX: entSMinX, sMinY: entSMinY, sMaxX: entSMaxX, sMaxY: entSMaxY,
-                    } = entData
+                        minX: actMinX, minY: actMinY, maxX: actMaxX, maxY: actMaxY,
+                        sMinX: actSMinX, sMinY: actSMinY, sMaxX: actSMaxX, sMaxY: actSMaxY,
+                    } = actData
                     for(let wall of walls) {
                         const wallData = wall._physicsData
                         // quick filteringgs
-                        if(entSMinX > wallData.sMaxX || entSMaxX < wallData.sMinX || entSMinY > wallData.sMaxY || entSMaxY < wallData.sMinY) continue
+                        if(actSMinX > wallData.sMaxX || actSMaxX < wallData.sMinX || actSMinY > wallData.sMaxY || actSMaxY < wallData.sMinY) continue
                         // detect collision
-                        detectCollisionTime(entData, wallData, wallColRes)
+                        detectCollisionTime(actData, wallData, wallColRes)
                         if(wallColRes.time == Infinity) continue
                         if(wallColRes.time < colRes.time) assign(colRes, wallColRes)
                         if(colRes.time == 0) break
                     }
                     if(colRes.time == Infinity) break
                     nbCollisions += 1
-                    const  { dx: entDx, dy: entDy } = entData
+                    const  { dx: actDx, dy: actDy } = actData
                     const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
                     if(colTime > 0) {
                         // move
-                        let dx = entDx * colTime, dy = entDy * colTime
+                        let dx = actDx * colTime, dy = actDy * colTime
                         if(dx > 0) dx -= min(dx, FLOAT_PRECISION_CORRECTION)
                         else if(dx < 0) dx -= max(dx, -FLOAT_PRECISION_CORRECTION)
                         if(dy > 0) dy -= min(dy, FLOAT_PRECISION_CORRECTION)
                         else if(dy < 0) dy -= max(dy, -FLOAT_PRECISION_CORRECTION)
-                        ent.x += dx
-                        ent.y += dy
+                        act.x += dx
+                        act.y += dy
                         // compute remaining speed
-                        projection(entSpdX, entSpdY, colNormalY, -colNormalX, projRes)
-                        ent.speedX = projRes.x; ent.speedY = projRes.y
+                        projection(actSpdX, actSpdY, colNormalY, -colNormalX, projRes)
+                        act.speedX = projRes.x; act.speedY = projRes.y
                         // stop collisions detection condition
-                        const entD = hypot(entDx, entDy), colD = entD * colTime
-                        remD -= colD / entOrigD
-                        if(hypot(ent.speedX, ent.speedY) * remD < 1) remD = 0
+                        const actD = hypot(actDx, actDy), colD = actD * colTime
+                        remD -= colD / actOrigD
+                        if(hypot(act.speedX, act.speedY) * remD < 1) remD = 0
                     } else {
-                        ent.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
-                        ent.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        act.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        act.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                     }
                     if(nbCollisions==5) remD = 0
                 }
             }
             if(remD > 0) {
-                ent.x += ent.speedX * dt * remD
-                ent.y += ent.speedY * dt * remD
+                act.x += act.speedX * dt * remD
+                act.y += act.speedY * dt * remD
             }
             // determine speed resistance
             if(nbCollisions == 0) {
-                ent.speedResX = ent.speedResY = 0
+                act.speedResX = act.speedResY = 0
             } else {
-                ent.speedResX = ((ent.x - entOrigX) - entOrigDx) / dt
-                ent.speedResY = ((ent.y - entOrigY) - entOrigDy) / dt
+                act.speedResX = ((act.x - actOrigX) - actOrigDx) / dt
+                act.speedResY = ((act.y - actOrigY) - actOrigDy) / dt
             }
         })
     }
 
-    applyGravity(dt, ent) {
+    applyGravity(dt, act) {
         const { gravityAcc, gravityMaxSpeed } = this
-        if(ent.speedY >= gravityMaxSpeed) return
-        ent.speedY = min(ent.speedY + gravityAcc * dt, gravityMaxSpeed)
+        if(act.speedY >= gravityMaxSpeed) return
+        act.speedY = min(act.speedY + gravityAcc * dt, gravityMaxSpeed)
     }
 }
 

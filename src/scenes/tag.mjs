@@ -15,7 +15,7 @@ export class TagScene extends GameScene {
     }
     loadMap(map) {
         super.loadMap(map)
-        this.newEntity(Tag, { id: "tag" })
+        this.newActor(Tag, { id: "tag" })
     }
     tuneHeros(hero) {
         if(!(hero instanceof Hero)) return
@@ -89,7 +89,7 @@ export class TagScene extends GameScene {
 
 const TagSprite = new Sprite(CATALOG.registerImage("/static/assets/tag.png"))
 
-@CATALOG.registerEntity("tag")
+@CATALOG.registerActor("tag")
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })
 export class Tag extends Entity {
 

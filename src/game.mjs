@@ -120,10 +120,10 @@ export class Catalog {
         await Promise.all(mods.map(m => m.CATALOG).filter(l => l).map(l => l.preloadAssets()))
         return mods
     }
-    getEntityClass(key) {
-        const entCat = this.actors[key]
-        const mod = this.mods[entCat.path]
-        return mod[entCat.name]
+    getActorClass(key) {
+        const actCat = this.actors[key]
+        const mod = this.mods[actCat.path]
+        return mod[actCat.name]
     }
 }
 
@@ -133,12 +133,12 @@ export class ModuleCatalog {
         this.scenes = {}
         this.assets = []
     }
-    registerEntity(key, kwargs) {
+    registerActor(key, kwargs) {
         return target => {
             target.KEY = key
-            const entCat = this.actors[key] = {}
-            entCat.name = target.name
-            entCat.showInBuilder = kwargs?.showInBuilder ?? true
+            const actCat = this.actors[key] = {}
+            actCat.name = target.name
+            actCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
         }
     }
@@ -191,7 +191,7 @@ export class GameMap {
                 h: scnState.height,
                 ws: scnState.walls,
                 hs: scnState.heros,
-                ents: scnState.actors,
+                acts: scnState.actors,
                 evts: scnState.events,
             }
         }
@@ -224,7 +224,7 @@ export class GameMap {
             scn.height = inScn.h
             scn.walls = inScn.ws
             scn.heros = inScn.hs
-            scn.actors = inScn.ents
+            scn.actors = inScn.acts
             scn.events = inScn.evts
         }
     }
@@ -416,22 +416,22 @@ export class StateProperty {
         this.shortKey = kwargs?.shortKey ?? key
         this.defaultValue = kwargs?.default ?? this.constructor.DEFAULT_VALUE
     }
-    toState(ent, state) {
-        const val = ent[this.key]
+    toState(act, state) {
+        const val = act[this.key]
         if(val !== this.defaultValue) state[this.shortKey] = val
     }
-    fromState(ent, state) {
+    fromState(act, state) {
         const val = state[this.shortKey]
-        ent[this.key] = (val === undefined) ? this.defaultValue : val
+        act[this.key] = (val === undefined) ? this.defaultValue : val
     }
-    toInput(ent) {
+    toInput(act) {
         const inputEl = newDomEl("input", {
-            value: ent[this.key]
+            value: act[this.key]
         })
         return inputEl
     }
-    fromInput(ent, inputEl) {
-        ent[this.key] = inputEl.value
+    fromInput(act, inputEl) {
+        act[this.key] = inputEl.value
     }
 }
 
@@ -443,15 +443,15 @@ export class StateInt extends StateProperty {
         this.min = kwargs?.min ?? null
         this.max = kwargs?.max ?? null
     }
-    toInput(ent) {
-        const inputEl = super.toInput(ent)
+    toInput(act) {
+        const inputEl = super.toInput(act)
         inputEl.type = "number"
         if(this.min !== null) inputEl.min = this.min
         if(this.max !== null) inputEl.max = this.max
         return inputEl
     }
-    fromInput(ent, inputEl) {
-        ent[this.key] = parseInt(inputEl.value)
+    fromInput(act, inputEl) {
+        act[this.key] = parseInt(inputEl.value)
     }
 }
 
@@ -460,7 +460,7 @@ export class StateEnum extends StateProperty {
         super(key, kwargs)
         this.options = kwargs.options
     }
-    toInput(ent) {
+    toInput(act) {
         const { options } = this
         const inputEl = newDomEl("select")
         for(let optVal in options) {
@@ -469,7 +469,7 @@ export class StateEnum extends StateProperty {
                 text: options[optVal],
             }))
         }
-        inputEl.value = ent[this.key]
+        inputEl.value = act[this.key]
         return inputEl
     }
 }
@@ -477,8 +477,8 @@ export class StateEnum extends StateProperty {
 export class StateIntEnum extends StateEnum {
     static DEFAULT_VALUE = 0
 
-    fromInput(ent, inputEl) {
-        ent[this.key] = parseInt(inputEl.value)
+    fromInput(act, inputEl) {
+        act[this.key] = parseInt(inputEl.value)
     }
 }
 
@@ -487,19 +487,19 @@ export class Component {
     static INIT_STATE_PROPS = []
     static UPD_STATE_PROPS = []
 
-    init(ent, kwargs) {}
-    update(ent) {}
-    getInitState(ent, state) {
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(ent, state)
+    init(act, kwargs) {}
+    update(act) {}
+    getInitState(act, state) {
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(act, state)
     }
-    setInitState(ent, state) {
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(ent, state)
+    setInitState(act, state) {
+        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(act, state)
     }
-    getState(ent, state) {
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(ent, state)
+    getState(act, state) {
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(act, state)
     }
-    setState(ent, state) {
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(ent, state)
+    setState(act, state) {
+        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(act, state)
     }
 }
 
@@ -523,16 +523,16 @@ export class PhysicsComponent extends Component {
         this.affectedByGravity = kwargs?.affectedByGravity ?? true
         this.blockedByWalls = kwargs?.blockedByWalls ?? true
     }
-    init(ent, kwargs) {
-        ent.physicsComponent = this
-        ent.speedX = kwargs?.speedX ?? 0
-        ent.speedY = kwargs?.speedY ?? 0
-        ent.speedResX = 0
-        ent.speedResY = 0
+    init(act, kwargs) {
+        act.physicsComponent = this
+        act.speedX = kwargs?.speedX ?? 0
+        act.speedY = kwargs?.speedY ?? 0
+        act.speedResX = 0
+        act.speedResY = 0
         if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
         if(kwargs?.blockedByWalls !== undefined) this.blockedByWalls = kwargs.blockedByWalls
     }
-    update(ent) {
+    update(act) {
         // done by physics engine
     }
 }
@@ -872,26 +872,26 @@ export class Event {
 }
 
 
-export class SpawnEntityEvent extends Event {
+export class SpawnActorEvent extends Event {
     constructor(scn, initState) {
         super(scn, initState)
         this.scene = scn
         if(initState) {
-            if(initState.state !== undefined) this.entState = initState.state
-            if(initState.nbEnts !== undefined) this.trigger.nbEnts = initState.nbEnts
-            if(initState.prevEntFur !== undefined) this.trigger.prevEntFurther = initState.prevEntFur
+            if(initState.state !== undefined) this.actState = initState.state
+            if(initState.nbActs !== undefined) this.trigger.nbActs = initState.nbActs
+            if(initState.prevActFur !== undefined) this.trigger.prevActFurther = initState.prevActFur
         }
         this.spawnedActors = new EntityRefs(scn.actors)
-        this.prevSpawnedEntity = null
+        this.prevSpawnedActor = null
     }
     checkTrigger(trigger) {
-        if(trigger.nbEnts !== undefined) {
-            return this.spawnedActors.size < trigger.nbEnts
-        } else if(trigger.prevEntFurther !== undefined) {
-            if(!this.prevSpawnedEntity) return true
-            const { x: prevEntX, y: prevEntY } = this.prevSpawnedEntity
-            const { x: stateX, y: stateY } = this.entState
-            return hypot(prevEntX-stateX, prevEntY-stateY) > trigger.prevEntFurther
+        if(trigger.nbActs !== undefined) {
+            return this.spawnedActors.size < trigger.nbActs
+        } else if(trigger.prevActFurther !== undefined) {
+            if(!this.prevSpawnedActor) return true
+            const { x: prevActX, y: prevActY } = this.prevSpawnedActor
+            const { x: stateX, y: stateY } = this.actState
+            return hypot(prevActX-stateX, prevActY-stateY) > trigger.prevActFurther
         } else {
             return super.checkTrigger(trigger)
         }
@@ -902,39 +902,39 @@ export class SpawnEntityEvent extends Event {
     }
     clearRemoved() {
         this.spawnedActors.clearRemoved()
-        if(this.prevSpawnedEntity && this.prevSpawnedEntity.removed) this.prevSpawnedEntity = null
+        if(this.prevSpawnedActor && this.prevSpawnedActor.removed) this.prevSpawnedActor = null
     }
     executeAction() {
         super.executeAction()
-        const ent = this.scene.newEntity(this.entState.key)
-        ent.setInitState(this.entState)
-        this.spawnedActors.add(ent.id)
-        this.prevSpawnedEntity = ent
+        const act = this.scene.newActor(this.actState.key)
+        act.setInitState(this.actState)
+        this.spawnedActors.add(act.id)
+        this.prevSpawnedActor = act
     }
     getInitState() {
         const state = super.getInitState()
-        if(this.entState !== undefined) state.state = this.entState
+        if(this.actState !== undefined) state.state = this.actState
         else delete state.state
-        if(this.trigger.nbEnts !== undefined) state.nbEnts = this.trigger.nbEnts
-        if(this.trigger.prevEntFurther !== undefined) state.prevEntFur = this.trigger.prevEntFurther
-        else delete state.nbEnts
+        if(this.trigger.nbActs !== undefined) state.nbActs = this.trigger.nbActs
+        if(this.trigger.prevActFurther !== undefined) state.prevActFur = this.trigger.prevActFurther
+        else delete state.nbActs
         return state
     }
     getState() {
         const state = super.getState()
-        state.ents = this.spawnedActors.getState()
-        if(this.prevSpawnedEntity) state.pse = this.prevSpawnedEntity.id
+        state.acts = this.spawnedActors.getState()
+        if(this.prevSpawnedActor) state.pse = this.prevSpawnedActor.id
         else delete state.pse
         return state
     }
     setState(state) {
         super.setState(state)
-        this.spawnedActors.setState(state.ents)
-        if(state.pse!==undefined) this.prevSpawnedEntity = this.scene.actors.get(state.pse) || null
-        else this.prevSpawnedEntity = null
+        this.spawnedActors.setState(state.acts)
+        if(state.pse!==undefined) this.prevSpawnedActor = this.scene.actors.get(state.pse) || null
+        else this.prevSpawnedActor = null
     }
 }
-Events.register("ent", SpawnEntityEvent)
+Events.register("act", SpawnActorEvent)
 
 
 function newTextCanvas(text, kwargs) {
@@ -1007,7 +1007,7 @@ export class EntityGroup {
     new(cls, kwargs) {
         let id = kwargs && kwargs.id
         if(id === undefined) id = this.nextAutoId()
-        if(typeof cls === 'string') cls = this.game.catalog.getEntityClass(cls)
+        if(typeof cls === 'string') cls = this.game.catalog.getActorClass(cls)
         const ent = new cls(this, id, kwargs)
         this.entMap.set(id, ent)
         this.entArr.push(ent)
@@ -1081,7 +1081,7 @@ export class EntityGroup {
                 let { id } = entState
                 let ent = entMap.get(id)
                 if(!ent) {
-                    const cls = this.game.catalog.getEntityClass(entState.key)
+                    const cls = this.game.catalog.getActorClass(entState.key)
                     ent = new cls(this, id)
                     entMap.set(ent.id, ent)
                 }
@@ -1407,13 +1407,13 @@ export class SceneCommon {
     initActors() {
         const mapEnts = this.map?.actors
         if(!mapEnts) return
-        mapEnts.forEach(entState => {
-            const ent = this.newEntity(entState.key)
-            ent.setInitState(entState)
+        mapEnts.forEach(actState => {
+            const act = this.newActor(actState.key)
+            act.setInitState(actState)
         })
     }
 
-    newEntity(cls, kwargs) {
+    newActor(cls, kwargs) {
         return this.actors.new(cls, kwargs)
     }
 
@@ -1582,7 +1582,7 @@ export class Game extends GameCommon {
         const scnMap = (scnMapId !== undefined) ? this.game.map.scenes[scnMapId] : null
         const paths = new Set([scnCat.path])
         if(scnMap) {
-            scnMap.actors.forEach(entMap => paths.add(catalog.actors[entMap.key].path))
+            scnMap.actors.forEach(actMap => paths.add(catalog.actors[actMap.key].path))
             scnMap.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
         }
         const mods = await catalog.preload(Array.from(paths))
@@ -2010,7 +2010,7 @@ export class GameScene extends SceneCommon {
         const heroDef = this.map?.heros && this.map.heros[0]
         if(!heroDef) return
         const { key } = heroDef
-        const hero = this.newEntity(key, { playerId })
+        const hero = this.newActor(key, { playerId })
         hero.setInitState(heroDef)
         this.spawnHero(hero)
         return hero.id
@@ -2167,9 +2167,9 @@ export class GameScene extends SceneCommon {
         if(teamsIts[team] != this.iteration) {
             const teamEnts = teams[team] ||= []
             teamEnts.length = 0
-            this.actors.forEach(ent => {
-                const entTeam = ent.team
-                if(entTeam && entTeam.startsWith(team)) teamEnts.push(ent)
+            this.actors.forEach(act => {
+                const actTeam = act.team
+                if(actTeam && actTeam.startsWith(team)) teamEnts.push(act)
             })
             teamsIts[team] = this.iteration
         }
@@ -2177,17 +2177,17 @@ export class GameScene extends SceneCommon {
     }
 
     filterActors(key, filter) {
-        const entsCache = this._actorsCache ||= {}
+        const actsCache = this._actorsCache ||= {}
         const keyEntsIts = this._keyActorsCacheIts ||= {}
         if(keyEntsIts[key] != this.iteration) {
-            const keyEnts = entsCache[key] ||= []
+            const keyEnts = actsCache[key] ||= []
             keyEnts.length = 0
-            this.actors.forEach(ent => {
-                if(filter(ent)) keyEnts.push(ent)
+            this.actors.forEach(act => {
+                if(filter(act)) keyEnts.push(act)
             })
             keyEntsIts[key] = this.iteration
         }
-        return entsCache[key]
+        return actsCache[key]
     }
 
     getCollectables(team) {
@@ -2196,8 +2196,8 @@ export class GameScene extends SceneCommon {
         if(collectablesIts[team] != this.iteration) {
             const teamCols = collectables[team] ||= []
             teamCols.length = 0
-            this.actors.forEach(ent => {
-                if(ent.isCollectableBy && ent.isCollectableBy(team)) teamCols.push(ent)
+            this.actors.forEach(act => {
+                if(act.isCollectableBy && act.isCollectableBy(team)) teamCols.push(act)
             })
             collectablesIts[team] = this.iteration
         }
@@ -2253,7 +2253,7 @@ export class GameScene extends SceneCommon {
         state.hsx = this.herosSpawnX
         state.hsy = this.herosSpawnY
         state.sco = this.scores
-        state.ents = this.actors.getState()
+        state.acts = this.actors.getState()
         state.evts = this.events.map(e => e.getState())
         state.seed = this.seed
         return state
@@ -2265,7 +2265,7 @@ export class GameScene extends SceneCommon {
         this.step = state.step
         this.setHerosSpawnPos(state.hsx, state.hsy)
         this.scores = state.sco
-        this.actors.setState(state.ents)
+        this.actors.setState(state.acts)
         for(let i in state.evts) this.events[i].setState(state.events[i])
         this.seed = state.seed
     }
@@ -2513,7 +2513,7 @@ export class Hero extends LivingEntity {
     }
 
     newSpawnEffect() {
-        return this.scene.newEntity(Pop, {
+        return this.scene.newActor(Pop, {
             x: this.x,
             y: this.y,
         })
@@ -2616,7 +2616,7 @@ const JumpAud = CATALOG.registerAudio("/static/assets/jump.opus")
 const ItemAud = CATALOG.registerAudio("/static/assets/item.opus")
 
 
-@CATALOG.registerEntity("nico")
+@CATALOG.registerActor("nico")
 @defineStateProperty(UPD_STATE, StateInt, "handRemIt", { shortKey: "hri", default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
@@ -2648,10 +2648,10 @@ export class Nico extends Hero {
         handHitBox.x = this.x + this.dirX * 28
         handHitBox.y = this.y
         let hasHit = false
-        const _checkHit = ent => {
-            if(this == ent) return
-            if(checkHit(handHitBox, ent)) {
-                ent.mayTakeDamage(0, this)
+        const _checkHit = act => {
+            if(this == act) return
+            if(checkHit(handHitBox, act)) {
+                act.mayTakeDamage(0, this)
                 hasHit = true
             }
         }
@@ -2790,7 +2790,7 @@ class Enemy extends LivingEntity {
     }
     onDeath() {
         const { x, y } = this
-        this.scene.newEntity(SmokeExplosion, { x, y })
+        this.scene.newActor(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAud)
         this.remove()
     }
@@ -2799,7 +2799,7 @@ class Enemy extends LivingEntity {
 
 const BlobSprite = new Sprite(CATALOG.registerImage("/static/assets/blob.png"))
 
-@CATALOG.registerEntity("blob")
+@CATALOG.registerActor("blob")
 @defineStateProperty(UPD_STATE, StateInt, "lastChangeDirAge", { shortKey: "cda" })
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
@@ -2858,7 +2858,7 @@ export class BlobEnemy extends Enemy {
 const GhostSprite = new Sprite(CATALOG.registerImage("/static/assets/ghost.png"))
 
 
-@CATALOG.registerEntity("ghost")
+@CATALOG.registerActor("ghost")
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
@@ -2909,7 +2909,7 @@ export class Ghost extends Enemy {
 
 const SpikySprite = new Sprite(CATALOG.registerImage("/static/assets/spiky.png"))
 
-@CATALOG.registerEntity("spiky")
+@CATALOG.registerActor("spiky")
 export class Spiky extends Enemy {
 
     constructor(group, id, kwargs) {
@@ -2996,7 +2996,7 @@ const HeartSpriteSheets = {
     },
 }
 
-@CATALOG.registerEntity("heart")
+@CATALOG.registerActor("heart")
 export class Heart extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3077,7 +3077,7 @@ const SwordSprite = new Sprite(CATALOG.registerImage("/static/assets/sword.png")
 
 const SwordHitAud = CATALOG.registerAudio("/static/assets/sword_hit.opus")
 
-@CATALOG.registerEntity("sword")
+@CATALOG.registerActor("sword")
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Sword extends Extra {
 
@@ -3115,10 +3115,10 @@ export class Sword extends Extra {
     checkHit() {
         const owner = this.getOwner()
         let hasHit = false
-        const _checkHit = ent => {
-            if(owner === ent) return
-            if(checkHit(this, ent)) {
-                this.hit(ent)
+        const _checkHit = act => {
+            if(owner === act) return
+            if(checkHit(this, act)) {
+                this.hit(act)
                 hasHit = true
             }
         }
@@ -3126,9 +3126,9 @@ export class Sword extends Extra {
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.game.audio.playSound(hasHit ? SwordHitAud : SlashAud)
     }
-    hit(ent) {
-        const damage = ent.team == this.team ? 0 : 1
-        ent.mayTakeDamage(damage, this.getOwner())
+    hit(act) {
+        const damage = act.team == this.team ? 0 : 1
+        act.mayTakeDamage(damage, this.getOwner())
     }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -3143,7 +3143,7 @@ export class Sword extends Extra {
 
 const ShurikenSprite = new Sprite(CATALOG.registerImage("/static/assets/shuriken.png"))
 
-@CATALOG.registerEntity("shurik")
+@CATALOG.registerActor("shurik")
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "nb")
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
@@ -3175,7 +3175,7 @@ export class Shurikens extends Extra {
     throwOneShuriken() {
         const owner = this.getOwner()
         if(!owner) return
-        this.scene.newEntity(Shurikens, {
+        this.scene.newActor(Shurikens, {
             x: this.x, y: this.y,
             ownerId: this.ownerId,
             nb: 1, itToLive: 2 * this.game.fps,
@@ -3197,16 +3197,16 @@ export class Shurikens extends Extra {
         if(this.actRemIt > 0) this.actRemIt -= 1
     }
     checkHit() {
-        const _checkHit = ent => {
-            if(!this.removed && checkHit(this, ent)) {
-                this.hit(ent)
+        const _checkHit = act => {
+            if(!this.removed && checkHit(this, act)) {
+                this.hit(act)
                 this.remove()
             }
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
     }
-    hit(ent) {
-        ent.mayTakeDamage(1, this.getOwner())
+    hit(act) {
+        act.mayTakeDamage(1, this.getOwner())
     }
     getSprite() {
         return ShurikenSprite
@@ -3220,7 +3220,7 @@ export class Shurikens extends Extra {
 
 const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/bomb.png"), 2, 1)
 
-@CATALOG.registerEntity("bomb")
+@CATALOG.registerActor("bomb")
 @addComponent(PhysicsComponent)
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
@@ -3244,7 +3244,7 @@ export class Bomb extends Extra {
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
-                this.scene.newEntity(Explosion, { x, y, owner: this.getOwner() })
+                this.scene.newActor(Explosion, { x, y, owner: this.getOwner() })
                 this.remove()
             }
             this.itToLive -= 1
@@ -3276,7 +3276,7 @@ export class Bomb extends Extra {
 
 const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/explosion.png"), 8, 6)
 
-@CATALOG.registerEntity("explos")
+@CATALOG.registerActor("explos")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Explosion extends Entity {
@@ -3302,9 +3302,9 @@ export class Explosion extends Entity {
     checkActorsToDamage() {
         const { x, y } = this
         const radius2 = pow(150, 2)
-        const _checkOne = ent => {
-            const dx = x - ent.x, dy = y - ent.y
-            if(dx*dx+dy*dy < radius2) ent.mayTakeDamage(1, this.getOwner())
+        const _checkOne = act => {
+            const dx = x - act.x, dy = y - act.y
+            if(dx*dx+dy*dy < radius2) act.mayTakeDamage(1, this.getOwner())
         }
         this.scene.getTeam("hero").forEach(_checkOne)
         this.scene.getTeam("enemy").forEach(_checkOne)
@@ -3319,7 +3319,7 @@ export class Explosion extends Entity {
 
 const StarSprite = new Sprite(CATALOG.registerImage("/static/assets/star.png"))
 
-@CATALOG.registerEntity("star")
+@CATALOG.registerActor("star")
 export class Star extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3343,7 +3343,7 @@ export class Star extends Collectable {
 
 const CheckpointSprite = new Sprite(CATALOG.registerImage("/static/assets/checkpoint.png"))
 
-@CATALOG.registerEntity("checkpt")
+@CATALOG.registerActor("checkpt")
 export class Checkpoint extends Collectable {
 
     constructor(group, id, kwargs) {
@@ -3364,7 +3364,7 @@ export class Checkpoint extends Collectable {
 
 const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/assets/smoke_explosion.png"), 4, 1)
 
-@CATALOG.registerEntity("smokee")
+@CATALOG.registerActor("smokee")
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 export class SmokeExplosion extends Entity {
 
@@ -3611,9 +3611,9 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.updDurTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
-        this.drawDurTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
-        this.lagTxt = this.newEntity(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
+        this.updDurTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
+        this.drawDurTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
+        this.lagTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
     }
     update() {
         const { metrics } = this.game
@@ -3718,7 +3718,7 @@ export class CountDown extends Text {
 const PortalSprite = new Sprite(CATALOG.registerImage("/static/assets/portal.png"))
 const PortalJumpAud = CATALOG.registerAudio("/static/assets/portal_jump.opus")
 
-@CATALOG.registerEntity("portal")
+@CATALOG.registerActor("portal")
 export class Portal extends Entity {
 
     constructor(group, id, kwargs) {
@@ -3727,19 +3727,19 @@ export class Portal extends Entity {
         this.height = 50
     }
     update() {
-        this.scene.actors.forEach(ent => {
-            if(hypot(ent.x-this.x, ent.y-this.y)<30 && (ent.speedX * (this.x-ent.x) + ent.speedY * (this.y-ent.y))>0) {
-                this.teleport(ent)
+        this.scene.actors.forEach(act => {
+            if(hypot(act.x-this.x, act.y-this.y)<30 && (act.speedX * (this.x-act.x) + act.speedY * (this.y-act.y))>0) {
+                this.teleport(act)
             }
         })
     }
-    teleport(ent) {
-        const portals = this.scene.filterActors("portals", ent => (ent instanceof Portal))
+    teleport(act) {
+        const portals = this.scene.filterActors("portals", act => (act instanceof Portal))
         if(portals.length < 2) return
         let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
         if(targetPortal === this) targetPortal = portals[portals.length - 1]
-        ent.x = targetPortal.x + (this.x - ent.x)
-        ent.y = targetPortal.y + (this.y - ent.y)
+        act.x = targetPortal.x + (this.x - act.x)
+        act.y = targetPortal.y + (this.y - act.y)
         this.game.audio.playSound(PortalJumpAud)
     }
     getSprite() {

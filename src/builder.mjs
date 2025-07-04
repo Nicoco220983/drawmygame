@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, Entity, Wall, Sprite, Hero, now, FPS, SpawnEntityEvent, nbKeys, INIT_STATE } from './game.mjs'
+import { GameCommon, SceneCommon, Entity, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys, INIT_STATE } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -79,16 +79,16 @@ class BuilderScene extends SceneCommon {
         if(!mapHeros) return
         for(let heroDef of mapHeros) {
             const { key, x, y } = heroDef
-            this.newEntity(key, { x, y })
+            this.newActor(key, { x, y })
         }
     }
 
     initActors() {
         const mapEnts = this.map.actors
         if(!mapEnts) return
-        mapEnts.forEach(entState => {
-            const ent = this.newEntity(entState.key)
-            ent.setInitState(entState)
+        mapEnts.forEach(actState => {
+            const act = this.newActor(actState.key)
+            act.setInitState(actState)
         })
     }
 
@@ -97,10 +97,10 @@ class BuilderScene extends SceneCommon {
         if(!mapEvts) return
         mapEvts.forEach(evt => {
             const { key: evtKey } = evt
-            if(evtKey == "ent") {
-                const ent = this.newEntity(evt.state.key)
-                ent.setState(evt.state)
-                ent.builderTrigger = (nbKeys(evt) > 1) ? evt : null
+            if(evtKey == "act") {
+                const act = this.newActor(evt.state.key)
+                act.setState(evt.state)
+                act.builderTrigger = (nbKeys(evt) > 1) ? evt : null
             }
         })
     }
@@ -139,7 +139,7 @@ class BuilderScene extends SceneCommon {
             this.draftEntity = null
         }
         if(mode == "entity") {
-            this.draftEntity = this.newEntity(modeKey)
+            this.draftEntity = this.newActor(modeKey)
             this.draftEntity.spriteVisibility = 0
         }
     }
@@ -208,19 +208,19 @@ class BuilderScene extends SceneCommon {
                     this.select(wall)
             })
             // actors
-            this.actors.forEach(ent  => {
-                const { left, width, top, height } = ent.getHitBox()
+            this.actors.forEach(act  => {
+                const { left, width, top, height } = act.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    this.select(ent)
+                    this.select(act)
                 }
             })
         }
     }
 
-    select(ent) {
-        this.selections.push(ent)
+    select(obj) {
+        this.selections.push(obj)
         this.game.selectionMenu.clear()
-        this.game.selectionMenu.addSelection(ent)
+        this.game.selectionMenu.addSelection(obj)
     }
 
     addPointedWall() {
@@ -247,15 +247,15 @@ class BuilderScene extends SceneCommon {
         }
     }
 
-    newEntity(key, kwargs) {
-        const ent = super.newEntity(key, kwargs)
-        if(ent instanceof Hero) {
-            this.actors.forEach(ent2 => {
-                if(ent2 !== ent && ent2 instanceof Hero && ent2 != this.draftEntity)
-                    ent2.remove()
+    newActor(key, kwargs) {
+        const act = super.newActor(key, kwargs)
+        if(act instanceof Hero) {
+            this.actors.forEach(act2 => {
+                if(act2 !== act && act2 instanceof Hero && act2 != this.draftEntity)
+                    act2.remove()
             })
         }
-        return ent
+        return act
     }
 
     erasePointedEntityOrWall() {
@@ -269,10 +269,10 @@ class BuilderScene extends SceneCommon {
                     wall.remove()
             })
             // actors
-            this.actors.forEach(ent  => {
-                const { left, width, top, height } = ent.getHitBox()
+            this.actors.forEach(act  => {
+                const { left, width, top, height } = act.getHitBox()
                 if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    ent.remove()
+                    act.remove()
                 }
             })
         }
@@ -285,7 +285,7 @@ class BuilderScene extends SceneCommon {
         if(touch && touch.isDown && !prevTouchIsDown) {
             const x = floor(touch.x + this.viewX)
             const y = floor(touch.y + this.viewY)
-            this.newEntity(modeKey, { x, y })
+            this.newActor(modeKey, { x, y })
         }
     }
 
@@ -315,14 +315,14 @@ class BuilderScene extends SceneCommon {
         mapScnEnts.length = 0
         const mapScnEvts = mapScn.events ||= []
         mapScnEvts.length = 0
-        this.actors.forEach(ent => {
-            if(ent.removed) return
-            const state = ent.getInitState()
-            if(ent instanceof Hero) mapScnHeros.push(state)
+        this.actors.forEach(act => {
+            if(act.removed) return
+            const state = act.getInitState()
+            if(act instanceof Hero) mapScnHeros.push(state)
             else {
-                if(ent.builderTrigger) {
-                    const evt = new SpawnEntityEvent(this, ent.builderTrigger)
-                    evt.entState = state
+                if(act.builderTrigger) {
+                    const evt = new SpawnActorEvent(this, act.builderTrigger)
+                    evt.actState = state
                     mapScnEvts.push(evt.getInitState())
                 } else {
                     mapScnEnts.push(state)
@@ -380,15 +380,14 @@ class SelectionMenu {
         this.sectionEls = {}
         this.selections.length = 0
     }
-    addSelection(ent) {
-        this.selections.push(ent)
-        //if(ent.addMenuInputs) ent.addMenuInputs(this)
-        for(let prop of ent.constructor.STATE_PROPS) if((prop.type & INIT_STATE) === INIT_STATE) {
-            const inputEl = prop.toInput(ent)
-            inputEl.onchange = () => prop.fromInput(ent, inputEl)
+    addSelection(obj) {
+        this.selections.push(obj)
+        for(let prop of obj.constructor.INIT_STATE_PROPS) {
+            const inputEl = prop.toInput(obj)
+            inputEl.onchange = () => prop.fromInput(obj, inputEl)
             this.addInput("section", prop.key, inputEl)
         }
-        this.addSpawnEntityTriggerInputs(ent)
+        this.addSpawnActorTriggerInputs(obj)
     }
     getSection(section) {
         const { menuEl } = this.game
@@ -417,21 +416,21 @@ class SelectionMenu {
             sel[key] = val
         }
     }
-    addSpawnEntityTriggerInputs(ent) {
+    addSpawnActorTriggerInputs(act) {
         const sectionEl = this.getSection("trigger")
         const checkEl = sectionEl.appendChild(newDomEl("input", { type: "checkbox" }))
         const trigWrapperEl = sectionEl.appendChild(newDomEl("div"))
-        checkEl.checked = Boolean(ent.builderTrigger)
+        checkEl.checked = Boolean(act.builderTrigger)
         const syncTriggerInputs = () => {
             trigWrapperEl.innerHTML = ""
             if(checkEl.checked) {
                 const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-entity-event-trigger-form"))
-                trigEl.setTrigger(ent.builderTrigger)
+                trigEl.setTrigger(act.builderTrigger)
             }
         }
         syncTriggerInputs()
         checkEl.onchange = () => {
-            ent.builderTrigger = checkEl.checked ? {} : null
+            act.builderTrigger = checkEl.checked ? {} : null
             syncTriggerInputs()
         }
     }
@@ -513,36 +512,36 @@ class TriggerFormElement extends HTMLElement {
 customElements.define("dmg-event-trigger-form", TriggerFormElement)
 
 
-class SpawnEntityTriggerFormElement extends TriggerFormElement {
+class SpawnActorTriggerFormElement extends TriggerFormElement {
     initSelEl() {
         super.initSelEl()
         const { selEl } = this
-        selEl.appendChild(newDomEl("option", { value: "nbEnts", text: "nb actors" }))
-        selEl.appendChild(newDomEl("option", { value: "prevEntFur", text: "previous entity further" }))
+        selEl.appendChild(newDomEl("option", { value: "nbActs", text: "nb actors" }))
+        selEl.appendChild(newDomEl("option", { value: "prevActFur", text: "previous actor further" }))
     }
     syncSel() {
         const { selEl, trigger } = this
         super.syncSel()
-        if(trigger.nbEnts !== undefined) return selEl.value = "nbEnts"
-        if(trigger.prevEntFur !== undefined) return selEl.value = "prevEntFur"
+        if(trigger.nbActs !== undefined) return selEl.value = "nbActs"
+        if(trigger.prevActFur !== undefined) return selEl.value = "prevActFur"
     }
     syncTrigger() {
         super.syncTrigger()
         const { selEl, triggerEl, trigger } = this
         const key = selEl.value
-        if(key == "nbEnts") {
+        if(key == "nbActs") {
             if(trigger[key] === null) trigger[key] = 1
             const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
             inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
         }
-        if(key == "prevEntFur") {
+        if(key == "prevActFur") {
             if(trigger[key] === null) trigger[key] = 100
             const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
             inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
         }
     }
 }
-customElements.define("dmg-spawn-entity-event-trigger-form", SpawnEntityTriggerFormElement)
+customElements.define("dmg-spawn-entity-event-trigger-form", SpawnActorTriggerFormElement)
 
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
