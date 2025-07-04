@@ -52,6 +52,7 @@
                 <button id="mode_erase">[E]rase</button>
             </flexrow>
             <flexrow>
+                <label><input id="anchor" type="checkbox" checked> Anchor</label>
                 <button id="mode_wall">[W]all</button>
                 <button id="mode_platform">[P]latform</button>
             </flexrow>
@@ -89,7 +90,7 @@
             </flexrow>
             <flexrow>
                 <button id="fullscreen">Fullscreen</button>
-                <input id="show_joypad" type="checkbox">Show Joypad
+                <label><input id="show_joypad" type="checkbox"> Show Joypad</label>
             </flexrow>
             <flexcol id="selection_menu"></flexcol>
         </flexcol>
@@ -134,6 +135,13 @@ function updSize() {
 }
 sceneEl.onchange = updScene
 mapWidthEl.onchange = mapHeightEl.onchange = updSize
+
+const anchorEl = document.getElementById("anchor")
+function syncAnchor() {
+    if(!gameBuilder) return
+    gameBuilder.setAnchor(anchorEl.checked)
+}
+anchorEl.onchange = syncAnchor
 
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setBuilderMode('move')
@@ -227,6 +235,7 @@ function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, lib, map)
+    syncAnchor()
     gameBuilder.run()
     mode = "builder"
     builderParentEl.style.display = ""

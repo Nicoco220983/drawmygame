@@ -39,6 +39,10 @@ export class GameBuilder extends GameCommon {
         gameScn.syncMode()
     }
 
+    setAnchor(val) {
+        this.scenes.game.anchor = val
+    }
+
     syncMap() {
         this.scenes.game.syncMap()
     }
@@ -54,6 +58,8 @@ class BuilderScene extends SceneCommon {
     constructor(...args) {
         super(...args)
         this.viewSpeed = Infinity
+        this.gridBoxSize = 20
+        this.anchor = true
         this.selections = []
     }
 
@@ -118,7 +124,8 @@ class BuilderScene extends SceneCommon {
             ctx.lineTo(x2, y2)
             ctx.stroke()
         }
-        const boxSize = 20, nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
+        const boxSize = this.gridBoxSize
+        const nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
         for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
         for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
         grid.sprite = new Sprite(can)
@@ -126,8 +133,7 @@ class BuilderScene extends SceneCommon {
 
     syncMode() {
         const { mode, modeKey } = this.game
-        this.prevTouchX = null
-        this.prevTouchY = null
+        this.prevPos = null
         if(this.draftEntity) {
             this.draftEntity.remove()
             this.draftEntity = null
@@ -155,12 +161,16 @@ class BuilderScene extends SceneCommon {
         const touch = this.game.touches[0]
         if(touch) {
             this.draftEntity.spriteVisibility = .5
+            const draftPos = {
+                x: touch.x + this.viewX,
+                y: touch.y + this.viewY,
+            }
             if(mode == "entity") {
-                this.draftEntity.x = touch.x
-                this.draftEntity.y = touch.y
+                this.draftEntity = draftPos
             } else if(mode == "wall") {
-                this.draftEntity.x2 = touch.x
-                this.draftEntity.y2 = touch.y
+                if(this.anchor) this.applyAnchor(draftPos)
+                this.draftEntity.x2 = draftPos.x
+                this.draftEntity.y2 = draftPos.y
             }
         } else {
             this.draftEntity.spriteVisibility = 0
@@ -217,20 +227,22 @@ class BuilderScene extends SceneCommon {
         const touch = touches[0]
 
         if(touch && touch.isDown && !prevTouchIsDown) {
-            const touchX = touch.x + this.viewX
-            const touchY = touch.y + this.viewY
-            if(this.prevTouchX !== null) {
-                this.newWall({ key:modeKey, x1:this.prevTouchX, y1:this.prevTouchY, x2:touchX, y2:touchY })
+            const pos = {
+                x: touch.x + this.viewX,
+                y: touch.y + this.viewY,
+            }
+            if(this.anchor) this.applyAnchor(pos)
+            if(this.prevPos !== null) {
+                this.newWall({ key:modeKey, x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
             if(!this.draftEntity) {
-                this.draftEntity = this.newWall({ key:modeKey, x1:touchX, y1:touchY, x2:touchX, y2:touchY })
+                this.draftEntity = this.newWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
                 this.draftEntity.visibility = .5
             } else {
-                this.draftEntity.x1 = touchX
-                this.draftEntity.y1 = touchY
+                this.draftEntity.x1 = pos.x
+                this.draftEntity.y1 = pos.y
             }
-            this.prevTouchX = touchX
-            this.prevTouchY = touchY
+            this.prevPos = pos
         }
     }
 
@@ -274,6 +286,14 @@ class BuilderScene extends SceneCommon {
             const y = floor(touch.y + this.viewY)
             this.newEntity(modeKey, { x, y })
         }
+    }
+
+    applyAnchor(pos) {
+        const boxSize = this.gridBoxSize
+        const x1 = floor(pos.x / boxSize) * boxSize, x2 = x1 + boxSize
+        pos.x = (pos.x-x1 < x2-pos.x) ? x1 : x2
+        const y1 = floor(pos.y / boxSize) * boxSize, y2 = y1 + boxSize
+        pos.y = (pos.y-y1 < y2-pos.y) ? y1 : y2
     }
 
     syncMap() {
