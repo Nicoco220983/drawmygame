@@ -98,10 +98,10 @@
         <flexcol id="game" style="padding:1em; display: none"></flexcol>
     </flexrow>
 <script type="module">
-import { newDomEl } from './static/src/utils.mjs'
-import { GameMap, Game, MODE_LOCAL } from './static/src/game.mjs'
-import { GameBuilder } from './static/src/builder.mjs'
-import { loadCatalog } from './static/src/catalog.mjs'
+import { newDomEl } from './static/core/utils.mjs'
+import { GameMap, Game, MODE_LOCAL } from './static/core/game.mjs'
+import { GameBuilder } from './static/core/builder.mjs'
+import { loadCatalog } from './static/core/catalog.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -219,7 +219,7 @@ document.addEventListener('keydown', evt => {
 
 async function main() {
     catalog = await loadCatalog()
-    await catalog.preload(["./game.mjs"])  // TODO remove this
+    await catalog.preloadAll()  // TODO remove this
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
     initInputEls()

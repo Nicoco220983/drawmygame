@@ -1,7 +1,22 @@
-import { GameScene, GameObject, StateProperty, UPD_STATE, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../game.mjs'
 const { floor } = Math
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, UPD_STATE, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../../core/game.mjs'
 
-export const CATALOG = new ModuleCatalog()
+export const CATALOG = new ModuleCatalog("std")
+
+
+// CATCH ALL STARS
+
+@CATALOG.registerScene("catch_all_stars")
+export class CatchAllStarsScene extends FocusFirstHeroScene {
+
+    update() {
+        super.update()
+        if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
+    }
+}
+
+
+// TAG
 
 @CATALOG.registerScene("tag")
 export class TagScene extends GameScene {
@@ -87,7 +102,7 @@ export class TagScene extends GameScene {
 }
 
 
-const TagSprite = new Sprite(CATALOG.registerImage("/static/assets/tag.png"))
+const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/tag.png"))
 
 @CATALOG.registerActor("tag")
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })

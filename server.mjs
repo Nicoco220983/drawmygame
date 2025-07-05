@@ -9,8 +9,8 @@ import express from "express"
 import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
-import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH, GAME_STEP_WAITING } from './static/src/game.mjs'
-import { loadCatalog } from './static/src/catalog.mjs'
+import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH, GAME_STEP_WAITING } from './static/core/game.mjs'
+import { loadCatalog } from './static/core/catalog.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
 const PORT = parseInt(process.env.PORT || 8080)

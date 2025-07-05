@@ -155,7 +155,7 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImg = CATALOG.addImage("/static/assets/button_colorable.png")
+const BurronImg = CATALOG.addImage("/static/core/assets/button_colorable.png")
 
 class Button extends GameObject {
 
