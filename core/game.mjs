@@ -1362,6 +1362,8 @@ export class SceneCommon {
         }
         this.walls = new GameObjectGroup(this)
         this.actors = new GameObjectGroup(this)
+        this.visuals = new GameObjectGroup(this)
+        this.notifs = new GameObjectGroup(this)
         this.heros = {}
         this.syncSizeAndPos()
         this.map = null
@@ -1422,6 +1424,14 @@ export class SceneCommon {
         return this.actors.new(cls, kwargs)
     }
 
+    newVisual(cls, kwargs) {
+        return this.visuals.new(cls, kwargs)
+    }
+
+    newNotif(cls, kwargs) {
+        return this.notifs.new(cls, kwargs)
+    }
+
     syncHero(hero) {
         if(hero.removed) {
             delete this.heros[hero.playerId]
@@ -1436,7 +1446,15 @@ export class SceneCommon {
         this.localHero = hero
     }
 
-    update() {}
+    update() {
+        this.updateWorld()
+        this.notifs.update()
+    }
+
+    updateWorld() {
+        this.actors.update()
+        this.visuals.update()
+    }
 
     draw() {
         const can = this.canvas
@@ -1453,7 +1471,9 @@ export class SceneCommon {
         ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.walls.drawTo(ctx)
         this.actors.drawTo(ctx)
+        this.visuals.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
+        this.notifs.drawTo(ctx)
     }
 
     initBackground() {
@@ -1976,7 +1996,6 @@ export class GameScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.step = "GAME"
-        this.notifs = new GameObjectGroup(this)
         this.scores = {}
         this.seed = floor(random()*1000)
     }
@@ -2060,7 +2079,6 @@ export class GameScene extends SceneCommon {
 
     update() {
         const { step } = this
-        super.update()
         this.iteration += 1
         this.time = this.iteration * this.game.dt
         if(step == "GAME") this.updateStepGame()
@@ -2070,11 +2088,10 @@ export class GameScene extends SceneCommon {
     }
 
     updateWorld() {
-        const { actors, events, physics } = this
         const { dt } = this.game
-        events.forEach(evt => evt.update())
-        physics.apply(dt, actors)
-        actors.update()
+        this.events.forEach(evt => evt.update())
+        this.physics.apply(dt, this.actors)
+        super.updateWorld()
         this.handleHerosOut()
         this.handleHerosDeath()
     }
@@ -2769,7 +2786,6 @@ class PauseScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new GameObjectGroup(this)
         this.pauseText = this.notifs.new(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
@@ -2828,7 +2844,6 @@ export class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.backgroundColor = "black"
-        this.notifs = new GameObjectGroup(this)
         this.playerTxts = []
         this.initTitleText()
         this.initQrcodeSprite()
@@ -2920,7 +2935,6 @@ export class VictoryScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new GameObjectGroup(this)
         this.victoryText = this.notifs.new(Text, {
             text: "VICTORY",
             font: "bold 50px arial",
@@ -2941,7 +2955,6 @@ export class DefeatScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.notifs = new GameObjectGroup(this)
         this.defeatText = this.notifs.new(Text, {
             text: "DEFEAT",
             font: "bold 50px arial",

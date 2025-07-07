@@ -145,7 +145,6 @@ class BuilderScene extends SceneCommon {
     }
 
     update() {
-        super.update()
         const { mode } = this.game
         this.updateDraftActor()
         if(mode == "move") this.updateMove()
@@ -153,6 +152,7 @@ class BuilderScene extends SceneCommon {
         else if(mode == "wall") this.addPointedWall()
         else if(mode == "erase") this.erasePointedActorOrWall()
         else if(mode == "actor") this.addPointedActor()
+        this.notifs.update()
     }
 
     updateDraftActor() {
