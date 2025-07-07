@@ -2497,13 +2497,12 @@ export class Hero extends LivingGameObject {
 
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
-        const { lives, health } = this
-        const { notifs } = this.scene
+        const { scene, lives, health } = this
         let livesHearts
         if(lives !== Infinity) {
             livesHearts = this.livesHearts ||= []
             for(let i=livesHearts.length; i<lives; ++i)
-                livesHearts.push(notifs.new(LifeHeartNotif, { num: i }))
+                livesHearts.push(scene.newNotif(LifeHeartNotif, { num: i }))
             livesHearts.forEach(heart => {
                 heart.x = 20 + heart.num * 35
                 heart.y = 20
@@ -2513,7 +2512,7 @@ export class Hero extends LivingGameObject {
         if(health !== Infinity) {
             const healthHearts = this.healthHearts ||= []
             for(let i=healthHearts.length; i<health; ++i)
-                healthHearts.push(notifs.new(HealthHeartNotif, { num: i }))
+                healthHearts.push(scene.newNotif(HealthHeartNotif, { num: i }))
             healthHearts.forEach(heart => {
                 heart.x = 15 + heart.num * 23
                 heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
@@ -2535,7 +2534,7 @@ export class Hero extends LivingGameObject {
     }
 
     newSpawnEffect() {
-        return this.scene.newActor(Pop, {
+        return this.scene.newVisual(Pop, {
             x: this.x,
             y: this.y,
         })
@@ -2673,7 +2672,7 @@ export class Enemy extends LivingGameObject {
     }
     onDeath() {
         const { x, y } = this
-        this.scene.newActor(SmokeExplosion, { x, y })
+        this.scene.newVisual(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAud)
         this.remove()
     }
@@ -2786,7 +2785,7 @@ class PauseScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.pauseText = this.notifs.new(Text, {
+        this.pauseText = this.newNotif(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
             fillStyle: "black",
@@ -2855,7 +2854,7 @@ export class WaitingScene extends SceneCommon {
     }
 
     initTitleText() {
-        this.titleTxt = this.notifs.new(Text, {
+        this.titleTxt = this.newNotif(Text, {
             text: "WAITING PLAYERS",
             font: "bold 50px arial",
             fillStyle: "white",
@@ -2886,7 +2885,7 @@ export class WaitingScene extends SceneCommon {
             let playerTxt = playerTxts[playerId]
             // add new players
             if(playerTxt === undefined) {
-                playerTxt = playerTxts[playerId] = this.notifs.new(PlayerText, { player })
+                playerTxt = playerTxts[playerId] = this.newNotif(PlayerText, { player })
                 playerTxt.playerId = playerId
             }
         }
@@ -2935,7 +2934,7 @@ export class VictoryScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.victoryText = this.notifs.new(Text, {
+        this.victoryText = this.newNotif(Text, {
             text: "VICTORY",
             font: "bold 50px arial",
             fillStyle: "black",
@@ -2955,7 +2954,7 @@ export class DefeatScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.defeatText = this.notifs.new(Text, {
+        this.defeatText = this.newNotif(Text, {
             text: "DEFEAT",
             font: "bold 50px arial",
             fillStyle: "black",
@@ -2978,9 +2977,9 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.updDurTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
-        this.drawDurTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
-        this.lagTxt = this.newActor(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
+        this.updDurTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
+        this.drawDurTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
+        this.lagTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
     }
     update() {
         const { metrics } = this.game
