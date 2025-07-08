@@ -38,8 +38,8 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 50
         this.handDur = ceil(.1 * this.game.fps) 
         this.handRemIt = null
@@ -206,8 +206,8 @@ const SpikySprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/asset
 @CATALOG.registerActor("spiky")
 export class Spiky extends Enemy {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
     }
@@ -240,8 +240,8 @@ const BlobSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = 50
         this.height = 36
         this.lastChangeDirAge = 0
@@ -297,8 +297,8 @@ const GhostSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/asset
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = 45
         this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
@@ -347,8 +347,8 @@ export class Ghost extends Enemy {
 @CATALOG.registerActor("heart")
 export class Heart extends Collectable {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 30
         this.spriteRand = floor(random() * this.game.fps)
     }
@@ -388,8 +388,8 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Sword extends Extra {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 40
         this.sprite = SwordSprite
         this.isActionExtra = true
@@ -456,8 +456,8 @@ const ShurikenSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/as
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Shurikens extends Extra {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.isActionExtra = true
         this.width = this.height = 30
         this.nb = kwargs?.nb ?? 5
@@ -532,8 +532,8 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 40
         this.itToLive = null
         this.isActionExtra = true
@@ -586,8 +586,8 @@ const StarSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets
 @CATALOG.registerActor("star")
 export class Star extends Collectable {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 30
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
@@ -609,8 +609,8 @@ const CheckpointSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/
 @CATALOG.registerActor("checkpt")
 export class Checkpoint extends Collectable {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 40
     }
     onCollected(hero) {
@@ -638,8 +638,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Explosion extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 300
         this.iteration = 0
         this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
@@ -647,7 +647,7 @@ export class Explosion extends GameObject {
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.group.get(ownerId)
+        return this.scene.actors.get(ownerId)
     }
     update() {
         super.update()
@@ -680,8 +680,8 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_
 @CATALOG.registerActor("portal")
 export class Portal extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = 50
         this.height = 50
     }

@@ -108,8 +108,8 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })
 export class Tag extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = 30
         this.height = 30
         this.ownerId = null
@@ -118,7 +118,7 @@ export class Tag extends GameObject {
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.group.get(ownerId)
+        return this.scene.actors.get(ownerId)
     }
 
     getPhysicsProps() {

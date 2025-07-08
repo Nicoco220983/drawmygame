@@ -159,8 +159,8 @@ const BurronImg = CATALOG.addImage("/static/core/assets/button_colorable.png")
 
 class Button extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.inputKey = kwargs && kwargs.inputKey
         this.isDown = false
         this.disabled = kwargs && kwargs.disabled
@@ -216,7 +216,7 @@ class Button extends GameObject {
     
     newTextSprite() {
         const fontSize = floor(this.height/2)
-        return new Text(this.group, null, {
+        return new Text(this.scene, null, {
             text: this.text,
             fillStyle: "white",
             font: `bold ${fontSize}px serif`,

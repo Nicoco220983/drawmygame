@@ -33,23 +33,6 @@ const RESEND_INPUT_STATE_PERIOD = .5
 
 // CATALOG
 
-// export const Loads = []
-
-// function _waitLoad(load) {
-//     return new Promise((ok, ko) => {
-//         const __waitLoad = () => {
-//             if (!load._loading) return ok()
-//             if (load.loadError) return ko(load.loadError)
-//             setTimeout(__waitLoad, 10)
-//         }
-//         __waitLoad()
-//     })
-// }
-
-// function waitLoads() {
-//     return Promise.all(Loads.map(_waitLoad))
-// }
-
 export async function importAndPreload(path) {
     const mod = await import(path)
     if(mod.CATALOG) await mod.CATALOG.preloadAssets()
@@ -562,11 +545,10 @@ export class GameObject {
         })
     }
 
-    constructor(group, id, kwargs) {
-        this.group = group
-        this.scene = group.scene
-        this.game = group.game
-        this.id = id
+    constructor(scn, kwargs) {
+        this.scene = scn
+        this.game = scn.game
+        this.id = kwargs?.id ?? null
         if(kwargs) {
             if(kwargs.x !== undefined) this.x = kwargs.x
             if(kwargs.y !== undefined) this.y = kwargs.y
@@ -752,24 +734,23 @@ GameObject.prototype.off = off
 GameObject.prototype.trigger = trigger
 
 
-export class GameObjectRefs extends Set {
-    constructor(refGroup) {
+export class ActorRefs extends Set {
+    constructor(scn) {
         super()
-        this.refGroup = refGroup
-        this.scene = refGroup.scene
-        this.game = refGroup.game
+        this.scene = scn
+        this.game = scn.game
     }
     clearRemoved() {
-        const { refGroup } = this
+        const { scene } = this
         for(let id of this) {
-            const obj = refGroup.get(id)
+            const obj = scene.actors.get(id)
             if(!obj || obj.removed) this.delete(id)
         }
     }
     forEach(next) {
-        const { refGroup } = this
+        const { scene } = this
         for(let id of this) {
-            const obj = refGroup.get(id)
+            const obj = scene.actors.get(id)
             if(!obj || obj.removed) this.delete(id)
             else next(obj)
         }
@@ -885,7 +866,7 @@ export class SpawnActorEvent extends Event {
             if(initState.nbActs !== undefined) this.trigger.nbActs = initState.nbActs
             if(initState.prevActFur !== undefined) this.trigger.prevActFurther = initState.prevActFur
         }
-        this.spawnedActors = new GameObjectRefs(scn.actors)
+        this.spawnedActors = new ActorRefs(scn)
         this.prevSpawnedActor = null
     }
     checkTrigger(trigger) {
@@ -960,8 +941,8 @@ function newTextCanvas(text, kwargs) {
 }
 
 export class Text extends GameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.textArgs = kwargs
         this.updateText(kwargs.text)
     }
@@ -991,11 +972,11 @@ class CenteredText extends Text {
 
 export class GameObjectGroup {
 
-    constructor(scene) {
+    constructor(scn) {
         this.x = 0
         this.y = 0
-        this.scene = scene
-        this.game = scene.game
+        this.scene = scn
+        this.game = scn.game
         this.objArr = []
         this.objMap = new Map()
         this._lastAutoId = 0
@@ -1010,11 +991,11 @@ export class GameObjectGroup {
     }
 
     new(cls, kwargs) {
-        let id = kwargs && kwargs.id
-        if(id === undefined) id = this.nextAutoId()
+        kwargs ||= {}
+        kwargs.id ??= this.nextAutoId()
         if(typeof cls === 'string') cls = this.game.catalog.getActorClass(cls)
-        const obj = new cls(this, id, kwargs)
-        this.objMap.set(id, obj)
+        const obj = new cls(this.scene, kwargs)
+        this.objMap.set(kwargs.id, obj)
         this.objArr.push(obj)
         this.trigger("new", obj)
         return obj
@@ -1087,7 +1068,7 @@ export class GameObjectGroup {
                 let act = objMap.get(id)
                 if(!act) {
                     const cls = this.game.catalog.getActorClass(actState.key)
-                    act = new cls(this, id)
+                    act = new cls(this.scene, { id })
                     objMap.set(act.id, act)
                 }
                 act.setState(actState)
@@ -1521,8 +1502,8 @@ export class SceneCommon {
 
 
 export class Wall extends GameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.x1 = kwargs.x1
         this.y1 = kwargs.y1
         this.x2 = kwargs.x2
@@ -2378,8 +2359,8 @@ export class FocusFirstHeroScene extends GameScene {
 @defineStateProperty(UPD_STATE, StateInt, "lastDamageAge", { shortKey: "lda", default: null })
 export class LivingGameObject extends GameObject {
     
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.health = (kwargs && kwargs.health !== undefined) ? kwargs.health : this.getMaxHealth()
         this.lastDamageAge = null
     }
@@ -2440,8 +2421,8 @@ export class LivingGameObject extends GameObject {
 @defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey: "lsi", default: -Infinity })
 export class Hero extends LivingGameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.team = "hero"
         this.lives = (kwargs && kwargs.lives !== undefined) ? kwargs.lives : 3
         if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
@@ -2459,7 +2440,7 @@ export class Hero extends LivingGameObject {
     }
 
     initExtras() {
-        const extras = this.extras ||= new GameObjectRefs(this.group)
+        const extras = this.extras ||= new ActorRefs(this.scene)
         return extras
     }
 
@@ -2623,8 +2604,8 @@ const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 export class SmokeExplosion extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 100
         this.iteration = 0
     }
@@ -2644,8 +2625,8 @@ const PopSprite = new Sprite(CATALOG.registerImage("/static/core/assets/pop.png"
 const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
 
 class Pop extends GameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 10
         this.duration = floor(this.game.fps * .25)
         this.remIt = this.duration
@@ -2666,8 +2647,8 @@ class Pop extends GameObject {
 
 
 export class Enemy extends LivingGameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.team = "enemy"
     }
     onDeath() {
@@ -2684,8 +2665,8 @@ export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own", default: null })
 export class Collectable extends GameObject {
 
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.spriteRand = floor(random() * this.game.fps)
         this.ownerId = null
     }
@@ -2693,7 +2674,7 @@ export class Collectable extends GameObject {
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.group.get(ownerId)
+        return this.scene.actors.get(ownerId)
     }
 
     isCollectableBy(team) {
@@ -2740,8 +2721,8 @@ export const HeartSpriteSheets = {
 
 
 class LifeHeartNotif extends GameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.num = kwargs.num
         this.width = this.height = 30
         this.color = "red"
@@ -2755,8 +2736,8 @@ class LifeHeartNotif extends GameObject {
 }
 
 class HealthHeartNotif extends LifeHeartNotif {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.width = this.height = 20
         this.color = "pink"
     }
@@ -2805,8 +2786,8 @@ class PauseScene extends SceneCommon {
 
 
 class PlayerText extends GameObject {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.player = kwargs.player
         this.initSprite()
     }
@@ -3001,8 +2982,8 @@ class DebugScene extends SceneCommon {
 
 
 export class ScoresBoard extends GameObject {
-    constructor(scene, group, kwargs) {
-        super(scene, group, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.scores = kwargs.scores
         this.width = 300
         this.headerHeight = 80
@@ -3061,8 +3042,8 @@ export class ScoresBoard extends GameObject {
 
 
 export class CountDown extends Text {
-    constructor(group, id, kwargs) {
-        super(group, id, kwargs)
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
         this.duration = kwargs && kwargs.duration || 3
         this.startIt = this.scene.iteration
         this.syncText()
