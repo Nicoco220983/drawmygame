@@ -2164,48 +2164,23 @@ export class GameScene extends SceneCommon {
         if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.drawTo(ctx)
     }
 
-    getTeam(team) {
-        const teams = this._teams ||= {}
-        const teamsIts = this._teamsIts ||= {}
-        if(teamsIts[team] != this.iteration) {
-            const teamEnts = teams[team] ||= []
-            teamEnts.length = 0
-            this.actors.forEach(act => {
-                const actTeam = act.team
-                if(actTeam && actTeam.startsWith(team)) teamEnts.push(act)
-            })
-            teamsIts[team] = this.iteration
-        }
-        return teams[team]
-    }
-
     filterActors(key, filter) {
-        const actsCache = this._actorsCache ||= {}
-        const keyEntsIts = this._keyActorsCacheIts ||= {}
-        if(keyEntsIts[key] != this.iteration) {
-            const keyEnts = actsCache[key] ||= []
-            keyEnts.length = 0
-            this.actors.forEach(act => {
-                if(filter(act)) keyEnts.push(act)
-            })
-            keyEntsIts[key] = this.iteration
+        const actsCache = this._filteredActorsCache ||= new Map()
+        if(actsCache.iteration !== this.iteration) {
+            actsCache.clear()
+            actsCache.iteration = this.iteration
         }
-        return actsCache[key]
+        if(!actsCache.has(key)) {
+            actsCache.set(key, this.actors.objArr.filter(filter))
+        }
+        return actsCache.get(key)
     }
 
-    getCollectables(team) {
-        const collectables = this._collectables ||= {}
-        const collectablesIts = this._collectablesIt ||= {}
-        if(collectablesIts[team] != this.iteration) {
-            const teamCols = collectables[team] ||= []
-            teamCols.length = 0
-            this.actors.forEach(act => {
-                if(act.isCollectableBy && act.isCollectableBy(team)) teamCols.push(act)
-            })
-            collectablesIts[team] = this.iteration
-        }
-        return collectables[team]
-
+    getTeam(team) {
+        return this.filterActors(`team:${team}`, act => {
+            const actTeam = act.team
+            return actTeam && actTeam.startsWith(team)
+        })
     }
 
     initVictoryNotifs() {
@@ -2471,8 +2446,12 @@ export class Hero extends LivingGameObject {
     }
 
     checkCollectablesHit() {
-        this.scene.getCollectables(this.team).forEach(col => {
-            if(checkHit(this, col)) col.onCollected(this)
+        const { team } = this
+        const collectables = this.scene.filterActors("collectables", act => {
+            return act instanceof Collectable
+        })
+        collectables.forEach(col => {
+            if(col.isCollectableBy(team) && checkHit(this, col)) col.onCollected(this)
         })
     }
 
