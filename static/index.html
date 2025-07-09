@@ -57,23 +57,7 @@
                 <button id="mode_platform">[P]latform</button>
             </flexrow>
             <flexrow>
-                <button id="mode_nico">[N]ico</button>
-                <button id="mode_heart">Heart</button>
-                <button id="mode_sword">Sw[o]rd</button>
-                <button id="mode_shurik">Shuriken</button>
-                <button id="mode_bomb">Bo[m]b</button>
-                <button id="mode_checkpoint">[C]heckpoint</button>
-                <button id="mode_star">[S]tar</button>
-                <button id="mode_portal">Portal</button>
-            </flexrow>
-            <!-- <flexrow>
-                <input id="lives" placeholder="lives" type="number" />
-                <input id="health" placeholder="health" type="number" />
-            </flexrow> -->
-            <flexrow>
-                <button id="mode_blob">B[l]ob</button>
-                <button id="mode_ghost">[G]host</button>
-                <button id="mode_spiky">S[p]iky</button>
+                Actors: <dmg-actor-selector id="actors"></dmg-actor-selector>
             </flexrow>
             <flexrow>
                 <button id="game_draw">[D]RAW</button>
@@ -143,6 +127,95 @@ function syncAnchor() {
 }
 anchorEl.onchange = syncAnchor
 
+
+class ActorSelector extends HTMLElement {
+    constructor() {
+        super()
+        this.attachShadow({ mode: 'open' })
+
+        const styleEl = document.createElement('style')
+        styleEl.textContent = `
+            cs-option {
+                display: flex;
+                flex-direction: row;
+                width: 150px;
+                height: 20px;
+                padding: .2em;
+                cursor: pointer;
+                background: white;
+            }
+            cs-option:hover {
+                background-color: #eee;
+            }
+        `
+
+        const wrapperEl = newDomEl("div", {
+            style: {
+                position: "relative",
+            }
+        })
+        this.shadowRoot.append(styleEl, wrapperEl)
+        const selectEl = this.selectEl = newDomEl("cs-option", {
+            tabindex: "0",
+            style: {
+                border: "1px solid black",
+            }
+        })
+        wrapperEl.appendChild(selectEl)
+        const optionsEl = this.optionsEl = newDomEl("div", {
+            style: {
+                border: "1px solid black",
+                position: "absolute",
+                top: "100%",
+                left: "0",
+                display: "none",
+            }
+        })
+        wrapperEl.appendChild(optionsEl)
+        selectEl.onclick = () => this.setOptionsVisibility(true)
+        wrapperEl.onblur = () => this.setOptionsVisibility(false)
+    }
+    setCatalog(catalog) {
+        this.catalog = catalog
+        this.optionsEl.innerHTML = ""
+        for(let actKey in catalog.actors) {
+            const actCat = catalog.actors[actKey]
+            if(!actCat.showInBuilder) continue
+            const optionEl = newDomEl("cs-option")
+            this.setOptionKey(optionEl, actKey)
+            this.optionsEl.appendChild(optionEl)
+            optionEl.onclick = () => {
+                this.setSelectedActor(actKey)
+                this.setOptionsVisibility(false)
+            }
+        }
+    }
+    setOptionKey(optionEl, actKey) {
+        const actCat = catalog.actors[actKey]
+        const label = actCat.label
+        const icon = actCat.icon
+        optionEl.innerHTML = ""
+        if(icon) optionEl.appendChild(icon.cloneNode(true))
+        optionEl.appendChild(newDomEl("span", {
+            text: label,
+            style: {
+                paddingLeft: ".5em",
+            }
+        }))
+    }
+    setOptionsVisibility(val) {
+        this.optionsEl.style.display = val ? "block" : "none"
+    }
+    setSelectedActor(actKey) {
+        this.setOptionKey(this.selectEl, actKey)
+        this.dispatchEvent(new CustomEvent("select", {
+            detail: { key: actKey }
+        }))
+    }
+}
+customElements.define('dmg-actor-selector', ActorSelector)
+
+
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setBuilderMode('move')
 document.getElementById("mode_select").onclick = Keys["s"] = () => {
@@ -152,17 +225,8 @@ document.getElementById("mode_select").onclick = Keys["s"] = () => {
 document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'wall')
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'platform')
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setBuilderMode('erase')
-document.getElementById("mode_nico").onclick = Keys["en"] = () => setBuilderMode('actor', 'nico')
-document.getElementById("mode_heart").onclick = () => setBuilderMode('actor', 'heart')
-document.getElementById("mode_sword").onclick = Keys["eo"] = () => setBuilderMode('actor', 'sword')
-document.getElementById("mode_shurik").onclick = () => setBuilderMode('actor', 'shurik')
-document.getElementById("mode_bomb").onclick = Keys["em"] = () => setBuilderMode('actor', 'bomb')
-document.getElementById("mode_blob").onclick = Keys["el"] = () => setBuilderMode('actor', 'blob')
-document.getElementById("mode_ghost").onclick = Keys["eg"] = () => setBuilderMode('actor', 'ghost')
-document.getElementById("mode_spiky").onclick = Keys["ep"] = () => setBuilderMode('actor', 'spiky')
-document.getElementById("mode_checkpoint").onclick = Keys["ec"] = () => setBuilderMode('actor', 'checkpt')
-document.getElementById("mode_star").onclick = Keys["es"] = () => setBuilderMode('actor', 'star')
-document.getElementById("mode_portal").onclick = () => setBuilderMode('actor', 'portal')
+const actorsEl = document.getElementById("actors")
+actorsEl.addEventListener("select", evt => setBuilderMode('actor', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, builderModeKey)
@@ -223,6 +287,7 @@ async function main() {
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
     initInputEls()
+    actorsEl.setCatalog(catalog)
     if(urlParams.has("map")) {
         await startAndShowGame(true)
     } else {

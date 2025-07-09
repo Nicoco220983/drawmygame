@@ -125,6 +125,8 @@ export class ModuleCatalog {
             target.KEY = key
             const actCat = this.actors[key] = {}
             actCat.name = target.name
+            actCat.label = kwargs?.label ?? key
+            actCat.icon = kwargs?.icon ?? null
             actCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
         }
@@ -2579,7 +2581,9 @@ export const PuffAud = CATALOG.registerAudio("/static/core/assets/puff.opus")
 
 const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/smoke_explosion.png"), 4, 1)
 
-@CATALOG.registerActor("smokee")
+@CATALOG.registerActor("smokee", {
+    showInBuilder: false
+})
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 export class SmokeExplosion extends GameObject {
 

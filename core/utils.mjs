@@ -266,7 +266,7 @@ function newDomEl(tag, kwargs) {
     const el = document.createElement(tag)
     for(let key in kwargs) {
         const val = kwargs[key]
-        if(key == "style") el.style = val
+        if(key == "style") assign(el.style, val)
         else if(key == "value") el.value = val
         else if(key == "text") el.textContent = val
         else el.setAttribute(key, val)

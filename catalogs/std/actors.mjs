@@ -10,15 +10,16 @@ export const CATALOG = new ModuleCatalog("std")
 
 // HEROES
 
-const NicoImg = CATALOG.registerImage("/static/catalogs/std/assets/nico_full.png")
-const NicoColorableImg = CATALOG.registerImage("/static/catalogs/std/assets/nico_full_colorable.png")
+const NicoImg = CATALOG.registerImage("/static/catalogs/std/assets/nico.png")
+const NicoBaseSpriteSheet = CATALOG.registerImage("/static/catalogs/std/assets/nico_full.png")
+const NicoColorableSpriteSheet = CATALOG.registerImage("/static/catalogs/std/assets/nico_full_colorable.png")
 const NicoSpriteSheets = {
     spritesheets: {},
     get: function(color) {
         return this.spritesheets[color] ||= new SpriteSheet((() => {
-            if(!color) return NicoImg
-            const coloredImg = colorizeCanvas(cloneCanvas(NicoColorableImg), color)
-            return addCanvas(cloneCanvas(NicoImg), coloredImg)
+            if(!color) return NicoBaseSpriteSheet
+            const coloredImg = colorizeCanvas(cloneCanvas(NicoColorableSpriteSheet), color)
+            return addCanvas(cloneCanvas(NicoBaseSpriteSheet), coloredImg)
         })(), 4, 1)
     },
 }
@@ -33,7 +34,10 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 
 
 
-@CATALOG.registerActor("nico")
+@CATALOG.registerActor("nico", {
+    label: "Nico",
+    icon: NicoImg,
+})
 @defineStateProperty(UPD_STATE, StateInt, "handRemIt", { shortKey: "hri", default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
@@ -201,9 +205,13 @@ export class Nico extends Hero {
 // ENEMIES
 
 
-const SpikySprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/spiky.png"))
+const SpikyImg = CATALOG.registerImage("/static/catalogs/std/assets/spiky.png")
+const SpikySprite = new Sprite(SpikyImg)
 
-@CATALOG.registerActor("spiky")
+@CATALOG.registerActor("spiky", {
+    label: "Spiky",
+    icon: SpikyImg,
+})
 export class Spiky extends Enemy {
 
     constructor(scn, kwargs) {
@@ -233,9 +241,13 @@ export class Spiky extends Enemy {
 }
 
 
-const BlobSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/blob.png"))
+const BlobImg = CATALOG.registerImage("/static/catalogs/std/assets/blob.png")
+const BlobSprite = new Sprite(BlobImg)
 
-@CATALOG.registerActor("blob")
+@CATALOG.registerActor("blob", {
+    label: "Blob",
+    icon: BlobImg,
+})
 @defineStateProperty(UPD_STATE, StateInt, "lastChangeDirAge", { shortKey: "cda" })
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
@@ -291,9 +303,13 @@ export class BlobEnemy extends Enemy {
 }
 
 
-const GhostSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/ghost.png"))
+const GhostImg = CATALOG.registerImage("/static/catalogs/std/assets/ghost.png")
+const GhostSprite = new Sprite(GhostImg)
 
-@CATALOG.registerActor("ghost")
+@CATALOG.registerActor("ghost", {
+    label: "Ghost",
+    icon: GhostImg,
+})
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
@@ -344,7 +360,9 @@ export class Ghost extends Enemy {
 
 // COLLECTABLES
 
-@CATALOG.registerActor("heart")
+@CATALOG.registerActor("heart", {
+    label: "Heart",
+})
 export class Heart extends Collectable {
 
     constructor(scn, kwargs) {
@@ -379,12 +397,16 @@ export class Heart extends Collectable {
 
 const SWORD_ATTACK_PERIOD = .5
 
+const SwordImg = CATALOG.registerImage("/static/catalogs/std/assets/sword.png")
+const SwordSprite = new Sprite(SwordImg)
 const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/slash.png"), 3, 2)
-const SwordSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/sword.png"))
 
 const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
 
-@CATALOG.registerActor("sword")
+@CATALOG.registerActor("sword", {
+    label: "Sword",
+    icon: SwordImg,
+})
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Sword extends Extra {
 
@@ -448,9 +470,13 @@ export class Sword extends Extra {
 }
 
 
-const ShurikenSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png"))
+const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
+const ShurikenSprite = new Sprite(ShurikenImg)
 
-@CATALOG.registerActor("shurik")
+@CATALOG.registerActor("shurik", {
+    label: "Shuriken",
+    icon: ShurikenImg,
+})
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 @defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "nb")
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
@@ -527,7 +553,9 @@ export class Shurikens extends Extra {
 
 const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb.png"), 2, 1)
 
-@CATALOG.registerActor("bomb")
+@CATALOG.registerActor("bomb", {
+    label: "Bomb",
+})
 @addComponent(PhysicsComponent)
 @defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
 export class Bomb extends Extra {
@@ -581,9 +609,13 @@ export class Bomb extends Extra {
 }
 
 
-const StarSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/star.png"))
+const StarImg = CATALOG.registerImage("/static/catalogs/std/assets/star.png")
+const StarSprite = new Sprite(StarImg)
 
-@CATALOG.registerActor("star")
+@CATALOG.registerActor("star", {
+    label: "Star",
+    icon: StarImg,
+})
 export class Star extends Collectable {
 
     constructor(scn, kwargs) {
@@ -604,9 +636,13 @@ export class Star extends Collectable {
 }
 
 
-const CheckpointSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/checkpoint.png"))
+const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/assets/checkpoint.png")
+const CheckpointSprite = new Sprite(CheckpointImg)
 
-@CATALOG.registerActor("checkpt")
+@CATALOG.registerActor("checkpt", {
+    label: "CheckPoint",
+    icon: CheckpointImg,
+})
 export class Checkpoint extends Collectable {
 
     constructor(scn, kwargs) {
@@ -633,7 +669,9 @@ export class Checkpoint extends Collectable {
 
 const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
 
-@CATALOG.registerActor("explos")
+@CATALOG.registerActor("explos", {
+    showInBuilder: false
+})
 @defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
 @defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
 export class Explosion extends GameObject {
@@ -674,10 +712,14 @@ export class Explosion extends GameObject {
 }
 
 
-const PortalSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/portal.png"))
+const PortalImg = CATALOG.registerImage("/static/catalogs/std/assets/portal.png")
+const PortalSprite = new Sprite(PortalImg)
 const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_jump.opus")
 
-@CATALOG.registerActor("portal")
+@CATALOG.registerActor("portal", {
+    label: "Portal",
+    icon: PortalImg,
+})
 export class Portal extends GameObject {
 
     constructor(scn, kwargs) {

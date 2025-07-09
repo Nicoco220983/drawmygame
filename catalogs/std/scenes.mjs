@@ -104,7 +104,9 @@ export class TagScene extends GameScene {
 
 const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/tag.png"))
 
-@CATALOG.registerActor("tag")
+@CATALOG.registerActor("tag", {
+    showInBuilder: false
+})
 @defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })
 export class Tag extends GameObject {
 
