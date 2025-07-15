@@ -24,6 +24,18 @@ const DEFAULT_STATIC_CACHE_MAX_AGE = IS_DEBUG_MODE ? "1d" : 0
 const RM_PLAYER_COUNTDOWN = 10
 const CLOSE_ROOM_COUNTDOWN = 60
 
+let catalog = null
+
+
+async function main() {
+  const gameServer = new GameServer()
+  gameServer.serve()
+  const localIp = Object.values(getLocalIps())[0]
+  console.log(`Server started at: http://${localIp}:${PORT}`)
+  catalog = await loadCatalog()
+  await catalog.preloadAll()
+}
+
 
 class GameServer {
 
@@ -196,7 +208,6 @@ class GameServer {
   }
 
   async startGame(room) {
-    const catalog = await loadCatalog()
     const map = new GameMap()
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
@@ -372,8 +383,4 @@ function getLocalIps() {
   return res
 }
 
-
-const gameServer = new GameServer()
-gameServer.serve()
-const localIp = Object.values(getLocalIps())[0]
-console.log(`Server started at: http://${localIp}:${PORT}`)
+main()

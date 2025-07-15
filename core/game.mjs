@@ -471,6 +471,16 @@ export class StateIntEnum extends StateEnum {
     }
 }
 
+export class StateActorKey extends StateProperty {
+    toInput(act) {
+        const inputEl = newDomEl("dmg-actor-selector")
+        inputEl.setCatalog(act.game.catalog)
+        const val = act[this.key]
+        if(val) inputEl.setSelectedActor(val)
+        return inputEl
+    }
+}
+
 
 export class Component {
     static INIT_STATE_PROPS = []
@@ -742,6 +752,9 @@ export class ActorRefs extends Set {
         this.scene = scn
         this.game = scn.game
     }
+    update() {
+        this.clearRemoved()
+    }
     clearRemoved() {
         const { scene } = this
         for(let id of this) {
@@ -758,18 +771,37 @@ export class ActorRefs extends Set {
         }
     }
     getState() {
-        const state = this.state ||= []
-        state.length = 0
+        if(this.size == 0) return null
+        const state = []
         this.forEach(obj => state.push(obj.id))
         return state
     }
     setState(state) {
+        if(state === null) return this.clear()
         for(let id of state) this.add(id)
         if(state.length < this.size) {
             for(let id of this)
                 if(state.indexOf(id)<0)
                     this.delete(id)
         }
+    }
+}
+
+
+ActorRefs.StateProperty = class extends StateProperty {
+    toState(act, state) {
+        const propState = act[this.key].getState()
+        if(propState !== null) state[this.shortKey] = propState
+    }
+    fromState(act, state) {
+        const propState = state[this.shortKey] ?? null
+        act[this.key].setState(propState)
+    }
+    toInput(act) {
+        // TODO
+    }
+    fromInput(act, inputEl) {
+        // TODO
     }
 }
 
@@ -1395,9 +1427,9 @@ export class SceneCommon {
     }
 
     initActors() {
-        const mapEnts = this.map?.actors
-        if(!mapEnts) return
-        mapEnts.forEach(actState => {
+        const mapActs = this.map?.actors
+        if(!mapActs) return
+        mapActs.forEach(actState => {
             const act = this.newActor(actState.key)
             act.setInitState(actState)
         })
@@ -2014,11 +2046,10 @@ export class GameScene extends SceneCommon {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
-        const heroDef = this.map?.heros && this.map.heros[0]
-        if(!heroDef) return
-        const { key } = heroDef
-        const hero = this.newActor(key, { playerId })
-        hero.setInitState(heroDef)
+        const heroInitState = this.map?.heros && this.map.heros[0]
+        if(!heroInitState) return
+        const hero = this.newActor(heroInitState.key, { playerId })
+        hero.setInitState(heroInitState)
         this.spawnHero(hero)
         return hero.id
     }
@@ -2604,7 +2635,8 @@ export class SmokeExplosion extends GameObject {
 }
 
 
-const PopSprite = new Sprite(CATALOG.registerImage("/static/core/assets/pop.png"))
+const PopImg = CATALOG.registerImage("/static/core/assets/pop.png")
+const PopSprite = new Sprite(PopImg)
 const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
 
 class Pop extends GameObject {
@@ -3041,6 +3073,57 @@ export class CountDown extends Text {
         const { iteration } = this.scene
         const { fps } = this.game
         this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
+    }
+}
+
+
+@CATALOG.registerActor("spawn", {
+    label: "ActorSpawner",
+    icon: PopImg,
+})
+@defineStateProperty(INIT_STATE | UPD_STATE, StateActorKey, "actorKey", { shortKey: "act" })
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "period")
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "max")
+@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "maxLiving", { shortKey: "mxl", default: Infinity })
+@defineStateProperty(UPD_STATE, StateInt, "nbSpawn", { shortKey:"nbs" })
+@defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey:"lsi", default: -Infinity })
+@defineStateProperty(UPD_STATE, ActorRefs.StateProperty, "spawnedActors", { shortKey:"acts" })
+export class ActorSpawner extends GameObject {
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
+        this.width = this.height = 50
+        this.actorKey = null
+        this.period = 1
+        this.max = 1
+        this.maxLiving = Infinity
+        this.nbSpawn = 0
+        this.lastSpawnIt = -Infinity
+        this.spawnedActors = new ActorRefs(this.scene)
+    }
+    update() {
+        this.spawnedActors.update()
+        if(this.nbSpawn >= this.max && this.spawnedActors.size == 0) this.remove()
+        this.maySpawnActor()
+    }
+    maySpawnActor() {
+        if(this.nbSpawn >= this.max) return
+        if(this.scene.iteration < this.lastSpawnIt + ceil(this.period * this.game.fps)) return
+        if(this.spawnedActors.size >= this.maxLiving) return
+        this.spawnActor()
+    }
+    spawnActor() {
+        const act = this.scene.newActor(this.actorKey, {
+            x: this.x,
+            y: this.y,
+        })
+        this.nbSpawn += 1
+        this.spawnedActors.add(act.id)
+        this.lastSpawnIt = this.scene.iteration
+        this.scene.newVisual(Pop, { x:this.x, y:this.y })
+        return act
+    }
+    getSprite() {
+        return PopSprite
     }
 }
 

@@ -235,9 +235,10 @@ try {
         await map.importFromBinary(mapBin)
     }
 
-    function initGame() {
+    async function initGame() {
         if(game) return
         if(!isGameVisible() && !isJoypadVisible()) return
+        await catalog.preloadAll()
         game = new Game(gameParentEl, catalog, map, ws.id, {
             mode: MODE_CLIENT,
             sendPing: () => ws.send(MSG_KEYS.PING),

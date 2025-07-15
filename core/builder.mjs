@@ -384,7 +384,7 @@ class SelectionMenu {
         this.selections.push(obj)
         for(let prop of obj.constructor.INIT_STATE_PROPS) {
             const inputEl = prop.toInput(obj)
-            inputEl.onchange = () => prop.fromInput(obj, inputEl)
+            inputEl.addEventListener("change", () => prop.fromInput(obj, inputEl))
             this.addInput("section", prop.key, inputEl)
         }
         this.addSpawnActorTriggerInputs(obj)
@@ -547,6 +547,8 @@ customElements.define("dmg-spawn-actor-event-trigger-form", SpawnActorTriggerFor
 class ActorSelector extends HTMLElement {
     constructor() {
         super()
+        this.value = null
+
         this.attachShadow({ mode: 'open' })
 
         const styleEl = document.createElement('style')
@@ -623,8 +625,12 @@ class ActorSelector extends HTMLElement {
         this.optionsEl.style.display = val ? "block" : "none"
     }
     setSelectedActor(actKey) {
+        this.value = actKey
         this.setOptionKey(this.selectEl, actKey)
         this.dispatchEvent(new CustomEvent("select", {
+            detail: { key: actKey }
+        }))
+        this.dispatchEvent(new CustomEvent("change", {
             detail: { key: actKey }
         }))
     }
