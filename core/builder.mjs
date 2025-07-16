@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, GameObject, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys, INIT_STATE } from './game.mjs'
+import { GameCommon, SceneCommon, GameObject, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -88,7 +88,7 @@ class BuilderScene extends SceneCommon {
         if(!mapEnts) return
         mapEnts.forEach(actState => {
             const act = this.newActor(actState.key)
-            act.setInitState(actState)
+            act.setState(actState)
         })
     }
 
@@ -317,13 +317,13 @@ class BuilderScene extends SceneCommon {
         mapScnEvts.length = 0
         this.actors.forEach(act => {
             if(act.removed) return
-            const state = act.getInitState()
+            const state = act.getState()
             if(act instanceof Hero) mapScnHeros.push(state)
             else {
                 if(act.builderTrigger) {
                     const evt = new SpawnActorEvent(this, act.builderTrigger)
                     evt.actState = state
-                    mapScnEvts.push(evt.getInitState())
+                    mapScnEvts.push(evt.getState())
                 } else {
                     mapScnEnts.push(state)
                 }
@@ -382,7 +382,7 @@ class SelectionMenu {
     }
     addSelection(obj) {
         this.selections.push(obj)
-        for(let prop of obj.constructor.INIT_STATE_PROPS) {
+        for(let prop of obj.constructor.STATE_PROPS) if(prop.showInBuilder) {
             const inputEl = prop.toInput(obj)
             inputEl.addEventListener("change", () => prop.fromInput(obj, inputEl))
             this.addInput("section", prop.key, inputEl)

@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
-import { ModuleCatalog, GameObject, INIT_STATE, UPD_STATE, defineStateProperty, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, defineStateProperty, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -38,15 +38,14 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     label: "Nico",
     icon: NicoImg,
 })
-@defineStateProperty(UPD_STATE, StateInt, "handRemIt", { shortKey: "hri", default: null })
+@defineStateProperty(StateInt, "handRemIt", { default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 50
-        this.handDur = ceil(.1 * this.game.fps) 
-        this.handRemIt = null
+        this.handDur = ceil(.1 * this.game.fps)
     }
 
     update() {
@@ -214,8 +213,8 @@ const SpikySprite = new Sprite(SpikyImg)
 })
 export class Spiky extends Enemy {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
     }
@@ -248,15 +247,14 @@ const BlobSprite = new Sprite(BlobImg)
     label: "Blob",
     icon: BlobImg,
 })
-@defineStateProperty(UPD_STATE, StateInt, "lastChangeDirAge", { shortKey: "cda" })
+@defineStateProperty(StateInt, "lastChangeDirAge")
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = 50
         this.height = 36
-        this.lastChangeDirAge = 0
         this.spriteRand = floor(random() * this.game.fps)
     }
 
@@ -313,8 +311,8 @@ const GhostSprite = new Sprite(GhostImg)
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = 45
         this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
@@ -365,8 +363,8 @@ export class Ghost extends Enemy {
 })
 export class Heart extends Collectable {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 30
         this.spriteRand = floor(random() * this.game.fps)
     }
@@ -407,15 +405,14 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     label: "Sword",
     icon: SwordImg,
 })
-@defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
+@defineStateProperty(StateInt, "lastAttackAge", { default: Infinity })
 export class Sword extends Extra {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 40
         this.sprite = SwordSprite
         this.isActionExtra = true
-        this.lastAttackAge = Infinity
     }
     update() {
         super.update()
@@ -478,18 +475,19 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "nb")
-@defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
+@defineStateProperty(StateInt, "nb")
+@defineStateProperty(StateInt, "itToLive", { default: null })
 export class Shurikens extends Extra {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.isActionExtra = true
         this.width = this.height = 30
+        // TODO: use nb from proto
         this.nb = kwargs?.nb ?? 5
         this.actLastTryIt = -Infinity
         this.actRemIt = 0
-        this.itToLive = kwargs?.itToLive ?? null
+        if(kwargs && kwargs.itToLive !== undefined) this.itToLive = kwargs.itToLive
         this.throwPeriod = .3
     }
     isCollectableBy(team) {
@@ -557,13 +555,12 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     label: "Bomb",
 })
 @addComponent(PhysicsComponent)
-@defineStateProperty(UPD_STATE, StateInt, "itToLive", { shortKey: "ttl", default: null })
+@defineStateProperty(StateInt, "itToLive", { default: null })
 export class Bomb extends Extra {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 40
-        this.itToLive = null
         this.isActionExtra = true
         this.affectedByGravity = this.blockedByWalls = false
     }
@@ -618,8 +615,8 @@ const StarSprite = new Sprite(StarImg)
 })
 export class Star extends Collectable {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 30
         this.scene.nbStars ||= 0
         this.scene.nbStars += 1
@@ -645,8 +642,8 @@ const CheckpointSprite = new Sprite(CheckpointImg)
 })
 export class Checkpoint extends Collectable {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 40
     }
     onCollected(hero) {
@@ -672,14 +669,13 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
-@defineStateProperty(UPD_STATE, StateInt, "lastAttackAge", { shortKey: "laa", default: Infinity })
+@defineStateProperty(StateInt, "iteration")
+@defineStateProperty(StateInt, "lastAttackAge", { default: Infinity })
 export class Explosion extends GameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 300
-        this.iteration = 0
         this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
     }
     getOwner() {
@@ -722,10 +718,9 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_
 })
 export class Portal extends GameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
-        this.width = 50
-        this.height = 50
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 50
     }
     update() {
         this.scene.actors.forEach(act => {

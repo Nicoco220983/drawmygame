@@ -1,5 +1,5 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, UPD_STATE, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../../core/game.mjs'
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, defineStateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../../core/game.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 
@@ -107,7 +107,7 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @CATALOG.registerActor("tag", {
     showInBuilder: false
 })
-@defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own" })
+@defineStateProperty(StateProperty, "ownerId")
 export class Tag extends GameObject {
 
     constructor(scn, kwargs) {

@@ -1,4 +1,4 @@
-const { assign } = Object
+const { assign, getPrototypeOf } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
@@ -378,20 +378,13 @@ export class SpriteSheet {
 
 // BUILDER //////////////////////////
 
-export const INIT_STATE = 1 << 0
-export const UPD_STATE = 1 << 1
 
-
-export function defineStateProperty(type, cls, key, kwargs) {
+export function defineStateProperty(cls, key, kwargs) {
     return target => {
-        if((type & INIT_STATE) === INIT_STATE) {
-            if(!target.hasOwnProperty('INIT_STATE_PROPS')) target.INIT_STATE_PROPS = Array.from(target.INIT_STATE_PROPS ?? [])
-            target.INIT_STATE_PROPS.push(new cls(key, kwargs))
-        }
-        if((type & UPD_STATE) === UPD_STATE) {
-            if(!target.hasOwnProperty('UPD_STATE_PROPS')) target.UPD_STATE_PROPS = Array.from(target.UPD_STATE_PROPS ?? [])
-            target.UPD_STATE_PROPS.push(new cls(key, kwargs))
-        }
+        if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = Array.from(target.STATE_PROPS ?? [])
+        const stateProp = new cls(key, kwargs)
+        target.STATE_PROPS.push(stateProp)
+        target.prototype[key] = stateProp.defaultValue
         return target
     }
 }
@@ -402,16 +395,20 @@ export class StateProperty {
 
     constructor(key, kwargs) {
         this.key = key
-        this.shortKey = kwargs?.shortKey ?? key
-        this.defaultValue = kwargs?.default ?? this.constructor.DEFAULT_VALUE
+        if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
+        else this.defaultValue = this.constructor.DEFAULT_VALUE
     }
     toState(act, state) {
-        const val = act[this.key]
-        if(val !== this.defaultValue) state[this.shortKey] = val
+        const { key } = this
+        if(!act.hasOwnProperty(key)) return
+        const val = act[key], protoVal = getPrototypeOf(act)[key]
+        if(val !== protoVal) state[key] = val
     }
     fromState(act, state) {
-        const val = state[this.shortKey]
-        act[this.key] = (val === undefined) ? this.defaultValue : val
+        const { key } = this
+        const val = state[key]
+        if(val === undefined) delete act[key]
+        else act[key] = val
     }
     toInput(act) {
         const inputEl = newDomEl("input", {
@@ -483,22 +480,15 @@ export class StateActorKey extends StateProperty {
 
 
 export class Component {
-    static INIT_STATE_PROPS = []
-    static UPD_STATE_PROPS = []
+    static STATE_PROPS = []
 
     init(act, kwargs) {}
     update(act) {}
-    getInitState(act, state) {
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(act, state)
-    }
-    setInitState(act, state) {
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(act, state)
-    }
     getState(act, state) {
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(act, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.toState(act, state)
     }
     setState(act, state) {
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(act, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromState(act, state)
     }
 }
 
@@ -512,8 +502,8 @@ export function addComponent(comp, kwargs) {
 }
 
 
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "speedX", { shortKey:"sx" })
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "speedY", { shortKey:"sy" })
+@defineStateProperty(StateInt, "speedX")
+@defineStateProperty(StateInt, "speedY")
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -537,10 +527,10 @@ export class PhysicsComponent extends Component {
 }
 
 
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "x")
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "y")
-@defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirX", { shortKey: "dx", default: 1, options: { '1': "Right", '-1': "Left"}})
-@defineStateProperty(INIT_STATE | UPD_STATE, StateIntEnum, "dirY", { shortKey: "dy", default: 1, options: { '1': "Up", '-1': "Down"}})
+@defineStateProperty(StateInt, "x")
+@defineStateProperty(StateInt, "y")
+@defineStateProperty(StateIntEnum, "dirX", { default: 1, options: { '1': "Right", '-1': "Left"}})
+@defineStateProperty(StateIntEnum, "dirY", { default: 1, options: { '1': "Up", '-1': "Down"}})
 export class GameObject {
 
     static COMPONENTS = new Map()
@@ -549,19 +539,23 @@ export class GameObject {
         assign(this.prototype, {
             width: 10,
             height: 10,
-            dirX: 1,
-            dirY: 1,
             spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
         })
     }
 
-    constructor(scn, kwargs) {
+    constructor(scn) {
         this.scene = scn
         this.game = scn.game
-        this.id = kwargs?.id ?? null
+        this.id = null
+        this.key = null
+    }
+
+    init(kwargs) {
         if(kwargs) {
+            if(kwargs.id !== undefined) this.id = kwargs.id
+            if(kwargs.key !== undefined) this.key = kwargs.key
             if(kwargs.x !== undefined) this.x = kwargs.x
             if(kwargs.y !== undefined) this.y = kwargs.y
             if(kwargs.size !== undefined) this.width = this.height = kwargs.size
@@ -571,6 +565,21 @@ export class GameObject {
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
         }
         this.constructor.COMPONENTS.forEach(comp => comp.init(this, kwargs))
+    }
+
+    static createFromKey(scn, key) {
+        const mapState = scn.getActorMapState(key)
+        if(mapState) key = mapState.key
+        const cls = scn.game.catalog.getActorClass(key)
+        let obj
+        if(mapState) {
+            const proto = new cls(scn)
+            proto.setState(mapState)
+            obj = Object.create(proto)
+        } else {
+            obj = new cls(scn)
+        }
+        return obj
     }
 
     getPriority() {
@@ -633,31 +642,17 @@ export class GameObject {
         this.removed = true
     }
 
-    getInitState() {
-        const state = {}
-        state.key = this.constructor.KEY
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.toState(this, state)
-        this.constructor.COMPONENTS.forEach(comp => comp.getInitState(this, state))
-        return state
-    }
-
-    setInitState(state) {
-        for(let prop of this.constructor.INIT_STATE_PROPS) prop.fromState(this, state)
-        this.constructor.COMPONENTS.forEach(comp => comp.setInitState(this, state))
-    }
-
-    // TODO: rename this getUpdState
     getState() {
         const state = {}
         state.id = this.id
-        state.key = this.constructor.KEY
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.toState(this, state)
+        state.key = this.key ?? this.constructor.KEY
+        for(let prop of this.constructor.STATE_PROPS) prop.toState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
         return state
     }
 
     setState(state) {
-        for(let prop of this.constructor.UPD_STATE_PROPS) prop.fromState(this, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
     }
 
@@ -975,8 +970,8 @@ function newTextCanvas(text, kwargs) {
 }
 
 export class Text extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.textArgs = kwargs
         this.updateText(kwargs.text)
     }
@@ -1027,8 +1022,14 @@ export class GameObjectGroup {
     new(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
-        if(typeof cls === 'string') cls = this.game.catalog.getActorClass(cls)
-        const obj = new cls(this.scene, kwargs)
+        let obj
+        if(typeof cls === 'string') {
+            obj = GameObject.createFromKey(this.scene, cls)
+            kwargs.key = cls
+        } else {
+            obj = new cls(this.scene)
+        }
+        obj.init(kwargs)
         this.objMap.set(kwargs.id, obj)
         this.objArr.push(obj)
         this.trigger("new", obj)
@@ -1100,14 +1101,9 @@ export class GameObjectGroup {
             for(let actState of state) {
                 let { id } = actState
                 let act = objMap.get(id)
-                if(!act) {
-                    const cls = this.game.catalog.getActorClass(actState.key)
-                    act = new cls(this.scene, { id })
-                    objMap.set(act.id, act)
-                }
+                if(!act) act = this.new(actState.key, { id })
+                else objArr.push(act)
                 act.setState(actState)
-                objArr.push(act)
-                this.trigger("new", act)
             }
             if(objMap.size != objArr.length) {
                 objMap.clear()
@@ -1429,14 +1425,32 @@ export class SceneCommon {
     initActors() {
         const mapActs = this.map?.actors
         if(!mapActs) return
-        mapActs.forEach(actState => {
-            const act = this.newActor(actState.key)
-            act.setInitState(actState)
-        })
+        for(let i=0; i<mapActs.length; ++i) this.newActor(`A#${i}`)
     }
 
     newActor(cls, kwargs) {
         return this.actors.new(cls, kwargs)
+    }
+    
+    getActorMapState(key) {
+        const dotIdx = key.indexOf('.')
+        let props = null
+        if(dotIdx >= 0) {
+            key = key.substring(0, dotIdx)
+            props = key.substring(dotIdx+1).split('.')
+        }
+        let res = null
+        if(key.startsWith('A#')) {
+            const mapNum = parseInt(key.substring(2))
+            res = this.map.actors[mapNum]
+        } else if(key.startsWith('H#')) {
+            const mapNum = parseInt(key.substring(2))
+            res = this.map.heros[mapNum]
+        }
+        if(props) for(let prop of props) {
+            res = res[prop]
+        }
+        return res
     }
 
     newVisual(cls, kwargs) {
@@ -1536,13 +1550,12 @@ export class SceneCommon {
 
 
 export class Wall extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        this.key = kwargs.key
         this.x1 = kwargs.x1
         this.y1 = kwargs.y1
         this.x2 = kwargs.x2
         this.y2 = kwargs.y2
-        this.key = kwargs.key
     }
     drawTo(ctx) {
         ctx.lineWidth = 5
@@ -1769,10 +1782,11 @@ export class Game extends GameCommon {
     }
 
     addPlayer(playerId, kwargs) {
+        const gameScn = this.scenes.game
         if(this.players[playerId] === undefined) {
+            if(this.map.scenes[0].heros.length > 0) kwargs.heroKey = `H#0`  // TODO: impl hero selection
             this.players[playerId] = kwargs
         }
-        const gameScn = this.scenes.game
         if(gameScn.newHero) gameScn.newHero(playerId)
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
@@ -2046,10 +2060,9 @@ export class GameScene extends SceneCommon {
         const player = this.game.players[playerId]
         if(!player) return
         if(this.getHero(playerId)) return
-        const heroInitState = this.map?.heros && this.map.heros[0]
-        if(!heroInitState) return
-        const hero = this.newActor(heroInitState.key, { playerId })
-        hero.setInitState(heroInitState)
+        const { heroKey } = player
+        if(!heroKey) return
+        const hero = this.newActor(heroKey, { playerId })
         this.spawnHero(hero)
         return hero.id
     }
@@ -2363,14 +2376,14 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ACTORS ///////////////////////////////////
 
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "health", { shortKey: "hea", default: Infinity })
-@defineStateProperty(UPD_STATE, StateInt, "lastDamageAge", { shortKey: "lda", default: null })
+@defineStateProperty(StateInt, "health", { default: Infinity })
+@defineStateProperty(StateInt, "lastDamageAge", { default: null })
 export class LivingGameObject extends GameObject {
     
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
+        // TODO: use proto health
         this.health = (kwargs && kwargs.health !== undefined) ? kwargs.health : this.getMaxHealth()
-        this.lastDamageAge = null
     }
 
     getMaxHealth() {
@@ -2425,16 +2438,16 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "lives", { shortKey: "liv", default: Infinity })
-@defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey: "lsi", default: -Infinity })
+@defineStateProperty(StateInt, "lives", { default: Infinity })
+@defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.team = "hero"
+        // TODO: use proto lives
         this.lives = (kwargs && kwargs.lives !== undefined) ? kwargs.lives : 3
         if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
-        this.lastSpawnIt = -Infinity
     }
 
     setPlayerId(playerId) {
@@ -2615,13 +2628,12 @@ const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static
 @CATALOG.registerActor("smokee", {
     showInBuilder: false
 })
-@defineStateProperty(UPD_STATE, StateInt, "iteration", { shortKey: "it" })
+@defineStateProperty(StateInt, "iteration")
 export class SmokeExplosion extends GameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 100
-        this.iteration = 0
     }
     update() {
         this.iteration += 1
@@ -2640,8 +2652,8 @@ const PopSprite = new Sprite(PopImg)
 const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
 
 class Pop extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 10
         this.duration = floor(this.game.fps * .25)
         this.remIt = this.duration
@@ -2662,8 +2674,8 @@ class Pop extends GameObject {
 
 
 export class Enemy extends LivingGameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.team = "enemy"
     }
     onDeath() {
@@ -2677,13 +2689,12 @@ export class Enemy extends LivingGameObject {
 
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
-@defineStateProperty(UPD_STATE, StateProperty, "ownerId", { shortKey: "own", default: null })
+@defineStateProperty(StateProperty, "ownerId", { default: null })
 export class Collectable extends GameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.spriteRand = floor(random() * this.game.fps)
-        this.ownerId = null
     }
 
     getOwner() {
@@ -2736,8 +2747,8 @@ export const HeartSpriteSheets = {
 
 
 class LifeHeartNotif extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.num = kwargs.num
         this.width = this.height = 30
         this.color = "red"
@@ -2751,8 +2762,8 @@ class LifeHeartNotif extends GameObject {
 }
 
 class HealthHeartNotif extends LifeHeartNotif {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 20
         this.color = "pink"
     }
@@ -2801,8 +2812,8 @@ class PauseScene extends SceneCommon {
 
 
 class PlayerText extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.player = kwargs.player
         this.initSprite()
     }
@@ -2997,8 +3008,8 @@ class DebugScene extends SceneCommon {
 
 
 export class ScoresBoard extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.scores = kwargs.scores
         this.width = 300
         this.headerHeight = 80
@@ -3057,8 +3068,8 @@ export class ScoresBoard extends GameObject {
 
 
 export class CountDown extends Text {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.duration = kwargs && kwargs.duration || 3
         this.startIt = this.scene.iteration
         this.syncText()
@@ -3081,23 +3092,17 @@ export class CountDown extends Text {
     label: "ActorSpawner",
     icon: PopImg,
 })
-@defineStateProperty(INIT_STATE | UPD_STATE, StateActorKey, "actorKey", { shortKey: "act" })
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "period")
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "max")
-@defineStateProperty(INIT_STATE | UPD_STATE, StateInt, "maxLiving", { shortKey: "mxl", default: Infinity })
-@defineStateProperty(UPD_STATE, StateInt, "nbSpawn", { shortKey:"nbs" })
-@defineStateProperty(UPD_STATE, StateInt, "lastSpawnIt", { shortKey:"lsi", default: -Infinity })
-@defineStateProperty(UPD_STATE, ActorRefs.StateProperty, "spawnedActors", { shortKey:"acts" })
+@defineStateProperty(StateActorKey, "actorKey")
+@defineStateProperty(StateInt, "period")
+@defineStateProperty(StateInt, "max")
+@defineStateProperty(StateInt, "maxLiving", { default: Infinity })
+@defineStateProperty(StateInt, "nbSpawn")
+@defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
+@defineStateProperty(ActorRefs.StateProperty, "spawnedActors")
 export class ActorSpawner extends GameObject {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 50
-        this.actorKey = null
-        this.period = 1
-        this.max = 1
-        this.maxLiving = Infinity
-        this.nbSpawn = 0
-        this.lastSpawnIt = -Infinity
         this.spawnedActors = new ActorRefs(this.scene)
     }
     update() {
