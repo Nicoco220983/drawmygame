@@ -2377,7 +2377,7 @@ export class FocusFirstHeroScene extends GameScene {
 // ACTORS ///////////////////////////////////
 
 @defineStateProperty(StateInt, "health", { default: Infinity })
-@defineStateProperty(StateInt, "lastDamageAge", { default: null })
+@defineStateProperty(StateInt, "lastDamageAge", { default: Infinity })
 export class LivingGameObject extends GameObject {
     
     init(kwargs) {
@@ -2396,12 +2396,12 @@ export class LivingGameObject extends GameObject {
         if(step != "GAME" || (this.health <= 0) || this.isDamageable()) this.spriteVisibility = 1
         else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
         this.mayRemove()
-        if(this.lastDamageAge !== null) this.lastDamageAge += 1
+        this.lastDamageAge += 1
+        if(this.isDamageable()) this.lastDamageAge = Infinity
     }
 
     isDamageable() {
-        const { lastDamageAge } = this
-        return lastDamageAge === null || lastDamageAge > ceil(0.5 * this.game.fps)
+        return this.lastDamageAge > ceil(0.5 * this.game.fps)
     }
 
     mayTakeDamage(val, damager, force) {
@@ -2480,8 +2480,7 @@ export class Hero extends LivingGameObject {
     }
 
     isDamageable() {
-        const { lastDamageAge } = this
-        return lastDamageAge === null || lastDamageAge > ceil(3 * this.game.fps)
+        return this.lastDamageAge > ceil(3 * this.game.fps)
     }
 
     update() {
