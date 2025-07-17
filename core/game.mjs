@@ -397,6 +397,7 @@ export class StateProperty {
         this.key = key
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
         else this.defaultValue = this.constructor.DEFAULT_VALUE
+        this.showInBuilder = kwargs?.showInBuilder ?? false
     }
     toState(act, state) {
         const { key } = this
@@ -410,14 +411,24 @@ export class StateProperty {
         if(val === undefined) delete act[key]
         else act[key] = val
     }
+    getValueForInput(act) {
+        const val = act[this.key]
+        if(typeof val !== "string") return ""
+        else return val
+    }
     toInput(act) {
         const inputEl = newDomEl("input", {
-            value: act[this.key]
+            value: this.getValueForInput(act)
         })
         return inputEl
     }
+    getInputValue(inputEl) {
+        const val = inputEl.value
+        if(val === "") return this.defaultValue
+        else return val
+    }
     fromInput(act, inputEl) {
-        act[this.key] = inputEl.value
+        act[this.key] = this.getInputValue(inputEl)
     }
 }
 
@@ -428,16 +439,54 @@ export class StateInt extends StateProperty {
         super(key, kwargs)
         this.min = kwargs?.min ?? null
         this.max = kwargs?.max ?? null
+        this.allowsInfinity = kwargs?.allowsInfinity ?? false
     }
     toInput(act) {
-        const inputEl = super.toInput(act)
-        inputEl.type = "number"
-        if(this.min !== null) inputEl.min = this.min
-        if(this.max !== null) inputEl.max = this.max
-        return inputEl
+        const val = act[this.key]
+        console.log("TMP val", this.key, val, (val === Infinity))
+        const wrapperEl = newDomEl("div", {
+            style: {
+                display: "flex",
+                flexDirection: "row",
+            }
+        })
+        const intEl = wrapperEl.intEl = newDomEl("input", {
+            type: "number",
+            value: (typeof val == "number") ? val : "",
+        })
+        if(this.min !== null) intEl.min = this.min
+        if(this.max !== null) intEl.max = this.max
+        intEl.onchange = evt => wrapperEl.dispatchEvent(new CustomEvent("change"))
+        let infEl, infTxtEl
+        if(this.allowsInfinity) {
+            infEl = wrapperEl.infEl = newDomEl("input", {
+                type: "checkbox",
+            })
+            if(val === Infinity) infEl.checked = true
+            infTxtEl = newDomEl("div", {
+                text: "Infinity",
+            })
+            wrapperEl.syncEls = () => {
+                intEl.style.display = infEl.checked ? "none" : "block"
+                infTxtEl.style.display = infEl.checked ? "block" : "none"
+            }
+            infEl.onchange = evt => {
+                wrapperEl.syncEls()
+                wrapperEl.dispatchEvent(new CustomEvent("change"))
+            }
+        }
+        if(infEl) wrapperEl.appendChild(infEl)
+        if(infTxtEl) wrapperEl.appendChild(infTxtEl)
+        wrapperEl.appendChild(intEl)
+        if(wrapperEl.syncEls) wrapperEl.syncEls()
+        return wrapperEl
     }
-    fromInput(act, inputEl) {
-        act[this.key] = parseInt(inputEl.value)
+    getInputValue(inputEl) {
+        if(this.allowsInfinity && inputEl.infEl.checked)
+            return Infinity
+        const val = inputEl.intEl.value
+        if(val === "") return this.defaultValue
+        else return parseInt(val)
     }
 }
 
@@ -463,8 +512,16 @@ export class StateEnum extends StateProperty {
 export class StateIntEnum extends StateEnum {
     static DEFAULT_VALUE = 0
 
-    fromInput(act, inputEl) {
-        act[this.key] = parseInt(inputEl.value)
+    getValueForInput(act) {
+        const val = act[this.key]
+        if(typeof val !== "number") return ""
+        else return val
+    }
+
+    getInputValue(inputEl) {
+        const val = inputEl.value
+        if(val === "") return this.defaultValue
+        else return parseInt(val)
     }
 }
 
@@ -527,10 +584,10 @@ export class PhysicsComponent extends Component {
 }
 
 
-@defineStateProperty(StateInt, "x")
-@defineStateProperty(StateInt, "y")
-@defineStateProperty(StateIntEnum, "dirX", { default: 1, options: { '1': "Right", '-1': "Left"}})
-@defineStateProperty(StateIntEnum, "dirY", { default: 1, options: { '1': "Up", '-1': "Down"}})
+@defineStateProperty(StateInt, "x", { showInBuilder: true })
+@defineStateProperty(StateInt, "y", { showInBuilder: true })
+@defineStateProperty(StateIntEnum, "dirX", { default: 1, options: { '1': "Right", '-1': "Left"}, showInBuilder: true })
+@defineStateProperty(StateIntEnum, "dirY", { default: 1, options: { '1': "Up", '-1': "Down"}, showInBuilder: true })
 export class GameObject {
 
     static COMPONENTS = new Map()
@@ -2376,18 +2433,12 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ACTORS ///////////////////////////////////
 
-@defineStateProperty(StateInt, "health", { default: Infinity })
+@defineStateProperty(StateInt, "health", { default: 1, allowsInfinity: true,showInBuilder: true })
 @defineStateProperty(StateInt, "lastDamageAge", { default: Infinity })
 export class LivingGameObject extends GameObject {
     
     init(kwargs) {
         super.init(kwargs)
-        // TODO: use proto health
-        this.health = (kwargs && kwargs.health !== undefined) ? kwargs.health : this.getMaxHealth()
-    }
-
-    getMaxHealth() {
-        return 1
     }
 
     update() {
@@ -2438,15 +2489,13 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@defineStateProperty(StateInt, "lives", { default: Infinity })
+@defineStateProperty(StateInt, "lives", { default: 3, allowsInfinity: true, showInBuilder: true })
 @defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
 
     init(kwargs) {
         super.init(kwargs)
         this.team = "hero"
-        // TODO: use proto lives
-        this.lives = (kwargs && kwargs.lives !== undefined) ? kwargs.lives : 3
         if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
     }
 
@@ -2473,10 +2522,6 @@ export class Hero extends LivingGameObject {
     dropExtra(extra) {
         const extras = this.extras
         if(extras) extras.delete(extra.id)
-    }
-
-    getMaxHealth() {
-        return 3
     }
 
     isDamageable() {
@@ -3091,10 +3136,10 @@ export class CountDown extends Text {
     label: "ActorSpawner",
     icon: PopImg,
 })
-@defineStateProperty(StateActorKey, "actorKey")
-@defineStateProperty(StateInt, "period")
-@defineStateProperty(StateInt, "max")
-@defineStateProperty(StateInt, "maxLiving", { default: Infinity })
+@defineStateProperty(StateActorKey, "actorKey", { showInBuilder: true })
+@defineStateProperty(StateInt, "period", { showInBuilder: true })
+@defineStateProperty(StateInt, "max", { showInBuilder: true })
+@defineStateProperty(StateInt, "maxLiving", { default: Infinity, showInBuilder: true })
 @defineStateProperty(StateInt, "nbSpawn")
 @defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
 @defineStateProperty(ActorRefs.StateProperty, "spawnedActors")

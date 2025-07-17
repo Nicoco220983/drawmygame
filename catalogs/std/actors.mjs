@@ -475,7 +475,7 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
-@defineStateProperty(StateInt, "nb")
+@defineStateProperty(StateInt, "nb", { default:5, showInBuilder: true })
 @defineStateProperty(StateInt, "itToLive", { default: null })
 export class Shurikens extends Extra {
 
@@ -483,8 +483,6 @@ export class Shurikens extends Extra {
         super.init(kwargs)
         this.isActionExtra = true
         this.width = this.height = 30
-        // TODO: use nb from proto
-        this.nb = kwargs?.nb ?? 5
         this.actLastTryIt = -Infinity
         this.actRemIt = 0
         if(kwargs && kwargs.itToLive !== undefined) this.itToLive = kwargs.itToLive
