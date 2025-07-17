@@ -397,37 +397,76 @@ export class StateProperty {
         this.key = key
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
         else this.defaultValue = this.constructor.DEFAULT_VALUE
+        this.nullableWith = kwargs?.nullableWith
         this.showInBuilder = kwargs?.showInBuilder ?? false
     }
-    toState(act, state) {
+    fromActorToState(act, state) {
         const { key } = this
         if(!act.hasOwnProperty(key)) return
         const val = act[key], protoVal = getPrototypeOf(act)[key]
-        if(val !== protoVal) state[key] = val
+        if(val === undefined || val === protoVal) return
+        const { nullableWith } = this
+        state[key] = (val === nullableWith) ? nullableWith : val 
     }
-    fromState(act, state) {
+    fromStateToActor(state, act) {
         const { key } = this
         const val = state[key]
         if(val === undefined) delete act[key]
-        else act[key] = val
+        else act[key] = (val === null) ? this.nullableWith : val
     }
-    getValueForInput(act) {
-        const val = act[this.key]
-        if(typeof val !== "string") return ""
-        else return val
+    fromActorToInput(act) {
+        return this.newInput(act[this.key], act)
     }
-    toInput(act) {
-        const inputEl = newDomEl("input", {
-            value: this.getValueForInput(act)
+    newInput(val, act) {
+        const wrapperEl = newDomEl("div", {
+            style: {
+                display: "flex",
+                flexDirection: "row",
+            }
         })
-        return inputEl
+        const valEl = wrapperEl.valueEl = this.newNonNullInput(val, act)
+        valEl.onchange = () => wrapperEl.dispatchEvent(new CustomEvent("change"))
+        let nullEl, nullTxtEl
+        if(this.nullableWith !== undefined) {
+            nullEl = wrapperEl.nullEl = newDomEl("input", {
+                type: "checkbox",
+            })
+            if(val === this.nullableWith) nullEl.checked = true
+            nullTxtEl = newDomEl("div", {
+                text: this.nullableWith,
+            })
+            wrapperEl.syncEls = () => {
+                valEl.style.display = nullEl.checked ? "none" : "block"
+                nullTxtEl.style.display = nullEl.checked ? "block" : "none"
+            }
+            nullEl.onchange = evt => {
+                wrapperEl.syncEls()
+                wrapperEl.dispatchEvent(new CustomEvent("change"))
+            }
+        }
+        if(nullEl) wrapperEl.appendChild(nullEl)
+        if(nullTxtEl) wrapperEl.appendChild(nullTxtEl)
+        wrapperEl.appendChild(valEl)
+        if(wrapperEl.syncEls) wrapperEl.syncEls()
+        return wrapperEl
+    }
+    newNonNullInput(act) {
+        const val = act[this.key]
+        return newDomEl("input", {
+            value: (typeof val === "string") ? val : ""
+        })
     }
     getInputValue(inputEl) {
-        const val = inputEl.value
+        if(this.nullableWith!==undefined && inputEl.nullEl.checked)
+            return this.nullableWith
+        return this.getNonNullInputValue(inputEl)
+    }
+    getNonNullInputValue(inputEl) {
+        const val = inputEl.valueEl.value
         if(val === "") return this.defaultValue
         else return val
     }
-    fromInput(act, inputEl) {
+    fromInputToActor(inputEl, act) {
         act[this.key] = this.getInputValue(inputEl)
     }
 }
@@ -439,52 +478,18 @@ export class StateInt extends StateProperty {
         super(key, kwargs)
         this.min = kwargs?.min ?? null
         this.max = kwargs?.max ?? null
-        this.allowsInfinity = kwargs?.allowsInfinity ?? false
     }
-    toInput(act) {
-        const val = act[this.key]
-        console.log("TMP val", this.key, val, (val === Infinity))
-        const wrapperEl = newDomEl("div", {
-            style: {
-                display: "flex",
-                flexDirection: "row",
-            }
-        })
-        const intEl = wrapperEl.intEl = newDomEl("input", {
+    newNonNullInput(val) {
+        const res = newDomEl("input", {
             type: "number",
             value: (typeof val == "number") ? val : "",
         })
-        if(this.min !== null) intEl.min = this.min
-        if(this.max !== null) intEl.max = this.max
-        intEl.onchange = evt => wrapperEl.dispatchEvent(new CustomEvent("change"))
-        let infEl, infTxtEl
-        if(this.allowsInfinity) {
-            infEl = wrapperEl.infEl = newDomEl("input", {
-                type: "checkbox",
-            })
-            if(val === Infinity) infEl.checked = true
-            infTxtEl = newDomEl("div", {
-                text: "Infinity",
-            })
-            wrapperEl.syncEls = () => {
-                intEl.style.display = infEl.checked ? "none" : "block"
-                infTxtEl.style.display = infEl.checked ? "block" : "none"
-            }
-            infEl.onchange = evt => {
-                wrapperEl.syncEls()
-                wrapperEl.dispatchEvent(new CustomEvent("change"))
-            }
-        }
-        if(infEl) wrapperEl.appendChild(infEl)
-        if(infTxtEl) wrapperEl.appendChild(infTxtEl)
-        wrapperEl.appendChild(intEl)
-        if(wrapperEl.syncEls) wrapperEl.syncEls()
-        return wrapperEl
+        if(this.min !== null) res.min = this.min
+        if(this.max !== null) res.max = this.max
+        return res
     }
-    getInputValue(inputEl) {
-        if(this.allowsInfinity && inputEl.infEl.checked)
-            return Infinity
-        const val = inputEl.intEl.value
+    getNonNullInputValue(inputEl) {
+        const val = inputEl.valueEl.value
         if(val === "") return this.defaultValue
         else return parseInt(val)
     }
@@ -495,7 +500,7 @@ export class StateEnum extends StateProperty {
         super(key, kwargs)
         this.options = kwargs.options
     }
-    toInput(act) {
+    newNonNullInput(val) {
         const { options } = this
         const inputEl = newDomEl("select")
         for(let optVal in options) {
@@ -504,7 +509,7 @@ export class StateEnum extends StateProperty {
                 text: options[optVal],
             }))
         }
-        inputEl.value = act[this.key]
+        inputEl.value = val
         return inputEl
     }
 }
@@ -512,13 +517,15 @@ export class StateEnum extends StateProperty {
 export class StateIntEnum extends StateEnum {
     static DEFAULT_VALUE = 0
 
-    getValueForInput(act) {
-        const val = act[this.key]
-        if(typeof val !== "number") return ""
-        else return val
+    newNonNullInput(val) {
+        const res = newDomEl("input", {
+            type: "number",
+            value: (typeof val == "number") ? val : "",
+        })
+        return res
     }
 
-    getInputValue(inputEl) {
+    getNonNullInputValue(inputEl) {
         const val = inputEl.value
         if(val === "") return this.defaultValue
         else return parseInt(val)
@@ -526,10 +533,9 @@ export class StateIntEnum extends StateEnum {
 }
 
 export class StateActorKey extends StateProperty {
-    toInput(act) {
+    newNonNullInput(val, act) {
         const inputEl = newDomEl("dmg-actor-selector")
         inputEl.setCatalog(act.game.catalog)
-        const val = act[this.key]
         if(val) inputEl.setSelectedActor(val)
         return inputEl
     }
@@ -542,10 +548,10 @@ export class Component {
     init(act, kwargs) {}
     update(act) {}
     getState(act, state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.toState(act, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromActorToState(act, state)
     }
     setState(act, state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.fromState(act, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromStateToActor(state, act)
     }
 }
 
@@ -703,13 +709,13 @@ export class GameObject {
         const state = {}
         state.id = this.id
         state.key = this.key ?? this.constructor.KEY
-        for(let prop of this.constructor.STATE_PROPS) prop.toState(this, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromActorToState(this, state)
         this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
         return state
     }
 
     setState(state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.fromState(this, state)
+        for(let prop of this.constructor.STATE_PROPS) prop.fromStateToActor(state, this)
         this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
     }
 
@@ -841,18 +847,18 @@ export class ActorRefs extends Set {
 
 
 ActorRefs.StateProperty = class extends StateProperty {
-    toState(act, state) {
+    fromActorToState(act, state) {
         const propState = act[this.key].getState()
         if(propState !== null) state[this.shortKey] = propState
     }
-    fromState(act, state) {
+    fromStateToActor(state, act) {
         const propState = state[this.shortKey] ?? null
         act[this.key].setState(propState)
     }
-    toInput(act) {
+    fromActorToInput(act) {
         // TODO
     }
-    fromInput(act, inputEl) {
+    fromInputToActor(inputEl, act) {
         // TODO
     }
 }
@@ -2433,7 +2439,7 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ACTORS ///////////////////////////////////
 
-@defineStateProperty(StateInt, "health", { default: 1, allowsInfinity: true,showInBuilder: true })
+@defineStateProperty(StateInt, "health", { default: 1, nullableWith: Infinity, showInBuilder: true })
 @defineStateProperty(StateInt, "lastDamageAge", { default: Infinity })
 export class LivingGameObject extends GameObject {
     
@@ -2489,7 +2495,7 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@defineStateProperty(StateInt, "lives", { default: 3, allowsInfinity: true, showInBuilder: true })
+@defineStateProperty(StateInt, "lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
 

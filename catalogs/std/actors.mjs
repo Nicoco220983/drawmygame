@@ -475,7 +475,7 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
-@defineStateProperty(StateInt, "nb", { default:5, showInBuilder: true })
+@defineStateProperty(StateInt, "nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 @defineStateProperty(StateInt, "itToLive", { default: null })
 export class Shurikens extends Extra {
 

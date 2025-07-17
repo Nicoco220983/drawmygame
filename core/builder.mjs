@@ -383,8 +383,8 @@ class SelectionMenu {
     addSelection(obj) {
         this.selections.push(obj)
         for(let prop of obj.constructor.STATE_PROPS) if(prop.showInBuilder) {
-            const inputEl = prop.toInput(obj)
-            inputEl.addEventListener("change", () => prop.fromInput(obj, inputEl))
+            const inputEl = prop.fromActorToInput(obj)
+            inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, obj))
             this.addInput("section", prop.key, inputEl)
         }
         this.addSpawnActorTriggerInputs(obj)
