@@ -392,6 +392,22 @@ export class StateProperty {
             return target
         }
     }
+    static alter(key, kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
+            if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
+            const stateProp = target.STATE_PROPS.get(key)
+            const fullKwargs = {
+                default: stateProp.defaultValue,
+                nullableWith: stateProp.nullableWith,
+                showInBuilder: stateProp.showInBuilder,
+                ...kwargs,
+            }
+            const alteredStateProp = new stateProp.constructor(key, fullKwargs)
+            target.STATE_PROPS.set(key, alteredStateProp)
+            return target
+        }
+    }
     constructor(key, kwargs) {
         this.key = key
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
@@ -2495,6 +2511,7 @@ export class LivingGameObject extends GameObject {
 }
 
 
+@StateProperty.alter("health", { default: 3 })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
