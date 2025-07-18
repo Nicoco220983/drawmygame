@@ -382,21 +382,22 @@ export class SpriteSheet {
 export class StateProperty {
     static DEFAULT_VALUE = null
 
+    static define(key, kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
+            if(target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
+            const stateProp = new this(key, kwargs)
+            target.STATE_PROPS.set(key, stateProp)
+            target.prototype[key] = stateProp.defaultValue
+            return target
+        }
+    }
     constructor(key, kwargs) {
         this.key = key
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
         else this.defaultValue = this.constructor.DEFAULT_VALUE
         this.nullableWith = kwargs?.nullableWith
         this.showInBuilder = kwargs?.showInBuilder ?? false
-    }
-    static define(key, kwargs) {
-        return target => {
-            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = Array.from(target.STATE_PROPS ?? [])
-            const stateProp = new this(key, kwargs)
-            target.STATE_PROPS.push(stateProp)
-            target.prototype[key] = stateProp.defaultValue
-            return target
-        }
     }
     fromActorToState(act, state) {
         const { key } = this
@@ -541,15 +542,15 @@ export class StateActorKey extends StateProperty {
 
 
 export class Component {
-    static STATE_PROPS = []
+    static STATE_PROPS = new Map()
 
     init(act, kwargs) {}
     update(act) {}
     getState(act, state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.fromActorToState(act, state)
+        this.constructor.STATE_PROPS.forEach(prop => prop.fromActorToState(act, state))
     }
     setState(act, state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.fromStateToActor(state, act)
+        this.constructor.STATE_PROPS.forEach(prop => prop.fromStateToActor(state, act))
     }
 }
 
@@ -594,6 +595,7 @@ export class PhysicsComponent extends Component {
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"}, showInBuilder: true })
 export class GameObject {
 
+    //static STATE_PROPS = new Map()
     static COMPONENTS = new Map()
 
     static {
@@ -707,13 +709,13 @@ export class GameObject {
         const state = {}
         state.id = this.id
         state.key = this.key ?? this.constructor.KEY
-        for(let prop of this.constructor.STATE_PROPS) prop.fromActorToState(this, state)
+        this.constructor.STATE_PROPS.forEach(prop => prop.fromActorToState(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
         return state
     }
 
     setState(state) {
-        for(let prop of this.constructor.STATE_PROPS) prop.fromStateToActor(state, this)
+        this.constructor.STATE_PROPS.forEach(prop => prop.fromStateToActor(state, this))
         this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
     }
 
