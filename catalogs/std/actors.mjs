@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
-import { ModuleCatalog, GameObject, defineStateProperty, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -38,7 +38,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     label: "Nico",
     icon: NicoImg,
 })
-@defineStateProperty(StateInt, "handRemIt", { default: null })
+@StateInt.define("handRemIt", { default: null })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
 
@@ -247,7 +247,7 @@ const BlobSprite = new Sprite(BlobImg)
     label: "Blob",
     icon: BlobImg,
 })
-@defineStateProperty(StateInt, "lastChangeDirAge")
+@StateInt.define("lastChangeDirAge")
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
 
@@ -405,7 +405,7 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     label: "Sword",
     icon: SwordImg,
 })
-@defineStateProperty(StateInt, "lastAttackAge", { default: Infinity })
+@StateInt.define("lastAttackAge", { default: Infinity })
 export class Sword extends Extra {
 
     init(kwargs) {
@@ -475,8 +475,8 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
-@defineStateProperty(StateInt, "nb", { default:5, nullableWith: Infinity, showInBuilder: true })
-@defineStateProperty(StateInt, "itToLive", { default: null })
+@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("itToLive", { default: null })
 export class Shurikens extends Extra {
 
     init(kwargs) {
@@ -553,7 +553,7 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     label: "Bomb",
 })
 @addComponent(PhysicsComponent)
-@defineStateProperty(StateInt, "itToLive", { default: null })
+@StateInt.define("itToLive", { default: null })
 export class Bomb extends Extra {
 
     init(kwargs) {
@@ -667,8 +667,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@defineStateProperty(StateInt, "iteration")
-@defineStateProperty(StateInt, "lastAttackAge", { default: Infinity })
+@StateInt.define("iteration")
+@StateInt.define("lastAttackAge", { default: Infinity })
 export class Explosion extends GameObject {
 
     init(kwargs) {

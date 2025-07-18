@@ -379,17 +379,6 @@ export class SpriteSheet {
 // BUILDER //////////////////////////
 
 
-export function defineStateProperty(cls, key, kwargs) {
-    return target => {
-        if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = Array.from(target.STATE_PROPS ?? [])
-        const stateProp = new cls(key, kwargs)
-        target.STATE_PROPS.push(stateProp)
-        target.prototype[key] = stateProp.defaultValue
-        return target
-    }
-}
-
-
 export class StateProperty {
     static DEFAULT_VALUE = null
 
@@ -399,6 +388,15 @@ export class StateProperty {
         else this.defaultValue = this.constructor.DEFAULT_VALUE
         this.nullableWith = kwargs?.nullableWith
         this.showInBuilder = kwargs?.showInBuilder ?? false
+    }
+    static define(key, kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = Array.from(target.STATE_PROPS ?? [])
+            const stateProp = new this(key, kwargs)
+            target.STATE_PROPS.push(stateProp)
+            target.prototype[key] = stateProp.defaultValue
+            return target
+        }
     }
     fromActorToState(act, state) {
         const { key } = this
@@ -565,8 +563,8 @@ export function addComponent(comp, kwargs) {
 }
 
 
-@defineStateProperty(StateInt, "speedX")
-@defineStateProperty(StateInt, "speedY")
+@StateInt.define("speedX")
+@StateInt.define("speedY")
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -590,10 +588,10 @@ export class PhysicsComponent extends Component {
 }
 
 
-@defineStateProperty(StateInt, "x", { showInBuilder: true })
-@defineStateProperty(StateInt, "y", { showInBuilder: true })
-@defineStateProperty(StateIntEnum, "dirX", { default: 1, options: { '1': "Right", '-1': "Left"}, showInBuilder: true })
-@defineStateProperty(StateIntEnum, "dirY", { default: 1, options: { '1': "Up", '-1': "Down"}, showInBuilder: true })
+@StateInt.define("x", { showInBuilder: true })
+@StateInt.define("y", { showInBuilder: true })
+@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"}, showInBuilder: true })
+@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"}, showInBuilder: true })
 export class GameObject {
 
     static COMPONENTS = new Map()
@@ -2439,8 +2437,8 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ACTORS ///////////////////////////////////
 
-@defineStateProperty(StateInt, "health", { default: 1, nullableWith: Infinity, showInBuilder: true })
-@defineStateProperty(StateInt, "lastDamageAge", { default: Infinity })
+@StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("lastDamageAge", { default: Infinity })
 export class LivingGameObject extends GameObject {
     
     init(kwargs) {
@@ -2495,8 +2493,8 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@defineStateProperty(StateInt, "lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
-@defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
+@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
 
     init(kwargs) {
@@ -2678,7 +2676,7 @@ const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static
 @CATALOG.registerActor("smokee", {
     showInBuilder: false
 })
-@defineStateProperty(StateInt, "iteration")
+@StateInt.define("iteration")
 export class SmokeExplosion extends GameObject {
 
     init(kwargs) {
@@ -2739,7 +2737,7 @@ export class Enemy extends LivingGameObject {
 
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
-@defineStateProperty(StateProperty, "ownerId", { default: null })
+@StateProperty.define("ownerId", { default: null })
 export class Collectable extends GameObject {
 
     init(kwargs) {
@@ -3142,13 +3140,13 @@ export class CountDown extends Text {
     label: "ActorSpawner",
     icon: PopImg,
 })
-@defineStateProperty(StateActorKey, "actorKey", { showInBuilder: true })
-@defineStateProperty(StateInt, "period", { showInBuilder: true })
-@defineStateProperty(StateInt, "max", { showInBuilder: true })
-@defineStateProperty(StateInt, "maxLiving", { default: Infinity, showInBuilder: true })
-@defineStateProperty(StateInt, "nbSpawn")
-@defineStateProperty(StateInt, "lastSpawnIt", { default: -Infinity })
-@defineStateProperty(ActorRefs.StateProperty, "spawnedActors")
+@StateActorKey.define("actorKey", { showInBuilder: true })
+@StateInt.define("period", { showInBuilder: true })
+@StateInt.define("max", { showInBuilder: true })
+@StateInt.define("maxLiving", { default: Infinity, showInBuilder: true })
+@StateInt.define("nbSpawn")
+@StateInt.define("lastSpawnIt", { default: -Infinity })
+@ActorRefs.StateProperty.define("spawnedActors")
 export class ActorSpawner extends GameObject {
     init(kwargs) {
         super.init(kwargs)
