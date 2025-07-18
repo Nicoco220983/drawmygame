@@ -392,19 +392,17 @@ export class StateProperty {
             return target
         }
     }
-    static alter(key, kwargs) {
+    static modify(key, kwargs) {
         return target => {
             if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
-            const fullKwargs = {
-                default: stateProp.defaultValue,
+            const modifiedStateProp = new stateProp.constructor(key, {
+                default: kwargs.default ?? stateProp.defaultValue,
+                showInBuilder: kwargs.showInBuilder ?? stateProp.showInBuilder,
                 nullableWith: stateProp.nullableWith,
-                showInBuilder: stateProp.showInBuilder,
-                ...kwargs,
-            }
-            const alteredStateProp = new stateProp.constructor(key, fullKwargs)
-            target.STATE_PROPS.set(key, alteredStateProp)
+            })
+            target.STATE_PROPS.set(key, modifiedStateProp)
             return target
         }
     }
@@ -2511,7 +2509,7 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@StateProperty.alter("health", { default: 3 })
+@StateProperty.modify("health", { default: 3 })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 export class Hero extends LivingGameObject {
