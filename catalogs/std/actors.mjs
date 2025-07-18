@@ -39,6 +39,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     icon: NicoImg,
 })
 @StateInt.define("handRemIt", { default: null })
+@StateProperty.modify("dirX", { showInBuilder: true })
 @addComponent(PhysicsComponent)
 export class Nico extends Hero {
 
@@ -248,6 +249,7 @@ const BlobSprite = new Sprite(BlobImg)
     icon: BlobImg,
 })
 @StateInt.define("lastChangeDirAge")
+@StateProperty.modify("dirX", { showInBuilder: true })
 @addComponent(PhysicsComponent)
 export class BlobEnemy extends Enemy {
 
@@ -308,6 +310,7 @@ const GhostSprite = new Sprite(GhostImg)
     label: "Ghost",
     icon: GhostImg,
 })
+@StateProperty.modify("dirX", { showInBuilder: true })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
 export class Ghost extends Enemy {
 
@@ -475,8 +478,8 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @addComponent(PhysicsComponent, { affectedByGravity: false })
-@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("itToLive", { default: null })
+@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 export class Shurikens extends Extra {
 
     init(kwargs) {
@@ -667,8 +670,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@StateInt.define("iteration")
 @StateInt.define("lastAttackAge", { default: Infinity })
+@StateInt.define("iteration")
 export class Explosion extends GameObject {
 
     init(kwargs) {

@@ -578,8 +578,8 @@ export function addComponent(comp, kwargs) {
 }
 
 
-@StateInt.define("speedX")
 @StateInt.define("speedY")
+@StateInt.define("speedX")
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -603,10 +603,10 @@ export class PhysicsComponent extends Component {
 }
 
 
-@StateInt.define("x", { showInBuilder: true })
+@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
+@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
 @StateInt.define("y", { showInBuilder: true })
-@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"}, showInBuilder: true })
-@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"}, showInBuilder: true })
+@StateInt.define("x", { showInBuilder: true })
 export class GameObject {
 
     //static STATE_PROPS = new Map()
@@ -2453,8 +2453,8 @@ export class FocusFirstHeroScene extends GameScene {
 
 // ACTORS ///////////////////////////////////
 
-@StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("lastDamageAge", { default: Infinity })
+@StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
 export class LivingGameObject extends GameObject {
     
     init(kwargs) {
@@ -2509,9 +2509,9 @@ export class LivingGameObject extends GameObject {
 }
 
 
-@StateProperty.modify("health", { default: 3 })
-@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("lastSpawnIt", { default: -Infinity })
+@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+@StateProperty.modify("health", { default: 3 })
 export class Hero extends LivingGameObject {
 
     init(kwargs) {
@@ -3157,13 +3157,13 @@ export class CountDown extends Text {
     label: "ActorSpawner",
     icon: PopImg,
 })
-@StateActorKey.define("actorKey", { showInBuilder: true })
-@StateInt.define("period", { showInBuilder: true })
-@StateInt.define("max", { showInBuilder: true })
-@StateInt.define("maxLiving", { default: Infinity, showInBuilder: true })
-@StateInt.define("nbSpawn")
-@StateInt.define("lastSpawnIt", { default: -Infinity })
 @ActorRefs.StateProperty.define("spawnedActors")
+@StateInt.define("lastSpawnIt", { default: -Infinity })
+@StateInt.define("nbSpawn")
+@StateInt.define("maxLiving", { default: Infinity, showInBuilder: true })
+@StateInt.define("max", { showInBuilder: true })
+@StateInt.define("period", { showInBuilder: true })
+@StateActorKey.define("actorKey", { showInBuilder: true })
 export class ActorSpawner extends GameObject {
     init(kwargs) {
         super.init(kwargs)
