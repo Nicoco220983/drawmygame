@@ -397,11 +397,10 @@ export class StateProperty {
             if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
-            const modifiedStateProp = new stateProp.constructor(key, {
-                default: kwargs.default ?? stateProp.defaultValue,
-                showInBuilder: kwargs.showInBuilder ?? stateProp.showInBuilder,
-                nullableWith: stateProp.nullableWith,
-            })
+            const modifiedStateProp = Object.create(stateProp)
+            if(kwargs.defaultValue !== undefined) modifiedStateProp.default = kwargs.defaultValue
+            if(kwargs.showInBuilder !== undefined) modifiedStateProp.showInBuilder = kwargs.showInBuilder
+            if(kwargs.nullableWith !== undefined) modifiedStateProp.nullableWith = kwargs.nullableWith
             target.STATE_PROPS.set(key, modifiedStateProp)
             return target
         }
@@ -532,10 +531,10 @@ export class StateEnum extends StateProperty {
         const val = this.getActorProp(act)
         const inputEl = newDomEl("select")
         for(let optVal in options) {
-            inputEl.appendChild(newDomEl("option", {
+            addNewDomEl(inputEl, "option", {
                 value: optVal,
                 text: options[optVal],
-            }))
+            })
         }
         inputEl.value = val
         inputEl.addEventListener("change", () => this.syncActorFromInput(inputEl, act))
@@ -576,9 +575,6 @@ export class StateActor extends StateProperty {
         })
         return inputEl
     }
-    // getInputValue(inputEl, act) {
-    //     return this.initActorProp(act, inputEl.selectEl.value)
-    // }
     syncActorFromInput(inputEl, act) {
         const actKey = inputEl.selectEl.value
         this.initActorProp(act, actKey)
