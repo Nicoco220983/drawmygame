@@ -382,59 +382,62 @@ class SelectionMenu {
     }
     addSelection(obj) {
         this.selections.push(obj)
-        obj.constructor.STATE_PROPS.forEach(prop => {
-            if(!prop.showInBuilder) return
-            const inputEl = prop.fromActorToInput(obj)
-            inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, obj))
-            this.addInput("section", prop.key, inputEl)
-        })
-        this.addSpawnActorTriggerInputs(obj)
+        const statesEl = document.createElement("dmg-actor-state")
+        statesEl.setActor(obj)
+        this.game.menuEl.appendChild(statesEl)
+        // obj.constructor.STATE_PROPS.forEach(prop => {
+        //     if(!prop.showInBuilder) return
+        //     const inputEl = prop.fromActorToInput(obj)
+        //     inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, obj))
+        //     this.addInput("section", prop.key, inputEl)
+        // })
+        // this.addSpawnActorTriggerInputs(obj)
     }
-    getSection(section) {
-        const { menuEl } = this.game
-        let sectionEl = this.sectionEls[section]
-        if(!sectionEl) {
-            sectionEl = this.sectionEls[section] = menuEl.appendChild(newDomEl("div"))
-            sectionEl.appendChild(newDomEl("div", { style: { fontWeight: "bold" }, text: section }))
-        }
-        return sectionEl
-    }
-    addInput(section, name, input, defVal) {
-        if(typeof input === "string") {
-            const inputEl = document.createElement("input")
-            inputEl.type = input
-            inputEl.value = defVal
-            input = inputEl
-        }
-        const sectionEl = this.getSection(section)
-        const lineEl = sectionEl.appendChild(newDomEl("div"))
-        lineEl.innerHTML = `<span>${name}:</span>`
-        lineEl.appendChild(input)
-        return input
-    }
-    updateState(key, val) {
-        for(let sel of this.game.scenes.game.selections) {
-            sel[key] = val
-        }
-    }
-    addSpawnActorTriggerInputs(act) {
-        const sectionEl = this.getSection("trigger")
-        const checkEl = sectionEl.appendChild(newDomEl("input", { type: "checkbox" }))
-        const trigWrapperEl = sectionEl.appendChild(newDomEl("div"))
-        checkEl.checked = Boolean(act.builderTrigger)
-        const syncTriggerInputs = () => {
-            trigWrapperEl.innerHTML = ""
-            if(checkEl.checked) {
-                const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-actor-event-trigger-form"))
-                trigEl.setTrigger(act.builderTrigger)
-            }
-        }
-        syncTriggerInputs()
-        checkEl.onchange = () => {
-            act.builderTrigger = checkEl.checked ? {} : null
-            syncTriggerInputs()
-        }
-    }
+    // getSection(section) {
+    //     const { menuEl } = this.game
+    //     let sectionEl = this.sectionEls[section]
+    //     if(!sectionEl) {
+    //         sectionEl = this.sectionEls[section] = menuEl.appendChild(newDomEl("div"))
+    //         sectionEl.appendChild(newDomEl("div", { style: { fontWeight: "bold" }, text: section }))
+    //     }
+    //     return sectionEl
+    // }
+    // addInput(section, name, input, defVal) {
+    //     if(typeof input === "string") {
+    //         const inputEl = document.createElement("input")
+    //         inputEl.type = input
+    //         inputEl.value = defVal
+    //         input = inputEl
+    //     }
+    //     const sectionEl = this.getSection(section)
+    //     const lineEl = sectionEl.appendChild(newDomEl("div"))
+    //     lineEl.innerHTML = `<span>${name}:</span>`
+    //     lineEl.appendChild(input)
+    //     return input
+    // }
+    // updateState(key, val) {
+    //     for(let sel of this.game.scenes.game.selections) {
+    //         sel[key] = val
+    //     }
+    // }
+    // addSpawnActorTriggerInputs(act) {
+    //     const sectionEl = this.getSection("trigger")
+    //     const checkEl = sectionEl.appendChild(newDomEl("input", { type: "checkbox" }))
+    //     const trigWrapperEl = sectionEl.appendChild(newDomEl("div"))
+    //     checkEl.checked = Boolean(act.builderTrigger)
+    //     const syncTriggerInputs = () => {
+    //         trigWrapperEl.innerHTML = ""
+    //         if(checkEl.checked) {
+    //             const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-actor-event-trigger-form"))
+    //             trigEl.setTrigger(act.builderTrigger)
+    //         }
+    //     }
+    //     syncTriggerInputs()
+    //     checkEl.onchange = () => {
+    //         act.builderTrigger = checkEl.checked ? {} : null
+    //         syncTriggerInputs()
+    //     }
+    // }
 }
 
 
@@ -545,7 +548,7 @@ class SpawnActorTriggerFormElement extends TriggerFormElement {
 customElements.define("dmg-spawn-actor-event-trigger-form", SpawnActorTriggerFormElement)
 
 
-class ActorSelector extends HTMLElement {
+class ActorSelectorElement extends HTMLElement {
     constructor() {
         super()
         this.value = null
@@ -568,19 +571,19 @@ class ActorSelector extends HTMLElement {
             }
         `
 
-        const wrapperEl = newDomEl("div", {
+        const selectWrapperEl = newDomEl("div", {
             style: {
                 position: "relative",
             }
         })
-        this.shadowRoot.append(styleEl, wrapperEl)
+        this.shadowRoot.append(styleEl, selectWrapperEl)
         const selectEl = this.selectEl = newDomEl("cs-option", {
             tabindex: "0",
             style: {
                 border: "1px solid black",
             }
         })
-        wrapperEl.appendChild(selectEl)
+        selectWrapperEl.appendChild(selectEl)
         const optionsEl = this.optionsEl = newDomEl("div", {
             style: {
                 border: "1px solid black",
@@ -590,9 +593,9 @@ class ActorSelector extends HTMLElement {
                 display: "none",
             }
         })
-        wrapperEl.appendChild(optionsEl)
+        selectWrapperEl.appendChild(optionsEl)
         selectEl.onclick = () => this.setOptionsVisibility(true)
-        wrapperEl.onblur = () => this.setOptionsVisibility(false)
+        selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
     setCatalog(catalog) {
         this.catalog = catalog
@@ -628,15 +631,79 @@ class ActorSelector extends HTMLElement {
     setSelectedActor(actKey) {
         this.value = actKey
         this.setOptionKey(this.selectEl, actKey)
-        this.dispatchEvent(new CustomEvent("select", {
-            detail: { key: actKey }
-        }))
+        // this.dispatchEvent(new CustomEvent("select", {
+        //     detail: { key: actKey }
+        // }))
         this.dispatchEvent(new CustomEvent("change", {
             detail: { key: actKey }
         }))
     }
 }
-customElements.define('dmg-actor-selector', ActorSelector)
+customElements.define('dmg-actor-selector', ActorSelectorElement)
+
+
+
+class ActorStateElement extends HTMLElement {
+    constructor() {
+        super()
+        this.value = null
+
+        this.attachShadow({ mode: 'open' })
+
+        const styleEl = document.createElement('style')
+        styleEl.textContent = ``
+
+        this.statesEl = newDomEl("div", {
+            display: "flex",
+            flexDirection: "column",
+        })
+        this.shadowRoot.append(styleEl, this.statesEl)
+    }
+    setActor(act) {
+        this.statesEl.innerHTML = ""
+        act.constructor.STATE_PROPS.forEach(prop => {
+            if(!prop.showInBuilder) return
+            const wrapperEl = newDomEl("div", {
+                style: {
+                    display: "flex",
+                    flexDirection: "row",
+                }
+            })
+            wrapperEl.appendChild(newDomEl("span", {
+                text: prop.key
+            }))
+            const inputEl = prop.newActorInput(act)
+            wrapperEl.appendChild(inputEl)
+            //inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, act))
+            //this.addInput("section", prop.key, inputEl)
+            this.statesEl.appendChild(wrapperEl)
+        })
+    }
+    setOptionKey(optionEl, actKey) {
+        const actCat = this.catalog.actors[actKey]
+        const label = actCat.label
+        const icon = actCat.icon
+        optionEl.innerHTML = ""
+        if(icon) optionEl.appendChild(icon.cloneNode(true))
+        optionEl.appendChild(newDomEl("span", {
+            text: label,
+            style: {
+                paddingLeft: ".5em",
+            }
+        }))
+    }
+    setOptionsVisibility(val) {
+        this.optionsEl.style.display = val ? "block" : "none"
+    }
+    setSelectedActor(actKey) {
+        this.value = actKey
+        this.setOptionKey(this.selectEl, actKey)
+        this.dispatchEvent(new CustomEvent("change", {
+            detail: { key: actKey }
+        }))
+    }
+}
+customElements.define('dmg-actor-state', ActorStateElement)
 
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {

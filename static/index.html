@@ -137,7 +137,7 @@ document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'platform')
 document.getElementById("mode_erase").onclick = Keys["e"] = () => setBuilderMode('erase')
 const actorsEl = document.getElementById("actors")
-actorsEl.addEventListener("select", evt => setBuilderMode('actor', evt.detail.key))
+actorsEl.addEventListener("change", evt => setBuilderMode('actor', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, builderModeKey)

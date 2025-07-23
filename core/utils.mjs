@@ -274,6 +274,12 @@ function newDomEl(tag, kwargs) {
     return el
 }
 
+function addNewDomEl(parentEl, tag, kwargs) {
+    const el = newDomEl(tag, kwargs)
+    if(parentEl) parentEl.appendChild(el)
+    return el 
+}
+
 
 const importJsPrms = {}
 function importJs(src) {
@@ -306,5 +312,6 @@ export {
     getHitBox,
     sumTo,
     newDomEl,
+    addNewDomEl,
     importJs,
 }
