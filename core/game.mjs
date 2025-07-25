@@ -388,7 +388,7 @@ export class StateProperty {
             if(target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
             const stateProp = new this(key, kwargs)
             target.STATE_PROPS.set(key, stateProp)
-            target.prototype[key] = stateProp.defaultValue
+            stateProp.initActorClass(target)
             return target
         }
     }
@@ -402,6 +402,7 @@ export class StateProperty {
             if(kwargs.showInBuilder !== undefined) modifiedStateProp.showInBuilder = kwargs.showInBuilder
             if(kwargs.nullableWith !== undefined) modifiedStateProp.nullableWith = kwargs.nullableWith
             target.STATE_PROPS.set(key, modifiedStateProp)
+            modifiedStateProp.initActorClass(target)
             return target
         }
     }
@@ -412,6 +413,10 @@ export class StateProperty {
         this.nullableWith = kwargs?.nullableWith
         this.showInBuilder = kwargs?.showInBuilder ?? false
     }
+    initActorClass(cls) {
+        cls.prototype[this.key] = this.defaultValue
+    }
+    initActor(act, kwargs) {}
     getActorProp(act) {
         return act[this.key]
     }
@@ -426,15 +431,15 @@ export class StateProperty {
     getPropFromState(stateVal) {
         return stateVal
     }
-    syncActorFromState(state, act) {
+    syncStateFromActor(act, state) {
         const { key } = this
         if(!act.hasOwnProperty(key)) return
-        const val = act[key], protoVal = getPrototypeOf(act)[key]
+        const val = this.getActorProp(act), protoVal = getPrototypeOf(act)[key]
         if(val === undefined || val === protoVal) return
         const { nullableWith } = this
         state[key] = (val === nullableWith) ? null : this.getPropState(val)
     }
-    syncStateFromActor(act, state) {
+    syncActorFromState(state, act) {
         const { key } = this
         const stateVal = state[key]
         let val = stateVal
@@ -605,21 +610,28 @@ export class StateActor extends StateProperty {
 export class Component {
     static STATE_PROPS = new Map()
 
-    init(act, kwargs) {}
-    update(act) {}
-    getState(act, state) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, act))
+    initActorClass(cls) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.initActorClass(cls))
     }
-    setState(act, state) {
+    initActor(act, kwargs) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(act, kwargs))
+    }
+    updateActor(act) {}
+    syncStateFromActor(act, state) {
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(act, state))
+    }
+    syncActorFromState(state, act) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, act))
     }
 }
 
 
-export function addComponent(comp, kwargs) {
+export function addComponent(compCls, kwargs) {
     return target => {
         if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
-        target.COMPONENTS.set(comp.KEY, new comp(kwargs))
+        const comp = new compCls(kwargs)
+        target.COMPONENTS.set(compCls.KEY, comp)
+        comp.initActorClass(target)
         return target
     }
 }
@@ -687,7 +699,8 @@ export class GameObject {
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
         }
-        this.constructor.COMPONENTS.forEach(comp => comp.init(this, kwargs))
+        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
+        this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
     }
     
     getKey() {
@@ -773,14 +786,14 @@ export class GameObject {
         const state = {}
         state.id = this.id
         state.key = this.getKey()
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.getState(this, state))
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
         return state
     }
 
     setState(state) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.setState(this, state))
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
     }
 
     addMenuInputs(menu) {
@@ -3210,9 +3223,9 @@ export class CountDown extends Text {
 @ActorRefs.StateProperty.define("spawnedActors")
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 @StateInt.define("nbSpawn")
-@StateInt.define("maxLiving", { default: Infinity, showInBuilder: true })
-@StateInt.define("max", { showInBuilder: true })
-@StateInt.define("period", { showInBuilder: true })
+@StateInt.define("maxLiving", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("max", { default:1, showInBuilder: true })
+@StateInt.define("period", { default:1, showInBuilder: true })
 @StateActor.define("model", { showInBuilder: true })
 export class ActorSpawner extends GameObject {
     init(kwargs) {
@@ -3232,14 +3245,21 @@ export class ActorSpawner extends GameObject {
         this.spawnActor()
     }
     spawnActor() {
-        const act = this.scene.newActor(this.model.getKey(), {
+        const { scene, model } = this
+        if(!model) return
+        const act = scene.newActor(model.getKey())
+        const state = {
+            ...model.getState(),
             x: this.x,
             y: this.y,
-        })
+        }
+        console.log("TMP spawn.speedX 1", act.speedX)
+        act.setState(state)
+        console.log("TMP spawn.speedX 2", act.speedX)
         this.nbSpawn += 1
         this.spawnedActors.add(act.id)
-        this.lastSpawnIt = this.scene.iteration
-        this.scene.newVisual(Pop, { x:this.x, y:this.y })
+        this.lastSpawnIt = scene.iteration
+        scene.newVisual(Pop, { x:this.x, y:this.y })
         return act
     }
     getSprite() {
