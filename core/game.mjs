@@ -647,16 +647,14 @@ export class PhysicsComponent extends Component {
         this.affectedByGravity = kwargs?.affectedByGravity ?? true
         this.blockedByWalls = kwargs?.blockedByWalls ?? true
     }
-    init(act, kwargs) {
+    initActor(act, kwargs) {
         act.physicsComponent = this
-        act.speedX = kwargs?.speedX ?? 0
-        act.speedY = kwargs?.speedY ?? 0
         act.speedResX = 0
         act.speedResY = 0
         if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
         if(kwargs?.blockedByWalls !== undefined) this.blockedByWalls = kwargs.blockedByWalls
     }
-    update(act) {
+    updateActor(act) {
         // done by physics engine
     }
 }
@@ -727,7 +725,7 @@ export class GameObject {
     }
 
     update() {
-        this.constructor.COMPONENTS.forEach(comp => comp.update(this))
+        this.constructor.COMPONENTS.forEach(comp => comp.updateActor(this))
     }
 
     drawTo(ctx) {
@@ -3253,9 +3251,7 @@ export class ActorSpawner extends GameObject {
             x: this.x,
             y: this.y,
         }
-        console.log("TMP spawn.speedX 1", act.speedX)
         act.setState(state)
-        console.log("TMP spawn.speedX 2", act.speedX)
         this.nbSpawn += 1
         this.spawnedActors.add(act.id)
         this.lastSpawnIt = scene.iteration
