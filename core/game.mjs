@@ -648,6 +648,7 @@ export class PhysicsComponent extends Component {
         this.blockedByWalls = kwargs?.blockedByWalls ?? true
     }
     initActor(act, kwargs) {
+        super.initActor(act, kwargs)
         act.physicsComponent = this
         act.speedResX = 0
         act.speedResY = 0
@@ -712,6 +713,8 @@ export class GameObject {
         let obj
         if(mapState) {
             const proto = new cls(scn)
+            // TODO think about this double init
+            proto.init()
             proto.setState(mapState)
             obj = Object.create(proto)
         } else {
@@ -922,16 +925,18 @@ export class ActorRefs extends Set {
 
 
 ActorRefs.StateProperty = class extends StateProperty {
-    fromValueToState(val) {
-        return val ? val.getState() : val
+    initActor(act, kwargs) {
+        act[this.key] = new ActorRefs(act.scene)
     }
-    fromStateToValue(stateVal, act) {
-        if(!stateVal) return stateVal
-        const catalog = act.game.catalog
-        const cls = catalog.getActorClass(stateVal.key)
-        const res = new cls(act.scene)
-        res.setState(stateVal)
-        return res
+    syncStateFromActor(act, state) {
+        const { key } = this
+        const valState = act[key].getState()
+        if(valState) state[key] = valState
+    }
+    syncActorFromState(state, act) {
+        const { key } = this
+        const val = act[key], valState = state[key]
+        val.setState(valState ?? null)
     }
     fromActorToInput(act) {
         // TODO
@@ -3229,7 +3234,6 @@ export class ActorSpawner extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
-        this.spawnedActors = new ActorRefs(this.scene)
     }
     update() {
         this.spawnedActors.update()
