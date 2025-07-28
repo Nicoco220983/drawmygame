@@ -2206,7 +2206,8 @@ export class GameScene extends SceneCommon {
     newHero(playerId) {
         const player = this.game.players[playerId]
         if(!player) return
-        if(this.getHero(playerId)) return
+        const prevHero = this.getHero(playerId)
+        if(prevHero && !prevHero.removed) return
         const { heroKey } = player
         if(!heroKey) return
         const hero = this.newActor(heroKey, { playerId })
@@ -2267,7 +2268,6 @@ export class GameScene extends SceneCommon {
         this.physics.apply(dt, this.actors)
         super.updateWorld()
         this.handleHerosOut()
-        this.handleHerosDeath()
     }
 
     updateStepGame() {
@@ -2301,22 +2301,11 @@ export class GameScene extends SceneCommon {
         if(hero.health > 0) this.spawnHero(hero)
     }
 
-    handleHerosDeath() {
-        if(!this.onHeroDeath) return
-        const { heros } = this
-        for(let playerId in heros) {
-            const hero = heros[playerId]
-            if(hero.health <= 0) {
-                this.onHeroDeath(hero)
-            }
-        }
-    }
-
     onHeroDeath(hero) {
         const { heros } = this
         if(hero.lives > 1) {
             hero.lives -= 1
-            this.spawnHero(hero)
+            this.newHero(hero.playerId)
         } else {
             let nbLivingHeros = 0
             for(let playerId in heros) {
@@ -2484,7 +2473,7 @@ export class FocusFirstHeroScene extends GameScene {
     onHeroDeath(hero) {
         if(hero.lives > 1) {
             hero.lives -= 1
-            this.spawnHero(hero)
+            this.newHero(hero.playerId)
         } else {
             const firstHero = this.getFirstHero()
             if(this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
@@ -2526,17 +2515,12 @@ export class FocusFirstHeroScene extends GameScene {
 @StateInt.define("lastDamageAge", { default: Infinity })
 @StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
 export class LivingGameObject extends Actor {
-    
-    init(kwargs) {
-        super.init(kwargs)
-    }
 
     update() {
         const { iteration, step } = this.scene
         const { dt } = this.game
         if(step != "GAME" || (this.health <= 0) || this.isDamageable()) this.spriteVisibility = 1
         else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
-        this.mayRemove()
         this.lastDamageAge += 1
         if(this.isDamageable()) this.lastDamageAge = Infinity
     }
@@ -2564,17 +2548,13 @@ export class LivingGameObject extends Actor {
     }
 
     onDeath(killer) {
-        if(killer) {
-            this.speedY = -500
-            this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
-        }
+        // if(killer) {
+        //     this.speedY = -500
+        //     this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
+        // }
+        this.remove()
         this.trigger("death", { killer })
-    }
-
-    mayRemove() {
-        if(this.health <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
-            this.remove()
-        }
+        if(this.scene.onHeroDeath) this.scene.onHeroDeath(this)
     }
 }
 
