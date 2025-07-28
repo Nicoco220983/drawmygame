@@ -1154,13 +1154,7 @@ export class GameObjectGroup {
     new(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
-        let obj
-        if(typeof cls === 'string') {
-            obj = Actor.createFromKey(this.scene, cls)
-            kwargs.key = cls
-        } else {
-            obj = new cls(this.scene)
-        }
+        const obj = new cls(this.scene)
         obj.init(kwargs)
         this.objMap.set(kwargs.id, obj)
         this.objArr.push(obj)
@@ -1216,6 +1210,31 @@ export class GameObjectGroup {
         this.forEach(obj => obj.drawTo(gameCtx))
         gameCtx.translate(-x, -y)
     }
+}
+
+GameObjectGroup.prototype.on = on
+GameObjectGroup.prototype.off = off
+GameObjectGroup.prototype.trigger = trigger
+
+
+export class ActorGroup extends GameObjectGroup {
+
+    new(cls, kwargs) {
+        kwargs ||= {}
+        kwargs.id ??= this.nextAutoId()
+        let act
+        if(typeof cls === 'string') {
+            act = Actor.createFromKey(this.scene, cls)
+            kwargs.key = cls
+        } else {
+            act = new cls(this.scene)
+        }
+        act.init(kwargs)
+        this.objMap.set(kwargs.id, act)
+        this.objArr.push(act)
+        this.trigger("new", act)
+        return act
+    }
 
     getState() {
         const state = this._state ||= []
@@ -1243,11 +1262,8 @@ export class GameObjectGroup {
             }
         } else this.clear()
     }
-}
 
-GameObjectGroup.prototype.on = on
-GameObjectGroup.prototype.off = off
-GameObjectGroup.prototype.trigger = trigger
+}
 
 
 export const MODE_LOCAL = 0
@@ -1504,7 +1520,7 @@ export class SceneCommon {
             this.canvas = document.createElement("canvas")
         }
         this.walls = new GameObjectGroup(this)
-        this.actors = new GameObjectGroup(this)
+        this.actors = new ActorGroup(this)
         this.visuals = new GameObjectGroup(this)
         this.notifs = new GameObjectGroup(this)
         this.heros = {}
