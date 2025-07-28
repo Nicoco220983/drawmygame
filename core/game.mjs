@@ -560,6 +560,16 @@ export class StateIntEnum extends StateEnum {
 export class Component {
     static STATE_PROPS = new Map()
 
+    static add(kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
+            const comp = new this(kwargs)
+            target.COMPONENTS.set(this.KEY, comp)
+            comp.initActorClass(target)
+            return target
+        }
+    }
+
     initActorClass(cls) {
         this.constructor.STATE_PROPS.forEach(prop => prop.initActorClass(cls))
     }
@@ -572,17 +582,6 @@ export class Component {
     }
     syncActorFromState(state, act) {
         this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, act))
-    }
-}
-
-
-export function addComponent(compCls, kwargs) {
-    return target => {
-        if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
-        const comp = new compCls(kwargs)
-        target.COMPONENTS.set(compCls.KEY, comp)
-        comp.initActorClass(target)
-        return target
     }
 }
 

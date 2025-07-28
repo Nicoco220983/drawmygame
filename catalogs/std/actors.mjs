@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateInt, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -40,7 +40,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 })
 @StateInt.define("handRemIt", { default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@addComponent(PhysicsComponent)
+@PhysicsComponent.add()
 export class Nico extends Hero {
 
     init(kwargs) {
@@ -250,7 +250,7 @@ const BlobSprite = new Sprite(BlobImg)
 })
 @StateInt.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
-@addComponent(PhysicsComponent)
+@PhysicsComponent.add()
 export class BlobEnemy extends Enemy {
 
     init(kwargs) {
@@ -311,7 +311,7 @@ const GhostSprite = new Sprite(GhostImg)
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@addComponent(PhysicsComponent, { affectedByGravity: false })
+@PhysicsComponent.add({ affectedByGravity: false })
 export class Ghost extends Enemy {
 
     init(kwargs) {
@@ -477,7 +477,7 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     label: "Shuriken",
     icon: ShurikenImg,
 })
-@addComponent(PhysicsComponent, { affectedByGravity: false })
+@PhysicsComponent.add({ affectedByGravity: false })
 @StateInt.define("itToLive", { default: null })
 @StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 export class Shurikens extends Extra {
@@ -555,7 +555,7 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 @CATALOG.registerActor("bomb", {
     label: "Bomb",
 })
-@addComponent(PhysicsComponent)
+@PhysicsComponent.add()
 @StateInt.define("itToLive", { default: null })
 export class Bomb extends Extra {
 
