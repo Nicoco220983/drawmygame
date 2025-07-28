@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateInt, addComponent, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -672,7 +672,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
 @StateInt.define("iteration")
-export class Explosion extends GameObject {
+export class Explosion extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
@@ -717,7 +717,7 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_
     label: "Portal",
     icon: PortalImg,
 })
-export class Portal extends GameObject {
+export class Portal extends Actor {
 
     init(kwargs) {
         super.init(kwargs)

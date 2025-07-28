@@ -556,56 +556,6 @@ export class StateIntEnum extends StateEnum {
     }
 }
 
-export class StateActor extends StateProperty {
-    newInput(act) {
-        const val = this.getActorProp(act)
-        const { catalog } = act.game
-        const inputEl = newDomEl("div")
-        const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
-        selectEl.setCatalog(catalog)
-        const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
-            style: { display: "none" }
-        })
-        const showActorStates = val => {
-            statesEl.style.display = ""
-            statesEl.setActor(val)
-        }
-        if(val) {
-            selectEl.setSelectedActor(val.getKey())
-            showActorStates(val)
-        }
-        selectEl.addEventListener("change", () => {
-            this.syncActorFromInput(inputEl, act)
-            showActorStates(this.getActorProp(act))
-        })
-        return inputEl
-    }
-    syncActorFromInput(inputEl, act) {
-        const actKey = inputEl.selectEl.value
-        this.initActorProp(act, actKey)
-    }
-    getPropState(val) {
-        return val ? val.getState() : val
-    }
-    getPropFromState(stateVal, act) {
-        if(!stateVal) return stateVal
-        const res = this.initActorProp(act, stateVal.key)
-        res.setState(stateVal)
-        return res
-    }
-    initActorProp(act, key) {
-        if(!key) return this.defaultValue
-        let res = this.getActorProp(act)
-        if(!res || res.getKey() != key) {
-            const catalog = act.game.catalog
-            const cls = catalog.getActorClass(key)
-            res = new cls(act.scene)
-            this.setActorProp(act, res)
-        }
-        return res
-    }
-}
-
 
 export class Component {
     static STATE_PROPS = new Map()
@@ -682,8 +632,6 @@ export class GameObject {
     constructor(scn) {
         this.scene = scn
         this.game = scn.game
-        this.id = null
-        this.key = null
     }
 
     init(kwargs) {
@@ -700,27 +648,6 @@ export class GameObject {
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
         this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
-    }
-    
-    getKey() {
-        return this.key ?? this.constructor.KEY
-    }
-
-    static createFromKey(scn, key) {
-        const mapState = scn.getActorMapState(key)
-        if(mapState) key = mapState.key
-        const cls = scn.game.catalog.getActorClass(key)
-        let obj
-        if(mapState) {
-            const proto = new cls(scn)
-            // TODO think about this double init
-            proto.init()
-            proto.setState(mapState)
-            obj = Object.create(proto)
-        } else {
-            obj = new cls(scn)
-        }
-        return obj
     }
 
     getPriority() {
@@ -781,39 +708,6 @@ export class GameObject {
 
     remove() {
         this.removed = true
-    }
-
-    getState() {
-        const state = {}
-        state.id = this.id
-        state.key = this.getKey()
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
-        return state
-    }
-
-    setState(state) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
-    }
-
-    addMenuInputs(menu) {
-        const xInput = menu.addInput("position", "x", "number", this.x)
-        xInput.onchange = () => menu.updateState("x", parseInt(xInput.value))
-        const yInput = menu.addInput("position", "y", "number", this.y)
-        yInput.onchange = () => menu.updateState("y", parseInt(yInput.value))
-        const dirXInput = newDomEl("select")
-        dirXInput.appendChild(newDomEl("option", {
-            value: "1",
-            text: "Right",
-        }))
-        dirXInput.appendChild(newDomEl("option", {
-            value: "-1",
-            text: "Left",
-        }))
-        dirXInput.value = this.dirX.toString()
-        menu.addInput("position", "dirX", dirXInput)
-        dirXInput.onchange = () => menu.updateState("dirX", parseInt(dirXInput.value))
     }
 
     spriteFit(sprite) {
@@ -880,6 +774,101 @@ function trigger(trigKey, kwargs) {
 GameObject.prototype.on = on
 GameObject.prototype.off = off
 GameObject.prototype.trigger = trigger
+
+
+export class Actor extends GameObject {
+
+    constructor(scn) {
+        super(scn)
+        this.id = null
+        this.key = null
+    }
+    
+    getKey() {
+        return this.key ?? this.constructor.KEY
+    }
+
+    static createFromKey(scn, key) {
+        const mapState = scn.getActorMapState(key)
+        if(mapState) key = mapState.key
+        const cls = scn.game.catalog.getActorClass(key)
+        let obj
+        if(mapState) {
+            const proto = new cls(scn)
+            // TODO think about this double init
+            proto.init()
+            proto.setState(mapState)
+            obj = Object.create(proto)
+        } else {
+            obj = new cls(scn)
+        }
+        return obj
+    }
+
+    getState() {
+        const state = {}
+        state.id = this.id
+        state.key = this.getKey()
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
+        return state
+    }
+
+    setState(state) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
+    }
+}
+
+Actor.StateProperty = class extends StateProperty {
+    newInput(act) {
+        const val = this.getActorProp(act)
+        const { catalog } = act.game
+        const inputEl = newDomEl("div")
+        const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
+        selectEl.setCatalog(catalog)
+        const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
+            style: { display: "none" }
+        })
+        const showActorStates = val => {
+            statesEl.style.display = ""
+            statesEl.setActor(val)
+        }
+        if(val) {
+            selectEl.setSelectedActor(val.getKey())
+            showActorStates(val)
+        }
+        selectEl.addEventListener("change", () => {
+            this.syncActorFromInput(inputEl, act)
+            showActorStates(this.getActorProp(act))
+        })
+        return inputEl
+    }
+    syncActorFromInput(inputEl, act) {
+        const actKey = inputEl.selectEl.value
+        this.initActorProp(act, actKey)
+    }
+    getPropState(val) {
+        return val ? val.getState() : val
+    }
+    getPropFromState(stateVal, act) {
+        if(!stateVal) return stateVal
+        const res = this.initActorProp(act, stateVal.key)
+        res.setState(stateVal)
+        return res
+    }
+    initActorProp(act, key) {
+        if(!key) return this.defaultValue
+        let res = this.getActorProp(act)
+        if(!res || res.getKey() != key) {
+            const catalog = act.game.catalog
+            const cls = catalog.getActorClass(key)
+            res = new cls(act.scene)
+            this.setActorProp(act, res)
+        }
+        return res
+    }
+}
 
 
 export class ActorRefs extends Set {
@@ -1167,7 +1156,7 @@ export class GameObjectGroup {
         kwargs.id ??= this.nextAutoId()
         let obj
         if(typeof cls === 'string') {
-            obj = GameObject.createFromKey(this.scene, cls)
+            obj = Actor.createFromKey(this.scene, cls)
             kwargs.key = cls
         } else {
             obj = new cls(this.scene)
@@ -2521,7 +2510,7 @@ export class FocusFirstHeroScene extends GameScene {
 
 @StateInt.define("lastDamageAge", { default: Infinity })
 @StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
-export class LivingGameObject extends GameObject {
+export class LivingGameObject extends Actor {
     
     init(kwargs) {
         super.init(kwargs)
@@ -2821,7 +2810,7 @@ export class Enemy extends LivingGameObject {
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
 @StateProperty.define("ownerId", { default: null })
-export class Collectable extends GameObject {
+export class Collectable extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
@@ -3229,8 +3218,8 @@ export class CountDown extends Text {
 @StateInt.define("maxLiving", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("max", { default:1, showInBuilder: true })
 @StateInt.define("period", { default:1, showInBuilder: true })
-@StateActor.define("model", { showInBuilder: true })
-export class ActorSpawner extends GameObject {
+@Actor.StateProperty.define("model", { showInBuilder: true })
+export class ActorSpawner extends Actor {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
