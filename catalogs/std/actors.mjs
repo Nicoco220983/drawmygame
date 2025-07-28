@@ -39,6 +39,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     icon: NicoImg,
 })
 @StateInt.define("handRemIt", { default: null })
+@StateProperty.modify("health", { default: 3 })
 @StateProperty.modify("dirX", { showInBuilder: true })
 @PhysicsComponent.add()
 export class Nico extends Hero {

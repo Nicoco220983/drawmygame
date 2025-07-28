@@ -398,7 +398,7 @@ export class StateProperty {
             if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
             const modifiedStateProp = Object.create(stateProp)
-            if(kwargs.defaultValue !== undefined) modifiedStateProp.default = kwargs.defaultValue
+            if(kwargs.default !== undefined) modifiedStateProp.defaultValue = kwargs.default
             if(kwargs.showInBuilder !== undefined) modifiedStateProp.showInBuilder = kwargs.showInBuilder
             if(kwargs.nullableWith !== undefined) modifiedStateProp.nullableWith = kwargs.nullableWith
             target.STATE_PROPS.set(key, modifiedStateProp)
