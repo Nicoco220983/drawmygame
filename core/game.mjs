@@ -107,6 +107,11 @@ export class Catalog {
     async preloadAll() {
         return await this.preload(Object.keys(this.mods))
     }
+    getSceneClass(key) {
+        const scnCat = this.scenes[key]
+        const mod = this.mods[scnCat.path]
+        return mod[scnCat.name]
+    }
     getActorClass(key) {
         const actCat = this.actors[key]
         const mod = this.mods[actCat.path]
@@ -128,6 +133,7 @@ export class ModuleCatalog {
             actCat.label = kwargs?.label ?? key
             actCat.icon = kwargs?.icon ?? null
             actCat.showInBuilder = kwargs?.showInBuilder ?? true
+            actCat.isHero = Hero.isPrototypeOf(target)
             return target
         }
     }
@@ -1597,7 +1603,7 @@ export class SceneCommon {
             res = this.map.actors[mapNum]
         } else if(key.startsWith('H#')) {
             const mapNum = parseInt(key.substring(2))
-            res = this.map.heros[mapNum]
+            res = this.game.map.heros[mapNum]
         }
         if(props) for(let prop of props) {
             res = res[prop]
@@ -1688,11 +1694,13 @@ export class SceneCommon {
         return null
     }
 
-    getState() {
+    getState(isInitState=false) {
         const state = {}
         state.key = this.constructor.KEY
-        if(this.mapId) state.map = this.mapId
-        if(this.paused) state.paused = true
+        if(!isInitState) {
+            if(this.mapId) state.map = this.mapId
+            if(this.paused) state.paused = true
+        }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
         return state
@@ -1789,11 +1797,12 @@ export class Game extends GameCommon {
 
     async loadScenesFromMap(scnKey, scnMapId=undefined) {
         const { catalog } = this, scnCat = catalog.scenes[scnKey]
-        const scnMap = (scnMapId !== undefined) ? this.game.map.scenes[scnMapId] : null
+        const  { map } = this.game
         const paths = new Set([scnCat.path])
+        map.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
+        const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         if(scnMap) {
             scnMap.actors.forEach(actMap => paths.add(catalog.actors[actMap.key].path))
-            scnMap.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
         }
         const mods = await catalog.preload(Array.from(paths))
         await this.loadScenes(mods[0][scnCat.name], scnMapId)
@@ -1941,7 +1950,7 @@ export class Game extends GameCommon {
     addPlayer(playerId, kwargs) {
         const gameScn = this.scenes.game
         if(this.players[playerId] === undefined) {
-            if(this.map.scenes[0].heros.length > 0) kwargs.heroKey = `H#0`  // TODO: impl hero selection
+            if(this.map.heros.length > 0) kwargs.heroKey = `H#0`  // TODO: impl hero selection
             this.players[playerId] = kwargs
         }
         if(gameScn.newHero) gameScn.newHero(playerId)
@@ -2182,6 +2191,8 @@ export class GameScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.step = "GAME"
+        this.herosSpawnX = 50
+        this.herosSpawnY = 50
         this.scores = {}
         this.seed = floor(random()*1000)
     }
@@ -2385,10 +2396,10 @@ export class GameScene extends SceneCommon {
     }
 
     initHerosSpawnPos() {
-        const heros = this.map?.heros
-        if(!heros || heros.length == 0) return
-        const { x, y } = heros[0]
-        this.setHerosSpawnPos(x, y)
+        const points = this.filterActors("heroSpawnPoints", act => act instanceof HeroSpawnPoint)
+        if(points.length == 0) return
+        const firstPoint = points[0]
+        this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
     }
 
     setHerosSpawnPos(x, y) {
@@ -2401,17 +2412,31 @@ export class GameScene extends SceneCommon {
         return new JoypadGameScene(this.game)
     }
 
-    getState() {
-        const state = super.getState()
-        state.it = this.iteration
-        state.step = this.step
-        state.hsx = this.herosSpawnX
-        state.hsy = this.herosSpawnY
-        state.sco = this.scores
+    getState(isInitState=false) {
+        const state = super.getState(isInitState)
+        if(!isInitState) {
+            state.it = this.iteration
+            state.step = this.step
+            state.hsx = this.herosSpawnX
+            state.hsy = this.herosSpawnY
+            state.sco = this.scores
+            state.seed = this.seed
+        } else {
+            state.walls = this.getWallsState()
+        }
         state.acts = this.actors.getState()
         state.evts = this.events.map(e => e.getState())
-        state.seed = this.seed
         return state
+    }
+
+    getWallsState() {
+        const res = []
+        this.walls.forEach(wall => {
+            if(wall.removed) return
+            const { x1, y1, x2, y2, key } = wall
+            res.push({ x1, y1, x2, y2, key })
+        })
+        return res
     }
 
     setState(state) {
@@ -3180,6 +3205,21 @@ export class CountDown extends Text {
         const { iteration } = this.scene
         const { fps } = this.game
         this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
+    }
+}
+
+
+@CATALOG.registerActor("hero", {
+    label: "Hero",
+    icon: PopImg,
+})
+export class HeroSpawnPoint extends Actor {
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 50
+    }
+    getSprite() {
+        return PopSprite
     }
 }
 

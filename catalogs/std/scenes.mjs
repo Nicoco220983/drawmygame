@@ -1,5 +1,5 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, Component, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod } from '../../core/game.mjs'
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateInt, Component, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod } from '../../core/game.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 

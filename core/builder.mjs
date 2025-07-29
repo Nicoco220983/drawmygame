@@ -55,12 +55,13 @@ export class GameBuilder extends GameCommon {
 
 
 class BuilderScene extends SceneCommon {
-    constructor(...args) {
-        super(...args)
+    constructor(game, kwargs) {
+        super(game, kwargs)
         this.viewSpeed = Infinity
         this.gridBoxSize = 20
         this.anchor = true
         this.selections = []
+        this.buildedScene = new (game.catalog.getSceneClass("catch_all_stars"))(game)
     }
 
     syncSizeAndPos() {
@@ -309,8 +310,8 @@ class BuilderScene extends SceneCommon {
             const { x1, y1, x2, y2, key } = wall
             mapScnWalls.push({ x1, y1, x2, y2, key })
         })
-        const mapScnHeros = mapScn.heros ||= []
-        mapScnHeros.length = 0
+        // const mapScnHeros = mapScn.heros ||= []
+        // mapScnHeros.length = 0
         const mapScnEnts = mapScn.actors ||= []
         mapScnEnts.length = 0
         const mapScnEvts = mapScn.events ||= []
@@ -318,16 +319,9 @@ class BuilderScene extends SceneCommon {
         this.actors.forEach(act => {
             if(act.removed) return
             const state = act.getState()
-            if(act instanceof Hero) mapScnHeros.push(state)
-            else {
-                if(act.builderTrigger) {
-                    const evt = new SpawnActorEvent(this, act.builderTrigger)
-                    evt.actState = state
-                    mapScnEvts.push(evt.getState())
-                } else {
-                    mapScnEnts.push(state)
-                }
-            }
+            // if(act instanceof Hero) mapScnHeros.push(state)
+            // else
+            mapScnEnts.push(state)
         })
     }
 
@@ -597,12 +591,13 @@ class ActorSelectorElement extends HTMLElement {
         selectEl.onclick = () => this.setOptionsVisibility(true)
         selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
-    setCatalog(catalog) {
+    initCatalog(catalog, filter) {
         this.catalog = catalog
         this.optionsEl.innerHTML = ""
         for(let actKey in catalog.actors) {
             const actCat = catalog.actors[actKey]
             if(!actCat.showInBuilder) continue
+            if(filter && !filter(actCat)) continue
             const optionEl = newDomEl("cs-option")
             this.setOptionKey(optionEl, actKey)
             this.optionsEl.appendChild(optionEl)
