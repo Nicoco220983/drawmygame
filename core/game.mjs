@@ -169,6 +169,9 @@ export const CATALOG = new ModuleCatalog()
 
 export class GameMap {
     constructor() {
+        this.heros = [{
+            key: "nico"
+        }]
         this.scenes = { "0": {
             key: "catch_all_stars",
             width: MAP_DEFAULT_WIDTH,
@@ -185,12 +188,11 @@ export class GameMap {
                 w: scnState.width,
                 h: scnState.height,
                 ws: scnState.walls,
-                hs: scnState.heros,
                 acts: scnState.actors,
-                evts: scnState.events,
             }
         }
         const outObj = {
+            hs: this.heros,
             ss: outScns,
         }
         const outStr = JSON.stringify(outObj)
@@ -210,6 +212,7 @@ export class GameMap {
     async importFromBinary(inBin) {
         const inStr = await decompress(inBin)
         const inObj = JSON.parse(inStr)
+        this.heros = inObj.hs
         const scns = this.scenes = {}
         for(let scnId in inObj.ss) {
             const inScn = inObj.ss[scnId]
@@ -218,9 +221,7 @@ export class GameMap {
             scn.width = inScn.w
             scn.height = inScn.h
             scn.walls = inScn.ws
-            scn.heros = inScn.hs
             scn.actors = inScn.acts
-            scn.events = inScn.evts
         }
     }
 }
@@ -498,11 +499,6 @@ export class StateProperty {
         inputEl.addEventListener("change", () => this.syncActorFromInput(inputEl, act))
         return inputEl
     }
-    // getInputValue(inputEl) {
-    //     const val = inputEl.value
-    //     if(val === "") return this.defaultValue
-    //     else return val
-    // }
     syncActorFromInput(inputEl, act) {
         let val = inputEl.value
         this.setActorProp(act, (val == "") ? this.defaultValue : val)
@@ -936,157 +932,6 @@ ActorRefs.StateProperty = class extends StateProperty {
         // TODO
     }
 }
-
-
-export const Events = {}
-Events.register = function(key, cls) {
-   cls.key = key
-   this[key] = cls
-}
-
-
-export class Event {
-    constructor(owner, initState) {
-        this.owner = owner
-        this.game = owner.game
-        const trigger = this.trigger = {}
-        if(initState) {
-            if(initState.and !== undefined) trigger.and = initState.and
-            if(initState.or !== undefined) trigger.or = initState.or
-            if(initState.not !== undefined) trigger.not = initState.not
-            if(initState.maxExecs !== undefined) trigger.maxExecs = initState.maxExecs
-            if(initState.prevExecOlder !== undefined) trigger.prevExecOlder = initState.prevExecOlder
-        }
-        this.iteration = 0
-        this.nbExecs = 0
-        this.prevExecIt = -Infinity
-    }
-    update() {
-        if(this.checkTrigger(this.trigger)) this.executeAction()
-        this.iteration += 1
-    }
-    checkTrigger(trigger) {
-        if(trigger.and !== undefined) {
-            for(let c of trigger.and) if(!this.checkTrigger(c)) return false
-            return true
-        } else if(trigger.or !== undefined) {
-            for(let c of trigger.or) if(this.checkTrigger(c)) return true
-            return false
-        } else if(trigger.not !== undefined) {
-            return !this.checkTrigger(trigger.not)
-        } else if(trigger.maxExecs !== undefined) {
-            return this.nbExecs < trigger.maxExecs
-        } else if(trigger.prevExecOlder !== undefined) {
-            const prevExecAge = (this.iteration - this.prevExecIt) * this.game.dt
-            return prevExecAge >= trigger.prevExecOlder
-        }
-    }
-    executeAction() {
-        this.nbExecs += 1
-        this.prevExecIt = this.iteration
-    }
-    getInitState() {
-        const state = this._initState ||= {}
-        state.key = this.constructor.key
-        if(this.trigger.and !== undefined) state.and = this.trigger.and
-        else delete state.and
-        if(this.trigger.or !== undefined) state.or = this.trigger.or
-        else delete state.or
-        if(this.trigger.not !== undefined) state.not = this.trigger.not
-        else delete state.not
-        if(this.trigger.maxExecs !== undefined) state.maxExecs = this.trigger.maxExecs
-        else delete state.maxExecs
-        if(this.trigger.prevExecOlder !== undefined) state.prevExecOlder = this.trigger.prevExecOlder
-        else delete state.prevExecOlder
-        return state
-    }
-    getState() {
-        const state = this._state ||= {}
-        state.it = this.iteration
-        if(this.nbExecs > 0) state.ne = this.nbExecs
-        else state.ne
-        if(this.prevExecIt >= 0) state.peit = this.prevExecIt
-        else delete state.peit
-        return state
-    }
-    setState(state) {
-        this.iteration = state.it
-        if(state.ne === undefined) this.nbExecs = 0
-        else this.nbExecs = state.ne
-        if(state.peit === undefined) this.prevExecIt = -Infinity
-        else this.prevExecIt = state.peit
-    }
-    addMenuInputs(menu) {
-        // const xInput = menu.addInput("position", "x", "number", this.x)
-        // xInput.onchange = () => menu.updateState("x", parseInt(xInput.value))
-    }
-}
-
-
-export class SpawnActorEvent extends Event {
-    constructor(scn, initState) {
-        super(scn, initState)
-        this.scene = scn
-        if(initState) {
-            if(initState.state !== undefined) this.actState = initState.state
-            if(initState.nbActs !== undefined) this.trigger.nbActs = initState.nbActs
-            if(initState.prevActFur !== undefined) this.trigger.prevActFurther = initState.prevActFur
-        }
-        this.spawnedActors = new ActorRefs(scn)
-        this.prevSpawnedActor = null
-    }
-    checkTrigger(trigger) {
-        if(trigger.nbActs !== undefined) {
-            return this.spawnedActors.size < trigger.nbActs
-        } else if(trigger.prevActFurther !== undefined) {
-            if(!this.prevSpawnedActor) return true
-            const { x: prevActX, y: prevActY } = this.prevSpawnedActor
-            const { x: stateX, y: stateY } = this.actState
-            return hypot(prevActX-stateX, prevActY-stateY) > trigger.prevActFurther
-        } else {
-            return super.checkTrigger(trigger)
-        }
-    }
-    update() {
-        this.clearRemoved()
-        super.update()
-    }
-    clearRemoved() {
-        this.spawnedActors.clearRemoved()
-        if(this.prevSpawnedActor && this.prevSpawnedActor.removed) this.prevSpawnedActor = null
-    }
-    executeAction() {
-        super.executeAction()
-        const act = this.scene.newActor(this.actState.key)
-        act.setInitState(this.actState)
-        this.spawnedActors.add(act.id)
-        this.prevSpawnedActor = act
-    }
-    getInitState() {
-        const state = super.getInitState()
-        if(this.actState !== undefined) state.state = this.actState
-        else delete state.state
-        if(this.trigger.nbActs !== undefined) state.nbActs = this.trigger.nbActs
-        else delete state.nbActs
-        if(this.trigger.prevActFurther !== undefined) state.prevActFur = this.trigger.prevActFurther
-        else delete state.prevActFur
-        return state
-    }
-    getState() {
-        const state = super.getState()
-        state.acts = this.spawnedActors.getState()
-        if(this.prevSpawnedActor) state.pse = this.prevSpawnedActor.id
-        else delete state.pse
-        return state
-    }
-    setState(state) {
-        super.setState(state)
-        this.spawnedActors.setState(state.acts)
-        if(state.pse!==undefined) this.prevSpawnedActor = this.scene.actors.get(state.pse) || null
-        else this.prevSpawnedActor = null
-    }
-}
-Events.register("act", SpawnActorEvent)
 
 
 function newTextCanvas(text, kwargs) {
@@ -2204,7 +2049,6 @@ export class GameScene extends SceneCommon {
     loadMap(scnMapId) {
         super.loadMap(scnMapId)
         this.initHeros()
-        this.initEvents()
         this.physics = new PhysicsEngine(this)
     }
 
@@ -2212,16 +2056,6 @@ export class GameScene extends SceneCommon {
         this.initHerosSpawnPos()
         if(this.game.mode == MODE_CLIENT) return  // actors are init by first full state
         for(let playerId in this.game.players) this.newHero(playerId)
-    }
-
-    initEvents() {
-        this.events = []
-        const mapEvts = this.map?.events
-        if(!mapEvts) return
-        mapEvts.forEach(evtState => {
-            let evt = new Events[evtState.key](this, evtState)
-            this.events.push(evt)
-        })
     }
 
     newHero(playerId) {
@@ -2285,7 +2119,6 @@ export class GameScene extends SceneCommon {
 
     updateWorld() {
         const { dt } = this.game
-        this.events.forEach(evt => evt.update())
         this.physics.apply(dt, this.actors)
         super.updateWorld()
         this.handleHerosOut()
@@ -2425,7 +2258,6 @@ export class GameScene extends SceneCommon {
             state.walls = this.getWallsState()
         }
         state.acts = this.actors.getState()
-        state.evts = this.events.map(e => e.getState())
         return state
     }
 
@@ -2446,7 +2278,6 @@ export class GameScene extends SceneCommon {
         this.setHerosSpawnPos(state.hsx, state.hsy)
         this.scores = state.sco
         this.actors.setState(state.acts)
-        for(let i in state.evts) this.events[i].setState(state.events[i])
         this.seed = state.seed
     }
 

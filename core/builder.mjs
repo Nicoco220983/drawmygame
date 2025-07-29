@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, GameObject, Wall, Sprite, Hero, now, FPS, SpawnActorEvent, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, GameObject, Wall, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -72,11 +72,10 @@ class BuilderScene extends SceneCommon {
     loadMap(map) {
         super.loadMap(map)
         this.initHeros()
-        this.initEvents()
     }
 
     initHeros() {
-        const mapHeros = this.map.heros
+        const mapHeros = this.map?.heros
         if(!mapHeros) return
         for(let heroDef of mapHeros) {
             const { key, x, y } = heroDef
@@ -90,19 +89,6 @@ class BuilderScene extends SceneCommon {
         mapEnts.forEach(actState => {
             const act = this.newActor(actState.key)
             act.setState(actState)
-        })
-    }
-
-    initEvents() {
-        const mapEvts = this.map.events
-        if(!mapEvts) return
-        mapEvts.forEach(evt => {
-            const { key: evtKey } = evt
-            if(evtKey == "act") {
-                const act = this.newActor(evt.state.key)
-                act.setState(evt.state)
-                act.builderTrigger = (nbKeys(evt) > 1) ? evt : null
-            }
         })
     }
 
@@ -310,17 +296,11 @@ class BuilderScene extends SceneCommon {
             const { x1, y1, x2, y2, key } = wall
             mapScnWalls.push({ x1, y1, x2, y2, key })
         })
-        // const mapScnHeros = mapScn.heros ||= []
-        // mapScnHeros.length = 0
         const mapScnEnts = mapScn.actors ||= []
         mapScnEnts.length = 0
-        const mapScnEvts = mapScn.events ||= []
-        mapScnEvts.length = 0
         this.actors.forEach(act => {
             if(act.removed) return
             const state = act.getState()
-            // if(act instanceof Hero) mapScnHeros.push(state)
-            // else
             mapScnEnts.push(state)
         })
     }
@@ -379,167 +359,8 @@ class SelectionMenu {
         const statesEl = document.createElement("dmg-actor-state")
         statesEl.setActor(obj)
         this.game.menuEl.appendChild(statesEl)
-        // obj.constructor.STATE_PROPS.forEach(prop => {
-        //     if(!prop.showInBuilder) return
-        //     const inputEl = prop.fromActorToInput(obj)
-        //     inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, obj))
-        //     this.addInput("section", prop.key, inputEl)
-        // })
-        // this.addSpawnActorTriggerInputs(obj)
-    }
-    // getSection(section) {
-    //     const { menuEl } = this.game
-    //     let sectionEl = this.sectionEls[section]
-    //     if(!sectionEl) {
-    //         sectionEl = this.sectionEls[section] = menuEl.appendChild(newDomEl("div"))
-    //         sectionEl.appendChild(newDomEl("div", { style: { fontWeight: "bold" }, text: section }))
-    //     }
-    //     return sectionEl
-    // }
-    // addInput(section, name, input, defVal) {
-    //     if(typeof input === "string") {
-    //         const inputEl = document.createElement("input")
-    //         inputEl.type = input
-    //         inputEl.value = defVal
-    //         input = inputEl
-    //     }
-    //     const sectionEl = this.getSection(section)
-    //     const lineEl = sectionEl.appendChild(newDomEl("div"))
-    //     lineEl.innerHTML = `<span>${name}:</span>`
-    //     lineEl.appendChild(input)
-    //     return input
-    // }
-    // updateState(key, val) {
-    //     for(let sel of this.game.scenes.game.selections) {
-    //         sel[key] = val
-    //     }
-    // }
-    // addSpawnActorTriggerInputs(act) {
-    //     const sectionEl = this.getSection("trigger")
-    //     const checkEl = sectionEl.appendChild(newDomEl("input", { type: "checkbox" }))
-    //     const trigWrapperEl = sectionEl.appendChild(newDomEl("div"))
-    //     checkEl.checked = Boolean(act.builderTrigger)
-    //     const syncTriggerInputs = () => {
-    //         trigWrapperEl.innerHTML = ""
-    //         if(checkEl.checked) {
-    //             const trigEl = trigWrapperEl.appendChild(newDomEl("dmg-spawn-actor-event-trigger-form"))
-    //             trigEl.setTrigger(act.builderTrigger)
-    //         }
-    //     }
-    //     syncTriggerInputs()
-    //     checkEl.onchange = () => {
-    //         act.builderTrigger = checkEl.checked ? {} : null
-    //         syncTriggerInputs()
-    //     }
-    // }
-}
-
-
-class TriggerFormElement extends HTMLElement {
-    connectedCallback() {
-        this.innerHTML = ""
-        assign(this.style, {
-            display: "flex",
-            flexDirection: "column",
-        })
-        this.initSelEl()
-        this.triggerEl = this.appendChild(newDomEl("div"))
-        this.connected = true
-        this.sync()
-    }
-    initSelEl() {
-        const selEl = this.selEl = this.appendChild(newDomEl("select"))
-        selEl.appendChild(newDomEl("option", { value: "", text: "" }))
-        selEl.appendChild(newDomEl("option", { value: "maxExecs", text: "max execs" }))
-        selEl.appendChild(newDomEl("option", { value: "prevExecOlder", text: "prev exec older" }))
-        selEl.appendChild(newDomEl("option", { value: "and", text: "and" }))
-        selEl.appendChild(newDomEl("option", { value: "or", text: "or" }))
-        selEl.appendChild(newDomEl("option", { value: "not", text: "not" }))
-        selEl.onchange = () => {
-            for(let key in this.trigger) delete this.trigger[key]
-            this.trigger[selEl.value] = null
-            this.syncTrigger()
-        }
-    }
-    setTrigger(trigger) {
-        this.trigger = trigger
-        this.sync()
-    }
-    sync() {
-        if(!this.connected || !this.trigger) return
-        this.syncSel()
-        this.syncTrigger()
-    }
-    syncSel() {
-        const { selEl, trigger } = this
-        selEl.value = ""
-        if(trigger.maxExecs !== undefined) return selEl.value = "maxExecs"
-        if(trigger.prevExecOlder !== undefined) return selEl.value = "prevExecOlder"
-        if(trigger.and !== undefined) return selEl.value = "and"
-        if(trigger.or !== undefined) return selEl.value = "or"
-        if(trigger.not !== undefined) return selEl.value = "not"
-    }
-    syncTrigger() {
-        const { selEl, triggerEl, trigger } = this
-        triggerEl.innerHTML = ""
-        const key = selEl.value
-        if(key == "maxExecs" || key == "prevExecOlder") {
-            if(trigger[key] === null) trigger[key] = 0
-            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
-            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
-        } else if(key == "and" || key == "or") {
-            if(trigger[key] === null) trigger[key] = []
-            const butEl = triggerEl.appendChild(newDomEl("button", { text: "Add" }))
-            butEl.onclick = () => {
-                const newTrig = {}
-                trigger[key].push(newTrig)
-                this.addSubTriggerElement(newTrig)
-            }
-            if(trigger[key]) for(let subTrigger of trigger[key]) this.addSubTriggerElement(subTrigger)
-        } else if(key == "not") {
-            if(trigger[key] === null) trigger[key] = {}
-            this.addSubTriggerElement(trigger[key])
-        }
-    }
-    addSubTriggerElement(subTrigger) {
-        const subEl = newDomEl(this.tagName)
-        subEl.setTrigger(subTrigger)
-        this.triggerEl.appendChild(subEl)
     }
 }
-customElements.define("dmg-event-trigger-form", TriggerFormElement)
-
-
-class SpawnActorTriggerFormElement extends TriggerFormElement {
-    initSelEl() {
-        super.initSelEl()
-        const { selEl } = this
-        selEl.appendChild(newDomEl("option", { value: "nbActs", text: "nb actors" }))
-        selEl.appendChild(newDomEl("option", { value: "prevActFur", text: "previous actor further" }))
-    }
-    syncSel() {
-        const { selEl, trigger } = this
-        super.syncSel()
-        if(trigger.nbActs !== undefined) return selEl.value = "nbActs"
-        if(trigger.prevActFur !== undefined) return selEl.value = "prevActFur"
-    }
-    syncTrigger() {
-        super.syncTrigger()
-        const { selEl, triggerEl, trigger } = this
-        const key = selEl.value
-        if(key == "nbActs") {
-            if(trigger[key] === null) trigger[key] = 1
-            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
-            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
-        }
-        if(key == "prevActFur") {
-            if(trigger[key] === null) trigger[key] = 100
-            const inputEl = triggerEl.appendChild(newDomEl("input", { type: "number", value: trigger[key] }))
-            inputEl.onchange = () => trigger[key] = parseInt(inputEl.value)
-        }
-    }
-}
-customElements.define("dmg-spawn-actor-event-trigger-form", SpawnActorTriggerFormElement)
 
 
 class ActorSelectorElement extends HTMLElement {
