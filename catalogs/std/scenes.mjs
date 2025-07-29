@@ -1,12 +1,27 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown } from '../../core/game.mjs'
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, Component, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod } from '../../core/game.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
+
+
+@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+class HerosResurectionsComponent extends Component {
+    initActor(scn, kwargs) {
+        hackMethod(scn, "newActor", -1, evt => {
+            const act = evt.returnValue
+            if(!(act instanceof Hero)) return
+            hackMethod(act, "die", -1, evt => {
+                scn.newHero(act.playerId)
+            })
+        })
+    }
+}
 
 
 // CATCH ALL STARS
 
 @CATALOG.registerScene("catch_all_stars")
+@HerosResurectionsComponent.add()
 export class CatchAllStarsScene extends FocusFirstHeroScene {
     update() {
         super.update()

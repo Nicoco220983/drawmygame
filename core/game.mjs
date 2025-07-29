@@ -1499,7 +1499,10 @@ export class GameCommon {
 
 export class SceneCommon {
 
-    constructor(game) {
+    static STATE_PROPS = new Map()
+    static COMPONENTS = new Map()
+
+    constructor(game, kwargs) {
         this.game = game
         this.x = 0
         this.y = 0
@@ -1525,6 +1528,8 @@ export class SceneCommon {
         this.heros = {}
         this.syncSizeAndPos()
         this.map = null
+        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
+        this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
     }
 
     isPausable() {
@@ -1625,6 +1630,7 @@ export class SceneCommon {
     update() {
         this.updateWorld()
         this.notifs.update()
+        this.constructor.COMPONENTS.forEach(comp => comp.updateActor(this))
     }
 
     updateWorld() {
@@ -1687,11 +1693,15 @@ export class SceneCommon {
         state.key = this.constructor.KEY
         if(this.mapId) state.map = this.mapId
         if(this.paused) state.paused = true
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
         return state
     }
 
     setState(state) {
         this.paused = state.paused === true
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
     }
 }
 
@@ -2301,21 +2311,6 @@ export class GameScene extends SceneCommon {
         if(hero.health > 0) this.spawnHero(hero)
     }
 
-    onHeroDeath(hero) {
-        const { heros } = this
-        if(hero.lives > 1) {
-            hero.lives -= 1
-            this.newHero(hero.playerId)
-        } else {
-            let nbLivingHeros = 0
-            for(let playerId in heros) {
-                const hero2 = heros[playerId]
-                if(hero2.lives > 0) nbLivingHeros += 1
-            }
-            if(this.step == "GAME" && nbLivingHeros == 0) this.step = "GAMEOVER"
-        }
-    }
-
     updateView() {
         const { heros, localHero } = this
         if(!hasKeys(heros)) return
@@ -2470,15 +2465,7 @@ export class FocusFirstHeroScene extends GameScene {
             }
         }
     }
-    onHeroDeath(hero) {
-        if(hero.lives > 1) {
-            hero.lives -= 1
-            this.newHero(hero.playerId)
-        } else {
-            const firstHero = this.getFirstHero()
-            if(this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
-        }
-    }
+
     updateView() {
         const { heros, localHero } = this
         if(!hasKeys(heros)) return
@@ -2540,21 +2527,15 @@ export class LivingGameObject extends Actor {
         this.health = max(0, this.health - val)
         this.trigger("damage", { damager })
         if(this.health == 0) {
-            this.onDeath(damager)
+            this.die(damager)
         } else if(damager) {
             this.speedY = -200
             this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
         }
     }
 
-    onDeath(killer) {
-        // if(killer) {
-        //     this.speedY = -500
-        //     this.speedX = 100 * ((this.x < killer.x) ? -1 : 1)
-        // }
+    die(killer) {
         this.remove()
-        this.trigger("death", { killer })
-        if(this.scene.onHeroDeath) this.scene.onHeroDeath(this)
     }
 }
 
@@ -2793,7 +2774,7 @@ export class Enemy extends LivingGameObject {
         super.init(kwargs)
         this.team = "enemy"
     }
-    onDeath() {
+    die() {
         const { x, y } = this
         this.scene.newVisual(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAud)
@@ -3263,4 +3244,46 @@ function arrMax(arr) {
     let res = 0
     for(let v of arr) if(v > res) res = v
     return res
+}
+
+
+class HackEvent {
+    constructor(inputArgs) {
+        this.inputArgs = inputArgs
+        this.returnValue = undefined
+        this.continue = true
+    }
+    stopPropagation() {
+        this.continue = false
+    }
+}
+
+export function hackMethod(obj, methodName, priority, hackFun) {
+    if(obj[methodName].hacks === undefined) {
+        const origMethod = obj[methodName]
+        const hacks = [], hackPriorities = []
+        obj[methodName] = function(...args) {
+            const evt = new HackEvent(args)
+            let idx=0, nbHacks=hacks.length
+            for(; idx<nbHacks; ++idx) {
+                if(hackPriorities[idx] < 0) break
+                hacks[idx](evt)
+                if(!evt.continue) return evt.returnValue
+            }
+            evt.returnValue = origMethod.apply(obj, evt.inputArgs)
+            for(; idx<nbHacks; ++idx) {
+                hacks[idx](evt)
+                if(!evt.continue) return evt.returnValue
+            }
+            return evt.returnValue
+        }
+        obj[methodName].hacks = hacks
+        obj[methodName].hackPriorities = hackPriorities
+    }
+    const hacks = obj[methodName].hacks
+    const hackPriorities = obj[methodName].hackPriorities
+    let idx
+    for(idx in hacks) if(hackPriorities[idx] < priority) break
+    hacks.splice(idx, 0, hackFun)
+    hackPriorities.splice(idx, 0, priority)
 }
