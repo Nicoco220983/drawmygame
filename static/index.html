@@ -207,15 +207,18 @@ async function main() {
     if(urlParams.has("map")) {
         await startAndShowGame(true)
     } else {
-        startAndShowBuilder()
+        await startAndShowBuilder()
         setBuilderMode("move")
     }
 }
 
-function startAndShowBuilder() {
+async function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
-    if(!gameBuilder) gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
+    if(!gameBuilder) {
+        gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
+        await gameBuilder.loadGameScenes()
+    }
     syncAnchor()
     gameBuilder.run()
     mode = "builder"

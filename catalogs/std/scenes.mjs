@@ -7,11 +7,11 @@ export const CATALOG = new ModuleCatalog("std")
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 class HerosResurectionsComponent extends Component {
     initActor(scn, kwargs) {
-        hackMethod(scn, "newActor", -1, evt => {
+        hackMethod(scn, "addActor", -1, evt => {
             const act = evt.returnValue
             if(!(act instanceof Hero)) return
             hackMethod(act, "die", -1, evt => {
-                scn.newHero(act.playerId)
+                scn.addHero(act.playerId)
             })
         })
     }
@@ -44,7 +44,7 @@ export class TagScene extends GameScene {
     }
     loadMap(map) {
         super.loadMap(map)
-        this.newActor(Tag, { id: "tag" })
+        this.addActor(Tag, { id: "tag" })
     }
     tuneHeros(hero) {
         if(!(hero instanceof Hero)) return
@@ -57,7 +57,7 @@ export class TagScene extends GameScene {
         })
     }
     initCountDown() {
-        this.countDown ||= this.notifs.new(CountDown, {
+        this.countDown ||= this.notifs.add(CountDown, {
             x: this.width/2,
             y: this.height/2,
             duration: 3,
@@ -98,7 +98,7 @@ export class TagScene extends GameScene {
     }
     updateStepGameOver() {
         const { scores } = this
-        if(!this.scoresBoard) this.scoresBoard = this.notifs.new(ScoresBoard, {
+        if(!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
             x: this.width/2,
             y: this.height/2,
             scores,

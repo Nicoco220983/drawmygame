@@ -150,10 +150,10 @@ export class Nico extends Hero {
     initJoypadButtons(joypadScn) {
         const { width, height } = joypadScn
         const size = height*.45
-        joypadScn.newButton({ inputKey:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
-        joypadScn.newButton({ inputKey:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
-        joypadScn.newButton({ inputKey:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.actionButton = joypadScn.newButton({ inputKey:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
+        joypadScn.addButton({ inputKey:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
+        joypadScn.addButton({ inputKey:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
+        joypadScn.addButton({ inputKey:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
+        joypadScn.actionButton = joypadScn.addButton({ inputKey:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
         this.syncJoypadActionButton()
     }
 
@@ -508,7 +508,7 @@ export class Shurikens extends Extra {
     throwOneShuriken() {
         const owner = this.getOwner()
         if(!owner) return
-        this.scene.newActor(Shurikens, {
+        this.scene.addActor(Shurikens, {
             x: this.x, y: this.y,
             ownerId: this.ownerId,
             nb: 1, itToLive: 2 * this.game.fps,
@@ -578,7 +578,7 @@ export class Bomb extends Extra {
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
-                this.scene.newActor(Explosion, { x, y, owner: this.getOwner() })
+                this.scene.addActor(Explosion, { x, y, owner: this.getOwner() })
                 this.remove()
             }
             this.itToLive -= 1

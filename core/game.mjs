@@ -176,6 +176,8 @@ export class GameMap {
             key: "catch_all_stars",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
+            actors: [],
+            walls: [],
         }}
     }
 
@@ -454,11 +456,11 @@ export class StateProperty {
         else if(stateVal !== undefined) val = this.getPropFromState(stateVal, act)
         this.setActorProp(act, val)
     }
-    newActorInput(act) {
-        if(this.nullableWith !== undefined) return this.newNullableInput(act)
-        else return this.newInput(act)
+    createActorInput(act) {
+        if(this.nullableWith !== undefined) return this.createNullableInput(act)
+        else return this.createInput(act)
     }
-    newNullableInput(act) {
+    createNullableInput(act) {
         const val = this.getActorProp(act)
         const wrapperEl = newDomEl("div", {
             style: {
@@ -475,7 +477,7 @@ export class StateProperty {
             text: this.nullableWith,
         })
         wrapperEl.appendChild(nullTxtEl)
-        const valEl = this.newInput(act)
+        const valEl = this.createInput(act)
         wrapperEl.appendChild(valEl)
         const syncEls = () => {
             valEl.style.display = nullEl.checked ? "none" : "block"
@@ -490,7 +492,7 @@ export class StateProperty {
         syncEls()
         return wrapperEl
     }
-    newInput(act) {
+    createInput(act) {
         const val = this.getActorProp(act)
         const inputEl = newDomEl("input", {
             type: "text",
@@ -513,7 +515,7 @@ export class StateInt extends StateProperty {
         this.min = kwargs?.min ?? null
         this.max = kwargs?.max ?? null
     }
-    newInput(act) {
+    createInput(act) {
         const val = this.getActorProp(act)
         const inputEl = newDomEl("input", {
             type: "number",
@@ -533,7 +535,7 @@ export class StateEnum extends StateProperty {
         super(key, kwargs)
         this.options = kwargs.options
     }
-    newInput(act) {
+    createInput(act) {
         const { options } = this
         const val = this.getActorProp(act)
         const inputEl = newDomEl("select")
@@ -628,6 +630,12 @@ export class GameObject {
             spriteDx: 0,
             spriteDy: 0,
         })
+    }
+
+    static create(scn, kwargs) {
+        const obj = new this(scn)
+        obj.init(kwargs)
+        return obj
     }
 
     constructor(scn) {
@@ -789,27 +797,10 @@ export class Actor extends GameObject {
         return this.key ?? this.constructor.KEY
     }
 
-    static createFromKey(scn, key) {
-        const mapState = scn.getActorMapState(key)
-        if(mapState) key = mapState.key
-        const cls = scn.game.catalog.getActorClass(key)
-        let obj
-        if(mapState) {
-            const proto = new cls(scn)
-            // TODO think about this double init
-            proto.init()
-            proto.setState(mapState)
-            obj = Object.create(proto)
-        } else {
-            obj = new cls(scn)
-        }
-        return obj
-    }
-
     getState() {
         const state = {}
         state.id = this.id
-        state.key = this.getKey()
+        state.key = this.constructor.KEY
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
         return state
@@ -822,7 +813,7 @@ export class Actor extends GameObject {
 }
 
 Actor.StateProperty = class extends StateProperty {
-    newInput(act) {
+    createInput(act) {
         const val = this.getActorProp(act)
         const { catalog } = act.game
         const inputEl = newDomEl("div")
@@ -975,8 +966,8 @@ export class Text extends GameObject {
 
 class CenteredText extends Text {
     drawTo(ctx) {
-        this.x = this.scene.width / 2
-        this.y = this.scene.height / 2
+        this.x = this.scene.viewWidth / 2
+        this.y = this.scene.viewHeight / 2
         super.drawTo(ctx)
     }
 }
@@ -1001,7 +992,7 @@ export class GameObjectGroup {
         return res
     }
 
-    new(cls, kwargs) {
+    add(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
         const obj = new cls(this.scene)
@@ -1069,17 +1060,16 @@ GameObjectGroup.prototype.trigger = trigger
 
 export class ActorGroup extends GameObjectGroup {
 
-    new(cls, kwargs) {
+    add(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
         let act
         if(typeof cls === 'string') {
-            act = Actor.createFromKey(this.scene, cls)
+            act = this.scene.createActorFromKey(cls, kwargs)
             kwargs.key = cls
         } else {
-            act = new cls(this.scene)
+            act = cls.create(this.scene, kwargs)
         }
-        act.init(kwargs)
         this.objMap.set(kwargs.id, act)
         this.objArr.push(act)
         this.trigger("new", act)
@@ -1102,7 +1092,7 @@ export class ActorGroup extends GameObjectGroup {
             for(let actState of state) {
                 let { id } = actState
                 let act = objMap.get(id)
-                if(!act) act = this.new(actState.key, { id })
+                if(!act) act = this.add(actState.key, { id })
                 else objArr.push(act)
                 act.setState(actState)
             }
@@ -1145,8 +1135,8 @@ export class GameCommon {
         this.isDebugMode = kwargs && kwargs.debug == true
 
         this.scenesSizeAndPos = {
-            game: { x:0, y:0, width:0, height:0 },
-            joypad: { x:0, y:0, width:0, height:0 },
+            game: { x:0, y:0, viewWidth:0, viewHeight:0 },
+            joypad: { x:0, y:0, viewWidth:0, viewHeight:0 },
         }
         this.scenes = {}
         this.scenes.game = new DefaultScene(this)
@@ -1209,6 +1199,36 @@ export class GameCommon {
         this.gameLoop = null
     }
 
+    async loadGameScenes() {
+        const scnMapId = "0"
+        const scnMap = this.map.scenes[scnMapId]
+        await this.loadScenesFromMap(scnMap.key, scnMapId)
+    }
+
+    async loadScenesFromMap(scnKey, scnMapId=undefined) {
+        const { catalog } = this, scnCat = catalog.scenes[scnKey]
+        const  { map } = this.game
+        const paths = new Set([scnCat.path])
+        map.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
+        const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
+        if(scnMap) {
+            scnMap.actors.forEach(actMap => paths.add(catalog.actors[actMap.key].path))
+        }
+        const mods = await catalog.preload(Array.from(paths))
+        await this.loadScenes(mods[0][scnCat.name], scnMapId)
+    }
+
+    async loadScenes(cls, scnMapId=undefined) {
+        const scn = this.createScene(cls)
+        if(scnMapId !== undefined) scn.loadMap(scnMapId)
+        this.scenes.game = scn
+        this.syncSize()
+    }
+
+    createScene(cls, kwargs) {
+        return new cls(this, kwargs)
+    }
+
     updateGameLoop() {
         const { mode } = this
         this.update()
@@ -1223,14 +1243,14 @@ export class GameCommon {
             gameScn.update()
             delete this.scenes.pause
         } else {
-            this.scenes.pause ||= gameScn.newPauseScene()
+            this.scenes.pause ||= gameScn.createPauseScene()
         }
         if(joypadScn) {
             if(!gameScn.paused) {
                 joypadScn.update()
                 delete this.scenes.joypadPause
             } else {
-                this.scenes.joypadPause ||= joypadScn.newPauseScene()
+                this.scenes.joypadPause ||= joypadScn.createPauseScene()
             }
         }
         const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
@@ -1261,29 +1281,30 @@ export class GameCommon {
     drawScene(ctx, scn) {
         if(!scn || !scn.visible) return
         scn.draw()
-        ctx.drawImage(scn.canvas, scn.x, scn.y)
+        const can = scn.canvas
+        if(can.width == 0 || can.height == 0) return
+        ctx.drawImage(can, scn.x, scn.y)
     }
 
     syncSize() {
-        const scnMap = this.map.scenes["0"]
-        const width = min(scnMap.width, CANVAS_MAX_WIDTH)
-        const height169 = floor(width * 9 / 16)
         const { game: gameScn } = this.scenes
+        const width = min(gameScn.width, CANVAS_MAX_WIDTH)
+        const height169 = floor(width * 9 / 16)
         const { joypadVisible } = this
         const { game: gameSP, joypad: joypadSP } = this.scenesSizeAndPos
         gameSP.x = 0
         gameSP.y = 0
-        gameSP.width = width
-        gameSP.height = min(scnMap.height, CANVAS_MAX_HEIGHT)
+        gameSP.viewWidth = width
+        gameSP.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
         joypadSP.x = 0
-        joypadSP.y = gameScn.visible ? gameSP.height : 0
-        joypadSP.width = width
-        joypadSP.height = height169
+        joypadSP.y = gameScn.visible ? gameSP.viewHeight : 0
+        joypadSP.viewWidth = width
+        joypadSP.viewHeight = height169
         for(let scnId in this.scenes) {
             const scn = this.scenes[scnId]
             if(scn) scn.syncSizeAndPos()
         }
-        const height = max(height169, (gameScn.visible ? gameSP.height : 0) + (joypadVisible ? joypadSP.height : 0))
+        const height = max(height169, (gameScn.visible ? gameSP.viewHeight : 0) + (joypadVisible ? joypadSP.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -1357,11 +1378,13 @@ export class SceneCommon {
         this.game = game
         this.x = 0
         this.y = 0
-        this.viewX = 0
-        this.viewY = 0
-        this.viewSpeed = 100
         this.width = 0
         this.height = 0
+        this.viewX = 0
+        this.viewY = 0
+        this.viewWidth = 0
+        this.viewHeight = 0
+        this.viewSpeed = 100
         this.visible = true
         this.backgroundColor = "white"
         this.backgroundAlpha = 1
@@ -1377,8 +1400,8 @@ export class SceneCommon {
         this.visuals = new GameObjectGroup(this)
         this.notifs = new GameObjectGroup(this)
         this.heros = {}
-        this.syncSizeAndPos()
         this.map = null
+        this.doCreateActorMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
         this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
     }
@@ -1392,24 +1415,34 @@ export class SceneCommon {
         this.paused = val
     }
 
+    syncSizeAndPos() {
+        const sizeAndPos = this.game.scenesSizeAndPos.game
+        this.x = sizeAndPos.x
+        this.y = sizeAndPos.y
+        this.viewWidth = sizeAndPos.viewWidth
+        this.viewHeight = sizeAndPos.viewHeight
+    }
+
+    setView(viewX, viewY) {
+        this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
+        this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
+        this.viewX = max(0, min(this.width-this.viewWidth, this.viewX))
+        this.viewY = max(0, min(this.height-this.viewHeight, this.viewY))
+    }
+
     loadMap(scnMapId) {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
+        this.width = this.map.width
+        this.height = this.map.height
         this.initWalls()
         this.initActors()
     }
 
-    syncSizeAndPos() {
-        assign(this, this.game.scenesSizeAndPos.game)
-    }
-
-    setView(viewX, viewY) {
-        const { width: mapWidth, height: mapHeight } = this.map
-        const { width, height } = this
-        this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
-        this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
-        this.viewX = max(0, min(mapWidth-width, this.viewX))
-        this.viewY = max(0, min(mapHeight-height, this.viewY))
+    async loadScenes(cls, scnMapId=undefined) {
+        await super.loadScenes(cls, scnMapId)
+        if(this.joypadVisible) await this.loadJoypadScene()
+        this.syncSize()
     }
 
     initWalls() {
@@ -1417,22 +1450,43 @@ export class SceneCommon {
         if(!mapWalls) return
         mapWalls.forEach(w => {
             const { x1, y1, x2, y2, key } = w
-            this.newWall({ x1, y1, x2, y2, key })
+            this.addWall({ x1, y1, x2, y2, key })
         })
     }
 
-    newWall(kwargs) {
-        return this.walls.new(Wall, kwargs)
+    addWall(kwargs) {
+        return this.walls.add(Wall, kwargs)
     }
 
     initActors() {
         const mapActs = this.map?.actors
         if(!mapActs) return
-        for(let i=0; i<mapActs.length; ++i) this.newActor(`A#${i}`)
+        for(let i=0; i<mapActs.length; ++i) this.addActor(`A#${i}`)
     }
 
-    newActor(cls, kwargs) {
-        return this.actors.new(cls, kwargs)
+    addActor(cls, kwargs) {
+        return this.actors.add(cls, kwargs)
+    }
+
+    createActorFromKey(key, kwargs) {
+        const mapState = this.getActorMapState(key)
+        if(mapState) key = mapState.key
+        const cls = this.game.catalog.getActorClass(key)
+        let obj
+        if(mapState) {
+            if(this.doCreateActorMapProto) {
+                const proto = cls.create(this)
+                proto.setState(mapState)
+                obj = Object.create(proto)
+                obj.init(kwargs)
+            } else {
+                obj = cls.create(this, kwargs)
+                obj.setState(mapState)
+            }
+        } else {
+            obj = cls.create(this, kwargs)
+        }
+        return obj
     }
     
     getActorMapState(key) {
@@ -1456,12 +1510,12 @@ export class SceneCommon {
         return res
     }
 
-    newVisual(cls, kwargs) {
-        return this.visuals.new(cls, kwargs)
+    addVisual(cls, kwargs) {
+        return this.visuals.add(cls, kwargs)
     }
 
-    newNotif(cls, kwargs) {
-        return this.notifs.new(cls, kwargs)
+    addNotif(cls, kwargs) {
+        return this.notifs.add(cls, kwargs)
     }
 
     syncHero(hero) {
@@ -1491,8 +1545,8 @@ export class SceneCommon {
 
     draw() {
         const can = this.canvas
-        can.width = this.width
-        can.height = this.height
+        can.width = this.viewWidth
+        can.height = this.viewHeight
         const ctx = can.getContext("2d")
         ctx.reset()
         const backgroundCanvas = this.initBackground()
@@ -1511,22 +1565,23 @@ export class SceneCommon {
 
     initBackground() {
         if(this.game.isServerEnv) return
-        let { width, height, backgroundCanvas: can } = this
-        if(!can || can.width != width || can.height != height) {
+        let { viewWidth, viewHeight, backgroundCanvas: can } = this
+        if(viewWidth == 0 || viewHeight == 0) return
+        if(!can || can.width != viewWidth || can.height != viewHeight) {
             can = this.backgroundCanvas = this.buildBackground()
         }
         return can
     }
 
     buildBackground() {
-        const { width, height } = this
+        const { viewWidth, viewHeight } = this
         const can = document.createElement("canvas")
-        assign(can, { width, height })
+        assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
         if(this.backgroundColor) {
             ctx.fillStyle = this.backgroundColor
             ctx.globalAlpha = this.backgroundAlpha
-            ctx.fillRect(0, 0, width, height)
+            ctx.fillRect(0, 0, viewWidth, viewHeight)
         }
         return can
     }
@@ -1535,7 +1590,7 @@ export class SceneCommon {
         return null
     }
 
-    newPauseScene() {
+    createPauseScene() {
         return null
     }
 
@@ -1545,6 +1600,9 @@ export class SceneCommon {
         if(!isInitState) {
             if(this.mapId) state.map = this.mapId
             if(this.paused) state.paused = true
+        } else {
+            state.width = this.width
+            state.height = this.height
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
@@ -1640,26 +1698,6 @@ export class Game extends GameCommon {
         this.syncSize()
     }
 
-    async loadScenesFromMap(scnKey, scnMapId=undefined) {
-        const { catalog } = this, scnCat = catalog.scenes[scnKey]
-        const  { map } = this.game
-        const paths = new Set([scnCat.path])
-        map.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
-        const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
-        if(scnMap) {
-            scnMap.actors.forEach(actMap => paths.add(catalog.actors[actMap.key].path))
-        }
-        const mods = await catalog.preload(Array.from(paths))
-        await this.loadScenes(mods[0][scnCat.name], scnMapId)
-    }
-
-    async loadScenes(cls, scnMapId=undefined) {
-        const scn = new cls(this)
-        if(scnMapId !== undefined) scn.loadMap(scnMapId)
-        this.scenes.game = scn
-        if(this.joypadVisible) await this.loadJoypadScene()
-    }
-
     async loadJoypadScene() {
         const joypadScn = await this.scenes.game.loadJoypadScene()
         if(joypadScn) this.scenes.joypad = joypadScn
@@ -1668,12 +1706,6 @@ export class Game extends GameCommon {
 
     async loadWaitingScenes() {
         await this.loadScenes(WaitingScene)
-    }
-
-    async loadGameScenes() {
-        const scnMapId = "0"
-        const scnMap = this.map.scenes[scnMapId]
-        await this.loadScenesFromMap(scnMap.key, scnMapId)
     }
 
     showDebugScene() {
@@ -1703,14 +1735,14 @@ export class Game extends GameCommon {
         if(!gameScn.paused) {
             delete this.scenes.pause
         } else {
-            this.scenes.pause ||= gameScn.newPauseScene()
+            this.scenes.pause ||= gameScn.createPauseScene()
         }
         if(joypadScn) {
             if(!gameScn.paused) {
                 joypadScn.update()
                 delete this.scenes.joypadPause
             } else {
-                this.scenes.joypadPause ||= joypadScn.newPauseScene()
+                this.scenes.joypadPause ||= joypadScn.createPauseScene()
             }
         }
         const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
@@ -1798,7 +1830,7 @@ export class Game extends GameCommon {
             if(this.map.heros.length > 0) kwargs.heroKey = `H#0`  // TODO: impl hero selection
             this.players[playerId] = kwargs
         }
-        if(gameScn.newHero) gameScn.newHero(playerId)
+        if(gameScn.addHero) gameScn.addHero(playerId)
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
@@ -2019,14 +2051,14 @@ export class Game extends GameCommon {
 export class DefaultScene extends SceneCommon {
 
     buildBackground() {
-        const { width, height } = this
+        const { viewWidth, viewHeight } = this
         const can = document.createElement("canvas")
-        assign(can, { width, height })
+        assign(can, { viewWidth, viewHeight })
         const ctx = can.getContext("2d")
         ctx.fillStyle = "black"
-        ctx.fillRect(0, 0, width, height)
+        ctx.fillRect(0, 0, viewWidth, viewHeight)
         const text = newTextCanvas("DRAWMYGAME", { fillStyle: "white" })
-        ctx.drawImage(text, floor((width-text.width)/2), floor((height-text.height)/2))
+        ctx.drawImage(text, floor((viewWidth-text.width)/2), floor((viewHeight-text.height)/2))
         return can
     }
 }
@@ -2055,17 +2087,17 @@ export class GameScene extends SceneCommon {
     initHeros() {
         this.initHerosSpawnPos()
         if(this.game.mode == MODE_CLIENT) return  // actors are init by first full state
-        for(let playerId in this.game.players) this.newHero(playerId)
+        for(let playerId in this.game.players) this.addHero(playerId)
     }
 
-    newHero(playerId) {
+    addHero(playerId) {
         const player = this.game.players[playerId]
         if(!player) return
         const prevHero = this.getHero(playerId)
         if(prevHero && !prevHero.removed) return
         const { heroKey } = player
         if(!heroKey) return
-        const hero = this.newActor(heroKey, { playerId })
+        const hero = this.addActor(heroKey, { playerId })
         this.spawnHero(hero)
         return hero.id
     }
@@ -2144,7 +2176,7 @@ export class GameScene extends SceneCommon {
         const { heros } = this
         for(let playerId in heros) {
             const hero = heros[playerId]
-            if(hero.y > this.map.height + 100) {
+            if(hero.y > this.height + 100) {
                 this.onHeroOut(hero)
             }
         }
@@ -2160,8 +2192,8 @@ export class GameScene extends SceneCommon {
         if(!hasKeys(heros)) return
         if(localHero) {
             this.setView(
-                localHero.x - this.width/2,
-                localHero.y - this.height/2,
+                localHero.x - this.viewWidth/2,
+                localHero.y - this.viewHeight/2,
             )
         } else {
             let sumX = 0, sumY = 0, nbHeros = 0
@@ -2172,8 +2204,8 @@ export class GameScene extends SceneCommon {
                 nbHeros += 1
             }
             this.setView(
-                sumX / nbHeros - this.width/2,
-                sumY / nbHeros - this.height/2,
+                sumX / nbHeros - this.viewWidth/2,
+                sumY / nbHeros - this.viewHeight/2,
             )
         }
     }
@@ -2207,7 +2239,7 @@ export class GameScene extends SceneCommon {
     initVictoryNotifs() {
         if(this.victoryNotifs) return
         this.victoryNotifs = new GameObjectGroup(this)
-        this.victoryNotifs.new(
+        this.victoryNotifs.add(
             CenteredText,
             {
                 text: "VICTORY !",
@@ -2219,7 +2251,7 @@ export class GameScene extends SceneCommon {
     initGameOverNotifs() {
         if(this.gameOverNotifs) return
         this.gameOverNotifs = new GameObjectGroup(this)
-        this.gameOverNotifs.new(
+        this.gameOverNotifs.add(
             CenteredText,
             {
                 text: "GAME OVER",
@@ -2257,7 +2289,7 @@ export class GameScene extends SceneCommon {
         } else {
             state.walls = this.getWallsState()
         }
-        state.acts = this.actors.getState()
+        state.actors = this.actors.getState()
         return state
     }
 
@@ -2295,7 +2327,7 @@ export class GameScene extends SceneCommon {
         return seed / m
     }
 
-    newPauseScene() {
+    createPauseScene() {
         return new PauseScene(this.game)
     }
 }
@@ -2311,12 +2343,12 @@ export class FocusFirstHeroScene extends GameScene {
         const firstHero = this.getFirstHero()
         if(!firstHero) return
         const { x:fhx, y:fhy } = firstHero
-        const { width, height } = this.game
+        const { viewWidth, viewHeight } = this.game
         for(let playerId in heros) {
             if(playerId === firstHero.playerId) continue
             const hero = heros[playerId]
             const dx = hero.x - fhx, dy = hero.y - fhy
-            if(dx < -width || dx > width || dy < -height || dy > height) {
+            if(dx < -viewWidth || dx > viewWidth || dy < -viewHeight || dy > viewHeight) {
                 this.spawnHero(hero)
             }
         }
@@ -2327,14 +2359,14 @@ export class FocusFirstHeroScene extends GameScene {
         if(!hasKeys(heros)) return
         if(localHero) {
             this.setView(
-                localHero.x - this.width/2,
-                localHero.y - this.height/2,
+                localHero.x - this.viewWidth/2,
+                localHero.y - this.viewHeight/2,
             )
         } else {
             const firstHero = this.getFirstHero()
             if(firstHero) this.setView(
-                firstHero.x - this.width/2,
-                firstHero.y - this.height/2,
+                firstHero.x - this.viewWidth/2,
+                firstHero.y - this.viewHeight/2,
             )
         }
     }
@@ -2460,7 +2492,7 @@ export class Hero extends LivingGameObject {
         if(lives !== Infinity) {
             livesHearts = this.livesHearts ||= []
             for(let i=livesHearts.length; i<lives; ++i)
-                livesHearts.push(scene.newNotif(LifeHeartNotif, { num: i }))
+                livesHearts.push(scene.addNotif(LifeHeartNotif, { num: i }))
             livesHearts.forEach(heart => {
                 heart.x = 20 + heart.num * 35
                 heart.y = 20
@@ -2470,7 +2502,7 @@ export class Hero extends LivingGameObject {
         if(health !== Infinity) {
             const healthHearts = this.healthHearts ||= []
             for(let i=healthHearts.length; i<health; ++i)
-                healthHearts.push(scene.newNotif(HealthHeartNotif, { num: i }))
+                healthHearts.push(scene.addNotif(HealthHeartNotif, { num: i }))
             healthHearts.forEach(heart => {
                 heart.x = 15 + heart.num * 23
                 heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
@@ -2484,15 +2516,15 @@ export class Hero extends LivingGameObject {
         const { iteration } = this.scene
         const { fps } = this.game
         if(lastSpawnIt + fps > iteration) {
-            if(!this._spawnEnt) this._spawnEnt = this.newSpawnEffect()
+            if(!this._spawnEnt) this._spawnEnt = this.addSpawnEffect()
         } else {
             delete this._spawnEnt
             this.lastSpawnIt = -Infinity
         }
     }
 
-    newSpawnEffect() {
-        return this.scene.newVisual(Pop, {
+    addSpawnEffect() {
+        return this.scene.addVisual(Pop, {
             x: this.x,
             y: this.y,
         })
@@ -2632,7 +2664,7 @@ export class Enemy extends LivingGameObject {
     }
     die() {
         const { x, y } = this
-        this.scene.newVisual(SmokeExplosion, { x, y })
+        this.scene.addVisual(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAud)
         this.remove()
     }
@@ -2744,18 +2776,19 @@ class PauseScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.pauseText = this.newNotif(Text, {
+        this.pauseText = this.addNotif(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
             fillStyle: "black",
         })
+        this.syncSizeAndPos()
         this.syncTextPos()
     }
     update() {
         this.syncTextPos()
     }
     syncTextPos() {
-        assign(this.pauseText, { x: this.width/2, y: this.height/2 })
+        assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
     }
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
@@ -2813,7 +2846,7 @@ export class WaitingScene extends SceneCommon {
     }
 
     initTitleText() {
-        this.titleTxt = this.newNotif(Text, {
+        this.titleTxt = this.addNotif(Text, {
             text: "WAITING PLAYERS",
             font: "bold 50px arial",
             fillStyle: "white",
@@ -2844,7 +2877,7 @@ export class WaitingScene extends SceneCommon {
             let playerTxt = playerTxts[playerId]
             // add new players
             if(playerTxt === undefined) {
-                playerTxt = playerTxts[playerId] = this.newNotif(PlayerText, { player })
+                playerTxt = playerTxts[playerId] = this.addNotif(PlayerText, { player })
                 playerTxt.playerId = playerId
             }
         }
@@ -2860,15 +2893,15 @@ export class WaitingScene extends SceneCommon {
     }
 
     syncTextPositions() {
-        const { playerTxts, width, height } = this
+        const { playerTxts, viewWidth, viewHeight } = this
         // title
-        assign(this.titleTxt, { x: width/2, y: height/6 })
+        assign(this.titleTxt, { x: viewWidth/2, y: viewHeight/6 })
         // players
         let numPlayer = 0
         for(let idx in playerTxts) {
             const playerTxt = playerTxts[idx]
             if(!playerTxt) continue
-            assign(playerTxt, { x: width/2+playerTxt.width/2, y: height/3 + (numPlayer * 40) })
+            assign(playerTxt, { x: viewWidth/2+playerTxt.width/2, y: viewHeight/3 + (numPlayer * 40) })
             numPlayer += 1
         }
     }
@@ -2893,7 +2926,7 @@ export class VictoryScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.victoryText = this.newNotif(Text, {
+        this.victoryText = this.addNotif(Text, {
             text: "VICTORY",
             font: "bold 50px arial",
             fillStyle: "black",
@@ -2913,7 +2946,7 @@ export class DefeatScene extends SceneCommon {
         super(game)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
-        this.defeatText = this.newNotif(Text, {
+        this.defeatText = this.addNotif(Text, {
             text: "DEFEAT",
             font: "bold 50px arial",
             fillStyle: "black",
@@ -2936,9 +2969,9 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.updDurTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
-        this.drawDurTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
-        this.lagTxt = this.newNotif(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
+        this.updDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
+        this.drawDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
+        this.lagTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
     }
     update() {
         const { metrics } = this.game
@@ -3085,7 +3118,7 @@ export class ActorSpawner extends Actor {
     spawnActor() {
         const { scene, model } = this
         if(!model) return
-        const act = scene.newActor(model.getKey())
+        const act = scene.addActor(model.getKey())
         const state = {
             ...model.getState(),
             x: this.x,
@@ -3095,7 +3128,7 @@ export class ActorSpawner extends Actor {
         this.nbSpawn += 1
         this.spawnedActors.add(act.id)
         this.lastSpawnIt = scene.iteration
-        scene.newVisual(Pop, { x:this.x, y:this.y })
+        scene.addVisual(Pop, { x:this.x, y:this.y })
         return act
     }
     getSprite() {

@@ -41,8 +41,8 @@ export class JoypadScene {
         this.buttons.forEach(but => but.checkClick())
     }
  
-    newButton(kwargs) {
-        return this.buttons.new(Button, kwargs)
+    addButton(kwargs) {
+        return this.buttons.add(Button, kwargs)
     }
 
     newPauseScene() {
@@ -87,7 +87,7 @@ export class JoypadGameScene extends JoypadScene {
     }
 
     addPauseButton() {
-        this.pauseButton = this.newButton({ x:this.width/2, y:40, width: 200, height: 60, text: "PAUSE" })
+        this.pauseButton = this.addButton({ x:this.width/2, y:40, width: 200, height: 60, text: "PAUSE" })
         this.pauseButton.onClickUp = () => this.game.pause(true)
     }
 
@@ -107,7 +107,7 @@ export class JoypadWaitingScene extends JoypadScene {
     initStartButton() {
         const { game, width, height } = this, { localPlayerId } = game
         if(!localPlayerId || !game.players[localPlayerId] || this.startButton) return
-        this.startButton = this.newButton({ x:width/2, y:height/2, width: 300, height: 100, text: "START" })
+        this.startButton = this.addButton({ x:width/2, y:height/2, width: 300, height: 100, text: "START" })
         this.startButton.onClickUp = () => this.game.startGame()
     }
 }
@@ -120,7 +120,7 @@ class JoypadPauseScene extends JoypadScene {
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
         this.notifs = new GameObjectGroup(this)
-        this.pauseText = this.notifs.new(Text, {
+        this.pauseText = this.notifs.add(Text, {
             text: "PAUSE",
             font: "bold 50px arial",
             fillStyle: "white",
@@ -130,9 +130,9 @@ class JoypadPauseScene extends JoypadScene {
     }
 
     initButtons() {
-        this.resumeButton = this.newButton({ width: 300, height: 100, text: "RESUME" })
+        this.resumeButton = this.addButton({ width: 300, height: 100, text: "RESUME" })
         this.resumeButton.onClickUp = () => this.game.pause(false)
-        this.restartButton = this.newButton({ width: 300, height: 100, text: "RESTART" })
+        this.restartButton = this.addButton({ width: 300, height: 100, text: "RESTART" })
         this.restartButton.onClickUp = () => this.game.restartGame()
     }
 
@@ -214,7 +214,7 @@ class Button extends GameObject {
         return sprite
     }
     
-    newTextSprite() {
+    createTextSprite() {
         const fontSize = floor(this.height/2)
         return new Text(this.scene, null, {
             text: this.text,
@@ -236,7 +236,7 @@ class Button extends GameObject {
             if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
         }
         if(this.text) {
-            const textSprite = this.textSprite ||= this.newTextSprite()
+            const textSprite = this.textSprite ||= this.createTextSprite()
             const img = textSprite.getImg(
                 ~~(this.width * .5),
                 ~~(this.width * .5 / textSprite.width * textSprite.height),
