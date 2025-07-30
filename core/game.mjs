@@ -966,8 +966,8 @@ export class Text extends GameObject {
 
 class CenteredText extends Text {
     drawTo(ctx) {
-        this.x = this.scene.viewWidth / 2
-        this.y = this.scene.viewHeight / 2
+        this.x = this.scene.getViewWidth() / 2
+        this.y = this.scene.getViewHeight() / 2
         super.drawTo(ctx)
     }
 }
@@ -1300,10 +1300,6 @@ export class GameCommon {
         joypadSP.y = gameScn.visible ? gameSP.viewHeight : 0
         joypadSP.viewWidth = width
         joypadSP.viewHeight = height169
-        for(let scnId in this.scenes) {
-            const scn = this.scenes[scnId]
-            if(scn) scn.syncSizeAndPos()
-        }
         const height = max(height169, (gameScn.visible ? gameSP.viewHeight : 0) + (joypadVisible ? joypadSP.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
@@ -1382,8 +1378,6 @@ export class SceneCommon {
         this.height = 0
         this.viewX = 0
         this.viewY = 0
-        this.viewWidth = 0
-        this.viewHeight = 0
         this.viewSpeed = 100
         this.visible = true
         this.backgroundColor = "white"
@@ -1415,19 +1409,23 @@ export class SceneCommon {
         this.paused = val
     }
 
-    syncSizeAndPos() {
-        const sizeAndPos = this.game.scenesSizeAndPos.game
-        this.x = sizeAndPos.x
-        this.y = sizeAndPos.y
-        this.viewWidth = sizeAndPos.viewWidth
-        this.viewHeight = sizeAndPos.viewHeight
-    }
-
     setView(viewX, viewY) {
         this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
         this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
-        this.viewX = max(0, min(this.width-this.viewWidth, this.viewX))
-        this.viewY = max(0, min(this.height-this.viewHeight, this.viewY))
+        this.viewX = max(0, min(this.width-this.getViewWidth(), this.viewX))
+        this.viewY = max(0, min(this.height-this.getViewHeight(), this.viewY))
+    }
+
+    getSizeAndPos() {
+        return this.game.scenesSizeAndPos.game
+    }
+
+    getViewWidth() {
+        return this.getSizeAndPos().viewWidth
+    }
+
+    getViewHeight(){
+        return this.getSizeAndPos().viewHeight
     }
 
     loadMap(scnMapId) {
@@ -1545,8 +1543,8 @@ export class SceneCommon {
 
     draw() {
         const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
+        can.width = this.getViewWidth()
+        can.height = this.getViewHeight()
         const ctx = can.getContext("2d")
         ctx.reset()
         const backgroundCanvas = this.initBackground()
@@ -1565,7 +1563,9 @@ export class SceneCommon {
 
     initBackground() {
         if(this.game.isServerEnv) return
-        let { viewWidth, viewHeight, backgroundCanvas: can } = this
+        let { backgroundCanvas: can } = this
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         if(viewWidth == 0 || viewHeight == 0) return
         if(!can || can.width != viewWidth || can.height != viewHeight) {
             can = this.backgroundCanvas = this.buildBackground()
@@ -1574,7 +1574,8 @@ export class SceneCommon {
     }
 
     buildBackground() {
-        const { viewWidth, viewHeight } = this
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         const can = document.createElement("canvas")
         assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
@@ -1711,11 +1712,6 @@ export class Game extends GameCommon {
     showDebugScene() {
         this.debugScene = new DebugScene(this)
         //this.syncSize()
-    }
-
-    syncSize() {
-        super.syncSize()
-        if(this.debugScene) this.debugScene.syncSizeAndPos()
     }
 
     updateGameLoop() {
@@ -2051,7 +2047,8 @@ export class Game extends GameCommon {
 export class DefaultScene extends SceneCommon {
 
     buildBackground() {
-        const { viewWidth, viewHeight } = this
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         const can = document.createElement("canvas")
         assign(can, { viewWidth, viewHeight })
         const ctx = can.getContext("2d")
@@ -2190,10 +2187,12 @@ export class GameScene extends SceneCommon {
     updateView() {
         const { heros, localHero } = this
         if(!hasKeys(heros)) return
+        this.viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         if(localHero) {
             this.setView(
-                localHero.x - this.viewWidth/2,
-                localHero.y - this.viewHeight/2,
+                localHero.x - viewWidth/2,
+                localHero.y - viewHeight/2,
             )
         } else {
             let sumX = 0, sumY = 0, nbHeros = 0
@@ -2204,8 +2203,8 @@ export class GameScene extends SceneCommon {
                 nbHeros += 1
             }
             this.setView(
-                sumX / nbHeros - this.viewWidth/2,
-                sumY / nbHeros - this.viewHeight/2,
+                sumX / nbHeros - viewWidth/2,
+                sumY / nbHeros - viewHeight/2,
             )
         }
     }
@@ -2343,7 +2342,8 @@ export class FocusFirstHeroScene extends GameScene {
         const firstHero = this.getFirstHero()
         if(!firstHero) return
         const { x:fhx, y:fhy } = firstHero
-        const { viewWidth, viewHeight } = this.game
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         for(let playerId in heros) {
             if(playerId === firstHero.playerId) continue
             const hero = heros[playerId]
@@ -2357,16 +2357,18 @@ export class FocusFirstHeroScene extends GameScene {
     updateView() {
         const { heros, localHero } = this
         if(!hasKeys(heros)) return
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         if(localHero) {
             this.setView(
-                localHero.x - this.viewWidth/2,
-                localHero.y - this.viewHeight/2,
+                localHero.x - viewWidth/2,
+                localHero.y - viewHeight/2,
             )
         } else {
             const firstHero = this.getFirstHero()
             if(firstHero) this.setView(
-                firstHero.x - this.viewWidth/2,
-                firstHero.y - this.viewHeight/2,
+                firstHero.x - viewWidth/2,
+                firstHero.y - viewHeight/2,
             )
         }
     }
@@ -2781,14 +2783,13 @@ class PauseScene extends SceneCommon {
             font: "bold 50px arial",
             fillStyle: "black",
         })
-        this.syncSizeAndPos()
         this.syncTextPos()
     }
     update() {
         this.syncTextPos()
     }
     syncTextPos() {
-        assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
+        assign(this.pauseText, { x: this.getViewWidth()/2, y: this.getViewHeight()/2 })
     }
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
@@ -2893,7 +2894,9 @@ export class WaitingScene extends SceneCommon {
     }
 
     syncTextPositions() {
-        const { playerTxts, viewWidth, viewHeight } = this
+        const { playerTxts } = this
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
         // title
         assign(this.titleTxt, { x: viewWidth/2, y: viewHeight/6 })
         // players

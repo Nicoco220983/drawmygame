@@ -26,11 +26,10 @@ export class JoypadScene {
         }
         this.game.initTouches()
         this.buttons = new GameObjectGroup(this)
-        this.syncSizeAndPos()
     }
 
-    syncSizeAndPos() {
-        assign(this, this.game.scenesSizeAndPos.joypad)
+    getSizeAndPos() {
+        return this.game.scenesSizeAndPos.joypad
     }
 
     update() {

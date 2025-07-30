@@ -26,11 +26,6 @@ export class GameBuilder extends GameCommon {
         return scn
     }
 
-    syncSize() {
-        super.syncSize()
-        if(this.scenes.draft) this.scenes.draft.syncSizeAndPos()
-    }
-
     setMode(mode, modeKey = null) {
         this.mode = mode
         this.modeKey = modeKey
@@ -74,14 +69,6 @@ class DraftScene extends SceneCommon {
         this.draftActor = null
         this.selections = []
         this.gridBoxSize = 20
-    }
-
-    syncSizeAndPos() {
-        super.syncSizeAndPos()
-        const gameScn = this.game.scenes.game
-        this.width = gameScn.width
-        this.height = gameScn.height
-        this.syncGrid()
     }
 
     syncMode() {
@@ -245,9 +232,10 @@ class DraftScene extends SceneCommon {
     }
 
     drawTo(ctx) {
-        if(this.grid) {
+        const grid = this.initGrid()
+        if(grid) {
             ctx.translate(~~-this.viewX, ~~-this.viewY)
-            this.grid.drawTo(ctx)
+            grid.drawTo(ctx)
             ctx.translate(~~this.viewX, ~~this.viewY)
         }
         super.drawTo(ctx)
@@ -256,8 +244,8 @@ class DraftScene extends SceneCommon {
         ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
-    syncGrid() {
-        const { width, height } = this
+    initGrid() {
+        const { width, height } = this.game.scenes.game
         let { grid } = this
         if(grid && grid.width == width && grid.height == height) return
         grid = this.grid ||= new GameObject(this)
@@ -279,6 +267,7 @@ class DraftScene extends SceneCommon {
         for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
         for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
         grid.sprite = new Sprite(can)
+        return grid
     }
 
     drawSelections(ctx) {
@@ -304,296 +293,6 @@ class DraftScene extends SceneCommon {
             ctx.stroke()
         }
     }
-}
-
-
-class BuilderScene extends SceneCommon {
-    constructor(game, kwargs) {
-        super(game, kwargs)
-        this.viewSpeed = Infinity
-        this.gridBoxSize = 20
-        this.anchor = true
-        this.selections = []
-        this.buildedScene = new (game.catalog.getSceneClass("catch_all_stars"))(game)
-    }
-
-    // syncSizeAndPos() {
-    //     super.syncSizeAndPos()
-    //     this.syncGrid()
-    // }
-
-    loadMap(map) {
-        super.loadMap(map)
-        this.initHeros()
-    }
-
-    initHeros() {
-        const mapHeros = this.map?.heros
-        if(!mapHeros) return
-        for(let heroDef of mapHeros) {
-            const { key, x, y } = heroDef
-            this.addActor(key, { x, y })
-        }
-    }
-
-    initActors() {
-        const mapEnts = this.map.actors
-        if(!mapEnts) return
-        mapEnts.forEach(actState => {
-            const act = this.addActor(actState.key)
-            act.setState(actState)
-        })
-    }
-
-    // syncGrid() {
-    //     if(!this.map) return
-    //     const { width, height } = this.map
-    //     let { grid } = this
-    //     if(grid && grid.width == width && grid.height == height) return
-    //     grid = this.grid ||= new GameObject(this)
-    //     grid.x = width / 2
-    //     grid.y = height / 2
-    //     grid.width = width
-    //     grid.height = height
-    //     const can = newCanvas(width, height)
-    //     const ctx = can.getContext("2d")
-    //     ctx.strokeStyle = "lightgrey"
-    //     const addLine = (x1, y1, x2, y2) => {
-    //         ctx.beginPath()
-    //         ctx.moveTo(x1, y1)
-    //         ctx.lineTo(x2, y2)
-    //         ctx.stroke()
-    //     }
-    //     const boxSize = this.gridBoxSize
-    //     const nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
-    //     for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
-    //     for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
-    //     grid.sprite = new Sprite(can)
-    // }
-
-    syncMode() {
-        const { mode, modeKey } = this.game
-        this.prevPos = null
-        if(this.draftActor) {
-            this.draftActor.remove()
-            this.draftActor = null
-        }
-        if(mode == "actor") {
-            this.draftActor = this.addActor(modeKey)
-            this.draftActor.spriteVisibility = 0
-        }
-    }
-
-    update() {
-        const { mode } = this.game
-        //this.updateDraftActor()
-        //if(mode == "move") this.updateMove()
-        // else if(mode == "select") this.updateSelect()
-        //if(mode == "wall") this.addPointedWall()
-        //if(mode == "erase") this.erasePointedActorOrWall()
-        //else if(mode == "actor") this.addPointedActor()
-        this.notifs.update()
-    }
-
-    // updateDraftActor() {
-    //     if(!this.draftActor) return
-    //     const { mode } = this.game
-    //     const touch = this.game.touches[0]
-    //     if(touch) {
-    //         this.draftActor.spriteVisibility = .5
-    //         const draftPos = {
-    //             x: touch.x + this.viewX,
-    //             y: touch.y + this.viewY,
-    //         }
-    //         if(mode == "actor") {
-    //             this.draftActor.x = draftPos.x
-    //             this.draftActor.y = draftPos.y
-    //         } else if(mode == "wall") {
-    //             if(this.anchor) this.applyAnchor(draftPos)
-    //             this.draftActor.x2 = draftPos.x
-    //             this.draftActor.y2 = draftPos.y
-    //         }
-    //     } else {
-    //         this.draftActor.spriteVisibility = 0
-    //     }
-    // }
-
-    // updateMove() {
-    //     const { touches } = this.game
-    //     const touch = touches[0]
-    //     if(touch && touch.isDown) {
-    //         if(!this.moveOrig) this.moveOrig = {
-    //             touchX: touch.x,
-    //             touchY: touch.y,
-    //             viewX: this.viewX,
-    //             viewY: this.viewY,
-    //         }
-    //         this.setView(
-    //             this.moveOrig.viewX - (touch.x - this.moveOrig.touchX),
-    //             this.moveOrig.viewY - (touch.y - this.moveOrig.touchY),
-    //         )
-    //     } else {
-    //         this.moveOrig = null
-    //     }
-    // }
-
-    // updateSelect() {
-    //     const { touches, prevTouchIsDown } = this.game
-    //     const touch = touches[0]
-    //     if(touch && touch.isDown && !prevTouchIsDown) {
-    //         const x = touch.x + this.viewX, y = touch.y + this.viewY
-    //         // walls
-    //         this.walls.forEach(wall => {
-    //             if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
-    //                 this.select(wall)
-    //         })
-    //         // actors
-    //         this.actors.forEach(act  => {
-    //             const { left, width, top, height } = act.getHitBox()
-    //             if(left <= x && left+width >= x && top <= y && top+height >= y) {
-    //                 this.select(act)
-    //             }
-    //         })
-    //     }
-    // }
-
-    // select(obj) {
-    //     this.selections.push(obj)
-    //     this.game.selectionMenu.clear()
-    //     this.game.selectionMenu.addSelection(obj)
-    // }
-
-    // addPointedWall() {
-    //     const { touches, prevTouchIsDown, modeKey } = this.game
-    //     const touch = touches[0]
-
-    //     if(touch && touch.isDown && !prevTouchIsDown) {
-    //         const pos = {
-    //             x: touch.x + this.viewX,
-    //             y: touch.y + this.viewY,
-    //         }
-    //         if(this.anchor) this.applyAnchor(pos)
-    //         if(this.prevPos !== null) {
-    //             this.addWall({ key:modeKey, x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
-    //         }
-    //         if(!this.draftActor) {
-    //             this.draftActor = this.addWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
-    //             this.draftActor.visibility = .5
-    //         } else {
-    //             this.draftActor.x1 = pos.x
-    //             this.draftActor.y1 = pos.y
-    //         }
-    //         this.prevPos = pos
-    //     }
-    // }
-
-    // addActor(key, kwargs) {
-    //     const act = super.addActor(key, kwargs)
-    //     if(act instanceof Hero) {
-    //         this.actors.forEach(act2 => {
-    //             if(act2 !== act && act2 instanceof Hero && act2 != this.draftActor)
-    //                 act2.remove()
-    //         })
-    //     }
-    //     return act
-    // }
-
-    // erasePointedActorOrWall() {
-    //     const { touches, prevTouchIsDown } = this.game
-    //     const touch = touches[0]
-    //     if(touch && touch.isDown && !prevTouchIsDown) {
-    //         const x = touch.x + this.viewX, y = touch.y + this.viewY
-    //         // walls
-    //         this.walls.forEach(wall => {
-    //             if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
-    //                 wall.remove()
-    //         })
-    //         // actors
-    //         this.actors.forEach(act  => {
-    //             const { left, width, top, height } = act.getHitBox()
-    //             if(left <= x && left+width >= x && top <= y && top+height >= y) {
-    //                 act.remove()
-    //             }
-    //         })
-    //     }
-    // }
-
-    // addPointedActor() {
-    //     const { touches, prevTouchIsDown } = this.game
-    //     const { modeKey } = this.game
-    //     const touch = touches[0]
-    //     if(touch && touch.isDown && !prevTouchIsDown) {
-    //         const x = floor(touch.x + this.viewX)
-    //         const y = floor(touch.y + this.viewY)
-    //         this.addActor(modeKey, { x, y })
-    //     }
-    // }
-
-    // applyAnchor(pos) {
-    //     const boxSize = this.gridBoxSize
-    //     const x1 = floor(pos.x / boxSize) * boxSize, x2 = x1 + boxSize
-    //     pos.x = (pos.x-x1 < x2-pos.x) ? x1 : x2
-    //     const y1 = floor(pos.y / boxSize) * boxSize, y2 = y1 + boxSize
-    //     pos.y = (pos.y-y1 < y2-pos.y) ? y1 : y2
-    // }
-
-    // syncMap() {
-    //     if(this.draftActor) this.draftActor.remove()
-    //     this.draftActor = null
-    //     this.game.map.scenes["0"] = this.getState(true)
-    //     // TODO: improve this hack
-    //     this.game.map.scenes["0"].key = this.buildedScene.constructor.KEY
-    //     // const { map } = this.game
-    //     // const mapScn = map.scenes["0"]
-    //     // const mapScnWalls = mapScn.walls ||= []
-    //     // mapScnWalls.length = 0
-    //     // this.walls.forEach(wall => {
-    //     //     if(wall.removed) return
-    //     //     const { x1, y1, x2, y2, key } = wall
-    //     //     mapScnWalls.push({ x1, y1, x2, y2, key })
-    //     // })
-    //     // const mapScnEnts = mapScn.actors ||= []
-    //     // mapScnEnts.length = 0
-    //     // this.actors.forEach(act => {
-    //     //     if(act.removed) return
-    //     //     const state = act.getState()
-    //     //     mapScnEnts.push(state)
-    //     // })
-    // }
-
-    // drawTo(ctx) {
-    //     ctx.translate(~~-this.viewX, ~~-this.viewY)
-    //     this.grid.drawTo(ctx)
-    //     ctx.translate(~~this.viewX, ~~this.viewY)
-    //     super.drawTo(ctx)
-    //     // ctx.translate(~~-this.viewX, ~~-this.viewY)
-    //     // this.drawSelections(ctx)
-    //     // ctx.translate(~~this.viewX, ~~this.viewY)
-    // }
-
-    // drawSelections(ctx) {
-    //     for(let sel of this.selections) {
-    //         let left, top, width, height
-    //         if(sel instanceof Wall) {
-    //             left = min(sel.x1, sel.x2)
-    //             top = min(sel.y1, sel.y2)
-    //             width = abs(sel.x1 - sel.x2)
-    //             height = abs(sel.y1 - sel.y2)
-    //         } else if(sel instanceof GameObject) {
-    //             const hitBox = sel.getHitBox()
-    //             left = hitBox.left
-    //             top = hitBox.top
-    //             width = hitBox.width
-    //             height = hitBox.height
-    //         }
-    //         ctx.lineWidth = 1
-    //         ctx.strokeStyle = "grey"
-    //         ctx.beginPath()
-    //         ctx.setLineDash([5, 5])
-    //         ctx.rect(left, top, width, height)
-    //         ctx.stroke()
-    //     }
-    // }
 }
 
 
