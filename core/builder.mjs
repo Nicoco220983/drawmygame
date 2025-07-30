@@ -247,14 +247,13 @@ class DraftScene extends SceneCommon {
     initGrid() {
         const { width, height } = this.game.scenes.game
         let { grid } = this
-        if(grid && grid.width == width && grid.height == height) return
+        if(grid && grid.width == width && grid.height == height) return grid
         grid = this.grid ||= new GameObject(this)
         grid.x = width / 2
         grid.y = height / 2
         grid.width = width
         grid.height = height
-        const can = newCanvas(width, height)
-        const ctx = can.getContext("2d")
+        const can = newCanvas(width, height), ctx = can.getContext("2d")
         ctx.strokeStyle = "lightgrey"
         const addLine = (x1, y1, x2, y2) => {
             ctx.beginPath()
