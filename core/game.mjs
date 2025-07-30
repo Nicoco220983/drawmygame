@@ -800,7 +800,7 @@ export class Actor extends GameObject {
     getState() {
         const state = {}
         state.id = this.id
-        state.key = this.constructor.KEY
+        state.key = this.getKey()
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
         return state
@@ -1066,7 +1066,6 @@ export class ActorGroup extends GameObjectGroup {
         let act
         if(typeof cls === 'string') {
             act = this.scene.createActorFromKey(cls, kwargs)
-            kwargs.key = cls
         } else {
             act = cls.create(this.scene, kwargs)
         }
@@ -1079,9 +1078,7 @@ export class ActorGroup extends GameObjectGroup {
     getState() {
         const state = this._state ||= []
         state.length = 0
-        this.forEach(act => {
-            if(act.constructor.KEY) state.push(act.getState())
-        })
+        this.forEach(act => state.push(act.getState()))
         return state
     }
 
@@ -1374,8 +1371,8 @@ export class SceneCommon {
         this.game = game
         this.x = 0
         this.y = 0
-        this.width = 0
-        this.height = 0
+        this.width = 800
+        this.height = 600
         this.viewX = 0
         this.viewY = 0
         this.viewSpeed = 100
@@ -1468,7 +1465,11 @@ export class SceneCommon {
 
     createActorFromKey(key, kwargs) {
         const mapState = this.getActorMapState(key)
-        if(mapState) key = mapState.key
+        let origKey
+        if(mapState) {
+            origKey = key
+            key = mapState.key
+        }
         const cls = this.game.catalog.getActorClass(key)
         let obj
         if(mapState) {
@@ -1477,6 +1478,7 @@ export class SceneCommon {
                 proto.setState(mapState)
                 obj = Object.create(proto)
                 obj.init(kwargs)
+                obj.key = origKey
             } else {
                 obj = cls.create(this, kwargs)
                 obj.setState(mapState)
@@ -1711,7 +1713,6 @@ export class Game extends GameCommon {
 
     showDebugScene() {
         this.debugScene = new DebugScene(this)
-        //this.syncSize()
     }
 
     updateGameLoop() {
@@ -2308,7 +2309,7 @@ export class GameScene extends SceneCommon {
         this.step = state.step
         this.setHerosSpawnPos(state.hsx, state.hsy)
         this.scores = state.sco
-        this.actors.setState(state.acts)
+        this.actors.setState(state.actors)
         this.seed = state.seed
     }
 
