@@ -85,6 +85,7 @@ class DraftScene extends SceneCommon {
     }
 
     update() {
+        this.syncSize()
         const { mode } = this.game
         this.updateDraftActor()
         if(mode == "actor") this.addPointedActor()
@@ -92,6 +93,12 @@ class DraftScene extends SceneCommon {
         else if(mode == "erase") this.erasePointedActorOrWall()
         else if(mode == "select") this.updateSelect()
         else if(mode == "move") this.updateMove()
+    }
+
+    syncSize() {
+        const gameScn = this.game.scenes.game
+        this.width = gameScn.width
+        this.height = gameScn.height
     }
 
     updateDraftActor() {
