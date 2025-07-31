@@ -35,36 +35,33 @@
         .fill {
             flex: 1;
         }
+        .section_title {
+            width: 100%;
+            font-weight: bold;
+            padding-top: 1em;
+            border-bottom: 1px solid black;
+        }
     </style>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame Builder</h1>
     <flexrow>
-        <flexcol id="menu">
-            <flexcol>
-                <flexrow>Heros: <dmg-actor-selector id="heros"></dmg-actor-selector></flexrow>
-                <flexrow>Scene: <select id="scene"></select></flexrow>
-                <flexrow>Width: <input id="map_width" type="number"></flexrow>
-                <flexrow>Height: <input id="map_height" type="number"></flexrow>
-            </flexcol>
-            <flexrow>
-                <button id="mode_move">[M]ove</button>
-                <button id="mode_select">[S]elect</button>
-                <button id="mode_erase">[E]rase</button>
-            </flexrow>
-            <flexrow>
-                <label><input id="anchor" type="checkbox" checked> Anchor</label>
-                <button id="mode_wall">[W]all</button>
-                <button id="mode_platform">[P]latform</button>
-            </flexrow>
-            <flexrow>
-                Actors: <dmg-actor-selector id="actors"></dmg-actor-selector>
-            </flexrow>
+        <flexcol id="menu" style="padding:1em">
             <flexrow>
                 <button id="game_draw">[D]RAW</button>
                 <button id="game_start">[P]LAY !</button>
                 <button id="game_share">SHARE</button>
                 <button id="game_multi">PLAY MULTI !</button>
+            </flexrow>
+            <flexrow>
+                <button id="mode_move">[M]ove</button>
+                <button id="mode_select">[S]elect</button>
+                <button id="mode_erase">[E]rase</button>
+                <label><input id="anchor" type="checkbox" checked> Anchor</label>
+            </flexrow>
+            <flexrow>
+                <button id="fullscreen">Fullscreen</button>
+                <label><input id="show_joypad" type="checkbox"> Show Joypad</label>
             </flexrow>
             <flexrow id="game_url" style="display: none">
                 <flexcol>
@@ -73,9 +70,24 @@
                 </flexcol>
                 <textarea id="game_url_val" style="width: 500px; height: 50px"></textarea>
             </flexrow>
+            <div class="section_title">Game:</div>
+            <flexcol>
+                <flexrow>Heros: <dmg-actor-selector id="heros"></dmg-actor-selector></flexrow>
+            </flexcol>
+            <div class="section_title">Scene:</div>
+            <flexcol>
+                <flexrow>Scene: <select id="scene_key"></select></flexrow>
+                <flexrow>Width: <input id="scene_width" type="number"></flexrow>
+                <flexrow>Height: <input id="scene_height" type="number"></flexrow>
+                <flexrow><dmg-actor-state id="scene"></dmg-actor-state></flexrow>
+            </flexcol>
+            <div class="section_title">Objects:</div>
             <flexrow>
-                <button id="fullscreen">Fullscreen</button>
-                <label><input id="show_joypad" type="checkbox"> Show Joypad</label>
+                Actors: <dmg-actor-selector id="actors"></dmg-actor-selector>
+            </flexrow>
+            <flexrow>
+                <button id="mode_wall">[W]all</button>
+                <button id="mode_platform">[P]latform</button>
             </flexrow>
             <flexcol id="selection_menu"></flexcol>
         </flexcol>
@@ -98,36 +110,45 @@ const gameParentEl = document.getElementById("game")
 let mode = null, catalog = null, map = null, gameBuilder = null, game = null
 
 const herosEl = document.getElementById("heros")
-const sceneEl = document.getElementById("scene")
-const mapWidthEl = document.getElementById("map_width")
-const mapHeightEl = document.getElementById("map_height")
-async function initInputEls() {
+const scnKeyEl = document.getElementById("scene_key")
+const scnWidthEl = document.getElementById("scene_width")
+const scnHeightEl = document.getElementById("scene_height")
+const scnStateEl = document.getElementById("scene")
+async function initInputEls(catalog) {
     for(let key in catalog.scenes) {
-        sceneEl.appendChild(newDomEl("option", { value: key, text: key }))
+        scnKeyEl.appendChild(newDomEl("option", { value: key, text: key }))
     }
     const scnMap = map.scenes["0"]
-    sceneEl.value = scnMap.key
-    mapWidthEl.value = scnMap.width
-    mapHeightEl.value = scnMap.height
+    scnKeyEl.value = scnMap.key
+    scnWidthEl.value = scnMap.width
+    scnHeightEl.value = scnMap.height
+    herosEl.initCatalog(catalog, actCat => actCat.isHero)
+    herosEl.setSelectedActor("nico")
+    actorsEl.initCatalog(catalog, actCat => !actCat.isHero)
 }
 function updScene() {
-    map.scenes["0"].key = sceneEl.value
+    map.scenes["0"].key = scnKeyEl.value
 }
 function updSize() {
     const scnMap = map.scenes["0"]
-    scnMap.width = parseInt(mapWidthEl.value)
-    scnMap.height = parseInt(mapHeightEl.value)
+    scnMap.width = parseInt(scnWidthEl.value)
+    scnMap.height = parseInt(scnHeightEl.value)
     if(mode == "builder") gameBuilder.syncSize()
 }
-sceneEl.onchange = updScene
-mapWidthEl.onchange = mapHeightEl.onchange = updSize
+scnKeyEl.onchange = updScene
+scnWidthEl.onchange = scnHeightEl.onchange = updSize
 
 const anchorEl = document.getElementById("anchor")
-function syncAnchor() {
+function initBuilderInputs() {
+    if(!gameBuilder) return
+    scnStateEl.setActor(gameBuilder.scenes.game)
+    anchorEl.checked = gameBuilder.scenes.draft.anchor
+}
+function syncBuilderAnchor() {
     if(!gameBuilder) return
     gameBuilder.setAnchor(anchorEl.checked)
 }
-anchorEl.onchange = syncAnchor
+anchorEl.onchange = syncBuilderAnchor
 
 const Keys = {}
 document.getElementById("mode_move").onclick = Keys["m"] = () => setBuilderMode('move')
@@ -200,10 +221,7 @@ async function main() {
     await catalog.preloadAll()  // TODO remove this
     map = new GameMap()
     if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
-    initInputEls()
-    herosEl.initCatalog(catalog, actCat => actCat.isHero)
-    herosEl.setSelectedActor("nico")
-    actorsEl.initCatalog(catalog, actCat => !actCat.isHero)
+    initInputEls(catalog)
     if(urlParams.has("map")) {
         await startAndShowGame(true)
     } else {
@@ -219,7 +237,7 @@ async function startAndShowBuilder() {
         gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
         await gameBuilder.loadGameScenes()
     }
-    syncAnchor()
+    initBuilderInputs()
     gameBuilder.run()
     mode = "builder"
     builderParentEl.style.display = ""

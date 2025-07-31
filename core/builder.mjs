@@ -35,7 +35,7 @@ export class GameBuilder extends GameCommon {
     }
 
     setAnchor(val) {
-        this.scenes.game.anchor = val
+        this.scenes.draft.anchor = val
     }
 
     syncMap() {

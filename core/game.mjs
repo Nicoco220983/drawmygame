@@ -407,9 +407,7 @@ export class StateProperty {
             if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
             const modifiedStateProp = Object.create(stateProp)
-            if(kwargs.default !== undefined) modifiedStateProp.defaultValue = kwargs.default
-            if(kwargs.showInBuilder !== undefined) modifiedStateProp.showInBuilder = kwargs.showInBuilder
-            if(kwargs.nullableWith !== undefined) modifiedStateProp.nullableWith = kwargs.nullableWith
+            modifiedStateProp.init(kwargs)
             target.STATE_PROPS.set(key, modifiedStateProp)
             modifiedStateProp.initActorClass(target)
             return target
@@ -417,6 +415,9 @@ export class StateProperty {
     }
     constructor(key, kwargs) {
         this.key = key
+        this.init(kwargs)
+    }
+    init(kwargs) {
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
         else this.defaultValue = this.constructor.DEFAULT_VALUE
         this.nullableWith = kwargs?.nullableWith
@@ -569,6 +570,7 @@ export class Component {
             if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             const comp = new this(kwargs)
             target.COMPONENTS.set(this.KEY, comp)
+            this.STATE_PROPS.forEach((prop, propKey) => target.STATE_PROPS.set(propKey, prop))
             comp.initActorClass(target)
             return target
         }
