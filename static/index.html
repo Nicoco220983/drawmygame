@@ -77,8 +77,6 @@
             <div class="section_title">Scene:</div>
             <flexcol>
                 <flexrow>Scene: <select id="scene_key"></select></flexrow>
-                <flexrow>Width: <input id="scene_width" type="number"></flexrow>
-                <flexrow>Height: <input id="scene_height" type="number"></flexrow>
                 <flexrow><dmg-actor-state id="scene"></dmg-actor-state></flexrow>
             </flexcol>
             <div class="section_title">Objects:</div>
@@ -111,8 +109,6 @@ let mode = null, catalog = null, map = null, gameBuilder = null, game = null
 
 const herosEl = document.getElementById("heros")
 const scnKeyEl = document.getElementById("scene_key")
-const scnWidthEl = document.getElementById("scene_width")
-const scnHeightEl = document.getElementById("scene_height")
 const scnStateEl = document.getElementById("scene")
 async function initInputEls(catalog) {
     for(let key in catalog.scenes) {
@@ -120,8 +116,6 @@ async function initInputEls(catalog) {
     }
     const scnMap = map.scenes["0"]
     scnKeyEl.value = scnMap.key
-    scnWidthEl.value = scnMap.width
-    scnHeightEl.value = scnMap.height
     herosEl.initCatalog(catalog, actCat => actCat.isHero)
     herosEl.setSelectedActor("nico")
     actorsEl.initCatalog(catalog, actCat => !actCat.isHero)
@@ -129,14 +123,7 @@ async function initInputEls(catalog) {
 function updScene() {
     map.scenes["0"].key = scnKeyEl.value
 }
-function updSize() {
-    const scnMap = map.scenes["0"]
-    scnMap.width = parseInt(scnWidthEl.value)
-    scnMap.height = parseInt(scnHeightEl.value)
-    if(mode == "builder") gameBuilder.syncSize()
-}
 scnKeyEl.onchange = updScene
-scnWidthEl.onchange = scnHeightEl.onchange = updSize
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {

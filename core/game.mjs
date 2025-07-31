@@ -568,6 +568,7 @@ export class Component {
 
     static add(kwargs) {
         return target => {
+            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             this.STATE_PROPS.forEach((prop, propKey) => {
                 target.STATE_PROPS.set(propKey, prop)
                 prop.initActorClass(target)
@@ -1360,17 +1361,17 @@ export class GameCommon {
     }
 }
 
+
+@StateInt.define("height", { default:600, showInBuilder:true })
+@StateInt.define("width", { default:800, showInBuilder:true })
 export class SceneCommon {
 
-    static STATE_PROPS = new Map()
     static COMPONENTS = new Map()
 
     constructor(game, kwargs) {
         this.game = game
         this.x = 0
         this.y = 0
-        this.width = 800
-        this.height = 600
         this.viewX = 0
         this.viewY = 0
         this.viewSpeed = 100

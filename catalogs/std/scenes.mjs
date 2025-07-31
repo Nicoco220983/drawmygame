@@ -22,7 +22,7 @@ class HerosResurectionsComponent extends Component {
 
 @CATALOG.registerScene("catch_all_stars")
 @HerosResurectionsComponent.add()
-export class CatchAllStarsScene extends FocusFirstHeroScene {
+export class CatchAllStarsScene extends GameScene {
     update() {
         super.update()
         if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
