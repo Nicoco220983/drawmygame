@@ -406,22 +406,23 @@ export class StateProperty {
             if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
-            const modifiedStateProp = Object.create(stateProp)
-            modifiedStateProp.init(kwargs)
-            target.STATE_PROPS.set(key, modifiedStateProp)
-            modifiedStateProp.initActorClass(target)
+            const prop2 = Object.create(stateProp)
+            prop2.init(kwargs)
+            target.STATE_PROPS.set(key, prop2)
+            prop2.initActorClass(target)
             return target
         }
     }
     constructor(key, kwargs) {
         this.key = key
+        this.defaultValue = this.constructor.DEFAULT_VALUE
+        this.showInBuilder = false
         this.init(kwargs)
     }
     init(kwargs) {
         if(kwargs?.default !== undefined) this.defaultValue = kwargs.default
-        else this.defaultValue = this.constructor.DEFAULT_VALUE
-        this.nullableWith = kwargs?.nullableWith
-        this.showInBuilder = kwargs?.showInBuilder ?? false
+        if(kwargs?.nullableWith !== undefined) this.nullableWith = kwargs.nullableWith
+        if(kwargs?.showInBuilder !== undefined) this.showInBuilder = kwargs.showInBuilder
     }
     initActorClass(cls) {
         cls.prototype[this.key] = this.defaultValue
@@ -567,28 +568,23 @@ export class Component {
 
     static add(kwargs) {
         return target => {
+            this.STATE_PROPS.forEach((prop, propKey) => {
+                target.STATE_PROPS.set(propKey, prop)
+                prop.initActorClass(target)
+            })
             if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             const comp = new this(kwargs)
             target.COMPONENTS.set(this.KEY, comp)
-            this.STATE_PROPS.forEach((prop, propKey) => target.STATE_PROPS.set(propKey, prop))
             comp.initActorClass(target)
             return target
         }
     }
 
-    initActorClass(cls) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.initActorClass(cls))
-    }
-    initActor(act, kwargs) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(act, kwargs))
-    }
+    initActorClass(cls) {}
+    initActor(act, kwargs) {}
     updateActor(act) {}
-    syncStateFromActor(act, state) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(act, state))
-    }
-    syncActorFromState(state, act) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, act))
-    }
+    syncStateFromActor(act, state) {}
+    syncActorFromState(state, act) {}
 }
 
 
