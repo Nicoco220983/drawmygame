@@ -818,7 +818,7 @@ Actor.StateProperty = class extends StateProperty {
         const { catalog } = act.game
         const inputEl = newDomEl("div")
         const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
-        selectEl.setCatalog(catalog)
+        selectEl.initCatalog(catalog)
         const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
             style: { display: "none" }
         })
@@ -2051,7 +2051,7 @@ export class DefaultScene extends SceneCommon {
         const viewWidth = this.getViewWidth()
         const viewHeight = this.getViewHeight()
         const can = document.createElement("canvas")
-        assign(can, { viewWidth, viewHeight })
+        assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
         ctx.fillStyle = "black"
         ctx.fillRect(0, 0, viewWidth, viewHeight)
