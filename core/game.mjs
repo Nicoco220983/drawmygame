@@ -425,21 +425,21 @@ export class StateProperty {
         if(kwargs?.showInBuilder !== undefined) this.showInBuilder = kwargs.showInBuilder
     }
     initActorClass(cls) {
-        this.setActorProp(cls.prototype, this.defaultStateValue)
+        this.setActorPropFromState(cls.prototype, this.defaultStateValue)
     }
     initActor(act, kwargs) {}
-    getActorProp(act) {
+    getActorPropState(act) {
         const val = act[this.key]
         if(val === this.nullableWith) return null
         else return val
     }
-    setActorProp(act, val) {
+    setActorPropFromState(act, valState) {
         const { key } = this
-        if(val === undefined) return delete act[key]
-        if(val === null) val = this.nullableWith
+        if(valState === undefined) return delete act[key]
+        if(valState === null) valState = this.nullableWith
         const protoVal = getPrototypeOf(this)[key]
-        if(val == protoVal) return delete act[key]
-        act[key] = val
+        if(valState == protoVal) return delete act[key]
+        act[key] = valState
     }
     // getPropState(val) {
     //     return val
@@ -452,17 +452,17 @@ export class StateProperty {
         if(!act.hasOwnProperty(key)) return
         let val = act[key], protoVal = getPrototypeOf(act)[key]
         if(val === undefined || val === protoVal) return
-        state[key] = this.getActorProp(act)
+        state[key] = this.getActorPropState(act)
     }
     syncActorFromState(state, act) {
-        this.setActorProp(act, state[this.key])
+        this.setActorPropFromState(act, state[this.key])
     }
     createActorInput(act) {
         if(this.nullableWith !== undefined) return this.createNullableInput(act)
         else return this.createInput(act)
     }
     createNullableInput(act) {
-        const val = this.getActorProp(act)
+        const val = this.getActorPropState(act)
         const wrapperEl = newDomEl("div", {
             style: {
                 display: "flex",
@@ -486,7 +486,7 @@ export class StateProperty {
         }
         nullEl.addEventListener("change", () => {
             syncEls()
-            if(nullEl.checked) this.setActorProp(act, null)
+            if(nullEl.checked) this.setActorPropFromState(act, null)
             else this.syncActorFromInput(valEl, act)
         })
         valEl.addEventListener("change", syncEls)
@@ -494,7 +494,7 @@ export class StateProperty {
         return wrapperEl
     }
     createInput(act) {
-        const val = this.getActorProp(act)
+        const val = this.getActorPropState(act)
         const inputEl = newDomEl("input", {
             type: "text",
             value: (typeof val === "string") ? val : ""
@@ -504,7 +504,7 @@ export class StateProperty {
     }
     syncActorFromInput(inputEl, act) {
         let val = inputEl.value
-        this.setActorProp(act, (val == "") ? this.defaultStateValue : val)
+        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : val)
     }
 }
 
@@ -517,7 +517,7 @@ export class StateInt extends StateProperty {
         this.max = kwargs?.max ?? null
     }
     createInput(act) {
-        const val = this.getActorProp(act)
+        const val = this.getActorPropState(act)
         const inputEl = newDomEl("input", {
             type: "number",
             value: (typeof val === "number") ? val : ""
@@ -527,7 +527,7 @@ export class StateInt extends StateProperty {
     }
     syncActorFromInput(inputEl, act) {
         let val = inputEl.value
-        this.setActorProp(act, (val == "") ? this.defaultStateValue : parseInt(val))
+        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : parseInt(val))
     }
 }
 
@@ -538,7 +538,7 @@ export class StateEnum extends StateProperty {
     }
     createInput(act) {
         const { options } = this
-        const val = this.getActorProp(act)
+        const val = this.getActorPropState(act)
         const inputEl = newDomEl("select")
         for(let optVal in options) {
             addNewDomEl(inputEl, "option", {
@@ -557,7 +557,7 @@ export class StateIntEnum extends StateEnum {
 
     syncActorFromInput(inputEl, act) {
         let val = inputEl.value
-        this.setActorProp(act, (val == "") ? this.defaultStateValue : parseInt(val))
+        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : parseInt(val))
     }
 }
 
@@ -811,22 +811,22 @@ export class Actor extends GameObject {
 }
 
 Actor.StateProperty = class extends StateProperty {
-    getActorProp(act) {
+    getActorPropState(act) {
         const val = act[this.key]
         if(!val || val === this.nullableWith) return null
         else return val.getState()
     }
-    setActorProp(obj, val) {
+    setActorPropFromState(obj, valState) {
         const { key } = this
-        if(val === undefined) return delete obj[key]
-        if(val === null) val = this.nullableWith
+        if(valState === undefined) return delete obj[key]
+        if(valState === null) valState = this.nullableWith
         let objVal = obj[key]
-        if(!objVal || objVal.getKey() != val.key) {
+        if(!objVal || objVal.getKey() != valState.key) {
             const catalog = obj.game.catalog
-            const cls = catalog.getActorClass(val.key)
+            const cls = catalog.getActorClass(valState.key)
             const scn = (obj instanceof SceneCommon) ? obj : obj.scene
             objVal = cls.create(scn)
-            objVal.setState(val)
+            objVal.setState(valState)
             obj[key] = objVal
         }
     }
@@ -835,7 +835,7 @@ Actor.StateProperty = class extends StateProperty {
     }
     initActor(act, kwargs) {
         if(!act.hasOwnProperty(this.key) && this.defaultStateValue) {
-            this.setActorProp(act, this.defaultStateValue)
+            this.setActorPropFromState(act, this.defaultStateValue)
         }
     }
     createInput(act) {
@@ -863,7 +863,7 @@ Actor.StateProperty = class extends StateProperty {
     }
     syncActorFromInput(inputEl, act) {
         const actKey = inputEl.selectEl.value
-        this.setActorProp(act, { key: actKey })
+        this.setActorPropFromState(act, { key: actKey })
     }
     // getPropState(val) {
     //     return val ? val.getState() : val
@@ -875,7 +875,7 @@ Actor.StateProperty = class extends StateProperty {
     // }
     // initActorProp(obj, val) {
     //     if(!val) return this.defaultStateValue
-    //     let res = this.getActorProp(obj)
+    //     let res = this.getActorPropState(obj)
     //     if(!res || res.getKey() != val.key) {
     //         const catalog = obj.game.catalog
     //         console.log("TMP before getActorClass", val)
@@ -883,7 +883,7 @@ Actor.StateProperty = class extends StateProperty {
     //         const scn = (obj instanceof SceneCommon) ? obj : obj.scene
     //         res = cls.create(scn)
     //         res.setState(val)
-    //         this.setActorProp(obj, res)
+    //         this.setActorPropFromState(obj, res)
     //     }
     //     return res
     // }
@@ -939,11 +939,11 @@ ActorRefs.StateProperty = class extends StateProperty {
     initActor(act, kwargs) {
         act[this.key] = new ActorRefs(act.scene)
     }
-    getActorProp(act) {
+    getActorPropState(act) {
         const val = act[this.key]
         return val.getState()
     }
-    setActorProp(act, valState) {
+    setActorPropFromState(act, valState) {
         const val = act[this.key]
         val.setState(valState ?? null)
     }
