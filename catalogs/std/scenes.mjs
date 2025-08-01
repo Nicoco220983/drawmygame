@@ -1,19 +1,42 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateInt, Component, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod } from '../../core/game.mjs'
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateInt, Component, Actor, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 
 
+@CATALOG.registerActor("heroslivesmng", {
+    category: "manager/heroslives",
+})
+@StateProperty.define("deathsIts")
+@StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
-class HerosResurectionsComponent extends Component {
-    initActor(scn, kwargs) {
-        hackMethod(scn, "addActor", -1, evt => {
+export class HerosLivesManager extends Actor {
+    init(kwargs) {
+        const { scene } = this
+        hackMethod(scene, "addActor", -1, evt => {
             const act = evt.returnValue
             if(!(act instanceof Hero)) return
             hackMethod(act, "die", -1, evt => {
-                scn.addHero(act.playerId)
+                const deathsIts = this.deathsIts ||= {}
+                deathsIts[act.playerId] = scene.iteration
             })
         })
+    }
+    update() {
+        const { scene, deathsIts, delay } = this
+        const { game, iteration } = scene
+        const { fps } = game
+        if(deathsIts) {
+            for(let playerId in deathsIts) {
+                if(this.lives <= 0) break
+                if((deathsIts[playerId] + (delay*fps)) <= iteration) {
+                    scene.addHero(playerId)
+                    delete deathsIts[playerId]
+                    this.lives -= 1
+                }
+            }
+            if(!hasKeys(deathsIts)) this.deathsIts = null
+        }
     }
 }
 
@@ -21,8 +44,11 @@ class HerosResurectionsComponent extends Component {
 // CATCH ALL STARS
 
 @CATALOG.registerScene("catch_all_stars")
-@HerosResurectionsComponent.add()
-export class CatchAllStarsScene extends GameScene {
+@Actor.StateProperty.define("herosLivesManager", {
+    filter: { category: "manager/heroslives" },
+    default: { key: "heroslivesmng" },
+})
+export class CatchAllStarsScene extends FocusFirstHeroScene {
     update() {
         super.update()
         if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
