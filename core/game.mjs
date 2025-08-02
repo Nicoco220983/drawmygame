@@ -178,20 +178,14 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             actors: [],
             walls: [],
+            herosLivesManager: { key : "heroslivesmng" },
         }}
     }
 
     async exportAsBinary() {
         const outScns = {}
         for(let scnId in this.scenes) {
-            const scnState = this.scenes[scnId]
-            outScns[scnId] = {
-                key: scnState.key,
-                w: scnState.width,
-                h: scnState.height,
-                ws: scnState.walls,
-                acts: scnState.actors,
-            }
+            outScns[scnId] = this.scenes[scnId]
         }
         const outObj = {
             hs: this.heros,
@@ -217,13 +211,7 @@ export class GameMap {
         this.heros = inObj.hs
         const scns = this.scenes = {}
         for(let scnId in inObj.ss) {
-            const inScn = inObj.ss[scnId]
-            const scn = scns[scnId] = {}
-            scn.key = inScn.key
-            scn.width = inScn.w
-            scn.height = inScn.h
-            scn.walls = inScn.ws
-            scn.actors = inScn.acts
+            scns[scnId] = inObj.ss[scnId]
         }
     }
 }
@@ -397,7 +385,7 @@ export class StateProperty {
             if(target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
             const stateProp = new this(key, kwargs)
             target.STATE_PROPS.set(key, stateProp)
-            stateProp.initActorClass(target)
+            stateProp.initObjectClass(target)
             return target
         }
     }
@@ -409,7 +397,7 @@ export class StateProperty {
             const prop2 = Object.create(stateProp)
             prop2.init(kwargs)
             target.STATE_PROPS.set(key, prop2)
-            prop2.initActorClass(target)
+            prop2.initObjectClass(target)
             return target
         }
     }
@@ -424,22 +412,22 @@ export class StateProperty {
         if(kwargs?.nullableWith !== undefined) this.nullableWith = kwargs.nullableWith
         if(kwargs?.showInBuilder !== undefined) this.showInBuilder = kwargs.showInBuilder
     }
-    initActorClass(cls) {
-        this.setActorPropFromState(cls.prototype, this.defaultStateValue)
+    initObjectClass(cls) {
+        this.setObjectPropFromState(cls.prototype, this.defaultStateValue)
     }
-    initActor(act, kwargs) {}
-    getActorPropState(act) {
-        const val = act[this.key]
+    initObject(obj, kwargs) {}
+    getObjectPropState(obj) {
+        const val = obj[this.key]
         if(val === this.nullableWith) return null
         else return val
     }
-    setActorPropFromState(act, valState) {
+    setObjectPropFromState(obj, valState) {
         const { key } = this
-        if(valState === undefined) return delete act[key]
+        if(valState === undefined) return delete obj[key]
         if(valState === null) valState = this.nullableWith
         const protoVal = getPrototypeOf(this)[key]
-        if(valState == protoVal) return delete act[key]
-        act[key] = valState
+        if(valState == protoVal) return delete obj[key]
+        obj[key] = valState
     }
     // getPropState(val) {
     //     return val
@@ -447,22 +435,22 @@ export class StateProperty {
     // getPropFromState(stateVal) {
     //     return stateVal
     // }
-    syncStateFromActor(act, state) {
+    syncStateFromObject(obj, state) {
         const { key } = this
-        if(!act.hasOwnProperty(key)) return
-        let val = act[key], protoVal = getPrototypeOf(act)[key]
+        if(!obj.hasOwnProperty(key)) return
+        let val = obj[key], protoVal = getPrototypeOf(obj)[key]
         if(val === undefined || val === protoVal) return
-        state[key] = this.getActorPropState(act)
+        state[key] = this.getObjectPropState(obj)
     }
-    syncActorFromState(state, act) {
-        this.setActorPropFromState(act, state[this.key])
+    syncObjectFromState(state, obj) {
+        this.setObjectPropFromState(obj, state[this.key])
     }
-    createActorInput(act) {
-        if(this.nullableWith !== undefined) return this.createNullableInput(act)
-        else return this.createInput(act)
+    createObjectInput(obj) {
+        if(this.nullableWith !== undefined) return this.createNullableInput(obj)
+        else return this.createInput(obj)
     }
-    createNullableInput(act) {
-        const val = this.getActorPropState(act)
+    createNullableInput(obj) {
+        const val = this.getObjectPropState(obj)
         const wrapperEl = newDomEl("div", {
             style: {
                 display: "flex",
@@ -478,7 +466,7 @@ export class StateProperty {
             text: this.nullableWith,
         })
         wrapperEl.appendChild(nullTxtEl)
-        const valEl = this.createInput(act)
+        const valEl = this.createInput(obj)
         wrapperEl.appendChild(valEl)
         const syncEls = () => {
             valEl.style.display = nullEl.checked ? "none" : "block"
@@ -486,25 +474,25 @@ export class StateProperty {
         }
         nullEl.addEventListener("change", () => {
             syncEls()
-            if(nullEl.checked) this.setActorPropFromState(act, null)
-            else this.syncActorFromInput(valEl, act)
+            if(nullEl.checked) this.setObjectPropFromState(obj, null)
+            else this.syncObjectFromInput(valEl, obj)
         })
         valEl.addEventListener("change", syncEls)
         syncEls()
         return wrapperEl
     }
-    createInput(act) {
-        const val = this.getActorPropState(act)
+    createInput(obj) {
+        const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "text",
             value: (typeof val === "string") ? val : ""
         })
-        inputEl.addEventListener("change", () => this.syncActorFromInput(inputEl, act))
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
         return inputEl
     }
-    syncActorFromInput(inputEl, act) {
+    syncObjectFromInput(inputEl, obj) {
         let val = inputEl.value
-        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : val)
+        this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : val)
     }
 }
 
@@ -516,18 +504,18 @@ export class StateInt extends StateProperty {
         this.min = kwargs?.min ?? null
         this.max = kwargs?.max ?? null
     }
-    createInput(act) {
-        const val = this.getActorPropState(act)
+    createInput(obj) {
+        const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "number",
             value: (typeof val === "number") ? val : ""
         })
-        inputEl.addEventListener("change", () => this.syncActorFromInput(inputEl, act))
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
         return inputEl
     }
-    syncActorFromInput(inputEl, act) {
+    syncObjectFromInput(inputEl, obj) {
         let val = inputEl.value
-        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : parseInt(val))
+        this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : parseInt(val))
     }
 }
 
@@ -536,9 +524,9 @@ export class StateEnum extends StateProperty {
         super(key, kwargs)
         this.options = kwargs.options
     }
-    createInput(act) {
+    createInput(obj) {
         const { options } = this
-        const val = this.getActorPropState(act)
+        const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("select")
         for(let optVal in options) {
             addNewDomEl(inputEl, "option", {
@@ -547,7 +535,7 @@ export class StateEnum extends StateProperty {
             })
         }
         inputEl.value = val
-        inputEl.addEventListener("change", () => this.syncActorFromInput(inputEl, act))
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
         return inputEl
     }
 }
@@ -555,9 +543,9 @@ export class StateEnum extends StateProperty {
 export class StateIntEnum extends StateEnum {
     static DEFAULT_STATE_VALUE = 0
 
-    syncActorFromInput(inputEl, act) {
+    syncObjectFromInput(inputEl, obj) {
         let val = inputEl.value
-        this.setActorPropFromState(act, (val == "") ? this.defaultStateValue : parseInt(val))
+        this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : parseInt(val))
     }
 }
 
@@ -570,21 +558,21 @@ export class Component {
             if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             this.STATE_PROPS.forEach((prop, propKey) => {
                 target.STATE_PROPS.set(propKey, prop)
-                prop.initActorClass(target)
+                prop.initObjectClass(target)
             })
             if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             const comp = new this(kwargs)
             target.COMPONENTS.set(this.KEY, comp)
-            comp.initActorClass(target)
+            comp.initObjectClass(target)
             return target
         }
     }
 
-    initActorClass(cls) {}
-    initActor(act, kwargs) {}
-    updateActor(act) {}
-    syncStateFromActor(act, state) {}
-    syncActorFromState(state, act) {}
+    initObjectClass(cls) {}
+    initObject(obj, kwargs) {}
+    updateObject(obj) {}
+    syncStateFromObject(obj, state) {}
+    syncObjectFromState(state, obj) {}
 }
 
 
@@ -598,15 +586,15 @@ export class PhysicsComponent extends Component {
         this.affectedByGravity = kwargs?.affectedByGravity ?? true
         this.blockedByWalls = kwargs?.blockedByWalls ?? true
     }
-    initActor(act, kwargs) {
-        super.initActor(act, kwargs)
-        act.physicsComponent = this
-        act.speedResX = 0
-        act.speedResY = 0
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        obj.physicsComponent = this
+        obj.speedResX = 0
+        obj.speedResY = 0
         if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
         if(kwargs?.blockedByWalls !== undefined) this.blockedByWalls = kwargs.blockedByWalls
     }
-    updateActor(act) {
+    updateObject(obj) {
         // done by physics engine
     }
 }
@@ -653,8 +641,8 @@ export class GameObject {
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
         }
-        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
-        this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
+        this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
+        this.constructor.COMPONENTS.forEach(comp => comp.initObject(this, kwargs))
     }
 
     getPriority() {
@@ -662,7 +650,7 @@ export class GameObject {
     }
 
     update() {
-        this.constructor.COMPONENTS.forEach(comp => comp.updateActor(this))
+        this.constructor.COMPONENTS.forEach(comp => comp.updateObject(this))
     }
 
     drawTo(ctx) {
@@ -799,94 +787,73 @@ export class Actor extends GameObject {
         const state = {}
         state.id = this.id
         state.key = this.getKey()
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
         return state
     }
 
     setState(state) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
     }
 }
 
 Actor.StateProperty = class extends StateProperty {
-    getActorPropState(act) {
-        const val = act[this.key]
+    getObjectPropState(obj) {
+        const val = obj[this.key]
         if(!val || val === this.nullableWith) return null
         else return val.getState()
     }
-    setActorPropFromState(obj, valState) {
+    setObjectPropFromState(obj, valState) {
         const { key } = this
         if(valState === undefined) return delete obj[key]
         if(valState === null) valState = this.nullableWith
+        if(!valState) return obj[key] = valState
         let objVal = obj[key]
         if(!objVal || objVal.getKey() != valState.key) {
             const catalog = obj.game.catalog
             const cls = catalog.getActorClass(valState.key)
             const scn = (obj instanceof SceneCommon) ? obj : obj.scene
             objVal = cls.create(scn)
-            objVal.setState(valState)
             obj[key] = objVal
         }
+        objVal.setState(valState)
     }
-    initActorClass(cls) {
+    initObjectClass(cls) {
         cls.prototype[this.key] = this.nullableWith
     }
-    initActor(act, kwargs) {
-        if(!act.hasOwnProperty(this.key) && this.defaultStateValue) {
-            this.setActorPropFromState(act, this.defaultStateValue)
+    initObject(obj, kwargs) {
+        if(!obj.hasOwnProperty(this.key) && this.defaultStateValue) {
+            this.setObjectPropFromState(obj, this.defaultStateValue)
         }
     }
-    createInput(act) {
-        const actVal = act[this.key]
-        const { catalog } = act.game
+    createInput(obj) {
+        const objVal = obj[this.key]
+        const { catalog } = obj.game
         const inputEl = newDomEl("div")
         const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
         selectEl.initCatalog(catalog)
         const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
             style: { display: "none" }
         })
-        const showActorStates = actVal => {
+        const showActorStates = objVal => {
             statesEl.style.display = ""
-            statesEl.setActor(actVal)
+            statesEl.setActor(objVal)
         }
-        if(actVal) {
-            selectEl.setSelectedActor(actVal.getKey())
-            showActorStates(actVal)
+        if(objVal) {
+            selectEl.setSelectedActor(objVal.getKey())
+            showActorStates(objVal)
         }
         selectEl.addEventListener("change", () => {
-            this.syncActorFromInput(inputEl, act)
-            showActorStates(act[this.key])
+            this.syncObjectFromInput(inputEl, obj)
+            showActorStates(obj[this.key])
         })
         return inputEl
     }
-    syncActorFromInput(inputEl, act) {
-        const actKey = inputEl.selectEl.value
-        this.setActorPropFromState(act, { key: actKey })
+    syncObjectFromInput(inputEl, obj) {
+        const objKey = inputEl.selectEl.value
+        this.setObjectPropFromState(obj, { key: objKey })
     }
-    // getPropState(val) {
-    //     return val ? val.getState() : val
-    // }
-    // getPropFromState(stateVal, act) {
-    //     if(!stateVal) return stateVal
-    //     const res = this.initActorProp(act, stateVal)
-    //     return res
-    // }
-    // initActorProp(obj, val) {
-    //     if(!val) return this.defaultStateValue
-    //     let res = this.getActorPropState(obj)
-    //     if(!res || res.getKey() != val.key) {
-    //         const catalog = obj.game.catalog
-    //         console.log("TMP before getActorClass", val)
-    //         const cls = catalog.getActorClass(val.key)
-    //         const scn = (obj instanceof SceneCommon) ? obj : obj.scene
-    //         res = cls.create(scn)
-    //         res.setState(val)
-    //         this.setActorPropFromState(obj, res)
-    //     }
-    //     return res
-    // }
 }
 
 
@@ -933,31 +900,31 @@ export class ActorRefs extends Set {
 
 
 ActorRefs.StateProperty = class extends StateProperty {
-    initActorClass(cls) {
+    initObjectClass(cls) {
         cls.prototype[this.key] = this.nullableWith
     }
-    initActor(act, kwargs) {
-        act[this.key] = new ActorRefs(act.scene)
+    initObject(obj, kwargs) {
+        obj[this.key] = new ActorRefs(obj.scene)
     }
-    getActorPropState(act) {
-        const val = act[this.key]
+    getObjectPropState(obj) {
+        const val = obj[this.key]
         return val.getState()
     }
-    setActorPropFromState(act, valState) {
-        const val = act[this.key]
+    setObjectPropFromState(obj, valState) {
+        const val = obj[this.key]
         val.setState(valState ?? null)
     }
-    // syncStateFromActor(act, state) {
+    // syncStateFromObject(obj, state) {
     //     const { key } = this
-    //     const valState = act[key].getState()
+    //     const valState = obj[key].getState()
     //     if(valState) state[key] = valState
     // }
-    // syncActorFromState(state, act) {
+    // syncObjectFromState(state, obj) {
     //     const { key } = this
-    //     const val = act[key], valState = state[key]
+    //     const val = obj[key], valState = state[key]
     //     val.setState(valState ?? null)
     // }
-    fromActorToInput(act) {
+    createInput(obj) {
         // TODO
     }
 }
@@ -1120,16 +1087,21 @@ export class ActorGroup extends GameObjectGroup {
         return state
     }
 
-    setState(state) {
+    setState(state, isInitState=false) {
         const { objArr, objMap } = this
         objArr.length = 0
         if(state) {
-            for(let actState of state) {
-                let { id } = actState
-                let act = objMap.get(id)
-                if(!act) act = this.add(actState.key, { id })
-                else objArr.push(act)
-                act.setState(actState)
+            for(let idx in state) {
+                if(isInitState) {
+                    this.add(`A#${idx}`)
+                } else {
+                    const actState = state[idx]
+                    let { id } = actState
+                    let act = objMap.get(id)
+                    if(!act) act = this.add(actState.key, { id })
+                    else objArr.push(act)
+                    act.setState(actState)
+                }
             }
             if(objMap.size != objArr.length) {
                 objMap.clear()
@@ -1431,8 +1403,8 @@ export class SceneCommon {
         this.heros = {}
         this.map = null
         this.doCreateActorMapProto = true
-        this.constructor.STATE_PROPS.forEach(prop => prop.initActor(this, kwargs))
-        this.constructor.COMPONENTS.forEach(comp => comp.initActor(this, kwargs))
+        this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
+        this.constructor.COMPONENTS.forEach(comp => comp.initObject(this, kwargs))
     }
 
     isPausable() {
@@ -1466,10 +1438,8 @@ export class SceneCommon {
     loadMap(scnMapId) {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
-        this.width = this.map.width
-        this.height = this.map.height
+        this.setState(this.map, true)
         this.initWalls()
-        this.initActors()
     }
 
     async loadScenes(cls, scnMapId=undefined) {
@@ -1489,12 +1459,6 @@ export class SceneCommon {
 
     addWall(kwargs) {
         return this.walls.add(Wall, kwargs)
-    }
-
-    initActors() {
-        const mapActs = this.map?.actors
-        if(!mapActs) return
-        for(let i=0; i<mapActs.length; ++i) this.addActor(`A#${i}`)
     }
 
     addActor(cls, kwargs) {
@@ -1576,7 +1540,7 @@ export class SceneCommon {
     }
 
     updateWorld() {
-        this.constructor.COMPONENTS.forEach(comp => comp.updateActor(this))
+        this.constructor.COMPONENTS.forEach(comp => comp.updateObject(this))
         this.actors.update()
         this.visuals.update()
     }
@@ -1645,15 +1609,17 @@ export class SceneCommon {
             state.width = this.width
             state.height = this.height
         }
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromActor(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromActor(this, state))
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
         return state
     }
 
-    setState(state) {
-        this.paused = state.paused === true
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncActorFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncActorFromState(state, this))
+    setState(state, isInitState=false) {
+        if(!isInitState) {
+            this.paused = state.paused === true
+        }
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
+        this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
     }
 }
 
@@ -2317,15 +2283,17 @@ export class GameScene extends SceneCommon {
 
     getState(isInitState=false) {
         const state = super.getState(isInitState)
-        if(!isInitState) {
+        if(isInitState) {
+            state.width = this.width
+            state.height = this.height
+            state.walls = this.getWallsState()
+        } else {
             state.it = this.iteration
             state.step = this.step
             state.hsx = this.herosSpawnX
             state.hsy = this.herosSpawnY
             state.sco = this.scores
             state.seed = this.seed
-        } else {
-            state.walls = this.getWallsState()
         }
         state.actors = this.actors.getState()
         return state
@@ -2341,14 +2309,16 @@ export class GameScene extends SceneCommon {
         return res
     }
 
-    setState(state) {
-        super.setState(state)
-        this.iteration = state.it
-        this.step = state.step
-        this.setHerosSpawnPos(state.hsx, state.hsy)
-        this.scores = state.sco
-        this.actors.setState(state.actors)
-        this.seed = state.seed
+    setState(state, isInitState=false) {
+        super.setState(state, isInitState)
+        if(!isInitState) {
+            this.iteration = state.it
+            this.step = state.step
+            this.setHerosSpawnPos(state.hsx, state.hsy)
+            this.scores = state.sco
+            this.seed = state.seed
+        }
+        this.actors.setState(state.actors, isInitState)
     }
 
     rand(key) {

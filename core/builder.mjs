@@ -449,10 +449,8 @@ class ActorStateElement extends HTMLElement {
             wrapperEl.appendChild(newDomEl("span", {
                 text: prop.key
             }))
-            const inputEl = prop.createActorInput(act)
+            const inputEl = prop.createObjectInput(act)
             wrapperEl.appendChild(inputEl)
-            //inputEl.addEventListener("change", () => prop.fromInputToActor(inputEl, act))
-            //this.addInput("section", prop.key, inputEl)
             this.statesEl.appendChild(wrapperEl)
         })
     }

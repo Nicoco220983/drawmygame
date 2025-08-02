@@ -29,7 +29,7 @@ export class HerosLivesManager extends Actor {
         if(deathsIts) {
             for(let playerId in deathsIts) {
                 if(this.lives <= 0) break
-                if((deathsIts[playerId] + (delay*fps)) <= iteration) {
+                if(iteration >= (deathsIts[playerId] + (delay*fps))) {
                     scene.addHero(playerId)
                     delete deathsIts[playerId]
                     this.lives -= 1
@@ -47,10 +47,12 @@ export class HerosLivesManager extends Actor {
 @Actor.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
     default: { key: "heroslivesmng" },
+    showInBuilder: true,
 })
 export class CatchAllStarsScene extends FocusFirstHeroScene {
     update() {
         super.update()
+        this.herosLivesManager.update()
         if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
     }
 }
