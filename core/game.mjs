@@ -173,7 +173,7 @@ export class GameMap {
             key: "nico"
         }]
         this.scenes = { "0": {
-            key: "catch_all_stars",
+            key: "std",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
             actors: [],
@@ -493,6 +493,23 @@ export class StateProperty {
     syncObjectFromInput(inputEl, obj) {
         let val = inputEl.value
         this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : val)
+    }
+}
+
+export class StateBool extends StateProperty {
+    static DEFAULT_STATE_VALUE = false
+
+    createInput(obj) {
+        const val = this.getObjectPropState(obj)
+        const inputEl = newDomEl("input", {
+            type: "checkbox",
+            checked: Boolean(val),
+        })
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
+        return inputEl
+    }
+    syncObjectFromInput(inputEl, obj) {
+        this.setObjectPropFromState(obj, inputEl.checked)
     }
 }
 

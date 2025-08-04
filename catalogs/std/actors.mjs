@@ -620,14 +620,10 @@ export class Star extends Collectable {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
-        this.scene.nbStars ||= 0
-        this.scene.nbStars += 1
     }
     onCollected(hero) {
         super.onCollected(hero)
         this.remove()
-        this.scene.nbStars -= 1
-        //if(this.scene.step == "GAME" && this.scene.nbStars == 0) this.scene.step = "VICTORY"
     }
     getSprite() {
         return StarSprite

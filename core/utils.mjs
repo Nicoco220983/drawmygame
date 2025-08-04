@@ -268,6 +268,7 @@ function newDomEl(tag, kwargs) {
         const val = kwargs[key]
         if(key == "style") assign(el.style, val)
         else if(key == "value") el.value = val
+        else if(key == "checked") el.checked = val
         else if(key == "text") el.textContent = val
         else el.setAttribute(key, val)
     }

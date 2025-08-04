@@ -1,5 +1,6 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateInt, Component, Actor, Sprite, Hero, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 
@@ -41,19 +42,32 @@ export class HerosLivesManager extends Actor {
 }
 
 
-// CATCH ALL STARS
+// Standard
 
-@CATALOG.registerScene("catch_all_stars")
+@CATALOG.registerScene("std")
 @Actor.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
     default: { key: "heroslivesmng" },
     showInBuilder: true,
 })
-export class CatchAllStarsScene extends FocusFirstHeroScene {
+@StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
+@StateBool.define("catchAllStars", { default: false, showInBuilder: true })
+export class StandardScene extends FocusFirstHeroScene {
     update() {
         super.update()
         this.herosLivesManager.update()
-        if(this.step == "GAME" && this.nbStars === 0) this.step = "VICTORY"
+        if(this.step == "GAME") {
+            let allOk = null
+            if(allOk!==false && this.catchAllStars) {
+                const stars = this.filterActors("stars", act => act instanceof Star)
+                allOk = (stars.length == 0)
+            }
+            if(allOk!==false && this.killAllEnemies) {
+                const enemies = this.filterActors("enemies", act => act instanceof Enemy)
+                allOk = (enemies.length == 0)
+            }
+            if(allOk) this.step = "VICTORY"
+        }
     }
 }
 
