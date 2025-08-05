@@ -169,35 +169,44 @@ class DraftScene extends SceneCommon {
     }
 
     initMove(touch, obj) {
-        this._moveOrig = {
+        const orig = this._moveOrig = {
             touchX: touch.x,
             touchY: touch.y,
-            x: obj ? obj.x : this.viewX,
-            y: obj ? obj.y : this.viewY,
-            obj: obj,
+            viewX: this.viewX,
+            viewY: this.viewY,
+        }
+        if(obj) {
+            const objs = this.selections.concat([obj])
+            orig.objs = objs
+            orig.objsX = objs.map(o => o.x)
+            orig.objsY = objs.map(o => o.y)
         }
     }
 
     updateMove(touch, obj) {
-        if(!this._moveOrig) return
+        const orig = this._moveOrig
+        if(!orig) return
         if(!obj) {
-            const viewX = this._moveOrig.x - (touch.x - this._moveOrig.touchX)
-            const viewY = this._moveOrig.y - (touch.y - this._moveOrig.touchY)
+            const viewX = orig.viewX - (touch.x - orig.touchX)
+            const viewY = orig.viewY - (touch.y - orig.touchY)
             this.setView(viewX, viewY)
             this.game.scenes.game.setView(viewX, viewY)
         } else {
-            const newX = this._moveOrig.x + (touch.x - this._moveOrig.touchX)
-            const newY = this._moveOrig.y + (touch.y - this._moveOrig.touchY)
-            obj.x = newX
-            obj.y = newY
+            for(let idx in orig.objs) {
+                const obj = orig.objs[idx]
+                const origX = orig.objsX[idx]
+                const origY = orig.objsY[idx]
+                obj.x = origX + (touch.x - orig.touchX)
+                obj.y = origY + (touch.y - orig.touchY)
+            }
         }
     }
 
     hasMoved() {
-        const orig = this._moveOrig, obj = orig.obj
-        const x = obj ? obj.x : this.viewX
-        const y = obj ? obj.y : this.viewY
-        return x != orig.x || y != orig.y
+        const orig = this._moveOrig, objs = orig.objs
+        if(!objs) return false
+        const { objsX, objsY } = orig
+        return (objs[0].x != objsX[0]) || (objs[0].y != objsY[0])
     }
 
     clearMove() {
