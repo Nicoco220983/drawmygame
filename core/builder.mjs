@@ -18,6 +18,24 @@ export class GameBuilder extends GameCommon {
         super.syncSize()
         this.setMode("move")
         this.initTouches()
+        this.initKeysListeners()
+    }
+
+    initKeysListeners() {
+        this.pressedKeys = new Set()
+        document.body.addEventListener("keydown", evt => {
+            this.pressedKeys.add(evt.key)
+            if(evt.key == "Escape") {
+                if(this.mode != "cursor") this.setMode("cursor")
+                else this.clearSelection()
+            }
+            if(evt.key == "Backspace") {
+                this.removeSelectedObject()
+            }
+        })
+        document.body.addEventListener("keyup", evt => {
+            this.pressedKeys.delete(evt.key)
+        })
     }
 
     createScene(cls, kwargs) {
@@ -48,6 +66,13 @@ export class GameBuilder extends GameCommon {
         this.prevTouchIsDown = Boolean(touch) && touch.isDown
     }
 
+    removeSelectedObject() {
+        for(let obj of this.scenes.draft.selections) {
+            obj.remove()
+        }
+        this.clearSelection()
+    }
+
     clearSelection() {
         this.scenes.draft.selections.length = 0
         this.selectionMenu.clear()
@@ -69,6 +94,12 @@ class DraftScene extends SceneCommon {
         this.draftActor = null
         this.selections = []
         this.gridBoxSize = 20
+    }
+
+    syncSize() {
+        const gameScn = this.game.scenes.game
+        this.width = gameScn.width
+        this.height = gameScn.height
     }
 
     syncMode() {
@@ -93,12 +124,84 @@ class DraftScene extends SceneCommon {
         else if(mode == "erase") this.erasePointedActorOrWall()
         else if(mode == "select") this.updateSelect()
         else if(mode == "move") this.updateMove()
+        else if(mode == "cursor") this.cursorUpdate()
     }
 
-    syncSize() {
+    cursorUpdate() {
+        const { touches, prevTouchIsDown } = this.game
+        const touch = touches[0]
+        if(touch && touch.isDown) {
+            if(!prevTouchIsDown) {
+                this.objClicked = this.checkTouchSelect(touch)
+                this.initMove(touch, this.objClicked)
+            } else {
+                this.updateMove(touch, this.objClicked)
+            }
+        } else {
+            if(prevTouchIsDown) {
+                if(!this.hasMoved() && this.objClicked) {
+                    this.select(this.objClicked)
+                }
+            }
+            this.clearMove()
+        }
+    }
+
+    checkTouchSelect(touch) {
         const gameScn = this.game.scenes.game
-        this.width = gameScn.width
-        this.height = gameScn.height
+        const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
+        let res = null
+        // walls
+        gameScn.walls.forEach(wall => {
+            if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5) {
+                res = wall
+            }
+        })
+        if(res) return res
+        // actors
+        gameScn.actors.forEach(act  => {
+            const { left, width, top, height } = act.getHitBox()
+            if(left <= x && left+width >= x && top <= y && top+height >= y) {
+                res = act
+            }
+        })
+        return res
+    }
+
+    initMove(touch, obj) {
+        this._moveOrig = {
+            touchX: touch.x,
+            touchY: touch.y,
+            x: obj ? obj.x : this.viewX,
+            y: obj ? obj.y : this.viewY,
+            obj: obj,
+        }
+    }
+
+    updateMove(touch, obj) {
+        if(!this._moveOrig) return
+        if(!obj) {
+            const viewX = this._moveOrig.x - (touch.x - this._moveOrig.touchX)
+            const viewY = this._moveOrig.y - (touch.y - this._moveOrig.touchY)
+            this.setView(viewX, viewY)
+            this.game.scenes.game.setView(viewX, viewY)
+        } else {
+            const newX = this._moveOrig.x + (touch.x - this._moveOrig.touchX)
+            const newY = this._moveOrig.y + (touch.y - this._moveOrig.touchY)
+            obj.x = newX
+            obj.y = newY
+        }
+    }
+
+    hasMoved() {
+        const orig = this._moveOrig, obj = orig.obj
+        const x = obj ? obj.x : this.viewX
+        const y = obj ? obj.y : this.viewY
+        return x != orig.x || y != orig.y
+    }
+
+    clearMove() {
+        this._moveOrig = null
     }
 
     updateDraftActor() {
@@ -191,6 +294,7 @@ class DraftScene extends SceneCommon {
     }
 
     select(obj) {
+        if(!this.game.pressedKeys.has("Shift")) this.game.clearSelection()
         this.selections.push(obj)
         const selMenu = this.game.selectionMenu
         selMenu.clear()
@@ -218,25 +322,25 @@ class DraftScene extends SceneCommon {
         }
     }
 
-    updateMove() {
-        const { touches } = this.game
-        const touch = touches[0]
-        this._moveOrig ||= null
-        if(touch && touch.isDown) {
-            if(!this._moveOrig) this._moveOrig = {
-                touchX: touch.x,
-                touchY: touch.y,
-                viewX: this.viewX,
-                viewY: this.viewY,
-            }
-            const viewX = this._moveOrig.viewX - (touch.x - this._moveOrig.touchX)
-            const viewY = this._moveOrig.viewY - (touch.y - this._moveOrig.touchY)
-            this.setView(viewX, viewY)
-            this.game.scenes.game.setView(viewX, viewY)
-        } else {
-            this._moveOrig = null
-        }
-    }
+    // updateMove() {
+    //     const { touches } = this.game
+    //     const touch = touches[0]
+    //     this._moveOrig ||= null
+    //     if(touch && touch.isDown) {
+    //         if(!this._moveOrig) this._moveOrig = {
+    //             touchX: touch.x,
+    //             touchY: touch.y,
+    //             viewX: this.viewX,
+    //             viewY: this.viewY,
+    //         }
+    //         const viewX = this._moveOrig.viewX - (touch.x - this._moveOrig.touchX)
+    //         const viewY = this._moveOrig.viewY - (touch.y - this._moveOrig.touchY)
+    //         this.setView(viewX, viewY)
+    //         this.game.scenes.game.setView(viewX, viewY)
+    //     } else {
+    //         this._moveOrig = null
+    //     }
+    // }
 
     drawTo(ctx) {
         const grid = this.initGrid()
