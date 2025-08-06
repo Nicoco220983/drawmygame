@@ -121,9 +121,6 @@ class DraftScene extends SceneCommon {
         this.updateDraftActor()
         if(mode == "actor") this.addPointedActor()
         else if(mode == "wall") this.addPointedWall()
-        else if(mode == "erase") this.erasePointedActorOrWall()
-        else if(mode == "select") this.updateSelect()
-        else if(mode == "move") this.updateMove()
         else if(mode == "cursor") this.cursorUpdate()
     }
 
@@ -281,27 +278,6 @@ class DraftScene extends SceneCommon {
         pos.y = (pos.y-y1 < y2-pos.y) ? y1 : y2
     }
 
-    updateSelect() {
-        const { touches, prevTouchIsDown } = this.game
-        const touch = touches[0]
-        if(touch && touch.isDown && !prevTouchIsDown) {
-            const gameScn = this.game.scenes.game
-            const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
-            // walls
-            gameScn.walls.forEach(wall => {
-                if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
-                    this.select(wall)
-            })
-            // actors
-            gameScn.actors.forEach(act  => {
-                const { left, width, top, height } = act.getHitBox()
-                if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    this.select(act)
-                }
-            })
-        }
-    }
-
     select(obj) {
         if(!this.game.pressedKeys.has("Shift")) this.game.clearSelection()
         this.selections.push(obj)
@@ -309,47 +285,6 @@ class DraftScene extends SceneCommon {
         selMenu.clear()
         selMenu.addSelection(obj)
     }
-
-    erasePointedActorOrWall() {
-        const { touches, prevTouchIsDown } = this.game
-        const touch = touches[0]
-        if(touch && touch.isDown && !prevTouchIsDown) {
-            const gameScn = this.game.scenes.game
-            const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
-            // walls
-            gameScn.walls.forEach(wall => {
-                if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5)
-                    wall.remove()
-            })
-            // actors
-            gameScn.actors.forEach(act  => {
-                const { left, width, top, height } = act.getHitBox()
-                if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                    act.remove()
-                }
-            })
-        }
-    }
-
-    // updateMove() {
-    //     const { touches } = this.game
-    //     const touch = touches[0]
-    //     this._moveOrig ||= null
-    //     if(touch && touch.isDown) {
-    //         if(!this._moveOrig) this._moveOrig = {
-    //             touchX: touch.x,
-    //             touchY: touch.y,
-    //             viewX: this.viewX,
-    //             viewY: this.viewY,
-    //         }
-    //         const viewX = this._moveOrig.viewX - (touch.x - this._moveOrig.touchX)
-    //         const viewY = this._moveOrig.viewY - (touch.y - this._moveOrig.touchY)
-    //         this.setView(viewX, viewY)
-    //         this.game.scenes.game.setView(viewX, viewY)
-    //     } else {
-    //         this._moveOrig = null
-    //     }
-    // }
 
     drawTo(ctx) {
         const grid = this.initGrid()

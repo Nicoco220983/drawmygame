@@ -54,12 +54,6 @@
                 <button id="game_multi">PLAY MULTI !</button>
             </flexrow>
             <flexrow>
-                <button id="mode_move">[M]ove</button>
-                <button id="mode_select">[S]elect</button>
-                <button id="mode_erase">[E]rase</button>
-                <label><input id="anchor" type="checkbox" checked> Anchor</label>
-            </flexrow>
-            <flexrow>
                 <button id="fullscreen">Fullscreen</button>
                 <label><input id="show_joypad" type="checkbox"> Show Joypad</label>
             </flexrow>
@@ -84,6 +78,7 @@
                 Actors: <dmg-actor-selector id="actors"></dmg-actor-selector>
             </flexrow>
             <flexrow>
+                <label><input id="anchor" type="checkbox" checked> Anchor</label>
                 <button id="mode_wall">[W]all</button>
                 <button id="mode_platform">[P]latform</button>
             </flexrow>
@@ -138,14 +133,8 @@ function syncBuilderAnchor() {
 anchorEl.onchange = syncBuilderAnchor
 
 const Keys = {}
-document.getElementById("mode_move").onclick = Keys["m"] = () => setBuilderMode('move')
-document.getElementById("mode_select").onclick = Keys["s"] = () => {
-    if(mode == "builder") gameBuilder.clearSelection()
-    setBuilderMode('select')
-}
 document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'wall')
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'platform')
-document.getElementById("mode_erase").onclick = Keys["e"] = () => setBuilderMode('erase')
 const actorsEl = document.getElementById("actors")
 actorsEl.addEventListener("change", evt => setBuilderMode('actor', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
