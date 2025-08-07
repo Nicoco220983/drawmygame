@@ -617,6 +617,44 @@ export class PhysicsComponent extends Component {
 }
 
 
+export class LinkResponder {
+    static add(funcName, kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('LINK_RESPONDERS')) target.LINK_RESPONDERS = new Map(target.LINK_RESPONDERS)
+            target.LINK_RESPONDERS.set(funcName, kwargs)
+            if(kwargs?.isDefault) target.DEFAULT_LINK_RESPONDER = funcName
+            return target
+        }
+    }
+}
+
+export class LinkHandler {
+    static add(funcName, kwargs) {
+        return target => {
+            if(!target.hasOwnProperty('LINK_HANDLERS')) target.LINK_HANDLERS = new Map(target.LINK_HANDLERS)
+            target.LINK_HANDLERS.set(funcName, kwargs)
+            if(kwargs?.isDefault) target.DEFAULT_LINK_HANDLER = funcName
+            return target
+        }
+    }
+}
+
+export class LinkResponse {
+    constructor(value) {
+        this.value = value
+    }
+}
+
+export class LinkRequester{
+    constructor(respAct, respKey, handleKey, threshold) {
+        this.responder = respAct
+        this.responseKey = respKey
+        this.handleKey = handleKey
+        this.threshold = threshold
+    }
+}
+
+
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
 @StateInt.define("y", { showInBuilder: true })
@@ -722,6 +760,14 @@ export class GameObject {
         this.removed = true
     }
 
+    isRemoved() {
+        return Boolean(this.removed)
+    }
+
+    isActive() {
+        return !this.isRemoved()
+    }
+
     spriteFit(sprite) {
         const { width, height } = this
         const { width: baseWidth, height: baseHeight } = sprite.baseImg
@@ -788,6 +834,9 @@ GameObject.prototype.off = off
 GameObject.prototype.trigger = trigger
 
 
+@LinkResponder.add("isRemoved", { isDefault: true })
+@LinkResponder.add("isActive")
+@LinkHandler.add("remove", { isDefault: true })
 export class Actor extends GameObject {
 
     constructor(scn) {
@@ -800,18 +849,82 @@ export class Actor extends GameObject {
         return this.key ?? this.constructor.KEY
     }
 
-    getState() {
+    update() {
+        super.update()
+        this.requestLinkResponses()
+    }
+
+    addLinkRequester(respAct, respKey, handleKey, threshold) {
+        const linkReqs = this.linkRequesters ||= []
+        if(!respKey) respKey = respAct.constructor.DEFAULT_LINK_RESPONDER
+        if(!handleKey) handleKey = this.constructor.DEFAULT_LINK_HANDLER
+        if(threshold===undefined) threshold = .5
+        linkReqs.push(new LinkRequester(respAct, respKey, handleKey, threshold))
+    }
+
+    requestLinkResponses() {
+        const linkReqs = this.linkRequesters
+        if(!linkReqs) return
+        for(let linkReq of linkReqs) {
+            let resp = linkReq.responder[linkReq.responseKey]()
+            if(typeof resp == "boolean") resp = resp ? 1 : 0
+            if(typeof resp == "number") {
+                const _resp = this._linkResp ||= new LinkResponse()
+                _resp.value = resp
+                resp = _resp
+            }
+            if(resp.value >= linkReq.threshold) {
+                this[linkReq.handleKey](resp)
+            }
+        }
+    }
+
+    fillRemovedLinkResponse(resp) {
+        resp.value = act.removed ? 1 : 0
+    }
+
+    getState(isInitState=false) {
         const state = {}
-        state.id = this.id
         state.key = this.getKey()
+        if(!isInitState) {
+            state.id = this.id
+        } else {
+            const linkReqsState = this.getLinkRequestersState()
+            if(linkReqsState) state.linkReqs = linkReqsState
+        }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
         return state
     }
 
-    setState(state) {
+    getLinkRequestersState() {
+        const linkReqs = this.linkRequesters
+        if(!linkReqs) return null
+        const state = []
+        for(let linkReq of linkReqs) state.push([
+            linkReq.responder.id,
+            linkReq.responseKey,
+            linkReq.handleKey,
+            linkReq.threshold,
+        ])
+        return state
+    }
+
+    setState(state, isInitState=false) {
+        if(isInitState) {
+            this.setLinkRequestsFromState(state.linkReqs)
+        }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
         this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
+    }
+
+    setLinkRequestsFromState(linkReqsState) {
+        if(!linkReqsState) return
+        for(let linkReqState of linkReqsState) {
+            const [actId, respKey, handleKey, threshold] = linkReqState
+            const respAct = this.scene.actors.get(actId)
+            this.addLinkRequester(respAct, respKey, handleKey, threshold)
+        }
     }
 }
 
@@ -1014,6 +1127,18 @@ export class GameObjectGroup {
         return res
     }
 
+    resetIds() {
+        this._lastAutoId = 0
+        const objArr = this.objArr, objMap = this.objMap, nbObjs = objArr.length
+        objMap.clear()
+        for(let idx=0; idx<nbObjs; ++idx) {
+            const obj = objArr[idx]
+            obj.id = idx.toString()
+            objMap.set(obj.id, obj)
+        }
+        this._lastAutoId = nbObjs
+    }
+
     add(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
@@ -1097,10 +1222,11 @@ export class ActorGroup extends GameObjectGroup {
         return act
     }
 
-    getState() {
+    getState(isInitState=false) {
         const state = this._state ||= []
         state.length = 0
-        this.forEach(act => state.push(act.getState()))
+        if(isInitState) this.resetIds()
+        this.forEach(act => state.push(act.getState(isInitState)))
         return state
     }
 
@@ -1117,7 +1243,7 @@ export class ActorGroup extends GameObjectGroup {
                     let act = objMap.get(id)
                     if(!act) act = this.add(actState.key, { id })
                     else objArr.push(act)
-                    act.setState(actState)
+                    act.setState(actState, isInitState)
                 }
             }
             if(objMap.size != objArr.length) {
@@ -1126,7 +1252,6 @@ export class ActorGroup extends GameObjectGroup {
             }
         } else this.clear()
     }
-
 }
 
 
@@ -1455,6 +1580,7 @@ export class SceneCommon {
     loadMap(scnMapId) {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
+        console.log("TMP map", this.map)
         this.setState(this.map, true)
         this.initWalls()
     }
@@ -1494,13 +1620,13 @@ export class SceneCommon {
         if(mapState) {
             if(this.doCreateActorMapProto) {
                 const proto = cls.create(this)
-                proto.setState(mapState)
+                proto.setState(mapState, true)
                 obj = Object.create(proto)
                 obj.init(kwargs)
                 obj.key = origKey
             } else {
                 obj = cls.create(this, kwargs)
-                obj.setState(mapState)
+                obj.setState(mapState, true)
             }
         } else {
             obj = cls.create(this, kwargs)
@@ -2312,7 +2438,7 @@ export class GameScene extends SceneCommon {
             state.sco = this.scores
             state.seed = this.seed
         }
-        state.actors = this.actors.getState()
+        state.actors = this.actors.getState(isInitState)
         return state
     }
 
@@ -2420,6 +2546,7 @@ export class FocusFirstHeroScene extends GameScene {
 export class LivingGameObject extends Actor {
 
     update() {
+        super.update()
         const { iteration, step } = this.scene
         const { dt } = this.game
         if(step != "GAME" || (this.health <= 0) || this.isDamageable()) this.spriteVisibility = 1

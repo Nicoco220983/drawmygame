@@ -222,6 +222,7 @@ export class Spiky extends Enemy {
     }
 
     update() {
+        super.update()
         // attack
         this.scene.getTeam("hero").forEach(hero => {
             if(checkHit(this, hero)) hero.mayTakeDamage(1, this)

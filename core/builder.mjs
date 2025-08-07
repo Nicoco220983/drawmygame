@@ -136,20 +136,27 @@ class DraftScene extends SceneCommon {
             }
         } else {
             if(prevTouchIsDown) {
-                if(!this.hasMoved() && this.objClicked) {
-                    this.select(this.objClicked)
+                if(!this.hasMoved()) {
+                    if(this.objClicked) this.select(this.objClicked)
+                } else {
+                    const objTargeted = this.checkTouchSelect(touch, this.objClicked)
+                    if(objTargeted) {
+                        this.addActorLink(this.objClicked)
+                        this.cancelMove()
+                    }
                 }
             }
             this.clearMove()
         }
     }
 
-    checkTouchSelect(touch) {
+    checkTouchSelect(touch, ignore=null) {
         const gameScn = this.game.scenes.game
         const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
         let res = null
         // walls
         gameScn.walls.forEach(wall => {
+            if(wall == ignore) return
             if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5) {
                 res = wall
             }
@@ -157,6 +164,7 @@ class DraftScene extends SceneCommon {
         if(res) return res
         // actors
         gameScn.actors.forEach(act  => {
+            if(act == ignore) return
             const { left, width, top, height } = act.getHitBox()
             if(left <= x && left+width >= x && top <= y && top+height >= y) {
                 res = act
@@ -206,8 +214,35 @@ class DraftScene extends SceneCommon {
         return (objs[0].x != objsX[0]) || (objs[0].y != objsY[0])
     }
 
+    cancelMove() {
+        const orig = this._moveOrig
+        if(!orig) return
+        const objs = orig.objs
+        if(!objs) {
+            this.setView(orig.viewX, orig.viewY)
+            this.game.scenes.game.setView(orig.viewX, orig.viewY)
+        } else {
+            for(let idx in orig.objs) {
+                const obj = orig.objs[idx]
+                obj.x = orig.objsX[idx]
+                obj.y = orig.objsY[idx]
+            }
+        }
+    }
+
     clearMove() {
         this._moveOrig = null
+    }
+    
+    addActorLink(responder) {
+        const orig = this._moveOrig
+        if(!orig) return
+        const objs = orig.objs
+        if(!objs) return
+        for(let idx in orig.objs) {
+            const obj = orig.objs[idx]
+            obj.addLinkRequester(responder)
+        }
     }
 
     updateDraftActor() {
