@@ -141,7 +141,7 @@ class DraftScene extends SceneCommon {
                 } else {
                     const objTargeted = this.checkTouchSelect(touch, this.objClicked)
                     if(objTargeted) {
-                        this.addActorLink(this.objClicked)
+                        this.addActorLink(objTargeted)
                         this.cancelMove()
                     }
                 }

@@ -886,12 +886,7 @@ export class Actor extends GameObject {
     getState(isInitState=false) {
         const state = {}
         state.key = this.getKey()
-        if(!isInitState) {
-            state.id = this.id
-        } else {
-            const linkReqsState = this.getLinkRequestersState()
-            if(linkReqsState) state.linkReqs = linkReqsState
-        }
+        state.id = this.id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
         return state
@@ -902,6 +897,7 @@ export class Actor extends GameObject {
         if(!linkReqs) return null
         const state = []
         for(let linkReq of linkReqs) state.push([
+            this.id,
             linkReq.responder.id,
             linkReq.responseKey,
             linkReq.handleKey,
@@ -911,20 +907,14 @@ export class Actor extends GameObject {
     }
 
     setState(state, isInitState=false) {
-        if(isInitState) {
-            this.setLinkRequestsFromState(state.linkReqs)
-        }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
         this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
     }
 
-    setLinkRequestsFromState(linkReqsState) {
-        if(!linkReqsState) return
-        for(let linkReqState of linkReqsState) {
-            const [actId, respKey, handleKey, threshold] = linkReqState
-            const respAct = this.scene.actors.get(actId)
-            this.addLinkRequester(respAct, respKey, handleKey, threshold)
-        }
+    addLinkRequesterFromState(linkReqState) {
+        const [reqActId, respActId, respKey, handleKey, threshold] = linkReqState
+        const respAct = this.scene.actors.get(respActId)
+        this.addLinkRequester(respAct, respKey, handleKey, threshold)
     }
 }
 
@@ -1127,18 +1117,6 @@ export class GameObjectGroup {
         return res
     }
 
-    resetIds() {
-        this._lastAutoId = 0
-        const objArr = this.objArr, objMap = this.objMap, nbObjs = objArr.length
-        objMap.clear()
-        for(let idx=0; idx<nbObjs; ++idx) {
-            const obj = objArr[idx]
-            obj.id = idx.toString()
-            objMap.set(obj.id, obj)
-        }
-        this._lastAutoId = nbObjs
-    }
-
     add(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId()
@@ -1225,7 +1203,6 @@ export class ActorGroup extends GameObjectGroup {
     getState(isInitState=false) {
         const state = this._state ||= []
         state.length = 0
-        if(isInitState) this.resetIds()
         this.forEach(act => state.push(act.getState(isInitState)))
         return state
     }
@@ -1235,11 +1212,11 @@ export class ActorGroup extends GameObjectGroup {
         objArr.length = 0
         if(state) {
             for(let idx in state) {
+                const actState = state[idx]
+                let { id } = actState
                 if(isInitState) {
-                    this.add(`A#${idx}`)
+                    this.add(`A#${idx}`, { id })
                 } else {
-                    const actState = state[idx]
-                    let { id } = actState
                     let act = objMap.get(id)
                     if(!act) act = this.add(actState.key, { id })
                     else objArr.push(act)
@@ -1580,7 +1557,6 @@ export class SceneCommon {
     loadMap(scnMapId) {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
-        console.log("TMP map", this.map)
         this.setState(this.map, true)
         this.initWalls()
     }
@@ -2439,6 +2415,7 @@ export class GameScene extends SceneCommon {
             state.seed = this.seed
         }
         state.actors = this.actors.getState(isInitState)
+        if(isInitState) state.links = this.getActorLinksState()
         return state
     }
 
@@ -2448,6 +2425,15 @@ export class GameScene extends SceneCommon {
             if(wall.removed) return
             const { x1, y1, x2, y2, key } = wall
             res.push({ x1, y1, x2, y2, key })
+        })
+        return res
+    }
+
+    getActorLinksState() {
+        const res = []
+        this.actors.forEach(act => {
+            const linksState = act.getLinkRequestersState()
+            if(linksState) for(let linkState of linksState) res.push(linkState)
         })
         return res
     }
@@ -2462,6 +2448,16 @@ export class GameScene extends SceneCommon {
             this.seed = state.seed
         }
         this.actors.setState(state.actors, isInitState)
+        if(isInitState) this.setActorLinksFromState(state.links)
+    }
+
+    setActorLinksFromState(state) {
+        if(!state) return
+        for(let linkState of state) {
+            const reqActId = linkState[0]
+            const reqAct = this.actors.get(reqActId)
+            reqAct.addLinkRequesterFromState(linkState)
+        }
     }
 
     rand(key) {
