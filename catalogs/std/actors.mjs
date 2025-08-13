@@ -38,7 +38,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     label: "Nico",
     icon: NicoImg,
 })
-@StateInt.define("handRemIt", { default: null })
+@StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("health", { default: 3 })
 @StateProperty.modify("dirX", { showInBuilder: true })
 @PhysicsComponent.add()
@@ -47,7 +47,6 @@ export class Nico extends Hero {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
-        this.handRemIt = null // TODO: this line shoul not be necessary
         this.handDur = ceil(.1 * this.game.fps)
     }
 

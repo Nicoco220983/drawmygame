@@ -418,23 +418,17 @@ export class StateProperty {
     initObject(obj, kwargs) {}
     getObjectPropState(obj) {
         const val = obj[this.key]
-        if(val === this.nullableWith) return null
+        if(val === this.nullableWith ?? null) return null
         else return val
     }
     setObjectPropFromState(obj, valState) {
         const { key } = this
         if(valState === undefined) return delete obj[key]
-        if(valState === null) valState = this.nullableWith
+        if(valState === null) valState = this.nullableWith ?? null
         const protoVal = getPrototypeOf(this)[key]
         if(valState === protoVal) return delete obj[key]
         obj[key] = valState
     }
-    // getPropState(val) {
-    //     return val
-    // }
-    // getPropFromState(stateVal) {
-    //     return stateVal
-    // }
     syncStateFromObject(obj, state) {
         const { key } = this
         if(!obj.hasOwnProperty(key)) return
