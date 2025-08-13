@@ -92,6 +92,7 @@ class DraftScene extends SceneCommon {
         this.viewSpeed = Infinity
         this.anchor = true
         this.draftActor = null
+        this.linkedActor = null
         this.selections = []
         this.gridBoxSize = 20
     }
@@ -132,6 +133,7 @@ class DraftScene extends SceneCommon {
                 this.objClicked = this.checkTouchSelect(touch)
                 this.initMove(touch, this.objClicked)
             } else {
+                this.linkedActor = this.checkTouchSelect(touch, this.objClicked)
                 this.updateMove(touch, this.objClicked)
             }
         } else {
@@ -139,14 +141,14 @@ class DraftScene extends SceneCommon {
                 if(!this.hasMoved()) {
                     if(this.objClicked) this.select(this.objClicked)
                 } else {
-                    const objTargeted = this.checkTouchSelect(touch, this.objClicked)
-                    if(objTargeted) {
-                        this.addActorLink(objTargeted)
+                    if(this.linkedActor) {
+                        this.addActorLink(this.linkedActor)
                         this.cancelMove()
                     }
                 }
             }
             this.clearMove()
+            this.linkedActor = null
         }
     }
 
@@ -179,6 +181,7 @@ class DraftScene extends SceneCommon {
             touchY: touch.y,
             viewX: this.viewX,
             viewY: this.viewY,
+            objs: null,
         }
         if(obj) {
             const objs = this.selections.concat([obj])
@@ -331,6 +334,8 @@ class DraftScene extends SceneCommon {
         super.drawTo(ctx)
         ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.drawSelections(ctx)
+        this.drawLinkedActor(ctx)
+        this.drawActorLinks(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
@@ -381,6 +386,33 @@ class DraftScene extends SceneCommon {
             ctx.rect(left, top, width, height)
             ctx.stroke()
         }
+    }
+
+    drawLinkedActor(ctx) {
+        if(!this.linkedActor) return
+        const { left, top, width, height } = this.linkedActor.getHitBox()
+        ctx.lineWidth = 2
+        ctx.strokeStyle = "red"
+        ctx.beginPath()
+        ctx.rect(left, top, width, height)
+        ctx.stroke()
+    }
+
+    drawActorLinks(ctx) {
+        const gameScn = this.game.scenes.game
+        ctx.lineWidth = 1
+        ctx.strokeStyle = "red"
+        ctx.beginPath()
+        ctx.setLineDash([5, 5])
+        gameScn.actors.forEach(act => {
+            const linkReqs = act.linkRequesters
+            if(linkReqs) linkReqs.forEach(linkReq => {
+                const respAct = linkReq.responder
+                ctx.moveTo(act.x, act.y)
+                ctx.lineTo(respAct.x, respAct.y)
+            })
+        })
+        ctx.stroke()
     }
 }
 
