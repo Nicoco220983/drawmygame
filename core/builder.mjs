@@ -237,14 +237,14 @@ class DraftScene extends SceneCommon {
         this._moveOrig = null
     }
     
-    addActorLink(responder) {
+    addActorLink(trigAct) {
         const orig = this._moveOrig
         if(!orig) return
         const objs = orig.objs
         if(!objs) return
         for(let idx in orig.objs) {
             const obj = orig.objs[idx]
-            obj.addLinkRequester(responder)
+            obj.addActorLink(trigAct)
         }
     }
 
@@ -405,11 +405,11 @@ class DraftScene extends SceneCommon {
         ctx.beginPath()
         ctx.setLineDash([5, 5])
         gameScn.actors.forEach(act => {
-            const linkReqs = act.linkRequesters
-            if(linkReqs) linkReqs.forEach(linkReq => {
-                const respAct = linkReq.responder
+            const actLinks = act.actorLinks
+            if(actLinks) actLinks.forEach(actLink => {
+                const trigAct = actLink.triggerActor
                 ctx.moveTo(act.x, act.y)
-                ctx.lineTo(respAct.x, respAct.y)
+                ctx.lineTo(trigAct.x, trigAct.y)
             })
         })
         ctx.stroke()

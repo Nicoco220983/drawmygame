@@ -617,23 +617,23 @@ export class PhysicsComponent extends Component {
 }
 
 
-export class LinkResponder {
+export class LinkTrigger {
     static add(funcName, kwargs) {
         return target => {
-            if(!target.hasOwnProperty('LINK_RESPONDERS')) target.LINK_RESPONDERS = new Map(target.LINK_RESPONDERS)
-            target.LINK_RESPONDERS.set(funcName, kwargs)
-            if(kwargs?.isDefault) target.DEFAULT_LINK_RESPONDER = funcName
+            if(!target.hasOwnProperty('LINK_TRIGGERS')) target.LINK_TRIGGERS = new Map(target.LINK_TRIGGERS)
+            target.LINK_TRIGGERS.set(funcName, kwargs)
+            if(kwargs?.isDefault) target.DEFAULT_LINK_TRIGGER = funcName
             return target
         }
     }
 }
 
-export class LinkHandler {
+export class LinkAction {
     static add(funcName, kwargs) {
         return target => {
-            if(!target.hasOwnProperty('LINK_HANDLERS')) target.LINK_HANDLERS = new Map(target.LINK_HANDLERS)
-            target.LINK_HANDLERS.set(funcName, kwargs)
-            if(kwargs?.isDefault) target.DEFAULT_LINK_HANDLER = funcName
+            if(!target.hasOwnProperty('LINK_ACTIONS')) target.LINK_ACTIONS = new Map(target.LINK_ACTIONS)
+            target.LINK_ACTIONS.set(funcName, kwargs)
+            if(kwargs?.isDefault) target.DEFAULT_LINK_ACTION = funcName
             return target
         }
     }
@@ -645,11 +645,11 @@ export class LinkResponse {
     }
 }
 
-export class LinkRequester{
-    constructor(respAct, respKey, handleKey, threshold) {
-        this.responder = respAct
-        this.responseKey = respKey
-        this.handleKey = handleKey
+export class ActorLink {
+    constructor(trigAct, trigKey, actionKey, threshold) {
+        this.triggerActor = trigAct
+        this.triggerKey = trigKey
+        this.actionKey = actionKey
         this.threshold = threshold
     }
 }
@@ -834,9 +834,9 @@ GameObject.prototype.off = off
 GameObject.prototype.trigger = trigger
 
 
-@LinkResponder.add("isRemoved", { isDefault: true })
-@LinkResponder.add("isActive")
-@LinkHandler.add("remove", { isDefault: true })
+@LinkTrigger.add("isRemoved", { isDefault: true })
+@LinkTrigger.add("isActive")
+@LinkAction.add("remove", { isDefault: true })
 export class Actor extends GameObject {
 
     constructor(scn) {
@@ -854,27 +854,27 @@ export class Actor extends GameObject {
         this.requestLinkResponses()
     }
 
-    addLinkRequester(respAct, respKey, handleKey, threshold) {
-        const linkReqs = this.linkRequesters ||= []
-        if(!respKey) respKey = respAct.constructor.DEFAULT_LINK_RESPONDER
-        if(!handleKey) handleKey = this.constructor.DEFAULT_LINK_HANDLER
+    addActorLink(trigAct, trigKey, actionKey, threshold) {
+        const actLinks = this.actorLinks ||= []
+        if(!trigKey) trigKey = trigAct.constructor.DEFAULT_LINK_TRIGGER
+        if(!actionKey) actionKey = this.constructor.DEFAULT_LINK_ACTION
         if(threshold===undefined) threshold = .5
-        linkReqs.push(new LinkRequester(respAct, respKey, handleKey, threshold))
+        actLinks.push(new ActorLink(trigAct, trigKey, actionKey, threshold))
     }
 
     requestLinkResponses() {
-        const linkReqs = this.linkRequesters
-        if(!linkReqs) return
-        for(let linkReq of linkReqs) {
-            let resp = linkReq.responder[linkReq.responseKey]()
+        const actLinks = this.actorLinks
+        if(!actLinks) return
+        for(let actLink of actLinks) {
+            let resp = actLink.triggerActor[actLink.triggerKey]()
             if(typeof resp == "boolean") resp = resp ? 1 : 0
             if(typeof resp == "number") {
                 const _resp = this._linkResp ||= new LinkResponse()
                 _resp.value = resp
                 resp = _resp
             }
-            if(resp.value >= linkReq.threshold) {
-                this[linkReq.handleKey](resp)
+            if(resp.value >= actLink.threshold) {
+                this[actLink.actionKey](resp)
             }
         }
     }
@@ -886,22 +886,22 @@ export class Actor extends GameObject {
     getState(isInitState=false) {
         const state = {}
         state.key = this.getKey()
-        state.id = this.id
+        if(!isInitState) state.id = this.id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
         return state
     }
 
-    getLinkRequestersState() {
-        const linkReqs = this.linkRequesters
-        if(!linkReqs) return null
+    getActorLinksState() {
+        const actLinks = this.actorLinks
+        if(!actLinks) return null
         const state = []
-        for(let linkReq of linkReqs) state.push([
+        for(let actLink of actLinks) state.push([
             this.id,
-            linkReq.responder.id,
-            linkReq.responseKey,
-            linkReq.handleKey,
-            linkReq.threshold,
+            actLink.triggerActor.id,
+            actLink.triggerKey,
+            actLink.actionKey,
+            actLink.threshold,
         ])
         return state
     }
@@ -911,10 +911,10 @@ export class Actor extends GameObject {
         this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
     }
 
-    addLinkRequesterFromState(linkReqState) {
-        const [reqActId, respActId, respKey, handleKey, threshold] = linkReqState
-        const respAct = this.scene.actors.get(respActId)
-        this.addLinkRequester(respAct, respKey, handleKey, threshold)
+    addActorLinkFromState(actLinkState) {
+        const [actionActId, trigActId, trigKey, actionKey, threshold] = actLinkState
+        const trigAct = this.scene.actors.get(trigActId)
+        this.addActorLink(trigAct, trigKey, actionKey, threshold)
     }
 }
 
@@ -1106,7 +1106,7 @@ export class GameObjectGroup {
         this.game = scn.game
         this.objArr = []
         this.objMap = new Map()
-        this._lastAutoId = 0
+        this._lastAutoId = -1
     }
 
     nextAutoId() {
@@ -1115,6 +1115,17 @@ export class GameObjectGroup {
         // be sure that client & leader generate different ids
         if(this.game.mode == MODE_CLIENT) res += 'C'
         return res
+    }
+
+    resetIds() {
+        const { objArr, objMap } = this
+        objMap.clear()
+        for(let idx in objArr) {
+            const obj = objArr[idx]
+            obj.id = idx.toString()
+            this.objMap.set(obj.id, obj)
+        }
+        this._lastAutoId = objArr.length - 1
     }
 
     add(cls, kwargs) {
@@ -1203,6 +1214,7 @@ export class ActorGroup extends GameObjectGroup {
     getState(isInitState=false) {
         const state = this._state ||= []
         state.length = 0
+        if(isInitState) this.resetIds()
         this.forEach(act => state.push(act.getState(isInitState)))
         return state
     }
@@ -1212,17 +1224,18 @@ export class ActorGroup extends GameObjectGroup {
         objArr.length = 0
         if(state) {
             for(let idx in state) {
-                const actState = state[idx]
-                let { id } = actState
                 if(isInitState) {
-                    this.add(`A#${idx}`, { id })
+                    this.add(`A#${idx}`, { id: idx.toString() })
                 } else {
+                    const actState = state[idx]
+                    let { id } = actState
                     let act = objMap.get(id)
                     if(!act) act = this.add(actState.key, { id })
                     else objArr.push(act)
                     act.setState(actState, isInitState)
                 }
             }
+            if(isInitState) this._lastAutoId = state.length - 1
             if(objMap.size != objArr.length) {
                 objMap.clear()
                 for(let act of objArr) objMap.set(act.id, act)
@@ -2432,7 +2445,7 @@ export class GameScene extends SceneCommon {
     getActorLinksState() {
         const res = []
         this.actors.forEach(act => {
-            const linksState = act.getLinkRequestersState()
+            const linksState = act.getActorLinksState()
             if(linksState) for(let linkState of linksState) res.push(linkState)
         })
         return res
@@ -2454,9 +2467,9 @@ export class GameScene extends SceneCommon {
     setActorLinksFromState(state) {
         if(!state) return
         for(let linkState of state) {
-            const reqActId = linkState[0]
-            const reqAct = this.actors.get(reqActId)
-            reqAct.addLinkRequesterFromState(linkState)
+            const actionActId = linkState[0]
+            const actionAct = this.actors.get(actionActId)
+            actionAct.addActorLinkFromState(linkState)
         }
     }
 
