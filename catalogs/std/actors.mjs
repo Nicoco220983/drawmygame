@@ -1,8 +1,8 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateInt, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
+import { ModuleCatalog, GameObject, StateProperty, StateInt, LinkTrigger, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -47,6 +47,7 @@ export class Nico extends Hero {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
+        this.handRemIt = null // TODO: this line shoul not be necessary
         this.handDur = ceil(.1 * this.game.fps)
     }
 
@@ -63,6 +64,7 @@ export class Nico extends Hero {
     }
 
     checkHandHit() {
+        const { team } = this
         const handHitBox = this.handHitBox ||= {
             width: 25,
             height: 25,
@@ -79,6 +81,11 @@ export class Nico extends Hero {
         }
         this.scene.getTeam("enemy").forEach(_checkHit)
         this.scene.getTeam("hero").forEach(_checkHit)
+        this.scene.getTeam("engine").forEach(act => {
+            if(act.isTriggerableBy && act.isTriggerableBy(team) && checkHit(handHitBox, act)) {
+                act.trigger()
+            }
+        })
         this.game.audio.playSound(hasHit ? HandHitAud : SlashAud)
     }
 
@@ -739,5 +746,60 @@ export class Portal extends Actor {
     }
     getSprite() {
         return PortalSprite
+    }
+}
+
+
+@LinkTrigger.add("isTriggered", { isDefault: true })
+export class Trigger extends Actor {
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
+        this.triggered = false
+    }
+
+    isTriggered() {
+        return this.triggered
+    }
+
+    trigger() {
+        this.triggered = true
+    }
+}
+
+
+const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.png")
+
+@CATALOG.registerActor("button", {
+    label: "Button",
+    icon: BurronImg,
+})
+export class Button extends Trigger {
+    constructor(scn, kwargs) {
+        super(scn, kwargs)
+        this.width = this.height = 30
+        this.team = "engine"
+    }
+
+    isTriggerableBy(team) {
+        return team.startsWith("hero")
+    }
+
+    trigger() {
+        this.triggered = !this.triggered
+    }
+
+    getSprite() {
+        if(BurronImg.unloaded) return
+        let img = BurronImg
+        const numCol = this.triggered ? 1 : 0
+        img = cachedTransform(img, numCol, () => {
+            return cloneCanvas(img, { col:[numCol,2] })
+        })
+        const sprite = cachedTransform(img, "red", () => {
+            let res = cloneCanvas(img)
+            res = colorizeCanvas(res, "red")
+            return new Sprite(res)
+        })
+        return sprite
     }
 }

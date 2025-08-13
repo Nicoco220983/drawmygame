@@ -426,7 +426,7 @@ export class StateProperty {
         if(valState === undefined) return delete obj[key]
         if(valState === null) valState = this.nullableWith
         const protoVal = getPrototypeOf(this)[key]
-        if(valState == protoVal) return delete obj[key]
+        if(valState === protoVal) return delete obj[key]
         obj[key] = valState
     }
     // getPropState(val) {

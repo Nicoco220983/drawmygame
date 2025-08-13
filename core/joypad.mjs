@@ -41,7 +41,7 @@ export class JoypadScene {
     }
  
     addButton(kwargs) {
-        return this.buttons.add(Button, kwargs)
+        return this.buttons.add(JoypadButton, kwargs)
     }
 
     newPauseScene() {
@@ -154,9 +154,9 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImg = CATALOG.addImage("/static/core/assets/button_colorable.png")
+const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.png")
 
-class Button extends GameObject {
+class JoypadButton extends GameObject {
 
     constructor(scn, kwargs) {
         super(scn, kwargs)
