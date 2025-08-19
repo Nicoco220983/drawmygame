@@ -640,10 +640,11 @@ export class LinkResponse {
 }
 
 export class ActorLink {
-    constructor(trigAct, trigKey, actionKey, threshold) {
+    constructor(trigAct, trigKey, actAct, actKey, threshold) {
         this.triggerActor = trigAct
         this.triggerKey = trigKey
-        this.actionKey = actionKey
+        this.actionActor = actAct
+        this.actionKey = actKey
         this.threshold = threshold
     }
 }
@@ -848,12 +849,12 @@ export class Actor extends GameObject {
         this.requestLinkResponses()
     }
 
-    addActorLink(trigAct, trigKey, actionKey, threshold) {
+    addActorLink(trigAct, trigKey, actAct, actKey, threshold) {
         const actLinks = this.actorLinks ||= []
         if(!trigKey) trigKey = trigAct.constructor.DEFAULT_LINK_TRIGGER
-        if(!actionKey) actionKey = this.constructor.DEFAULT_LINK_ACTION
+        if(!actKey) actKey = this.constructor.DEFAULT_LINK_ACTION
         if(threshold===undefined) threshold = .5
-        actLinks.push(new ActorLink(trigAct, trigKey, actionKey, threshold))
+        actLinks.push(new ActorLink(trigAct, trigKey, actAct, actKey, threshold))
     }
 
     requestLinkResponses() {
@@ -906,9 +907,10 @@ export class Actor extends GameObject {
     }
 
     addActorLinkFromState(actLinkState) {
-        const [actionActId, trigActId, trigKey, actionKey, threshold] = actLinkState
+        const [actActId, trigActId, trigKey, actKey, threshold] = actLinkState
         const trigAct = this.scene.actors.get(trigActId)
-        this.addActorLink(trigAct, trigKey, actionKey, threshold)
+        const actAct = this.scene.actors.get(actActId)
+        this.addActorLink(trigAct, trigKey, actAct, actKey, threshold)
     }
 }
 
