@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, ActorLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Actor, ActorLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -68,7 +68,7 @@ export class GameBuilder extends GameCommon {
 
     removeSelectedObject() {
         for(let obj of this.scenes.draft.selections) {
-            if(obj instanceof GameObject || obj instanceof Wall) obj.remove()
+            if(obj instanceof GameObject) obj.remove()
             else if(obj instanceof ActorLink) {
                 const lnks = obj.actionActor.actorLinks
                 lnks.splice(lnks.indexOf(obj), 1)
@@ -138,7 +138,7 @@ class DraftScene extends SceneCommon {
                 this.initMove(touch, this.touchedObj)
             } else {
                 const touchedObj = this.checkTouchSelect(touch, this.touchedObj)
-                this.linkedActor = (touchedObj instanceof GameObject) ? touchedObj : null
+                this.linkedActor = (touchedObj instanceof Actor) ? touchedObj : null
                 this.updateMove(touch)
             }
         } else {
@@ -215,7 +215,7 @@ class DraftScene extends SceneCommon {
     }
 
     canMove(obj) {
-        return obj instanceof GameObject || obj instanceof Wall
+        return obj instanceof Actor || obj instanceof Wall
     }
 
     updateMove(touch) {
@@ -353,7 +353,7 @@ class DraftScene extends SceneCommon {
             this.selections.push(obj)
         }
         this.game.selectionMenuEl.innerHTML = ""
-        if(obj instanceof GameObject) {
+        if(obj instanceof Actor) {
             const statesEl = document.createElement("dmg-actor-state")
             statesEl.setActor(obj)
             this.game.selectionMenuEl.appendChild(statesEl)
@@ -413,7 +413,7 @@ class DraftScene extends SceneCommon {
                 top = min(sel.y1, sel.y2)
                 width = abs(sel.x1 - sel.x2)
                 height = abs(sel.y1 - sel.y2)
-            } else if(sel instanceof GameObject) {
+            } else if(sel instanceof Actor) {
                 const hitBox = sel.getHitBox()
                 left = hitBox.left
                 top = hitBox.top
