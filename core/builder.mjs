@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, ActorLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -67,7 +67,7 @@ export class GameBuilder extends GameCommon {
 
     removeSelectedObject() {
         for(let obj of this.scenes.draft.selections) {
-            obj.remove()
+            if(obj instanceof GameObject || obj instanceof Wall) obj.remove()
         }
         this.clearSelection()
     }
@@ -90,6 +90,7 @@ class DraftScene extends SceneCommon {
         this.viewSpeed = Infinity
         this.anchor = true
         this.draftActor = null
+        this.touchedObj = null
         this.linkedActor = null
         this.selections = []
         this.gridBoxSize = 20
@@ -128,16 +129,18 @@ class DraftScene extends SceneCommon {
         const touch = touches[0]
         if(touch && touch.isDown) {
             if(!prevTouchIsDown) {
-                this.objClicked = this.checkTouchSelect(touch)
-                this.initMove(touch, this.objClicked)
+                this.touchedObj = this.checkTouchSelect(touch)
+                this.initMove(touch, this.touchedObj)
             } else {
-                this.linkedActor = this.checkTouchSelect(touch, this.objClicked)
-                this.updateMove(touch, this.objClicked)
+                const touchedObj = this.checkTouchSelect(touch, this.touchedObj)
+                this.linkedActor = (touchedObj instanceof GameObject) ? touchedObj : null
+                this.updateMove(touch)
             }
         } else {
             if(prevTouchIsDown) {
                 if(!this.hasMoved()) {
-                    if(this.objClicked) this.select(this.objClicked)
+                    if(this.touchedObj) this.select(this.touchedObj)
+                    else this.clearSelection()
                 } else {
                     if(this.linkedActor) {
                         this.addActorLink(this.linkedActor)
@@ -145,8 +148,9 @@ class DraftScene extends SceneCommon {
                     }
                 }
             }
-            this.clearMove()
+            this.touchedObj = null
             this.linkedActor = null
+            this.clearMove()
         }
     }
 
@@ -170,6 +174,18 @@ class DraftScene extends SceneCommon {
                 res = act
             }
         })
+        if(res) return res
+        // links
+        gameScn.actors.forEach(act  => {
+            if(!act.actorLinks) return
+            act.actorLinks.forEach(lnk => {
+                const { x:x1, y:y1 } = lnk.triggerActor
+                const { x:x2, y:y2 } = lnk.actionActor
+                if(distancePointSegment(x, y, x1, y1, x2, y2) <= 5) {
+                    res = lnk
+                }
+            })
+        })
         return res
     }
 
@@ -180,26 +196,34 @@ class DraftScene extends SceneCommon {
             viewX: this.viewX,
             viewY: this.viewY,
             objs: null,
+            objsX: null,
+            objsY: null,
         }
         if(obj) {
-            const objs = this.selections.concat([obj])
-            orig.objs = objs
-            orig.objsX = objs.map(o => o.x)
-            orig.objsY = objs.map(o => o.y)
+            const objs = this.selections.concat([obj]).filter(obj => this.canMove(obj))
+            if(objs.length > 0) {
+                orig.objs = objs
+                orig.objsX = objs.map(o => o.x)
+                orig.objsY = objs.map(o => o.y)
+            }
         }
     }
 
-    updateMove(touch, obj) {
-        const orig = this._moveOrig
+    canMove(obj) {
+        return obj instanceof GameObject || obj instanceof Wall
+    }
+
+    updateMove(touch) {
+        const orig = this._moveOrig, { objs } = orig
         if(!orig) return
-        if(!obj) {
+        if(!objs) {
             const viewX = orig.viewX - (touch.x - orig.touchX)
             const viewY = orig.viewY - (touch.y - orig.touchY)
             this.setView(viewX, viewY)
             this.game.scenes.game.setView(viewX, viewY)
         } else {
-            for(let idx in orig.objs) {
-                const obj = orig.objs[idx]
+            for(let idx in objs) {
+                const obj = objs[idx]
                 const origX = orig.objsX[idx]
                 const origY = orig.objsY[idx]
                 obj.x = origX + (touch.x - orig.touchX)
@@ -315,12 +339,20 @@ class DraftScene extends SceneCommon {
     }
 
     select(obj) {
-        if(!this.game.pressedKeys.has("Shift")) this.clearSelection()
-        this.selections.push(obj)
+        if(this.game.pressedKeys.has("Shift")) {
+            const idx = this.selections.indexOf(obj)
+            if(idx >= 0) this.selections.splice(idx, 1)
+            else this.selections.push(obj)
+        } else {
+            this.clearSelection()
+            this.selections.push(obj)
+        }
         this.game.selectionMenuEl.innerHTML = ""
-        const statesEl = document.createElement("dmg-actor-state")
-        statesEl.setActor(obj)
-        this.game.selectionMenuEl.appendChild(statesEl)
+        if(obj instanceof GameObject) {
+            const statesEl = document.createElement("dmg-actor-state")
+            statesEl.setActor(obj)
+            this.game.selectionMenuEl.appendChild(statesEl)
+        }
     }
 
     clearSelection() {
@@ -382,6 +414,13 @@ class DraftScene extends SceneCommon {
                 top = hitBox.top
                 width = hitBox.width
                 height = hitBox.height
+            } else if(sel instanceof ActorLink) {
+                const { x:x1, y:y1 } = sel.triggerActor
+                const { x:x2, y:y2 } = sel.actionActor
+                left = x1
+                top = y1
+                width = x2 - x1
+                height = y2 - y1
             }
             ctx.lineWidth = 1
             ctx.strokeStyle = "grey"
