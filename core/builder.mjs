@@ -9,10 +9,9 @@ import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Sprite, Hero, 
 
 export class GameBuilder extends GameCommon {
 
-    constructor(canvasParentEl, menuEl, catalog, map, kwargs) {
+    constructor(canvasParentEl, selectionMenuEl, catalog, map, kwargs) {
         super(canvasParentEl, catalog, map, kwargs)
-        this.menuEl = menuEl
-        this.selectionMenu = new SelectionMenu(this)
+        this.selectionMenuEl = selectionMenuEl
         this.scenes.game = new DefaultScene(this)
         this.scenes.draft = new DraftScene(this)
         super.syncSize()
@@ -74,8 +73,7 @@ export class GameBuilder extends GameCommon {
     }
 
     clearSelection() {
-        this.scenes.draft.selections.length = 0
-        this.selectionMenu.clear()
+        this.scenes.draft.clearSelection()
     }
 
     draw() {
@@ -317,11 +315,17 @@ class DraftScene extends SceneCommon {
     }
 
     select(obj) {
-        if(!this.game.pressedKeys.has("Shift")) this.game.clearSelection()
+        if(!this.game.pressedKeys.has("Shift")) this.clearSelection()
         this.selections.push(obj)
-        const selMenu = this.game.selectionMenu
-        selMenu.clear()
-        selMenu.addSelection(obj)
+        this.game.selectionMenuEl.innerHTML = ""
+        const statesEl = document.createElement("dmg-actor-state")
+        statesEl.setActor(obj)
+        this.game.selectionMenuEl.appendChild(statesEl)
+    }
+
+    clearSelection() {
+        this.selections.length = 0
+        this.game.selectionMenuEl.innerHTML = ""
     }
 
     drawTo(ctx) {
@@ -413,28 +417,6 @@ class DraftScene extends SceneCommon {
             })
         })
         ctx.stroke()
-    }
-}
-
-
-class SelectionMenu {
-    constructor(scn) {
-        this.scene = scn
-        this.game = scn.game
-        this.sectionEls = {}
-        this.selections = []
-    }
-    clear() {
-        const { menuEl } = this.game
-        menuEl.innerHTML = ""
-        this.sectionEls = {}
-        this.selections.length = 0
-    }
-    addSelection(obj) {
-        this.selections.push(obj)
-        const statesEl = document.createElement("dmg-actor-state")
-        statesEl.setActor(obj)
-        this.game.menuEl.appendChild(statesEl)
     }
 }
 
