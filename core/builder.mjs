@@ -23,12 +23,13 @@ export class GameBuilder extends GameCommon {
     initKeysListeners() {
         this.pressedKeys = new Set()
         document.body.addEventListener("keydown", evt => {
-            this.pressedKeys.add(evt.key)
-            if(evt.key == "Escape") {
+            const { key } = evt
+            this.pressedKeys.add(key)
+            if(key == "Escape") {
                 if(this.mode != "cursor") this.setMode("cursor")
                 else this.clearSelection()
             }
-            if(evt.key == "Backspace") {
+            if(key == "Delete" || key == "Backspace") {
                 this.removeSelectedObject()
             }
         })
@@ -68,6 +69,10 @@ export class GameBuilder extends GameCommon {
     removeSelectedObject() {
         for(let obj of this.scenes.draft.selections) {
             if(obj instanceof GameObject || obj instanceof Wall) obj.remove()
+            else if(obj instanceof ActorLink) {
+                const lnks = obj.actionActor.actorLinks
+                lnks.splice(lnks.indexOf(obj), 1)
+            }
         }
         this.clearSelection()
     }
