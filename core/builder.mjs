@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl } = utils
+const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
 import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Actor, ActorLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
@@ -352,11 +352,14 @@ class DraftScene extends SceneCommon {
             this.clearSelection()
             this.selections.push(obj)
         }
-        this.game.selectionMenuEl.innerHTML = ""
+        const selMenuEl = this.game.selectionMenuEl
+        selMenuEl.innerHTML = ""
         if(obj instanceof Actor) {
-            const statesEl = document.createElement("dmg-actor-state")
-            statesEl.setActor(obj)
-            this.game.selectionMenuEl.appendChild(statesEl)
+            const stateEl = addNewDomEl(selMenuEl, "dmg-actor-state")
+            stateEl.setActor(obj)
+        } else if(obj instanceof ActorLink) {
+            const linkEl = addNewDomEl(selMenuEl, "dmg-actor-link")
+            linkEl.initActorLink(obj)
         }
     }
 
@@ -494,14 +497,13 @@ class ActorSelectorElement extends HTMLElement {
             }
         })
         this.shadowRoot.append(styleEl, selectWrapperEl)
-        const selectEl = this.selectEl = newDomEl("cs-option", {
+        this.selectEl = addNewDomEl(selectWrapperEl, "cs-option", {
             tabindex: "0",
             style: {
                 border: "1px solid black",
             }
         })
-        selectWrapperEl.appendChild(selectEl)
-        const optionsEl = this.optionsEl = newDomEl("div", {
+        this.optionsEl = addNewDomEl(selectWrapperEl, "div", {
             style: {
                 border: "1px solid black",
                 position: "absolute",
@@ -510,8 +512,7 @@ class ActorSelectorElement extends HTMLElement {
                 display: "none",
             }
         })
-        selectWrapperEl.appendChild(optionsEl)
-        selectEl.onclick = () => this.setOptionsVisibility(true)
+        this.selectEl.onclick = () => this.setOptionsVisibility(true)
         selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
     initCatalog(catalog, filter) {
@@ -521,9 +522,8 @@ class ActorSelectorElement extends HTMLElement {
             const actCat = catalog.actors[actKey]
             if(!actCat.showInBuilder) continue
             if(filter && !filter(actCat)) continue
-            const optionEl = newDomEl("cs-option")
+            const optionEl = addNewDomEl(this.optionsEl, "cs-option")
             this.setOptionKey(optionEl, actKey)
-            this.optionsEl.appendChild(optionEl)
             optionEl.onclick = () => {
                 this.setSelectedActor(actKey)
                 this.setOptionsVisibility(false)
@@ -536,12 +536,12 @@ class ActorSelectorElement extends HTMLElement {
         const icon = actCat.icon
         optionEl.innerHTML = ""
         if(icon) optionEl.appendChild(icon.cloneNode(true))
-        optionEl.appendChild(newDomEl("span", {
+        addNewDomEl(optionEl, "span", {
             text: label,
             style: {
                 paddingLeft: ".5em",
             }
-        }))
+        })
     }
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
@@ -581,18 +581,16 @@ class ActorStateElement extends HTMLElement {
         this.statesEl.innerHTML = ""
         act.constructor.STATE_PROPS.forEach(prop => {
             if(!prop.showInBuilder) return
-            const wrapperEl = newDomEl("div", {
+            const wrapperEl = addNewDomEl(this.statesEl, "div", {
                 style: {
                     display: "flex",
                     flexDirection: "row",
                 }
             })
-            wrapperEl.appendChild(newDomEl("span", {
+            addNewDomEl(wrapperEl, "span", {
                 text: prop.key
-            }))
-            const inputEl = prop.createObjectInput(act)
-            wrapperEl.appendChild(inputEl)
-            this.statesEl.appendChild(wrapperEl)
+            })
+            wrapperEl.appendChild(prop.createObjectInput(act))
         })
     }
     setOptionKey(optionEl, actKey) {
@@ -601,12 +599,12 @@ class ActorStateElement extends HTMLElement {
         const icon = actCat.icon
         optionEl.innerHTML = ""
         if(icon) optionEl.appendChild(icon.cloneNode(true))
-        optionEl.appendChild(newDomEl("span", {
+        addNewDomEl(optionEl, "span", {
             text: label,
             style: {
                 paddingLeft: ".5em",
             }
-        }))
+        })
     }
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
@@ -620,6 +618,54 @@ class ActorStateElement extends HTMLElement {
     }
 }
 customElements.define('dmg-actor-state', ActorStateElement)
+
+
+class ActorLinkElement extends HTMLElement {
+    constructor() {
+        super()
+        this.attachShadow({ mode: 'open' })
+
+        const styleEl = document.createElement('style')
+        styleEl.textContent = ``
+
+        this.wrapperEl = newDomEl("div", {
+            display: "flex",
+            flexDirection: "column",
+        })
+        this.shadowRoot.append(styleEl, this.wrapperEl)
+
+        this.actorLink = null
+    }
+    initActorLink(actLink) {
+        this.actorLink = actLink
+        this.wrapperEl.innerHTML = ""
+        const keysEl = addNewDomEl(this.wrapperEl, "div", {
+            display: "flex",
+            flexDirection: "row",
+        })
+        addNewDomEl(keysEl, "span", { text: "trigger:" })
+        const trigKeyEl = addNewDomEl(keysEl, "select")
+        actLink.actionActor.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
+            addNewDomEl(trigKeyEl, "option", {
+                value: funcName,
+                text: funcName,
+            })
+        })
+        trigKeyEl.value = actLink.triggerKey
+        trigKeyEl.addEventListener("change", () => actLink.triggerKey = trigKeyEl.value)
+        addNewDomEl(keysEl, "span", { text: "action:" })
+        const actKeyEl = addNewDomEl(keysEl, "select")
+        actLink.actionActor.constructor.LINK_ACTIONS.forEach((trig, funcName) => {
+            addNewDomEl(actKeyEl, "option", {
+                value: funcName,
+                text: funcName,
+            })
+        })
+        actKeyEl.value = actLink.actionKey
+        actKeyEl.addEventListener("change", () => actLink.actionKey = actKeyEl.value)
+    }
+}
+customElements.define('dmg-actor-link', ActorLinkElement)
 
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {
