@@ -93,14 +93,22 @@ export default class PhysicsEngine {
     }
     apply(dt, actors) {
         const { walls } = this.scene.map
+        const blockers = [...walls]
+        actors.forEach(act => {
+            if(act.isBlocker) {
+                this.initActor(0, act)
+                blockers.push(act)
+            }
+        })
         actors.forEach(act => {
             const comp = act.physicsComponent
             if(!comp) return
+            if(!(act.movable ?? comp.movable)) return
             let remD = 1, nbCollisions = 0
             if(act.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, act)
             const { x: actOrigX, y: actOrigY, speedX: actOrigSpdX, speedY: actOrigSpdY } = act
             const actOrigDx = actOrigSpdX * dt, actOrigDy = actOrigSpdY * dt
-            if((act.blockedByWalls ?? comp.blockedByWalls) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
+            if((act.blockable ?? comp.blockable) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
                 const actOrigD = dist(actOrigDx, actOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
@@ -112,7 +120,8 @@ export default class PhysicsEngine {
                         minX: actMinX, minY: actMinY, maxX: actMaxX, maxY: actMaxY,
                         sMinX: actSMinX, sMinY: actSMinY, sMaxX: actSMaxX, sMaxY: actSMaxY,
                     } = actData
-                    for(let wall of walls) {
+                    for(let wall of blockers) {
+                        if(act == wall) continue
                         const wallData = wall._physicsData
                         // quick filteringgs
                         if(actSMinX > wallData.sMaxX || actSMaxX < wallData.sMinX || actSMinY > wallData.sMaxY || actSMaxY < wallData.sMinY) continue

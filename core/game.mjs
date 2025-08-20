@@ -594,16 +594,20 @@ export class PhysicsComponent extends Component {
 
     constructor(kwargs) {
         super()
+        this.movable = kwargs?.movable ?? true
         this.affectedByGravity = kwargs?.affectedByGravity ?? true
-        this.blockedByWalls = kwargs?.blockedByWalls ?? true
+        this.blockable = kwargs?.blockable ?? true
+        this.isBlocker = kwargs?.isBlocker ?? false
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
         obj.physicsComponent = this
         obj.speedResX = 0
         obj.speedResY = 0
+        if(kwargs?.movable !== undefined) this.movable = kwargs.movable
         if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
-        if(kwargs?.blockedByWalls !== undefined) this.blockedByWalls = kwargs.blockedByWalls
+        if(kwargs?.blockable !== undefined) this.blockable = kwargs.blockable
+        if(kwargs?.isBlocker !== undefined) this.isBlocker = kwargs.isBlocker
     }
     updateObject(obj) {
         // done by physics engine
@@ -615,10 +619,14 @@ export class LinkTrigger {
     static add(funcName, kwargs) {
         return target => {
             if(!target.hasOwnProperty('LINK_TRIGGERS')) target.LINK_TRIGGERS = new Map(target.LINK_TRIGGERS)
-            target.LINK_TRIGGERS.set(funcName, kwargs)
+            const linkTrig = new this(funcName, kwargs)
+            target.LINK_TRIGGERS.set(funcName, linkTrig)
             if(kwargs?.isDefault) target.DEFAULT_LINK_TRIGGER = funcName
             return target
         }
+    }
+    constructor(funcName, kwargs) {
+        this.label = kwargs?.label ?? funcName
     }
 }
 
@@ -626,10 +634,14 @@ export class LinkAction {
     static add(funcName, kwargs) {
         return target => {
             if(!target.hasOwnProperty('LINK_ACTIONS')) target.LINK_ACTIONS = new Map(target.LINK_ACTIONS)
-            target.LINK_ACTIONS.set(funcName, kwargs)
+            const linkAct = new this(funcName, kwargs)
+            target.LINK_ACTIONS.set(funcName, linkAct)
             if(kwargs?.isDefault) target.DEFAULT_LINK_ACTION = funcName
             return target
         }
+    }
+    constructor(funcName, kwargs) {
+        this.label = kwargs?.label ?? funcName
     }
 }
 
@@ -759,10 +771,6 @@ export class GameObject {
         return Boolean(this.removed)
     }
 
-    isActive() {
-        return !this.isRemoved()
-    }
-
     spriteFit(sprite) {
         const { width, height } = this
         const { width: baseWidth, height: baseHeight } = sprite.baseImg
@@ -830,8 +838,7 @@ GameObject.prototype.trigger = trigger
 
 
 @LinkTrigger.add("isRemoved", { isDefault: true })
-@LinkTrigger.add("isActive")
-@LinkAction.add("remove", { isDefault: true })
+@LinkAction.add("actRemove", { label:"remove", isDefault: true })
 export class Actor extends GameObject {
 
     constructor(scn) {
@@ -868,14 +875,12 @@ export class Actor extends GameObject {
                 _resp.value = resp
                 resp = _resp
             }
-            if(resp.value >= actLink.threshold) {
-                this[actLink.actionKey](resp)
-            }
+            this[actLink.actionKey](resp)
         }
     }
 
-    fillRemovedLinkResponse(resp) {
-        resp.value = act.removed ? 1 : 0
+    actRemove(resp) {
+        if(resp.value > .5) this.remove()
     }
 
     getState(isInitState=false) {

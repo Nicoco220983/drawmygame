@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateInt, LinkTrigger, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkAction, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -571,7 +571,7 @@ export class Bomb extends Extra {
         super.init(kwargs)
         this.width = this.height = 40
         this.isActionExtra = true
-        this.affectedByGravity = this.blockedByWalls = false
+        this.affectedByGravity = this.blockable = false
     }
     isCollectableBy(team) {
         if(this.itToLive !== null) return false
@@ -581,7 +581,7 @@ export class Bomb extends Extra {
         const { dt } = this.game
         const { x, y } = this
         const owner = this.getOwner()
-        this.affectedByGravity = this.blockedByWalls = (this.itToLive !== null)
+        this.affectedByGravity = this.blockable = (this.itToLive !== null)
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
@@ -750,11 +750,8 @@ export class Portal extends Actor {
 
 
 @LinkTrigger.add("isTriggered", { isDefault: true })
+@StateBool.define("triggered")
 export class Trigger extends Actor {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
-        this.triggered = false
-    }
 
     isTriggered() {
         return this.triggered
@@ -773,8 +770,8 @@ const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.pn
     icon: BurronImg,
 })
 export class Button extends Trigger {
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = this.height = 30
         this.team = "engine"
     }
@@ -800,5 +797,38 @@ export class Button extends Trigger {
             return new Sprite(res)
         })
         return sprite
+    }
+}
+
+
+const DoorImg = CATALOG.registerImage("/static/catalogs/std/assets/door.png")
+const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/door_sprite.png"), 2, 1)
+
+@CATALOG.registerActor("door", {
+    label: "Door",
+    icon: DoorImg,
+    showInBuilder: true,
+})
+@LinkAction.add("actToggle", { label:"toggle", isDefault: true })
+@PhysicsComponent.add({ movable:false, isBlocker: true })
+@StateBool.define("closed", { default: true, showInBuilder: true })
+export class Door extends Actor {
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 50
+        this.origClosed = this.closed
+    }
+
+    actToggle(resp) {
+        this.closed = (resp.value >= .5) ? (!this.origClosed) : this.origClosed
+    }
+
+    update() {
+        super.update()
+        this.isBlocker = this.closed
+    }
+
+    getSprite() {
+        return DoorSpriteSheet.get(this.closed ? 0 : 1)
     }
 }

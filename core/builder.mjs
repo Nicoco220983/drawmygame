@@ -648,7 +648,7 @@ class ActorLinkElement extends HTMLElement {
         actLink.actionActor.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
             addNewDomEl(trigKeyEl, "option", {
                 value: funcName,
-                text: funcName,
+                text: trig.label,
             })
         })
         trigKeyEl.value = actLink.triggerKey
@@ -658,7 +658,7 @@ class ActorLinkElement extends HTMLElement {
         actLink.actionActor.constructor.LINK_ACTIONS.forEach((trig, funcName) => {
             addNewDomEl(actKeyEl, "option", {
                 value: funcName,
-                text: funcName,
+                text: trig.label,
             })
         })
         actKeyEl.value = actLink.actionKey
