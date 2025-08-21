@@ -769,6 +769,8 @@ const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.pn
     label: "Button",
     icon: BurronImg,
 })
+@StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
 export class Button extends Trigger {
     init(kwargs) {
         super.init(kwargs)
@@ -782,6 +784,20 @@ export class Button extends Trigger {
 
     trigger() {
         this.triggered = !this.triggered
+        if(this.duration != Infinity) {
+            this.trigAge = this.triggered ? 0 : Infinity
+        }
+    }
+
+    update() {
+        super.update()
+        if(this.trigAge != Infinity) {
+            this.trigAge += 1
+            if(this.trigAge > (this.duration * this.game.fps)) {
+                this.trigAge = Infinity
+                this.triggered = false
+            }
+        }
     }
 
     getSprite() {
