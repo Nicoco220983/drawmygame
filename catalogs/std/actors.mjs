@@ -663,12 +663,6 @@ export class Checkpoint extends Collectable {
 }
 
 
-// OTHERS
-
-
-
-
-
 const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
 
 @CATALOG.registerActor("explos", {
@@ -763,11 +757,12 @@ export class Trigger extends Actor {
 }
 
 
-const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.png")
+const BurronIcon = CATALOG.registerImage("/static/core/assets/button.png")
+const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/button_spritesheet.png"), 2, 1)
 
 @CATALOG.registerActor("button", {
     label: "Button",
-    icon: BurronImg,
+    icon: BurronIcon,
 })
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
@@ -801,24 +796,13 @@ export class Button extends Trigger {
     }
 
     getSprite() {
-        if(BurronImg.unloaded) return
-        let img = BurronImg
-        const numCol = this.triggered ? 1 : 0
-        img = cachedTransform(img, numCol, () => {
-            return cloneCanvas(img, { col:[numCol,2] })
-        })
-        const sprite = cachedTransform(img, "red", () => {
-            let res = cloneCanvas(img)
-            res = colorizeCanvas(res, "red")
-            return new Sprite(res)
-        })
-        return sprite
+        return ButtonSpriteSheet.get(this.triggered ? 1 : 0)
     }
 }
 
 
 const DoorImg = CATALOG.registerImage("/static/catalogs/std/assets/door.png")
-const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/door_sprite.png"), 2, 1)
+const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/door_spritesheet.png"), 2, 1)
 
 @CATALOG.registerActor("door", {
     label: "Door",
