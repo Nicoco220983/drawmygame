@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkAction, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -809,7 +809,7 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     icon: DoorImg,
     showInBuilder: true,
 })
-@LinkAction.add("actToggle", { label:"toggle", isDefault: true })
+@LinkReaction.add("reactToggle", { label:"toggle", isDefault: true })
 @PhysicsComponent.add({ movable:false, isBlocker: true })
 @StateBool.define("closed", { default: true, showInBuilder: true })
 export class Door extends Actor {
@@ -819,7 +819,7 @@ export class Door extends Actor {
         this.origClosed = this.closed
     }
 
-    actToggle(resp) {
+    reactToggle(resp) {
         this.closed = (resp.value >= .5) ? (!this.origClosed) : this.origClosed
     }
 

@@ -630,7 +630,7 @@ export class LinkTrigger {
     }
 }
 
-export class LinkAction {
+export class LinkReaction {
     static add(funcName, kwargs) {
         return target => {
             if(!target.hasOwnProperty('LINK_REACTIONS')) target.LINK_REACTIONS = new Map(target.LINK_REACTIONS)
@@ -838,7 +838,7 @@ GameObject.prototype.trigger = trigger
 
 
 @LinkTrigger.add("isRemoved", { isDefault: true })
-@LinkAction.add("actRemove", { label:"remove", isDefault: true })
+@LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
 export class Actor extends GameObject {
 
     constructor(scn) {
@@ -879,7 +879,7 @@ export class Actor extends GameObject {
         }
     }
 
-    actRemove(msg) {
+    reactRemove(msg) {
         if(msg.value > .5) this.remove()
     }
 
