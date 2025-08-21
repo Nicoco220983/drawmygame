@@ -757,12 +757,12 @@ export class Trigger extends Actor {
 }
 
 
-const BurronIcon = CATALOG.registerImage("/static/core/assets/button.png")
+const BurronImg = CATALOG.registerImage("/static/core/assets/button.png")
 const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/button_spritesheet.png"), 2, 1)
 
 @CATALOG.registerActor("button", {
     label: "Button",
-    icon: BurronIcon,
+    icon: BurronImg,
 })
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
@@ -797,6 +797,37 @@ export class Button extends Trigger {
 
     getSprite() {
         return ButtonSpriteSheet.get(this.triggered ? 1 : 0)
+    }
+}
+
+
+const ClockImg = CATALOG.registerImage("/static/catalogs/std/assets/clock.png")
+const ClockSprite = new Sprite(ClockImg)
+
+@CATALOG.registerActor("clock", {
+    label: "Clock",
+    icon: ClockImg,
+    showInBuilder: true,
+})
+@StateInt.define("iteration")
+@StateInt.define("triggered_period", { default:1, showInBuilder: true })
+@StateInt.define("untriggered_period", { default:1, showInBuilder: true })
+export class Clock extends Trigger {
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+    }
+    update() {
+        super.update()
+        const { fps } = this.game
+        const { untriggered_period, triggered_period } = this
+        const full_period = untriggered_period + triggered_period
+        const it = this.iteration % (full_period * fps)
+        this.triggered = it > (untriggered_period * fps)
+        this.iteration += 1
+    }
+    getSprite() {
+        return ClockSprite
     }
 }
 
