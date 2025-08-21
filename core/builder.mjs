@@ -70,7 +70,7 @@ export class GameBuilder extends GameCommon {
         for(let obj of this.scenes.draft.selections) {
             if(obj instanceof GameObject) obj.remove()
             else if(obj instanceof ActorLink) {
-                const lnks = obj.actionActor.actorLinks
+                const lnks = obj.reactionActor.actorLinks
                 lnks.splice(lnks.indexOf(obj), 1)
             }
         }
@@ -185,7 +185,7 @@ class DraftScene extends SceneCommon {
             if(!act.actorLinks) return
             act.actorLinks.forEach(lnk => {
                 const { x:x1, y:y1 } = lnk.triggerActor
-                const { x:x2, y:y2 } = lnk.actionActor
+                const { x:x2, y:y2 } = lnk.reactionActor
                 if(distancePointSegment(x, y, x1, y1, x2, y2) <= 5) {
                     res = lnk
                 }
@@ -424,7 +424,7 @@ class DraftScene extends SceneCommon {
                 height = hitBox.height
             } else if(sel instanceof ActorLink) {
                 const { x:x1, y:y1 } = sel.triggerActor
-                const { x:x2, y:y2 } = sel.actionActor
+                const { x:x2, y:y2 } = sel.reactionActor
                 left = x1
                 top = y1
                 width = x2 - x1
@@ -645,7 +645,7 @@ class ActorLinkElement extends HTMLElement {
         })
         addNewDomEl(keysEl, "span", { text: "trigger:" })
         const trigKeyEl = addNewDomEl(keysEl, "select")
-        actLink.actionActor.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
+        actLink.reactionActor.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
             addNewDomEl(trigKeyEl, "option", {
                 value: funcName,
                 text: trig.label,
@@ -653,16 +653,16 @@ class ActorLinkElement extends HTMLElement {
         })
         trigKeyEl.value = actLink.triggerKey
         trigKeyEl.addEventListener("change", () => actLink.triggerKey = trigKeyEl.value)
-        addNewDomEl(keysEl, "span", { text: "action:" })
-        const actKeyEl = addNewDomEl(keysEl, "select")
-        actLink.actionActor.constructor.LINK_ACTIONS.forEach((trig, funcName) => {
-            addNewDomEl(actKeyEl, "option", {
+        addNewDomEl(keysEl, "span", { text: "reaction:" })
+        const reactKeyEl = addNewDomEl(keysEl, "select")
+        actLink.reactionActor.constructor.LINK_ACTIONS.forEach((trig, funcName) => {
+            addNewDomEl(reactKeyEl, "option", {
                 value: funcName,
                 text: trig.label,
             })
         })
-        actKeyEl.value = actLink.actionKey
-        actKeyEl.addEventListener("change", () => actLink.actionKey = actKeyEl.value)
+        reactKeyEl.value = actLink.reactionKey
+        reactKeyEl.addEventListener("change", () => actLink.reactionKey = reactKeyEl.value)
     }
 }
 customElements.define('dmg-actor-link', ActorLinkElement)
