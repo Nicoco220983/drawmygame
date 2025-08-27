@@ -58,6 +58,7 @@ export class GameBuilder extends GameCommon {
 
     syncMap() {
         this.map.scenes["0"] = this.scenes.game.getState(true)
+        console.log("TMP map", this.map)
     }
 
     update() {

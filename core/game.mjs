@@ -2319,7 +2319,7 @@ export class GameScene extends SceneCommon {
     }
 
     onHeroOut(hero) {
-        hero.mayTakeDamage(1, null, true)
+        hero.onAttack(1, null, true)
         if(hero.health > 0) this.spawnHero(hero)
     }
 

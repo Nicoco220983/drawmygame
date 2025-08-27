@@ -115,8 +115,11 @@ async function initInputEls(catalog) {
     herosEl.setSelectedActor("nico")
     actorsEl.initCatalog(catalog, actCat => !actCat.isHero)
 }
-function updScene() {
-    map.scenes["0"].key = scnKeyEl.value
+async function updScene() {
+    const scnCat = catalog.scenes[scnKeyEl.value]
+    const mods = await catalog.preload([scnCat.path])
+    await gameBuilder.loadScenes(mods[0][scnCat.name])
+    scnStateEl.setActor(gameBuilder.scenes.game)
 }
 scnKeyEl.onchange = updScene
 
@@ -196,7 +199,9 @@ async function main() {
     catalog = await loadCatalog()
     await catalog.preloadAll()  // TODO remove this
     map = new GameMap()
-    if(urlParams.has("map")) await map.importFromSafeBase64(urlParams.get("map"))
+    if(urlParams.has("map")) {
+        await map.importFromSafeBase64(urlParams.get("map"))
+    }
     initInputEls(catalog)
     if(urlParams.has("map")) {
         await startAndShowGame(true)

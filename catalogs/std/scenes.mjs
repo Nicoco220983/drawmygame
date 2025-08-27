@@ -75,13 +75,13 @@ export class StandardScene extends FocusFirstHeroScene {
 // TAG
 
 @CATALOG.registerScene("tag")
-export class TagScene extends GameScene {
+@StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
+export class TagScene extends FocusFirstHeroScene {
     
     constructor(game, scnId) {
         super(game, scnId)
         this.step = "INIT"
         this.initDuration = 3
-        this.duration = 3 * 60 + this.initDuration
         this.actors.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
     loadMap(map) {
@@ -90,7 +90,7 @@ export class TagScene extends GameScene {
     }
     tuneHeros(hero) {
         if(!(hero instanceof Hero)) return
-        hero.lives = hero.health = Infinity
+        hero.health = Infinity
         hero.on("damage", "tag", kwargs => {
             const { damager } = kwargs
             const tag = this.actors.get("tag")
@@ -122,11 +122,11 @@ export class TagScene extends GameScene {
         }
     }
     updateStepGame() {
-        const { iteration, duration } = this
+        const { iteration, initDuration, duration } = this
         const { fps } = this.game
         super.updateStepGame()
         if(iteration % fps == 0) this.incrNonTaggedPlayerScores()
-        if(iteration > duration * fps) this.step = "GAMEOVER"
+        if(iteration > (initDuration + duration) * fps) this.step = "GAMEOVER"
     }
     incrNonTaggedPlayerScores() {
         const tag = this.actors.get("tag")

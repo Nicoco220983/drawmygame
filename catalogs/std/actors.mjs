@@ -375,8 +375,11 @@ export class Ghost extends Enemy {
 
 // COLLECTABLES
 
+const HeartImg = CATALOG.registerImage("/static/core/assets/heart.png")
+
 @CATALOG.registerActor("heart", {
     label: "Heart",
+    icon: HeartImg,
 })
 export class Heart extends Collectable {
 
@@ -564,12 +567,15 @@ export class Shurikens extends Extra {
 }
 
 
-const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb.png"), 2, 1)
+const BombImg = CATALOG.registerImage("/static/catalogs/std/assets/bomb.png")
+const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb_spritesheet.png"), 2, 1)
 
 @CATALOG.registerActor("bomb", {
     label: "Bomb",
+    icon: BombImg
 })
 @PhysicsComponent.add()
+@StateInt.define("countdown", { default: 2, showInBuilder: true })
 @StateInt.define("itToLive", { default: null })
 export class Bomb extends Extra {
 
@@ -607,12 +613,12 @@ export class Bomb extends Extra {
         this.ownerId = owner.id
         this.speedX = owner.dirX * 200
         this.speedY = -500
-        this.itToLive = 1 * this.game.fps
+        this.itToLive = this.countdown * this.game.fps
     }
     getSprite() {
-        const { itToLive } = this
+        const { itToLive, countdown } = this
         if(itToLive === null) return BombSpriteSheet.get(0)
-        return BombSpriteSheet.get(floor(pow(3 - (itToLive / this.game.fps), 2)*2) % 2)
+        return BombSpriteSheet.get(floor(pow(3*(1 - (itToLive / this.game.fps)/countdown), 2)*2) % 2)
     }
     scaleSprite(sprite) {
         super.scaleSprite(sprite)
@@ -697,13 +703,17 @@ export class Explosion extends Actor {
     }
     checkActorsToDamage() {
         const { x, y } = this
+        const owner = this.getOwner()
         const radius2 = pow(150, 2)
         const _checkOne = act => {
             const dx = x - act.x, dy = y - act.y
-            if(dx*dx+dy*dy < radius2) act.mayTakeDamage(1, this.getOwner())
+            if(dx*dx+dy*dy < radius2) this.attack(act)
         }
-        this.scene.getTeam("hero").forEach(_checkOne)
-        this.scene.getTeam("enemy").forEach(_checkOne)
+        const team = owner?.team
+        this.scene.getTeamTargets(team).forEach(_checkOne)
+    }
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this.getOwner())
     }
     getSprite() {
         return ExplosionSpriteSheet.get(floor(
