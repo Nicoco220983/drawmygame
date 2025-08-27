@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
+const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
 import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
@@ -63,29 +63,24 @@ export class Nico extends Hero {
     }
 
     checkHandHit() {
-        const { team } = this
         const handHitBox = this.handHitBox ||= {
             width: 25,
             height: 25,
         }
         handHitBox.x = this.x + this.dirX * 28
         handHitBox.y = this.y
-        let hasHit = false
-        const _checkHit = act => {
-            if(this == act) return
+        let hasAttacked = false
+        this.scene.getTeamTargets(this.team).forEach(act => {
             if(checkHit(handHitBox, act)) {
-                act.mayTakeDamage(0, this)
-                hasHit = true
-            }
-        }
-        this.scene.getTeam("enemy").forEach(_checkHit)
-        this.scene.getTeam("hero").forEach(_checkHit)
-        this.scene.getTeam("engine").forEach(act => {
-            if(act.isTriggerableBy && act.isTriggerableBy(team) && checkHit(handHitBox, act)) {
-                act.trigger()
+                this.attack(act)
+                hasAttacked = true
             }
         })
-        this.game.audio.playSound(hasHit ? HandHitAud : SlashAud)
+        this.game.audio.playSound(hasAttacked ? HandHitAud: SlashAud)
+    }
+
+    attack(act) {
+        if(act.onAttack) act.onAttack(0, this)
     }
 
     getSprite() {
@@ -230,9 +225,13 @@ export class Spiky extends Enemy {
     update() {
         super.update()
         // attack
-        this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
+        this.scene.getTeamTargets(this.team).forEach(act => {
+            if(checkHit(this, act)) this.attack(act)
         })
+    }
+
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -280,10 +279,14 @@ export class BlobEnemy extends Enemy {
             this.speedX = this.dirX * 30
         }
         // attack
-        this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
+        this.scene.getTeamTargets(this.team).forEach(act => {
+            if(checkHit(this, act)) this.attack(act)
         })
         this.lastChangeDirAge += 1
+    }
+
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -332,16 +335,19 @@ export class Ghost extends Enemy {
     update() {
         super.update()
         const { dt } = this.game
-        const { iteration } = this.scene
         const { width } = this.scene.map
         // move
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
         // attack
-        this.scene.getTeam("hero").forEach(hero => {
-            if(checkHit(this, hero)) hero.mayTakeDamage(1, this)
+        this.scene.getTeamTargets(this.team).forEach(act => {
+            if(checkHit(this, act)) this.attack(act)
         })
+    }
+
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -438,7 +444,7 @@ export class Sword extends Extra {
                 this.x = owner.x + 25 * owner.dirX
                 this.width = this.height = 40
             }
-            if(this.lastAttackAge == 0) this.checkHit()
+            if(this.lastAttackAge == 0) this.tryAttack()
             this.lastAttackAge += 1
         }
     }
@@ -449,23 +455,19 @@ export class Sword extends Extra {
         if(this.isAttacking()) return
         this.lastAttackAge = 0
     }
-    checkHit() {
+    tryAttack() {
         const owner = this.getOwner()
-        let hasHit = false
-        const _checkHit = act => {
-            if(owner === act) return
+        let hasAttacked = false
+        this.scene.getTeamTargets(owner.team).forEach(act => {
             if(checkHit(this, act)) {
-                this.hit(act)
-                hasHit = true
+                this.attack(act)
+                hasAttacked = true
             }
-        }
-        this.scene.getTeam("hero").forEach(_checkHit)
-        this.scene.getTeam("enemy").forEach(_checkHit)
-        this.game.audio.playSound(hasHit ? SwordHitAud : SlashAud)
+        })
+        this.game.audio.playSound(hasAttacked ? SwordHitAud : SlashAud)
     }
-    hit(act) {
-        const damage = act.team == this.team ? 0 : 1
-        act.mayTakeDamage(damage, this.getOwner())
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this.owner)
     }
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
@@ -496,7 +498,8 @@ export class Shurikens extends Extra {
         this.width = this.height = 30
         this.actLastTryIt = -Infinity
         this.actRemIt = 0
-        if(kwargs && kwargs.itToLive !== undefined) this.itToLive = kwargs.itToLive
+        if(kwargs?.nb !== undefined) this.nb = kwargs.nb
+        if(kwargs?.itToLive !== undefined) this.itToLive = kwargs.itToLive
         this.throwPeriod = .3
     }
     isCollectableBy(team) {
@@ -526,7 +529,7 @@ export class Shurikens extends Extra {
     update() {
         const owner = this.getOwner()
         if(this.itToLive) {
-            this.checkHit()
+            this.tryAttack()
             this.itToLive -= 1
             if(this.itToLive <= 0) this.remove()
             if(this.speedResX || this.speedResY) this.remove()
@@ -536,17 +539,20 @@ export class Shurikens extends Extra {
         }
         if(this.actRemIt > 0) this.actRemIt -= 1
     }
-    checkHit() {
-        const _checkHit = act => {
-            if(!this.removed && checkHit(this, act)) {
-                this.hit(act)
-                this.remove()
+    tryAttack() {
+        const owner = this.getOwner()
+        //let hasAttacked = false
+        this.scene.getTeamTargets(owner.team).forEach(act => {
+            if(checkHit(this, act)) {
+                this.attack(act)
+                //hasAttacked = true
             }
-        }
-        this.scene.getTeam("enemy").forEach(_checkHit)
+        })
+        //this.game.audio.playSound(hasAttacked ? SwordHitAud : SlashAud)
     }
-    hit(act) {
-        act.mayTakeDamage(1, this.getOwner())
+    attack(act) {
+        if(act.onAttack) act.onAttack(1, this.getOwner())
+        this.remove()
     }
     getSprite() {
         return ShurikenSprite
@@ -750,10 +756,6 @@ export class Trigger extends Actor {
     isTriggered() {
         return this.triggered
     }
-
-    trigger() {
-        this.triggered = true
-    }
 }
 
 
@@ -765,22 +767,21 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
     icon: BurronImg,
 })
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("period", { default: 1, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
 export class Button extends Trigger {
+
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
         this.team = "engine"
     }
 
-    isTriggerableBy(team) {
-        return team.startsWith("hero")
-    }
-
-    trigger() {
+    onAttack(damage, attacker) {
+        if(this.trigAge < this.period * this.game.fps) return
         this.triggered = !this.triggered
-        if(this.duration != Infinity) {
-            this.trigAge = this.triggered ? 0 : Infinity
+        if((this.triggered && this.duration != Infinity) || this.period != 0) {
+            this.trigAge = 0
         }
     }
 

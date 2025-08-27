@@ -569,17 +569,17 @@ export class Component {
             if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
             this.STATE_PROPS.forEach((prop, propKey) => {
                 target.STATE_PROPS.set(propKey, prop)
-                prop.initObjectClass(target)
+                prop.initObjectClass(target, kwargs)
             })
             if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             const comp = new this(kwargs)
             target.COMPONENTS.set(this.KEY, comp)
-            comp.initObjectClass(target)
+            comp.initObjectClass(target, kwargs)
             return target
         }
     }
 
-    initObjectClass(cls) {}
+    initObjectClass(cls, kwargs) {}
     initObject(obj, kwargs) {}
     updateObject(obj) {}
     syncStateFromObject(obj, state) {}
@@ -604,10 +604,12 @@ export class PhysicsComponent extends Component {
         obj.physicsComponent = this
         obj.speedResX = 0
         obj.speedResY = 0
-        if(kwargs?.movable !== undefined) this.movable = kwargs.movable
-        if(kwargs?.affectedByGravity !== undefined) this.affectedByGravity = kwargs.affectedByGravity
-        if(kwargs?.blockable !== undefined) this.blockable = kwargs.blockable
-        if(kwargs?.isBlocker !== undefined) this.isBlocker = kwargs.isBlocker
+        if(kwargs?.movable !== undefined) obj.movable = kwargs.movable
+        if(kwargs?.affectedByGravity !== undefined) obj.affectedByGravity = kwargs.affectedByGravity
+        if(kwargs?.blockable !== undefined) obj.blockable = kwargs.blockable
+        if(kwargs?.isBlocker !== undefined) obj.isBlocker = kwargs.isBlocker
+        if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
+        if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
     }
     updateObject(obj) {
         // done by physics engine
@@ -2372,6 +2374,17 @@ export class GameScene extends SceneCommon {
         })
     }
 
+    isTeamTarget(team1, team2) {
+        return team1 != team2
+    }
+
+    getTeamTargets(team) {
+        return this.filterActors(`targets:${team}`, act => {
+            const actTeam = act.team
+            return actTeam && this.isTeamTarget(team, actTeam)
+        })
+    }
+
     initVictoryNotifs() {
         if(this.victoryNotifs) return
         this.victoryNotifs = new GameObjectGroup(this)
@@ -2568,7 +2581,7 @@ export class LivingGameObject extends Actor {
         return this.lastDamageAge > ceil(0.5 * this.game.fps)
     }
 
-    mayTakeDamage(val, damager, force) {
+    onAttack(val, damager, force) {
         if(this.health <= 0) return
         if(!force && !this.isDamageable()) return
         this.takeDamage(val, damager)
@@ -2822,10 +2835,12 @@ class Pop extends GameObject {
 
 
 export class Enemy extends LivingGameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.team = "enemy"
     }
+
     die() {
         const { x, y } = this
         this.scene.addVisual(SmokeExplosion, { x, y })
@@ -2842,6 +2857,7 @@ export class Collectable extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
+        this.ownerId = kwargs?.ownerId ?? null
         this.spriteRand = floor(random() * this.game.fps)
     }
 
@@ -3243,10 +3259,12 @@ export class CountDown extends Text {
     icon: PopImg,
 })
 export class HeroSpawnPoint extends Actor {
+
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
     }
+
     getSprite() {
         return PopSprite
     }
