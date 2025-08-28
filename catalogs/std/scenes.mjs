@@ -1,5 +1,5 @@
 const { floor } = Math
-import { GameScene, FocusFirstHeroScene, GameObject, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, GameObject, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -13,6 +13,7 @@ export const CATALOG = new ModuleCatalog("std")
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 export class HerosLivesManager extends Actor {
     init(kwargs) {
+        super.init(kwargs)
         const { scene } = this
         hackMethod(scene, "addActor", -1, evt => {
             const act = evt.returnValue
@@ -42,6 +43,116 @@ export class HerosLivesManager extends Actor {
 }
 
 
+@CATALOG.registerActor("viewheroscentermng", {
+    category: "manager/view",
+})
+export class ViewHerosCenterManager extends Actor {
+
+    update() {
+        super.update()
+        this.updateSceneView()
+    }
+
+    updateSceneView() {
+        const scn = this.scene
+        const { heros, localHero } = scn
+        if(!hasKeys(heros)) return
+        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
+        if(localHero) {
+            scn.setView(
+                localHero.x - viewWidth/2,
+                localHero.y - viewHeight/2,
+            )
+        } else {
+            let sumX = 0, sumY = 0, nbHeros = 0
+            for(let playerId in heros) {
+                const hero = heros[playerId]
+                sumX += hero.x
+                sumY += hero.y
+                nbHeros += 1
+            }
+            scn.setView(
+                sumX / nbHeros - viewWidth/2,
+                sumY / nbHeros - viewHeight/2,
+            )
+        }
+    }
+}
+
+
+@CATALOG.registerActor("viewfirstheromng", {
+    category: "manager/view",
+})
+export class ViewFirstHeroManager extends Actor {
+
+    init(kwargs) {
+        super.init(kwargs)
+        const { scene } = this
+        hackMethod(scene, "spawnHero", 1, evt => {
+            const hero = evt.inputArgs[0]
+            this.spawnHero(hero)
+            evt.stopPropagation()
+        })
+    }
+
+    update() {
+        super.update()
+        this.updateSceneView()
+        this.spawnFarHeros()
+    }
+
+    updateSceneView() {
+        const scn = this.scene
+        const { heros, localHero } = scn
+        if(!hasKeys(heros)) return
+        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
+        if(localHero) {
+            scn.setView(
+                localHero.x - viewWidth/2,
+                localHero.y - viewHeight/2,
+            )
+        } else {
+            const firstHero = scn.getFirstHero()
+            if(firstHero) scn.setView(
+                firstHero.x - viewWidth/2,
+                firstHero.y - viewHeight/2,
+            )
+        }
+    }
+
+    spawnFarHeros() {
+        const scn = this.scene
+        const { heros } = scn
+        const firstHero = scn.getFirstHero()
+        if(!firstHero) return
+        const { x:fhx, y:fhy } = firstHero
+        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
+        for(let playerId in heros) {
+            if(playerId === firstHero.playerId) continue
+            const hero = heros[playerId]
+            const dx = hero.x - fhx, dy = hero.y - fhy
+            if(dx < -viewWidth*.7 || dx > viewWidth*.7 || dy < -viewHeight*.7 || dy > viewHeight*.7) {
+                this.spawnHero(hero)
+            }
+        }
+    }
+
+    spawnHero(hero) {
+        const scn = this.scene
+        const firstHero = scn.getFirstHero()
+        let spawnX, spawnY
+        if(!firstHero || hero === firstHero) {
+            spawnX = scn.herosSpawnX
+            spawnY = scn.herosSpawnY
+        } else {
+            spawnX = firstHero.x
+            spawnY = firstHero.y
+        }
+        hero.spawn(spawnX, spawnY)
+    }
+}
+
+
 // Standard
 
 @CATALOG.registerScene("std")
@@ -50,11 +161,17 @@ export class HerosLivesManager extends Actor {
     default: { key: "heroslivesmng" },
     showInBuilder: true,
 })
+@Actor.StateProperty.define("viewManager", {
+    filter: { category: "manager/view" },
+    default: { key: "viewheroscentermng" },
+    showInBuilder: true,
+})
 @StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
-export class StandardScene extends FocusFirstHeroScene {
+export class StandardScene extends GameScene {
     update() {
         super.update()
+        this.viewManager.update()
         this.herosLivesManager.update()
         if(this.step == "GAME") {
             let allOk = null
@@ -76,7 +193,7 @@ export class StandardScene extends FocusFirstHeroScene {
 
 @CATALOG.registerScene("tag")
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
-export class TagScene extends FocusFirstHeroScene {
+export class TagScene extends GameScene {
     
     constructor(game, scnId) {
         super(game, scnId)

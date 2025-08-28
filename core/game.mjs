@@ -178,6 +178,7 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             actors: [],
             walls: [],
+            viewManager: { key: "viewheroscentermng" },
             herosLivesManager: { key : "heroslivesmng" },
         }}
     }
@@ -2294,12 +2295,10 @@ export class GameScene extends SceneCommon {
 
     updateStepGame() {
         this.updateWorld()
-        this.updateView()
     }
 
     updateStepGameOver() {
         this.updateWorld()
-        this.updateView()
         this.initGameOverNotifs()
     }
 
@@ -2321,31 +2320,6 @@ export class GameScene extends SceneCommon {
     onHeroOut(hero) {
         hero.onAttack(1, null, true)
         if(hero.health > 0) this.spawnHero(hero)
-    }
-
-    updateView() {
-        const { heros, localHero } = this
-        if(!hasKeys(heros)) return
-        this.viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
-        if(localHero) {
-            this.setView(
-                localHero.x - viewWidth/2,
-                localHero.y - viewHeight/2,
-            )
-        } else {
-            let sumX = 0, sumY = 0, nbHeros = 0
-            for(let playerId in heros) {
-                const hero = heros[playerId]
-                sumX += hero.x
-                sumY += hero.y
-                nbHeros += 1
-            }
-            this.setView(
-                sumX / nbHeros - viewWidth/2,
-                sumY / nbHeros - viewHeight/2,
-            )
-        }
     }
 
     drawTo(ctx) {
@@ -2502,61 +2476,6 @@ export class GameScene extends SceneCommon {
 
     createPauseScene() {
         return new PauseScene(this.game)
-    }
-}
-
-
-export class FocusFirstHeroScene extends GameScene {
-    update() {
-        super.update()
-        this.updateHerosPos()
-    }
-    updateHerosPos() {
-        const { heros } = this
-        const firstHero = this.getFirstHero()
-        if(!firstHero) return
-        const { x:fhx, y:fhy } = firstHero
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
-        for(let playerId in heros) {
-            if(playerId === firstHero.playerId) continue
-            const hero = heros[playerId]
-            const dx = hero.x - fhx, dy = hero.y - fhy
-            if(dx < -viewWidth || dx > viewWidth || dy < -viewHeight || dy > viewHeight) {
-                this.spawnHero(hero)
-            }
-        }
-    }
-
-    updateView() {
-        const { heros, localHero } = this
-        if(!hasKeys(heros)) return
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
-        if(localHero) {
-            this.setView(
-                localHero.x - viewWidth/2,
-                localHero.y - viewHeight/2,
-            )
-        } else {
-            const firstHero = this.getFirstHero()
-            if(firstHero) this.setView(
-                firstHero.x - viewWidth/2,
-                firstHero.y - viewHeight/2,
-            )
-        }
-    }
-    spawnHero(hero) {
-        const firstHero = this.getFirstHero()
-        let spawnX, spawnY
-        if(!firstHero || hero === firstHero) {
-            spawnX = this.herosSpawnX
-            spawnY = this.herosSpawnY
-        } else {
-            spawnX = firstHero.x
-            spawnY = firstHero.y
-        }
-        hero.spawn(spawnX, spawnY)
     }
 }
 
