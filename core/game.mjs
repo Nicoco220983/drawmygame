@@ -130,6 +130,7 @@ export class ModuleCatalog {
             target.KEY = key
             const actCat = this.actors[key] = {}
             actCat.name = target.name
+            actCat.category = kwargs?.category ?? target.CATEGORY
             actCat.label = kwargs?.label ?? key
             actCat.icon = kwargs?.icon ?? null
             actCat.showInBuilder = kwargs?.showInBuilder ?? true
@@ -922,6 +923,10 @@ export class Actor extends GameObject {
 }
 
 Actor.StateProperty = class extends StateProperty {
+    init(kwargs) {
+        super.init(kwargs)
+        this.filter = kwargs?.filter
+    }
     getObjectPropState(obj) {
         const val = obj[this.key]
         if(!val || val === this.nullableWith) return null
@@ -955,13 +960,15 @@ Actor.StateProperty = class extends StateProperty {
         const { catalog } = obj.game
         const inputEl = newDomEl("div")
         const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
-        selectEl.initCatalog(catalog)
+        let filterFun = null
+        if(this.filter) filterFun = act => filterActor(this.filter, act)
+        selectEl.initCatalog(catalog, filterFun)
         const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
             style: { display: "none" }
         })
         const showActorStates = objVal => {
             statesEl.style.display = ""
-            statesEl.setActor(objVal)
+            statesEl.initActor(objVal)
         }
         if(objVal) {
             selectEl.setSelectedActor(objVal.getKey())
@@ -977,6 +984,25 @@ Actor.StateProperty = class extends StateProperty {
         const objKey = inputEl.selectEl.value
         this.setObjectPropFromState(obj, { key: objKey })
     }
+}
+
+
+export function filterActor(filterDesc, act) {
+    if(filterDesc.category) {
+        const actCat = act.category
+        if(!actCat || !actCat.startsWith(filterDesc.category)) return false
+    }
+    if(filterDesc.and) {
+        for(let f of filterDesc.and) if(!filterActor(f, act)) return false
+    }
+    if(filterDesc.or) {
+        for(let f of filterDesc.or) if(!filterActor(f, act)) return true
+        return false
+    }
+    if(filterDesc.not) {
+        return !filterActor(filterDesc.not, act)
+    }
+    return true
 }
 
 
@@ -2528,6 +2554,7 @@ export class LivingGameObject extends Actor {
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @StateProperty.modify("health", { default: 3 })
 export class Hero extends LivingGameObject {
+    static CATEGORY = "hero"
 
     init(kwargs) {
         super.init(kwargs)
@@ -2754,6 +2781,7 @@ class Pop extends GameObject {
 
 
 export class Enemy extends LivingGameObject {
+    static CATEGORY = "npc/enemy"
 
     init(kwargs) {
         super.init(kwargs)
@@ -2773,6 +2801,7 @@ export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
 @StateProperty.define("ownerId", { default: null })
 export class Collectable extends Actor {
+    static CATEGORY = "collectable"
 
     init(kwargs) {
         super.init(kwargs)
@@ -2853,6 +2882,8 @@ class HealthHeartNotif extends LifeHeartNotif {
 }
 
 export class Extra extends Collectable {
+    static CATEGORY = "collectable/extra"
+
     getPriority() {
         const owner = this.getOwner()
         if(owner) return owner.getPriority() - 1

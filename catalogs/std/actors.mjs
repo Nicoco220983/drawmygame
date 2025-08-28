@@ -780,6 +780,7 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
 @StateInt.define("period", { default: 1, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
 export class Button extends Trigger {
+    static CATEGORY = "engine"
 
     init(kwargs) {
         super.init(kwargs)
@@ -855,6 +856,8 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 @PhysicsComponent.add({ movable:false, isBlocker: true })
 @StateBool.define("closed", { default: true, showInBuilder: true })
 export class Door extends Actor {
+    static CATEGORY = "engine"
+    
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50

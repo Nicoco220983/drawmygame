@@ -6,12 +6,15 @@ export const CATALOG = new ModuleCatalog("std")
 
 
 @CATALOG.registerActor("heroslivesmng", {
-    category: "manager/heroslives",
+    showInBuilder: true,
+    category: "manager/heroslives",  // TODO: forced to add it here despite static prop
 })
 @StateProperty.define("deathsIts")
 @StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 export class HerosLivesManager extends Actor {
+    static CATEGORY = "manager/heroslives"
+
     init(kwargs) {
         super.init(kwargs)
         const { scene } = this
@@ -43,10 +46,15 @@ export class HerosLivesManager extends Actor {
 }
 
 
+export class ViewManager extends Actor {
+    static CATEGORY = "manager/view"
+}
+
+
 @CATALOG.registerActor("viewheroscentermng", {
-    category: "manager/view",
+    showInBuilder: true
 })
-export class ViewHerosCenterManager extends Actor {
+export class ViewHerosCenterManager extends ViewManager {
 
     update() {
         super.update()
@@ -81,9 +89,9 @@ export class ViewHerosCenterManager extends Actor {
 
 
 @CATALOG.registerActor("viewfirstheromng", {
-    category: "manager/view",
+    showInBuilder: true
 })
-export class ViewFirstHeroManager extends Actor {
+export class ViewFirstHeroManager extends ViewManager {
 
     init(kwargs) {
         super.init(kwargs)

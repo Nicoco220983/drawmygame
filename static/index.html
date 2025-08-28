@@ -113,20 +113,22 @@ async function initInputEls(catalog) {
     scnKeyEl.value = scnMap.key
     herosEl.initCatalog(catalog, actCat => actCat.isHero)
     herosEl.setSelectedActor("nico")
-    actorsEl.initCatalog(catalog, actCat => !actCat.isHero)
+    actorsEl.initCatalog(catalog, actCat => {
+        return !actCat.isHero && (!actCat.category || !actCat.category.startsWith("manager"))
+    })
 }
 async function updScene() {
     const scnCat = catalog.scenes[scnKeyEl.value]
     const mods = await catalog.preload([scnCat.path])
     await gameBuilder.loadScenes(mods[0][scnCat.name])
-    scnStateEl.setActor(gameBuilder.scenes.game)
+    scnStateEl.initActor(gameBuilder.scenes.game)
 }
 scnKeyEl.onchange = updScene
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {
     if(!gameBuilder) return
-    scnStateEl.setActor(gameBuilder.scenes.game)
+    scnStateEl.initActor(gameBuilder.scenes.game)
     anchorEl.checked = gameBuilder.scenes.draft.anchor
 }
 function syncBuilderAnchor() {

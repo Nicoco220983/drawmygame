@@ -58,7 +58,6 @@ export class GameBuilder extends GameCommon {
 
     syncMap() {
         this.map.scenes["0"] = this.scenes.game.getState(true)
-        console.log("TMP map", this.map)
     }
 
     update() {
@@ -357,7 +356,7 @@ class DraftScene extends SceneCommon {
         selMenuEl.innerHTML = ""
         if(obj instanceof Actor) {
             const stateEl = addNewDomEl(selMenuEl, "dmg-actor-state")
-            stateEl.setActor(obj)
+            stateEl.initActor(obj)
         } else if(obj instanceof ActorLink) {
             const linkEl = addNewDomEl(selMenuEl, "dmg-actor-link")
             linkEl.initActorLink(obj)
@@ -578,7 +577,7 @@ class ActorStateElement extends HTMLElement {
         })
         this.shadowRoot.append(styleEl, this.statesEl)
     }
-    setActor(act) {
+    initActor(act) {
         this.statesEl.innerHTML = ""
         act.constructor.STATE_PROPS.forEach(prop => {
             if(!prop.showInBuilder) return
