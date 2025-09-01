@@ -179,6 +179,8 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             actors: [],
             walls: [],
+            physicsManager: { key: "physicsmng" },
+            hitManager: { key: "hitmng" },
             viewManager: { key: "viewheroscentermng" },
             herosLivesManager: { key : "heroslivesmng" },
         }}
@@ -594,27 +596,44 @@ export class Component {
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
-    constructor(kwargs) {
-        super()
-        this.movable = kwargs?.movable ?? true
-        this.affectedByGravity = kwargs?.affectedByGravity ?? true
-        this.blockable = kwargs?.blockable ?? true
-        this.isBlocker = kwargs?.isBlocker ?? false
+    initObjectClass(cls, kwargs) {
+        super.initObjectClass(cls, kwargs)
+        const proto = cls.prototype
+        proto.physicsComponent = this
+        proto.shape = kwargs?.shape ?? "box"
+        proto.width = kwargs?.width ?? 50
+        proto.height = kwargs?.height ?? 50
+        proto.radius = kwargs?.radius ?? 50
+        proto.speedResX = 0
+        proto.speedResY = 0
+        proto.canMove = kwargs?.canMove ?? true
+        proto.affectedByGravity = kwargs?.affectedByGravity ?? true
+        proto.canBlock = kwargs?.canBlock ?? false
+        proto.canBeBlocked = kwargs?.canBeBlocked ?? true
+        proto.onBlock = function(act) {}
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
-        obj.physicsComponent = this
-        obj.speedResX = 0
-        obj.speedResY = 0
-        if(kwargs?.movable !== undefined) obj.movable = kwargs.movable
-        if(kwargs?.affectedByGravity !== undefined) obj.affectedByGravity = kwargs.affectedByGravity
-        if(kwargs?.blockable !== undefined) obj.blockable = kwargs.blockable
-        if(kwargs?.isBlocker !== undefined) obj.isBlocker = kwargs.isBlocker
         if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
         if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
     }
     updateObject(obj) {
         // done by physics engine
+    }
+}
+
+
+export class HitComponent extends Component {
+    static KEY = "hit"
+
+    initObjectClass(cls, kwargs) {
+        super.initObjectClass(cls, kwargs)
+        const proto = cls.prototype
+        proto.getHitGroup ||= function() { return null }
+        proto.canHit = kwargs?.canHit ?? true
+        proto.canHitGroup ||= function(group) { return false }
+        proto.canHitActor ||= function(act) { return true }
+        proto.onHit ||= function(act) {}
     }
 }
 
@@ -2374,15 +2393,19 @@ export class GameScene extends SceneCommon {
         })
     }
 
-    isTeamTarget(team1, team2) {
-        return team1 != team2
+    canTeamAttack(team1, team2) {
+        return true
     }
 
-    getTeamTargets(team) {
-        return this.filterActors(`targets:${team}`, act => {
+    getTeamAttackTargets(team) {
+        return this.filterActors(`attack:${team}`, act => {
             const actTeam = act.team
-            return actTeam && this.isTeamTarget(team, actTeam)
+            return actTeam && this.canTeamAttack(team, actTeam)
         })
+    }
+
+    canTeamDamage(team1, team2) {
+        return team1 != team2
     }
 
     initVictoryNotifs() {
@@ -2570,6 +2593,15 @@ export class Hero extends LivingGameObject {
 
     isLocalHero() {
         return this === this.scene.localHero
+    }
+
+    // in case Hero if added HitComponent
+    getHitGroup() {
+        return `hero:${this.team}`
+    }
+
+    canHitGroup(group) {
+        return true
     }
 
     initExtras() {
@@ -2783,9 +2815,12 @@ class Pop extends GameObject {
 export class Enemy extends LivingGameObject {
     static CATEGORY = "npc/enemy"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.team = "enemy"
+    // in case Enemy if added HitComponent
+    getHitGroup() {
+        return "enemy"
+    }
+    canHitGroup(group) {
+        return group.startsWith("hero")
     }
 
     die() {
@@ -2799,7 +2834,7 @@ export class Enemy extends LivingGameObject {
 
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
-@StateProperty.define("ownerId", { default: null })
+@StateProperty.define("ownerId")
 export class Collectable extends Actor {
     static CATEGORY = "collectable"
 
@@ -2813,6 +2848,10 @@ export class Collectable extends Actor {
         const { ownerId } = this
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
+    }
+
+    getHitGroup() {
+        return this.ownerId ? null : "collectable"
     }
 
     isCollectableBy(team) {

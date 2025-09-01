@@ -13,7 +13,7 @@ export const CATALOG = new ModuleCatalog("std")
 @StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 export class HerosLivesManager extends Actor {
-    static CATEGORY = "manager/heroslives"
+    //static CATEGORY = "manager/heroslives"
 
     init(kwargs) {
         super.init(kwargs)
@@ -161,6 +161,31 @@ export class ViewFirstHeroManager extends ViewManager {
 }
 
 
+@CATALOG.registerActor("physicsmng", {
+    category: "manager/physics",  // TODO: forced to add it here despite static prop
+})
+@StateInt.define("gravityAcc", { default: 1000 })
+@StateInt.define("gravityMaxSpeed", { default: 1000 })
+export class PhysicsManager extends Actor {
+    //static CATEGORY = "manager/physics"
+}
+
+
+@CATALOG.registerActor("hitmng", {
+    category: "manager/hit",  // TODO: forced to add it here despite static prop
+})
+export class HitManager extends Actor {
+    //static CATEGORY = "manager/hit"
+
+    canTeamHit(team1, team2) {
+        return true
+    }
+    canTeamDamage(team1, team2) {
+        return team1 != team2
+    }
+}
+
+
 // Standard
 
 @CATALOG.registerScene("std")
@@ -172,6 +197,16 @@ export class ViewFirstHeroManager extends ViewManager {
 @Actor.StateProperty.define("viewManager", {
     filter: { category: "manager/view" },
     default: { key: "viewheroscentermng" },
+    showInBuilder: true,
+})
+@Actor.StateProperty.define("hitManager", {
+    filter: { category: "manager/hit" },
+    default: { key: "hitmng" },
+    showInBuilder: true,
+})
+@Actor.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "physicsmng" },
     showInBuilder: true,
 })
 @StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
@@ -201,6 +236,16 @@ export class StandardScene extends GameScene {
 
 @CATALOG.registerScene("tag")
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
+@Actor.StateProperty.define("hitManager", {
+    filter: { category: "manager/hit" },
+    default: { key: "hitmng" },
+    showInBuilder: true,
+})
+@Actor.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "physicsmng" },
+    showInBuilder: true,
+})
 export class TagScene extends GameScene {
     
     constructor(game, scnId) {

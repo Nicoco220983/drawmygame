@@ -1,5 +1,7 @@
 const { abs, floor, ceil, min, max, pow, sqrt, hypot, atan2, PI, random } = Math
 const { assign } = Object
+import * as utils from './utils.mjs'
+const { checkHit } = utils
 
 const FLOAT_PRECISION_CORRECTION = .00001
 const DEFAULT_GRAVITY_ACC = 1000
@@ -9,10 +11,10 @@ const DEFAULT_GRAVITY_MAX_SPEED = 1000
 const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}, colWalls = new Set()
 
 export default class PhysicsEngine {
-    constructor(scn, kwargs) {
+    constructor(scn) {
         this.scene = scn
-        this.gravityAcc = kwargs && kwargs.gravityAcc || DEFAULT_GRAVITY_ACC
-        this.gravityMaxSpeed = kwargs && kwargs.gravityMaxSpeed || DEFAULT_GRAVITY_MAX_SPEED
+        this.gravityAcc = scn?.physicsManager.gravityAcc ?? DEFAULT_GRAVITY_ACC
+        this.gravityMaxSpeed = scn?.physicsManager.gravityMaxSpeed ?? DEFAULT_GRAVITY_MAX_SPEED
         this.syncMap()
     }
     syncMap() {
@@ -92,10 +94,11 @@ export default class PhysicsEngine {
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
     }
     apply(dt, actors) {
+        // apply blocks and speeds
         const { walls } = this.scene.map
         const blockers = [...walls]
         actors.forEach(act => {
-            if(act.isBlocker) {
+            if(act.canBlock) {
                 this.initActor(0, act)
                 blockers.push(act)
             }
@@ -103,12 +106,12 @@ export default class PhysicsEngine {
         actors.forEach(act => {
             const comp = act.physicsComponent
             if(!comp) return
-            if(!(act.movable ?? comp.movable)) return
+            if(!(act.canMove ?? comp.canMove)) return
             let remD = 1, nbCollisions = 0
             if(act.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, act)
             const { x: actOrigX, y: actOrigY, speedX: actOrigSpdX, speedY: actOrigSpdY } = act
             const actOrigDx = actOrigSpdX * dt, actOrigDy = actOrigSpdY * dt
-            if((act.blockable ?? comp.blockable) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
+            if((act.canBeBlocked ?? comp.canBeBlocked) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
                 const actOrigD = dist(actOrigDx, actOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
@@ -170,6 +173,25 @@ export default class PhysicsEngine {
                 act.speedResY = ((act.y - actOrigY) - actOrigDy) / dt
             }
         })
+        // check hits
+        const canHits = [], actByHitGroup = {}
+        actors.forEach(act => {
+            if(act.canHit) canHits.push(act)
+            const group = act.getHitGroup ?? act.getHitGroup()
+            if(group) {
+                const acts = actByHitGroup[group] ||= []
+                acts.push(act)
+            }
+        })
+        for(let act1 of canHits) for(let group in actByHitGroup) {
+            if(!act1.canHitGroup(group)) continue
+            for(let act2 of actByHitGroup[group]) {
+                if(act1 === act2 || !act1.canHitActor(act2)) continue
+                if(checkHit(act1, act2)) {  // TODO: do not use checkHit
+                    act1.onHit(act2)
+                }
+            }
+        }
     }
 
     applyGravity(dt, act) {

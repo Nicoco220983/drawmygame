@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -41,42 +41,38 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("health", { default: 3 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@PhysicsComponent.add()
+@HitComponent.add({
+    canHit: false,
+})
+@PhysicsComponent.add({
+    shape: "box",
+    width: 50,
+    height: 50,
+})
 export class Nico extends Hero {
 
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
         this.handDur = ceil(.1 * this.game.fps)
+        this.hand = null
     }
 
     update() {
         super.update()
-        // inputs
         this.applyInputState()
-        if(this.handRemIt == this.handDur) this.checkHandHit()
-        // // fall
-        // if(this.y > this.map.height + 100) {
-        //     this.mayTakeDamage(1, null, true)
-        //     if(this.health > 0) this.scene.spawnHero(this)
-        // }
+        this.updateHand()
     }
 
-    checkHandHit() {
-        const handHitBox = this.handHitBox ||= {
-            width: 25,
-            height: 25,
+    updateHand() {
+        if(this.handRemIt == this.handDur) {
+            this.hand ||= this.scene.addActor(NicoHand, {
+                owner: this
+            })
+        } else if(this.hand) {
+            this.hand.remove()
+            this.hand = null
         }
-        handHitBox.x = this.x + this.dirX * 28
-        handHitBox.y = this.y
-        let hasAttacked = false
-        this.scene.getTeamTargets(this.team).forEach(act => {
-            if(checkHit(handHitBox, act)) {
-                this.attack(act)
-                hasAttacked = true
-            }
-        })
-        this.game.audio.playSound(hasAttacked ? HandHitAud: SlashAud)
     }
 
     attack(act) {
@@ -203,6 +199,361 @@ export class Nico extends Hero {
     }
 }
 
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 25,
+    height: 25,
+    canMove: false,
+})
+class NicoHand extends Actor {
+    init(kwargs) {
+        this.owner = kwargs.owner
+        this.syncPos()
+        this.game.audio.playSound(SlashAud)
+    }
+    update() {
+        super.update()
+        this.syncPos()
+    }
+    syncPos() {
+        const { owner } = this
+        this.x = owner.x + owner.dirX * 28
+        this.y = owner.y
+        this.dirX = owner.dirX
+    }
+    canHitGroup(group) {
+        return this.owner.canHitGroup(group)
+    }
+    canHitActor(act) {
+        return act != this.owner && this.owner.canHitActor(act)
+    }
+    onHit(act) {
+        if(act.onAttack) {
+            act.onAttack(0, this.owner)
+            this.game.audio.playSound(HandHitAud)
+        }
+    }
+}
+
+
+// weapons
+
+const SWORD_ATTACK_PERIOD = .5
+
+const SwordImg = CATALOG.registerImage("/static/catalogs/std/assets/sword.png")
+const SwordSprite = new Sprite(SwordImg)
+const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/slash.png"), 3, 2)
+
+const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
+
+@CATALOG.registerActor("sword", {
+    label: "Sword",
+    icon: SwordImg,
+})
+@StateInt.define("lastAttackAge", { default: Infinity })
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 40,
+    height: 40,
+    canMove: false,
+})
+export class Sword extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 40
+        this.sprite = SwordSprite
+        this.isActionExtra = true
+    }
+    update() {
+        super.update()
+        this.syncPos()
+        if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
+        this.lastAttackAge += 1
+        if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
+    }
+    syncPos() {
+        const owner = this.getOwner()
+        if(!owner) return
+        this.dirX = owner.dirX
+        this.y = owner.y
+        if(this.isAttacking()) {
+            this.x = owner.x + 40 * owner.dirX
+            this.width = this.height = 60
+        } else {
+            this.x = owner.x + 25 * owner.dirX
+            this.width = this.height = 40
+        }
+    }
+    canHitGroup(group) {
+        const owner = this.getOwner()
+        if(!owner || !this.isAttacking()) return false
+        return owner.canHitGroup(group)
+    }
+    canHitActor(act) {
+        const owner = this.getOwner()
+        return act != owner && owner.canHitActor(act)
+    }
+    onHit(act) {
+        const owner = this.getOwner()
+        if(act.onAttack) {
+            act.onAttack(1, owner)
+            this.game.audio.playSound(SwordHitAud)
+        }
+    }
+    isAttacking() {
+        return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
+    }
+    act() {
+        if(this.isAttacking()) return
+        this.lastAttackAge = 0
+    }
+    getSprite() {
+        const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
+        if(this.ownerId !== null && ratioSinceLastAttack <= 1) {
+            return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
+        } else {
+            return SwordSprite
+        }
+    }
+}
+
+
+const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
+const ShurikenSprite = new Sprite(ShurikenImg)
+
+@CATALOG.registerActor("shurikp", {
+    label: "ShurikenPack",
+    icon: ShurikenImg,
+    showInBuilder: true,
+})
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 30,
+    height: 30,
+    affectedByGravity: false,
+})
+@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
+export class ShurikenPack extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.isActionExtra = true
+        this.width = this.height = 30
+        this.actLastTryIt = -Infinity
+        this.actRemIt = 0
+        if(kwargs?.nb !== undefined) this.nb = kwargs.nb
+        this.throwPeriod = .3
+    }
+    act() {
+        const prevActLastTryIt = this.actLastTryIt
+        this.actLastTryIt = this.scene.iteration
+        if(this.actLastTryIt <= prevActLastTryIt+1 || this.actRemIt > 0) return
+        this.actRemIt = ceil(this.throwPeriod * this.game.fps)
+        this.throwOneShuriken()
+        this.nb -= 1
+        if(this.nb <= 0) this.remove()
+    }
+    throwOneShuriken() {
+        const owner = this.getOwner()
+        if(!owner) return
+        this.scene.addActor(Shuriken, {
+            x: this.x, y: this.y,
+            ownerId: this.ownerId,
+        })
+    }
+    update() {
+        const owner = this.getOwner()
+        if(owner) {
+            this.x = owner.x
+            this.y = owner.y
+        }
+        if(this.actRemIt > 0) this.actRemIt -= 1
+    }
+    getSprite() {
+        return ShurikenSprite
+    }
+}
+
+@CATALOG.registerActor("shurik", {
+    label: "Shuriken",
+    icon: ShurikenImg,
+})
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 30,
+    height: 30,
+    affectedByGravity: false,
+})
+@StateProperty.define("ownerId")
+@StateInt.define("itToLive", { default: null })
+export class Shuriken extends Actor {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+        this.ownerId = kwargs.ownerId
+        this.speedX = this.getOwner().dirX * 500
+        this.itToLive = 2 * this.game.fps
+        this.game.audio.playSound(SlashAud)
+    }
+    getOwner() {
+        const { ownerId } = this
+        return this.scene.actors.get(ownerId)
+    }
+    canHitGroup(group) {
+        return this.getOwner().canHitGroup(group)
+    }
+    canHitActor(act) {
+        const owner = this.getOwner()
+        return act != owner && owner.canHitActor(act)
+    }
+    update() {
+        this.itToLive -= 1
+        if(this.itToLive <= 0) this.remove()
+        if(this.speedResX || this.speedResY) this.remove()
+    }
+    onHit(act) {
+        if(act.onAttack) {
+            act.onAttack(1, this.getOwner())
+            this.remove()
+        }
+    }
+    getSprite() {
+        return ShurikenSprite
+    }
+}
+
+
+const BombImg = CATALOG.registerImage("/static/catalogs/std/assets/bomb.png")
+const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb_spritesheet.png"), 2, 1)
+
+@CATALOG.registerActor("bomb", {
+    label: "Bomb",
+    icon: BombImg
+})
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 40,
+    height: 40,
+    affectedByGravity: false,
+})
+@StateInt.define("countdown", { default: 2, showInBuilder: true })
+@StateInt.define("itToLive", { default: null })
+export class Bomb extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 40
+        this.isActionExtra = true
+    }
+    isCollectableBy(team) {
+        if(this.itToLive !== null) return false
+        return super.isCollectableBy(team)
+    }
+    getHitGroup() {
+        if(this.itToLive !== null) return null
+        return super.getHitGroup()
+    }
+    update() {
+        const { dt } = this.game
+        const { x, y } = this
+        const owner = this.getOwner()
+        this.affectedByGravity = this.canBeBlocked = (this.itToLive !== null)
+        if(this.itToLive !== null) {
+            if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
+            if(this.itToLive <= 0) {
+                this.scene.addActor(Explosion, { x, y, owner: this.getOwner() })
+                this.remove()
+            }
+            this.itToLive -= 1
+        } else if(owner) {
+            this.x = owner.x
+            this.y = owner.y
+        }
+    }
+    act() {
+        const owner = this.getOwner()
+        if(!owner) return
+        this.drop()
+        this.ownerId = owner.id
+        this.speedX = owner.dirX * 200
+        this.speedY = -500
+        this.itToLive = this.countdown * this.game.fps
+    }
+    getSprite() {
+        const { itToLive, countdown } = this
+        if(itToLive === null) return BombSpriteSheet.get(0)
+        return BombSpriteSheet.get(floor(pow(3*(1 - (itToLive / this.game.fps)/countdown), 2)*2) % 2)
+    }
+    scaleSprite(sprite) {
+        super.scaleSprite(sprite)
+        if(this.itToLive !== null) this.spriteDy = 0
+    }
+}
+
+
+const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
+
+@CATALOG.registerActor("explos", {
+    showInBuilder: false
+})
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 300,
+    height: 300,
+    canMove: false,
+})
+@StateProperty.define("ownerId")
+@StateInt.define("lastAttackAge", { default: Infinity })
+@StateInt.define("iteration")
+export class Explosion extends Actor {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 300
+        this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
+    }
+    getOwner() {
+        const { ownerId } = this
+        if(ownerId === null) return null
+        return this.scene.actors.get(ownerId)
+    }
+    canHitGroup(group) {
+        const it = this.iteration
+        const hitIt = this.hitIteration ||= it
+        if(hitIt != it) return false
+        const owner = this.getOwner()
+        if(owner) return owner.canHitGroup(group)
+        else return true
+    }
+    canHitActor(act) {
+        const owner = this.getOwner()
+        if(owner) return owner.canHitActor(act)
+        else return act.onAttack
+    }
+    onHit(act) {
+        if(act.onAttack) act.onAttack(1, this.getOwner())
+    }
+    update() {
+        super.update()
+        const age = this.iteration/this.game.fps
+        if(age >= 1) return this.remove()
+        this.iteration += 1
+    }
+    getSprite() {
+        return ExplosionSpriteSheet.get(floor(
+            this.iteration / this.game.fps * 8 * 6
+        ))
+    }
+}
+
 
 // ENEMIES
 
@@ -214,6 +565,14 @@ const SpikySprite = new Sprite(SpikyImg)
     label: "Spiky",
     icon: SpikyImg,
 })
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 45,
+    height: 45,
+    canMove: false,
+    canBeBlocked: false,
+})
 export class Spiky extends Enemy {
 
     init(kwargs) {
@@ -222,15 +581,7 @@ export class Spiky extends Enemy {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    update() {
-        super.update()
-        // attack
-        this.scene.getTeamTargets(this.team).forEach(act => {
-            if(checkHit(this, act)) this.attack(act)
-        })
-    }
-
-    attack(act) {
+    onHit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -257,7 +608,12 @@ const BlobSprite = new Sprite(BlobImg)
 })
 @StateInt.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
-@PhysicsComponent.add()
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 50,
+    height: 36,
+})
 export class BlobEnemy extends Enemy {
 
     init(kwargs) {
@@ -278,14 +634,10 @@ export class BlobEnemy extends Enemy {
         if(this.speedResY < 0) {
             this.speedX = this.dirX * 30
         }
-        // attack
-        this.scene.getTeamTargets(this.team).forEach(act => {
-            if(checkHit(this, act)) this.attack(act)
-        })
         this.lastChangeDirAge += 1
     }
 
-    attack(act) {
+    onHit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -322,7 +674,13 @@ const GhostSprite = new Sprite(GhostImg)
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@PhysicsComponent.add({ affectedByGravity: false })
+@HitComponent.add()
+@PhysicsComponent.add({
+    shape: "box",
+    width: 45,
+    height: 45,
+    affectedByGravity: false,
+})
 export class Ghost extends Enemy {
 
     init(kwargs) {
@@ -340,13 +698,9 @@ export class Ghost extends Enemy {
         if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
         this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
-        // attack
-        this.scene.getTeamTargets(this.team).forEach(act => {
-            if(checkHit(this, act)) this.attack(act)
-        })
     }
 
-    attack(act) {
+    onHit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -413,220 +767,6 @@ export class Heart extends Collectable {
 }
 
 
-const SWORD_ATTACK_PERIOD = .5
-
-const SwordImg = CATALOG.registerImage("/static/catalogs/std/assets/sword.png")
-const SwordSprite = new Sprite(SwordImg)
-const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/slash.png"), 3, 2)
-
-const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
-
-@CATALOG.registerActor("sword", {
-    label: "Sword",
-    icon: SwordImg,
-})
-@StateInt.define("lastAttackAge", { default: Infinity })
-export class Sword extends Extra {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 40
-        this.sprite = SwordSprite
-        this.isActionExtra = true
-    }
-    update() {
-        super.update()
-        const owner = this.getOwner()
-        if(owner) {
-            this.dirX = owner.dirX
-            this.y = owner.y
-            if(this.isAttacking()) {
-                this.x = owner.x + 40 * owner.dirX
-                this.width = this.height = 60
-            } else {
-                this.x = owner.x + 25 * owner.dirX
-                this.width = this.height = 40
-            }
-            if(this.lastAttackAge == 0) this.tryAttack()
-            this.lastAttackAge += 1
-        }
-    }
-    isAttacking() {
-        return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
-    }
-    act() {
-        if(this.isAttacking()) return
-        this.lastAttackAge = 0
-    }
-    tryAttack() {
-        const owner = this.getOwner()
-        let hasAttacked = false
-        this.scene.getTeamTargets(owner.team).forEach(act => {
-            if(checkHit(this, act)) {
-                this.attack(act)
-                hasAttacked = true
-            }
-        })
-        this.game.audio.playSound(hasAttacked ? SwordHitAud : SlashAud)
-    }
-    attack(act) {
-        if(act.onAttack) act.onAttack(1, this.owner)
-    }
-    getSprite() {
-        const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
-        if(this.ownerId !== null && ratioSinceLastAttack <= 1) {
-            return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
-        } else {
-            return SwordSprite
-        }
-    }
-}
-
-
-const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
-const ShurikenSprite = new Sprite(ShurikenImg)
-
-@CATALOG.registerActor("shurik", {
-    label: "Shuriken",
-    icon: ShurikenImg,
-})
-@PhysicsComponent.add({ affectedByGravity: false })
-@StateInt.define("itToLive", { default: null })
-@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
-export class Shurikens extends Extra {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.isActionExtra = true
-        this.width = this.height = 30
-        this.actLastTryIt = -Infinity
-        this.actRemIt = 0
-        if(kwargs?.nb !== undefined) this.nb = kwargs.nb
-        if(kwargs?.itToLive !== undefined) this.itToLive = kwargs.itToLive
-        this.throwPeriod = .3
-    }
-    isCollectableBy(team) {
-        if(this.itToLive !== null) return false
-        return super.isCollectableBy(team)
-    }
-    act() {
-        const prevActLastTryIt = this.actLastTryIt
-        this.actLastTryIt = this.scene.iteration
-        if(this.actLastTryIt <= prevActLastTryIt+1 || this.actRemIt > 0) return
-        this.actRemIt = ceil(this.throwPeriod * this.game.fps)
-        this.throwOneShuriken()
-        this.nb -= 1
-        if(this.nb <= 0) this.remove()
-    }
-    throwOneShuriken() {
-        const owner = this.getOwner()
-        if(!owner) return
-        this.scene.addActor(Shurikens, {
-            x: this.x, y: this.y,
-            ownerId: this.ownerId,
-            nb: 1, itToLive: 2 * this.game.fps,
-            speedX: owner.dirX * 500,
-        })
-        this.game.audio.playSound(SlashAud)
-    }
-    update() {
-        const owner = this.getOwner()
-        if(this.itToLive) {
-            this.tryAttack()
-            this.itToLive -= 1
-            if(this.itToLive <= 0) this.remove()
-            if(this.speedResX || this.speedResY) this.remove()
-        } else if(owner) {
-            this.x = owner.x
-            this.y = owner.y
-        }
-        if(this.actRemIt > 0) this.actRemIt -= 1
-    }
-    tryAttack() {
-        const owner = this.getOwner()
-        //let hasAttacked = false
-        this.scene.getTeamTargets(owner.team).forEach(act => {
-            if(checkHit(this, act)) {
-                this.attack(act)
-                //hasAttacked = true
-            }
-        })
-        //this.game.audio.playSound(hasAttacked ? SwordHitAud : SlashAud)
-    }
-    attack(act) {
-        if(act.onAttack) act.onAttack(1, this.getOwner())
-        this.remove()
-    }
-    getSprite() {
-        return ShurikenSprite
-    }
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        if(this.itToLive !== null) this.spriteDy = 0
-    }
-}
-
-
-const BombImg = CATALOG.registerImage("/static/catalogs/std/assets/bomb.png")
-const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb_spritesheet.png"), 2, 1)
-
-@CATALOG.registerActor("bomb", {
-    label: "Bomb",
-    icon: BombImg
-})
-@PhysicsComponent.add()
-@StateInt.define("countdown", { default: 2, showInBuilder: true })
-@StateInt.define("itToLive", { default: null })
-export class Bomb extends Extra {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 40
-        this.isActionExtra = true
-        this.affectedByGravity = this.blockable = false
-    }
-    isCollectableBy(team) {
-        if(this.itToLive !== null) return false
-        return super.isCollectableBy(team)
-    }
-    update() {
-        const { dt } = this.game
-        const { x, y } = this
-        const owner = this.getOwner()
-        this.affectedByGravity = this.blockable = (this.itToLive !== null)
-        if(this.itToLive !== null) {
-            if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
-            if(this.itToLive <= 0) {
-                this.scene.addActor(Explosion, { x, y, owner: this.getOwner() })
-                this.remove()
-            }
-            this.itToLive -= 1
-        } else if(owner) {
-            this.x = owner.x
-            this.y = owner.y
-        }
-    }
-    act() {
-        const owner = this.getOwner()
-        if(!owner) return
-        this.drop()
-        this.ownerId = owner.id
-        this.speedX = owner.dirX * 200
-        this.speedY = -500
-        this.itToLive = this.countdown * this.game.fps
-    }
-    getSprite() {
-        const { itToLive, countdown } = this
-        if(itToLive === null) return BombSpriteSheet.get(0)
-        return BombSpriteSheet.get(floor(pow(3*(1 - (itToLive / this.game.fps)/countdown), 2)*2) % 2)
-    }
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        if(this.itToLive !== null) this.spriteDy = 0
-    }
-}
-
-
 const StarImg = CATALOG.registerImage("/static/catalogs/std/assets/star.png")
 const StarSprite = new Sprite(StarImg)
 
@@ -671,54 +811,6 @@ export class Checkpoint extends Collectable {
     }
     getSprite() {
         return CheckpointSprite
-    }
-}
-
-
-const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
-
-@CATALOG.registerActor("explos", {
-    showInBuilder: false
-})
-@StateInt.define("lastAttackAge", { default: Infinity })
-@StateInt.define("iteration")
-export class Explosion extends Actor {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 300
-        this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
-    }
-    getOwner() {
-        const { ownerId } = this
-        if(ownerId === null) return null
-        return this.scene.actors.get(ownerId)
-    }
-    update() {
-        super.update()
-        if(this.iteration == 0) this.checkActorsToDamage()
-        const age = this.iteration/this.game.fps
-        if(age >= 1) return this.remove()
-        this.iteration += 1
-    }
-    checkActorsToDamage() {
-        const { x, y } = this
-        const owner = this.getOwner()
-        const radius2 = pow(150, 2)
-        const _checkOne = act => {
-            const dx = x - act.x, dy = y - act.y
-            if(dx*dx+dy*dy < radius2) this.attack(act)
-        }
-        const team = owner?.team
-        this.scene.getTeamTargets(team).forEach(_checkOne)
-    }
-    attack(act) {
-        if(act.onAttack) act.onAttack(1, this.getOwner())
-    }
-    getSprite() {
-        return ExplosionSpriteSheet.get(floor(
-            this.iteration / this.game.fps * 8 * 6
-        ))
     }
 }
 
@@ -785,7 +877,11 @@ export class Button extends Trigger {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
-        this.team = "engine"
+        this.team = "trigger"
+    }
+
+    getHitGroup() {
+        return "trigger"
     }
 
     onAttack(damage, attacker) {
@@ -853,11 +949,17 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     showInBuilder: true,
 })
 @LinkReaction.add("reactToggle", { label:"toggle", isDefault: true })
-@PhysicsComponent.add({ movable:false, isBlocker: true })
+@PhysicsComponent.add({
+    shape: "box",
+    width: 50,
+    height: 50,
+    canMove:false,
+    canBlock: true,
+})
 @StateBool.define("closed", { default: true, showInBuilder: true })
 export class Door extends Actor {
     static CATEGORY = "engine"
-    
+
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
@@ -870,7 +972,7 @@ export class Door extends Actor {
 
     update() {
         super.update()
-        this.isBlocker = this.closed
+        this.canBlock = this.closed
     }
 
     getSprite() {
