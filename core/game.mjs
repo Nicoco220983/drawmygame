@@ -130,7 +130,7 @@ export class ModuleCatalog {
             target.KEY = key
             const actCat = this.actors[key] = {}
             actCat.name = target.name
-            actCat.category = kwargs?.category ?? target.CATEGORY
+            actCat.category = target.CATEGORY
             actCat.label = kwargs?.label ?? key
             actCat.icon = kwargs?.icon ?? null
             actCat.showInBuilder = kwargs?.showInBuilder ?? true
@@ -378,6 +378,15 @@ export class SpriteSheet {
 
 
 // BUILDER //////////////////////////
+
+
+export class Category {
+    static append(cat) {
+        return target => {
+            target.CATEGORY = (target.CATEGORY ?? "") + cat + "/"
+        }
+    }
+}
 
 
 export class StateProperty {
@@ -629,11 +638,11 @@ export class HitComponent extends Component {
     initObjectClass(cls, kwargs) {
         super.initObjectClass(cls, kwargs)
         const proto = cls.prototype
-        proto.getHitGroup ||= function() { return null }
         proto.canHit = kwargs?.canHit ?? true
-        proto.canHitGroup ||= function(group) { return false }
+        proto.canBeHit = kwargs?.canBeHit ?? true
+        proto.canHitCategory ||= function(cat) { return false }
         proto.canHitActor ||= function(act) { return true }
-        proto.onHit ||= function(act) {}
+        proto.hit ||= function(act) {}
     }
 }
 
@@ -2576,8 +2585,8 @@ export class LivingGameObject extends Actor {
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 @StateProperty.modify("health", { default: 3 })
+@Category.append("hero")
 export class Hero extends LivingGameObject {
-    static CATEGORY = "hero"
 
     init(kwargs) {
         super.init(kwargs)
@@ -2596,11 +2605,7 @@ export class Hero extends LivingGameObject {
     }
 
     // in case Hero if added HitComponent
-    getHitGroup() {
-        return `hero:${this.team}`
-    }
-
-    canHitGroup(group) {
+    canHitCategory(cat) {
         return true
     }
 
@@ -2812,15 +2817,12 @@ class Pop extends GameObject {
 }
 
 
+@Category.append("npc/enemy")
 export class Enemy extends LivingGameObject {
-    static CATEGORY = "npc/enemy"
 
     // in case Enemy if added HitComponent
-    getHitGroup() {
-        return "enemy"
-    }
-    canHitGroup(group) {
-        return group.startsWith("hero")
+    canHitCategory(cat) {
+        return cat.startsWith("hero/")
     }
 
     die() {
@@ -2835,8 +2837,8 @@ export class Enemy extends LivingGameObject {
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
 @StateProperty.define("ownerId")
+@Category.append("item/collectable")
 export class Collectable extends Actor {
-    static CATEGORY = "collectable"
 
     init(kwargs) {
         super.init(kwargs)
@@ -2844,14 +2846,15 @@ export class Collectable extends Actor {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
+    update() {
+        super.update()
+        this.canBeHit = this.ownerId == null
+    }
+
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
-    }
-
-    getHitGroup() {
-        return this.ownerId ? null : "collectable"
     }
 
     isCollectableBy(team) {
@@ -2920,8 +2923,8 @@ class HealthHeartNotif extends LifeHeartNotif {
     }
 }
 
+@Category.append("extra")
 export class Extra extends Collectable {
-    static CATEGORY = "collectable/extra"
 
     getPriority() {
         const owner = this.getOwner()

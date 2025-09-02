@@ -174,21 +174,23 @@ export default class PhysicsEngine {
             }
         })
         // check hits
-        const canHits = [], actByHitGroup = {}
+        const canHits = [], actByCategory = {}
         actors.forEach(act => {
             if(act.canHit) canHits.push(act)
-            const group = act.getHitGroup ?? act.getHitGroup()
-            if(group) {
-                const acts = actByHitGroup[group] ||= []
-                acts.push(act)
+            if(act.canBeHit) {
+                const cat = act.constructor.CATEGORY
+                if(cat) {
+                    const acts = actByCategory[cat] ||= []
+                    acts.push(act)
+                }
             }
         })
-        for(let act1 of canHits) for(let group in actByHitGroup) {
-            if(!act1.canHitGroup(group)) continue
-            for(let act2 of actByHitGroup[group]) {
+        for(let act1 of canHits) for(let cat in actByCategory) {
+            if(!act1.canHitCategory(cat)) continue
+            for(let act2 of actByCategory[cat]) {
                 if(act1 === act2 || !act1.canHitActor(act2)) continue
                 if(checkHit(act1, act2)) {  // TODO: do not use checkHit
-                    act1.onHit(act2)
+                    act1.hit(act2)
                 }
             }
         }

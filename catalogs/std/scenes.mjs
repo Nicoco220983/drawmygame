@@ -1,5 +1,5 @@
 const { floor } = Math
-import { GameScene, GameObject, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -7,13 +7,12 @@ export const CATALOG = new ModuleCatalog("std")
 
 @CATALOG.registerActor("heroslivesmng", {
     showInBuilder: true,
-    category: "manager/heroslives",  // TODO: forced to add it here despite static prop
 })
 @StateProperty.define("deathsIts")
 @StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+@Category.append("manager/heroslives")
 export class HerosLivesManager extends Actor {
-    //static CATEGORY = "manager/heroslives"
 
     init(kwargs) {
         super.init(kwargs)
@@ -46,9 +45,8 @@ export class HerosLivesManager extends Actor {
 }
 
 
-export class ViewManager extends Actor {
-    static CATEGORY = "manager/view"
-}
+@Category.append("manager/view")
+export class ViewManager extends Actor {}
 
 
 @CATALOG.registerActor("viewheroscentermng", {
@@ -161,21 +159,16 @@ export class ViewFirstHeroManager extends ViewManager {
 }
 
 
-@CATALOG.registerActor("physicsmng", {
-    category: "manager/physics",  // TODO: forced to add it here despite static prop
-})
+@CATALOG.registerActor("physicsmng")
 @StateInt.define("gravityAcc", { default: 1000 })
 @StateInt.define("gravityMaxSpeed", { default: 1000 })
-export class PhysicsManager extends Actor {
-    //static CATEGORY = "manager/physics"
-}
+@Category.append("manager/physics")
+export class PhysicsManager extends Actor {}
 
 
-@CATALOG.registerActor("hitmng", {
-    category: "manager/hit",  // TODO: forced to add it here despite static prop
-})
+@CATALOG.registerActor("hitmng")
+@Category.append("manager/hit")
 export class HitManager extends Actor {
-    //static CATEGORY = "manager/hit"
 
     canTeamHit(team1, team2) {
         return true

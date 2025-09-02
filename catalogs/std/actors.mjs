@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -199,7 +199,9 @@ export class Nico extends Hero {
     }
 }
 
-@HitComponent.add()
+@HitComponent.add({
+    canBeHit: false,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 25,
@@ -222,13 +224,13 @@ class NicoHand extends Actor {
         this.y = owner.y
         this.dirX = owner.dirX
     }
-    canHitGroup(group) {
-        return this.owner.canHitGroup(group)
+    canHitCategory(cat) {
+        return this.owner.canHitCategory(cat)
     }
     canHitActor(act) {
         return act != this.owner && this.owner.canHitActor(act)
     }
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) {
             act.onAttack(0, this.owner)
             this.game.audio.playSound(HandHitAud)
@@ -287,16 +289,16 @@ export class Sword extends Extra {
             this.width = this.height = 40
         }
     }
-    canHitGroup(group) {
+    canHitCategory(cat) {
         const owner = this.getOwner()
         if(!owner || !this.isAttacking()) return false
-        return owner.canHitGroup(group)
+        return owner.canHitCategory(cat)
     }
     canHitActor(act) {
         const owner = this.getOwner()
         return act != owner && owner.canHitActor(act)
     }
-    onHit(act) {
+    hit(act) {
         const owner = this.getOwner()
         if(act.onAttack) {
             act.onAttack(1, owner)
@@ -391,6 +393,7 @@ export class ShurikenPack extends Extra {
 })
 @StateProperty.define("ownerId")
 @StateInt.define("itToLive", { default: null })
+@Category.append("projectile")
 export class Shuriken extends Actor {
 
     init(kwargs) {
@@ -405,8 +408,8 @@ export class Shuriken extends Actor {
         const { ownerId } = this
         return this.scene.actors.get(ownerId)
     }
-    canHitGroup(group) {
-        return this.getOwner().canHitGroup(group)
+    canHitCategory(cat) {
+        return this.getOwner().canHitCategory(cat)
     }
     canHitActor(act) {
         const owner = this.getOwner()
@@ -417,7 +420,7 @@ export class Shuriken extends Actor {
         if(this.itToLive <= 0) this.remove()
         if(this.speedResX || this.speedResY) this.remove()
     }
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) {
             act.onAttack(1, this.getOwner())
             this.remove()
@@ -456,11 +459,9 @@ export class Bomb extends Extra {
         if(this.itToLive !== null) return false
         return super.isCollectableBy(team)
     }
-    getHitGroup() {
-        if(this.itToLive !== null) return null
-        return super.getHitGroup()
-    }
     update() {
+        super.update()
+        this.canBeHit = this.owner == null && this.itToLive == null
         const { dt } = this.game
         const { x, y } = this
         const owner = this.getOwner()
@@ -503,7 +504,9 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@HitComponent.add()
+@HitComponent.add({
+    canBeHit: false,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 300,
@@ -525,12 +528,12 @@ export class Explosion extends Actor {
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
     }
-    canHitGroup(group) {
+    canHitCategory(cat) {
         const it = this.iteration
         const hitIt = this.hitIteration ||= it
         if(hitIt != it) return false
         const owner = this.getOwner()
-        if(owner) return owner.canHitGroup(group)
+        if(owner) return owner.canHitCategory(cat)
         else return true
     }
     canHitActor(act) {
@@ -538,7 +541,7 @@ export class Explosion extends Actor {
         if(owner) return owner.canHitActor(act)
         else return act.onAttack
     }
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) act.onAttack(1, this.getOwner())
     }
     update() {
@@ -581,7 +584,7 @@ export class Spiky extends Enemy {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -637,7 +640,7 @@ export class BlobEnemy extends Enemy {
         this.lastChangeDirAge += 1
     }
 
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -700,7 +703,7 @@ export class Ghost extends Enemy {
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
     }
 
-    onHit(act) {
+    hit(act) {
         if(act.onAttack) act.onAttack(1, this)
     }
 
@@ -871,17 +874,12 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default: 1, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
+@Category.append("engine/trigger")
 export class Button extends Trigger {
-    static CATEGORY = "engine"
 
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
-        this.team = "trigger"
-    }
-
-    getHitGroup() {
-        return "trigger"
     }
 
     onAttack(damage, attacker) {
@@ -957,8 +955,8 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     canBlock: true,
 })
 @StateBool.define("closed", { default: true, showInBuilder: true })
+@Category.append("engine")
 export class Door extends Actor {
-    static CATEGORY = "engine"
 
     init(kwargs) {
         super.init(kwargs)
