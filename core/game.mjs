@@ -2532,7 +2532,7 @@ export class HealthComponent extends Component {
 
     initObjectClass(cls, kwargs) {
         const proto = cls.prototype
-        proto.canBeDamaged = kwargs?.canBeDamaged ?? true
+        proto.canBeAttacked = kwargs?.canBeAttacked ?? true
         proto.maxHealth = kwargs?.maxHealth ?? 100
         proto.getHealth ||= this.objGetHealth
         proto.isInGracePeriod ||= this.objIsInGracePeriod
@@ -2589,13 +2589,13 @@ export class HitComponent extends Component {
     initObjectClass(cls, kwargs) {
         super.initObjectClass(cls, kwargs)
         const proto = cls.prototype
-        proto.oneHitByActor = kwargs?.oneHitByActor ?? false
+        const oneHitByActor = kwargs?.oneHitByActor ?? false
         proto.canHit = kwargs?.canHit ?? true
         proto.canBeHit = kwargs?.canBeHit ?? true
         proto.canHitCategory ||= function(cat) { return false }
         const defaultCanHitActor = function(act) { return true }
         const defaultHit = function(act) {}
-        if(!proto.oneHitByActor) {
+        if(!oneHitByActor) {
             proto.canHitActor ||= defaultCanHitActor
             proto.hit ||= defaultHit
         } else {
@@ -2621,6 +2621,7 @@ export class HitComponent extends Component {
 @HealthComponent.add({
     graceDur: 2,
 })
+@HitComponent.add()
 @Category.append("hero")
 export class Hero extends Actor {
 
@@ -2640,9 +2641,12 @@ export class Hero extends Actor {
         return this === this.scene.localHero
     }
 
-    // in case Hero if added HitComponent
     canHitCategory(cat) {
-        return true
+        return cat.startsWith("item/collectable/")
+    }
+
+    hit(act) {
+        if(act.canBeCollected) act.onCollected(this)
     }
 
     initExtras() {
@@ -2662,20 +2666,19 @@ export class Hero extends Actor {
 
     update() {
         super.update()
-        this.checkCollectablesHit()
         this.updateHearts()
         this.updateSpawnEffect()
     }
 
-    checkCollectablesHit() {
-        const { team } = this
-        const collectables = this.scene.filterActors("collectables", act => {
-            return act instanceof Collectable
-        })
-        collectables.forEach(col => {
-            if(col.isCollectableBy(team) && checkHit(this, col)) col.onCollected(this)
-        })
-    }
+    // checkCollectablesHit() {
+    //     const { team } = this
+    //     const collectables = this.scene.filterActors("collectables", act => {
+    //         return act instanceof Collectable
+    //     })
+    //     collectables.forEach(col => {
+    //         if(col.isCollectableBy(team) && checkHit(this, col)) col.onCollected(this)
+    //     })
+    // }
 
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
@@ -2864,28 +2867,28 @@ export class Enemy extends Actor {
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
 @StateProperty.define("ownerId")
+@HitComponent.add({
+    canHit: false,
+})
 @Category.append("item/collectable")
 export class Collectable extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
+        this.canBeCollected = true
         this.ownerId = kwargs?.ownerId ?? null
         this.spriteRand = floor(random() * this.game.fps)
     }
 
     update() {
         super.update()
-        this.canBeHit = this.ownerId == null
+        this.canBeHit = (this.ownerId == null)
     }
 
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
-    }
-
-    isCollectableBy(team) {
-        return !this.ownerId && team.startsWith("hero")
     }
 
     onCollected(owner) {

@@ -40,9 +40,6 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 })
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HitComponent.add({
-    canHit: false,
-})
 @PhysicsComponent.add({
     shape: "box",
     width: 50,
@@ -75,7 +72,7 @@ export class Nico extends Hero {
     }
 
     attack(act) {
-        if(act.onAttack) act.onAttack(0, this)
+        if(act.canBeAttacked) act.onAttack(0, this)
     }
 
     getSprite() {
@@ -230,7 +227,7 @@ class NicoHand extends Actor {
         return act != this.owner && this.owner.canHitActor(act)
     }
     hit(act) {
-        if(act.onAttack) {
+        if(act.canBeAttacked) {
             act.onAttack(0, this.owner)
             this.game.audio.playSound(HandHitAud)
         }
@@ -292,18 +289,14 @@ export class Sword extends Extra {
         }
     }
     canHitCategory(cat) {
-        const owner = this.getOwner()
-        if(!owner || !this.isAttacking()) return false
-        return owner.canHitCategory(cat)
+        return cat.startsWith("npc/enemy/")
     }
     canHitActor(act) {
-        const owner = this.getOwner()
-        return act != owner && owner.canHitActor(act)
+        return act.canBeAttacked
     }
     hit(act) {
-        const owner = this.getOwner()
-        if(act.onAttack) {
-            act.onAttack(100, owner)
+        if(act.canBeAttacked) {
+            act.onAttack(100, this.getOwner())
             this.game.audio.playSound(SwordHitAud)
         }
     }
@@ -333,7 +326,9 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
     showInBuilder: true,
 })
-@HitComponent.add()
+@HitComponent.add({
+    canHit: false,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 30,
@@ -370,6 +365,7 @@ export class ShurikenPack extends Extra {
         })
     }
     update() {
+        super.update()
         const owner = this.getOwner()
         if(owner) {
             this.x = owner.x
@@ -386,7 +382,9 @@ export class ShurikenPack extends Extra {
     label: "Shuriken",
     icon: ShurikenImg,
 })
-@HitComponent.add()
+@HitComponent.add({
+    canBeHit: false,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 30,
@@ -411,22 +409,21 @@ export class Shuriken extends Actor {
         return this.scene.actors.get(ownerId)
     }
     canHitCategory(cat) {
-        return this.getOwner().canHitCategory(cat)
+        return cat.startsWith("npc/enemy/")
     }
     canHitActor(act) {
-        const owner = this.getOwner()
-        return act != owner && owner.canHitActor(act)
+        return act.canBeAttacked
+    }
+    hit(act) {
+        if(act.canBeAttacked) {
+            act.onAttack(35, this.getOwner())
+            this.remove()
+        }
     }
     update() {
         this.itToLive -= 1
         if(this.itToLive <= 0) this.remove()
         if(this.speedResX || this.speedResY) this.remove()
-    }
-    hit(act) {
-        if(act.onAttack) {
-            act.onAttack(35, this.getOwner())
-            this.remove()
-        }
     }
     getSprite() {
         return ShurikenSprite
@@ -459,13 +456,9 @@ export class Bomb extends Extra {
         this.width = this.height = 40
         this.isActionExtra = true
     }
-    isCollectableBy(team) {
-        if(this.itToLive !== null) return false
-        return super.isCollectableBy(team)
-    }
     update() {
         super.update()
-        this.canBeHit = this.owner == null && this.itToLive == null
+        this.canBeHit = this.ownerId == null && this.itToLive == null
         const { dt } = this.game
         const { x, y } = this
         const owner = this.getOwner()
@@ -534,20 +527,13 @@ export class Explosion extends Actor {
         return this.scene.actors.get(ownerId)
     }
     canHitCategory(cat) {
-        const it = this.iteration
-        const hitIt = this.hitIteration ||= it
-        if(hitIt != it) return false
-        const owner = this.getOwner()
-        if(owner) return owner.canHitCategory(cat)
-        else return true
+        return cat.startsWith("npc/enemy/")
     }
     canHitActor(act) {
-        const owner = this.getOwner()
-        if(owner) return owner.canHitActor(act)
-        else return act.onAttack
+        return act.canBeAttacked
     }
     hit(act) {
-        if(act.onAttack) act.onAttack(100, this.getOwner())
+        if(act.canBeAttacked) act.onAttack(100, this.getOwner())
     }
     update() {
         super.update()
@@ -590,7 +576,7 @@ export class Spiky extends Enemy {
     }
 
     hit(act) {
-        if(act.onAttack) act.onAttack(1, this)
+        if(act.canBeAttacked) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -646,7 +632,7 @@ export class BlobEnemy extends Enemy {
     }
 
     hit(act) {
-        if(act.onAttack) act.onAttack(1, this)
+        if(act.canBeAttacked) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -709,7 +695,7 @@ export class Ghost extends Enemy {
     }
 
     hit(act) {
-        if(act.onAttack) act.onAttack(1, this)
+        if(act.canBeAttacked) act.onAttack(1, this)
     }
 
     getSprite() {
