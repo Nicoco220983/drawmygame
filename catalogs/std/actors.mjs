@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -39,7 +39,6 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     icon: NicoImg,
 })
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
-@StateProperty.modify("health", { default: 3 })
 @StateProperty.modify("dirX", { showInBuilder: true })
 @HitComponent.add({
     canHit: false,
@@ -105,7 +104,7 @@ export class Nico extends Hero {
 
     applyInputState() {
         const { dt } = this.game
-        if(this.health == 0) return
+        if(this.getHealth() == 0) return
         const { inputState } = this
         if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
         else if(inputState.walkX > 0) {
@@ -254,7 +253,9 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     icon: SwordImg,
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
-@HitComponent.add()
+@HitComponent.add({
+    oneHitByActor: true,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 40,
@@ -275,6 +276,7 @@ export class Sword extends Extra {
         if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
         this.lastAttackAge += 1
         if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
+        if(!this.isAttacking()) this.resetOneHitByActor()
     }
     syncPos() {
         const owner = this.getOwner()
@@ -301,7 +303,7 @@ export class Sword extends Extra {
     hit(act) {
         const owner = this.getOwner()
         if(act.onAttack) {
-            act.onAttack(1, owner)
+            act.onAttack(100, owner)
             this.game.audio.playSound(SwordHitAud)
         }
     }
@@ -422,7 +424,7 @@ export class Shuriken extends Actor {
     }
     hit(act) {
         if(act.onAttack) {
-            act.onAttack(1, this.getOwner())
+            act.onAttack(35, this.getOwner())
             this.remove()
         }
     }
@@ -439,7 +441,9 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     label: "Bomb",
     icon: BombImg
 })
-@HitComponent.add()
+@HitComponent.add({
+    canHit: false,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 40,
@@ -506,6 +510,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 })
 @HitComponent.add({
     canBeHit: false,
+    oneHitByActor: true,
 })
 @PhysicsComponent.add({
     shape: "box",
@@ -542,7 +547,7 @@ export class Explosion extends Actor {
         else return act.onAttack
     }
     hit(act) {
-        if(act.onAttack) act.onAttack(1, this.getOwner())
+        if(act.onAttack) act.onAttack(100, this.getOwner())
     }
     update() {
         super.update()
@@ -749,8 +754,8 @@ export class Heart extends Collectable {
     onCollected(hero) {
         super.onCollected(hero)
         this.remove()
-        if(hero.health < hero.getMaxHealth()) {
-            hero.health = hero.getMaxHealth()
+        if(hero.getHealth() < hero.maxHealth) {
+            hero.damages = 0
         } else {
             hero.lives += 1
         }

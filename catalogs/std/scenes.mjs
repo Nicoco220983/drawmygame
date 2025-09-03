@@ -253,7 +253,7 @@ export class TagScene extends GameScene {
     }
     tuneHeros(hero) {
         if(!(hero instanceof Hero)) return
-        hero.health = Infinity
+        hero.maxHealth = Infinity
         hero.on("damage", "tag", kwargs => {
             const { damager } = kwargs
             const tag = this.actors.get("tag")

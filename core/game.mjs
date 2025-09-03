@@ -632,21 +632,6 @@ export class PhysicsComponent extends Component {
 }
 
 
-export class HitComponent extends Component {
-    static KEY = "hit"
-
-    initObjectClass(cls, kwargs) {
-        super.initObjectClass(cls, kwargs)
-        const proto = cls.prototype
-        proto.canHit = kwargs?.canHit ?? true
-        proto.canBeHit = kwargs?.canBeHit ?? true
-        proto.canHitCategory ||= function(cat) { return false }
-        proto.canHitActor ||= function(act) { return true }
-        proto.hit ||= function(act) {}
-    }
-}
-
-
 export class LinkTrigger {
     static add(funcName, kwargs) {
         return target => {
@@ -1034,79 +1019,6 @@ export function filterActor(filterDesc, act) {
 }
 
 
-export class ActorRefs extends Set {
-    constructor(scn) {
-        super()
-        this.scene = scn
-        this.game = scn.game
-    }
-    update() {
-        this.clearRemoved()
-    }
-    clearRemoved() {
-        const { scene } = this
-        for(let id of this) {
-            const obj = scene.actors.get(id)
-            if(!obj || obj.removed) this.delete(id)
-        }
-    }
-    forEach(next) {
-        const { scene } = this
-        for(let id of this) {
-            const obj = scene.actors.get(id)
-            if(!obj || obj.removed) this.delete(id)
-            else next(obj)
-        }
-    }
-    getState() {
-        if(this.size == 0) return null
-        const state = []
-        this.forEach(obj => state.push(obj.id))
-        return state
-    }
-    setState(state) {
-        if(state === null) return this.clear()
-        for(let id of state) this.add(id)
-        if(state.length < this.size) {
-            for(let id of this)
-                if(state.indexOf(id)<0)
-                    this.delete(id)
-        }
-    }
-}
-
-
-ActorRefs.StateProperty = class extends StateProperty {
-    initObjectClass(cls) {
-        cls.prototype[this.key] = this.nullableWith
-    }
-    initObject(obj, kwargs) {
-        obj[this.key] = new ActorRefs(obj.scene)
-    }
-    getObjectPropState(obj) {
-        const val = obj[this.key]
-        return val.getState()
-    }
-    setObjectPropFromState(obj, valState) {
-        const val = obj[this.key]
-        val.setState(valState ?? null)
-    }
-    // syncStateFromObject(obj, state) {
-    //     const { key } = this
-    //     const valState = obj[key].getState()
-    //     if(valState) state[key] = valState
-    // }
-    // syncObjectFromState(state, obj) {
-    //     const { key } = this
-    //     const val = obj[key], valState = state[key]
-    //     val.setState(valState ?? null)
-    // }
-    createInput(obj) {
-        // TODO
-    }
-}
-
-
 function newTextCanvas(text, kwargs) {
     if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
@@ -1298,6 +1210,79 @@ export class ActorGroup extends GameObjectGroup {
                 for(let act of objArr) objMap.set(act.id, act)
             }
         } else this.clear()
+    }
+}
+
+
+export class ActorRefs extends Set {
+    constructor(scn) {
+        super()
+        this.scene = scn
+        this.game = scn.game
+    }
+    update() {
+        this.clearRemoved()
+    }
+    clearRemoved() {
+        const { scene } = this
+        for(let id of this) {
+            const obj = scene.actors.get(id)
+            if(!obj || obj.removed) this.delete(id)
+        }
+    }
+    forEach(next) {
+        const { scene } = this
+        for(let id of this) {
+            const obj = scene.actors.get(id)
+            if(!obj || obj.removed) this.delete(id)
+            else next(obj)
+        }
+    }
+    getState() {
+        if(this.size == 0) return null
+        const state = []
+        this.forEach(obj => state.push(obj.id))
+        return state
+    }
+    setState(state) {
+        if(state === null) return this.clear()
+        for(let id of state) this.add(id)
+        if(state.length < this.size) {
+            for(let id of this)
+                if(state.indexOf(id)<0)
+                    this.delete(id)
+        }
+    }
+}
+
+
+ActorRefs.StateProperty = class extends StateProperty {
+    initObjectClass(cls) {
+        cls.prototype[this.key] = this.nullableWith
+    }
+    initObject(obj, kwargs) {
+        obj[this.key] = new ActorRefs(obj.scene)
+    }
+    getObjectPropState(obj) {
+        const val = obj[this.key]
+        return val.getState()
+    }
+    setObjectPropFromState(obj, valState) {
+        const val = obj[this.key]
+        val.setState(valState ?? null)
+    }
+    // syncStateFromObject(obj, state) {
+    //     const { key } = this
+    //     const valState = obj[key].getState()
+    //     if(valState) state[key] = valState
+    // }
+    // syncObjectFromState(state, obj) {
+    //     const { key } = this
+    //     const val = obj[key], valState = state[key]
+    //     val.setState(valState ?? null)
+    // }
+    createInput(obj) {
+        // TODO
     }
 }
 
@@ -2373,7 +2358,7 @@ export class GameScene extends SceneCommon {
 
     onHeroOut(hero) {
         hero.onAttack(1, null, true)
-        if(hero.health > 0) this.spawnHero(hero)
+        if(hero.getHealth() > 0) this.spawnHero(hero)
     }
 
     drawTo(ctx) {
@@ -2540,35 +2525,50 @@ export class GameScene extends SceneCommon {
 
 // ACTORS ///////////////////////////////////
 
-@StateInt.define("lastDamageAge", { default: Infinity })
-@StateInt.define("health", { default: 1, nullableWith: Infinity, showInBuilder: true })
-export class LivingGameObject extends Actor {
+@StateInt.define("damages")
+@StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
+@StateInt.define("graceDur")
+export class HealthComponent extends Component {
 
-    update() {
-        super.update()
-        const { iteration, step } = this.scene
-        const { dt } = this.game
-        if(step != "GAME" || (this.health <= 0) || this.isDamageable()) this.spriteVisibility = 1
-        else this.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
-        this.lastDamageAge += 1
-        if(this.isDamageable()) this.lastDamageAge = Infinity
+    initObjectClass(cls, kwargs) {
+        const proto = cls.prototype
+        proto.canBeDamaged = kwargs?.canBeDamaged ?? true
+        proto.maxHealth = kwargs?.maxHealth ?? 100
+        proto.getHealth ||= this.objGetHealth
+        proto.isInGracePeriod ||= this.objIsInGracePeriod
+        proto.onAttack ||= this.objOnAttack
+        proto.takeDamage ||= this.objTakeDamage
+        proto.die ||= this.objDie
     }
 
-    isDamageable() {
-        return this.lastDamageAge > ceil(0.5 * this.game.fps)
+    updateObject(obj) {
+        const { iteration, step } = obj.scene
+        const { dt } = obj.game
+        if(step != "GAME" || (obj.damages >= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
+        else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
+        obj.lastDamageAge += 1
+        if(!obj.isInGracePeriod()) obj.lastDamageAge = Infinity
     }
 
-    onAttack(val, damager, force) {
-        if(this.health <= 0) return
-        if(!force && !this.isDamageable()) return
+    objGetHealth() {
+        return this.maxHealth - this.damages
+    }
+
+    objIsInGracePeriod() {
+        return this.lastDamageAge < this.graceDur 
+    }
+
+    objOnAttack(val, damager, force) {
+        if(this.getHealth() <= 0) return
+        if(!force && this.isInGracePeriod()) return
         this.takeDamage(val, damager)
     }
 
-    takeDamage(val, damager) {
+    objTakeDamage(val, damager) {
         if(val > 0) this.lastDamageAge = 0
-        this.health = max(0, this.health - val)
-        this.trigger("damage", { damager })
-        if(this.health == 0) {
+        this.damages += val
+        //this.trigger("damage", { damager })
+        if(this.getHealth() <= 0) {
             this.die(damager)
         } else if(damager) {
             this.speedY = -200
@@ -2576,17 +2576,53 @@ export class LivingGameObject extends Actor {
         }
     }
 
-    die(killer) {
+    objDie(killer) {
         this.remove()
     }
 }
 
 
+@ActorRefs.StateProperty.define("alreadyHitActors")
+export class HitComponent extends Component {
+    static KEY = "hit"
+
+    initObjectClass(cls, kwargs) {
+        super.initObjectClass(cls, kwargs)
+        const proto = cls.prototype
+        proto.oneHitByActor = kwargs?.oneHitByActor ?? false
+        proto.canHit = kwargs?.canHit ?? true
+        proto.canBeHit = kwargs?.canBeHit ?? true
+        proto.canHitCategory ||= function(cat) { return false }
+        const defaultCanHitActor = function(act) { return true }
+        const defaultHit = function(act) {}
+        if(!proto.oneHitByActor) {
+            proto.canHitActor ||= defaultCanHitActor
+            proto.hit ||= defaultHit
+        } else {
+            const origCanHitActor = proto.canHitActor || defaultCanHitActor
+            proto.canHitActor = function(act) {
+                if(this.alreadyHitActors.has(act.id)) return false
+                return origCanHitActor.call(this, act)
+            }
+            const origHit = proto.hit || defaultHit
+            proto.hit = function(act) {
+                this.alreadyHitActors.add(act.id)
+                return origHit.call(this, act)
+            }
+        }
+        proto.resetOneHitByActor = function() {
+            this.alreadyHitActors.clear()
+        }
+    }
+}
+
+
 @StateInt.define("lastSpawnIt", { default: -Infinity })
-@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
-@StateProperty.modify("health", { default: 3 })
+@HealthComponent.add({
+    graceDur: 2,
+})
 @Category.append("hero")
-export class Hero extends LivingGameObject {
+export class Hero extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
@@ -2624,10 +2660,6 @@ export class Hero extends LivingGameObject {
         if(extras) extras.delete(extra.id)
     }
 
-    isDamageable() {
-        return this.lastDamageAge > ceil(3 * this.game.fps)
-    }
-
     update() {
         super.update()
         this.checkCollectablesHit()
@@ -2647,26 +2679,27 @@ export class Hero extends LivingGameObject {
 
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
-        const { scene, lives, health } = this
-        let livesHearts
-        if(lives !== Infinity) {
-            livesHearts = this.livesHearts ||= []
-            for(let i=livesHearts.length; i<lives; ++i)
-                livesHearts.push(scene.addNotif(LifeHeartNotif, { num: i }))
-            livesHearts.forEach(heart => {
-                heart.x = 20 + heart.num * 35
-                heart.y = 20
-                heart.setFull(heart.num < lives)
-            })
-        }
-        if(health !== Infinity) {
+        const { scene, maxHealth } = this
+        // let livesHearts
+        // if(lives !== Infinity) {
+        //     livesHearts = this.livesHearts ||= []
+        //     for(let i=livesHearts.length; i<lives; ++i)
+        //         livesHearts.push(scene.addNotif(LifeHeartNotif, { num: i }))
+        //     livesHearts.forEach(heart => {
+        //         heart.x = 20 + heart.num * 35
+        //         heart.y = 20
+        //         heart.setFull(heart.num < lives)
+        //     })
+        // }
+        if(maxHealth !== Infinity) {
             const healthHearts = this.healthHearts ||= []
-            for(let i=healthHearts.length; i<health; ++i)
+            for(let i=healthHearts.length; i<maxHealth; ++i)
                 healthHearts.push(scene.addNotif(HealthHeartNotif, { num: i }))
             healthHearts.forEach(heart => {
                 heart.x = 15 + heart.num * 23
-                heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
-                heart.setFull(heart.num < health)
+                //heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
+                heart.y = 15
+                heart.setFull(heart.num < maxHealth)
             })
         }
     }
@@ -2743,12 +2776,6 @@ export class Hero extends LivingGameObject {
         this.lastSpawnIt = this.scene.iteration
     }
 
-    mayRemove() {
-        if(this.lives <= 0 && this.lastDamageAge > ceil(3 * this.game.fps)) {
-            this.remove()
-        }
-    }
-
     remove() {
         super.remove()
         this.scene.syncHero(this)
@@ -2816,9 +2843,9 @@ class Pop extends GameObject {
     }
 }
 
-
+@HealthComponent.add()
 @Category.append("npc/enemy")
-export class Enemy extends LivingGameObject {
+export class Enemy extends Actor {
 
     // in case Enemy if added HitComponent
     canHitCategory(cat) {
