@@ -576,6 +576,7 @@ export class StateIntEnum extends StateEnum {
 
 export class Component {
     static STATE_PROPS = new Map()
+    static COMPONENTS = new Map()
 
     static add(kwargs) {
         return target => {
@@ -592,6 +593,13 @@ export class Component {
         }
     }
 
+    static addIfAbsent(kwargs) {
+        return target => {
+            if(target.COMPONENTS.has, this.KEY) return
+            this.add(kwargs)(target)
+        }
+    }
+
     initObjectClass(cls, kwargs) {}
     initObject(obj, kwargs) {}
     updateObject(obj) {}
@@ -600,8 +608,16 @@ export class Component {
 }
 
 
+@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
+@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
+@StateInt.define("y", { showInBuilder: true })
+@StateInt.define("x", { showInBuilder: true })
+export class PositionComponent extends Component {}
+
+
 @StateInt.define("speedY")
 @StateInt.define("speedX")
+@PositionComponent.addIfAbsent()
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -679,12 +695,9 @@ export class ActorLink {
 }
 
 
-@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
-@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
-@StateInt.define("y", { showInBuilder: true })
-@StateInt.define("x", { showInBuilder: true })
 export class GameObject {
 
+    static STATE_PROPS = new Map()
     static COMPONENTS = new Map()
 
     static {
@@ -2582,6 +2595,7 @@ export class HealthComponent extends Component {
 }
 
 
+@PhysicsComponent.addIfAbsent()
 @ActorRefs.StateProperty.define("alreadyHitActors")
 export class HitComponent extends Component {
     static KEY = "hit"
@@ -2670,16 +2684,6 @@ export class Hero extends Actor {
         this.updateSpawnEffect()
     }
 
-    // checkCollectablesHit() {
-    //     const { team } = this
-    //     const collectables = this.scene.filterActors("collectables", act => {
-    //         return act instanceof Collectable
-    //     })
-    //     collectables.forEach(col => {
-    //         if(col.isCollectableBy(team) && checkHit(this, col)) col.onCollected(this)
-    //     })
-    // }
-
     updateHearts() {
         if(this.playerId != this.game.localPlayerId) return
         const { scene, maxHealth } = this
@@ -2747,7 +2751,6 @@ export class Hero extends Actor {
     setState(state) {
         super.setState(state)
         this.setPlayerId(state.pid)
-        // this.lives = state.liv
         this.inputState = state.ist
         if(this.extras || state.extras) {
             const extras = this.initExtras()
