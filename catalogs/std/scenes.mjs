@@ -1,8 +1,13 @@
 const { floor } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, PositionComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
+
+
+@PositionComponent.delete()
+@Category.append("manager")
+export class Manager extends Actor {}
 
 
 @CATALOG.registerActor("heroslivesmng", {
@@ -11,8 +16,8 @@ export const CATALOG = new ModuleCatalog("std")
 @StateProperty.define("deathsIts")
 @StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
-@Category.append("manager/heroslives")
-export class HerosLivesManager extends Actor {
+@Category.append("heroslives")
+export class HerosLivesManager extends Manager {
 
     init(kwargs) {
         super.init(kwargs)
@@ -45,8 +50,8 @@ export class HerosLivesManager extends Actor {
 }
 
 
-@Category.append("manager/view")
-export class ViewManager extends Actor {}
+@Category.append("view")
+export class ViewManager extends Manager {}
 
 
 @CATALOG.registerActor("viewheroscentermng", {
@@ -162,13 +167,13 @@ export class ViewFirstHeroManager extends ViewManager {
 @CATALOG.registerActor("physicsmng")
 @StateInt.define("gravityAcc", { default: 1000 })
 @StateInt.define("gravityMaxSpeed", { default: 1000 })
-@Category.append("manager/physics")
-export class PhysicsManager extends Actor {}
+@Category.append("physics")
+export class PhysicsManager extends Manager {}
 
 
 @CATALOG.registerActor("hitmng")
-@Category.append("manager/hit")
-export class HitManager extends Actor {
+@Category.append("hit")
+export class HitManager extends Manager {
 
     canTeamHit(team1, team2) {
         return true

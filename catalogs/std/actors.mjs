@@ -205,6 +205,8 @@ export class Nico extends Hero {
     canMove: false,
 })
 class NicoHand extends Actor {
+    static STATEFUL = false
+
     init(kwargs) {
         this.owner = kwargs.owner
         this.syncPos()

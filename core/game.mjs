@@ -600,6 +600,13 @@ export class Component {
         }
     }
 
+    static delete() {
+        return target => {
+            if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
+            target.COMPONENTS.delete(this.KEY)
+        }
+    }
+
     initObjectClass(cls, kwargs) {}
     initObject(obj, kwargs) {}
     updateObject(obj) {}
@@ -695,10 +702,11 @@ export class ActorLink {
 }
 
 
+@PositionComponent.add()
 export class GameObject {
-
+    
+    static STATEFUL = false
     static STATE_PROPS = new Map()
-    static COMPONENTS = new Map()
 
     static {
         assign(this.prototype, {
@@ -870,6 +878,7 @@ GameObject.prototype.trigger = trigger
 @LinkTrigger.add("isRemoved", { isDefault: true })
 @LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
 export class Actor extends GameObject {
+    static STATEFUL = true
 
     constructor(scn) {
         super(scn)
@@ -1049,7 +1058,9 @@ function newTextCanvas(text, kwargs) {
     return canvas
 }
 
+
 export class Text extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.textArgs = kwargs
@@ -1072,6 +1083,7 @@ export class Text extends GameObject {
 }
 
 class CenteredText extends Text {
+
     drawTo(ctx) {
         this.x = this.scene.getViewWidth() / 2
         this.y = this.scene.getViewHeight() / 2
@@ -1082,43 +1094,59 @@ class CenteredText extends Text {
 export class GameObjectGroup {
 
     constructor(scn) {
-        this.x = 0
-        this.y = 0
+        // this.x = 0
+        // this.y = 0
         this.scene = scn
         this.game = scn.game
-        this.objArr = []
+        this.statelessObjArr = []
+        this.statefulObjArr = []
         this.objMap = new Map()
-        this._lastAutoId = -1
+        this._nextAutoStatefulId = 0
+        this._nextAutoStatelessId = -1
     }
 
-    nextAutoId() {
-        this._lastAutoId += 1
-        let res = this._lastAutoId.toString()
-        // be sure that client & leader generate different ids
-        if(this.game.mode == MODE_CLIENT) res += 'C'
-        return res
+    nextAutoId(cls) {
+        if(cls.STATEFUL) {
+            const res = this._nextAutoStatefulId.toString()
+            this._nextAutoStatefulId += 1
+            return res
+        } else {
+            const res = this._nextAutoStatelessId.toString()
+            this._nextAutoStatelessId -= 1
+            return res
+        }
+        // this._lastAutoId += 1
+        // let res = this._lastAutoId.toString()
+        // // be sure that client & leader generate different ids
+        // if(this.game.mode == MODE_CLIENT) res += 'C'
+        // return res
     }
 
-    resetIds() {
-        const { objArr, objMap } = this
-        objMap.clear()
-        for(let idx in objArr) {
-            const obj = objArr[idx]
+    resetStatefulIds() {
+        const { statefulObjArr, objMap } = this
+        for(let obj of statefulObjArr) objMap.delete(obj.id)
+        for(let idx in statefulObjArr) {
+            const obj = statefulObjArr[idx]
             obj.id = idx.toString()
             this.objMap.set(obj.id, obj)
         }
-        this._lastAutoId = objArr.length - 1
+        this._nextAutoStatefulId = statefulObjArr.length
     }
 
     add(cls, kwargs) {
         kwargs ||= {}
-        kwargs.id ??= this.nextAutoId()
-        const obj = new cls(this.scene)
-        obj.init(kwargs)
-        this.objMap.set(kwargs.id, obj)
-        this.objArr.push(obj)
-        this.trigger("new", obj)
-        return obj
+        kwargs.id ??= this.nextAutoId(cls)
+        let act
+        if(typeof cls === 'string') {
+            act = this.scene.createActorFromKey(cls, kwargs)
+        } else {
+            act = cls.create(this.scene, kwargs)
+        }
+        this.objMap.set(kwargs.id, act)
+        if(act.constructor.STATEFUL) this.statefulObjArr.push(act)
+        else this.statelessObjArr.push(act)
+        this.trigger("new", act)
+        return act
     }
 
     get(id) {
@@ -1126,29 +1154,37 @@ export class GameObjectGroup {
     }
 
     forEach(next) {
-        this.objArr.forEach(obj => {
+        this.statefulObjArr.forEach(obj => {
+            if(!obj.removed) next(obj)
+        })
+        this.statelessObjArr.forEach(obj => {
             if(!obj.removed) next(obj)
         })
     }
 
     clearRemoved() {
-        const { objArr, objMap } = this
-        let idx = 0, nbEnts = objArr.length
-        while(idx < nbEnts) {
-            const obj = objArr[idx]
-            if(obj.removed) {
-                objArr.splice(idx, 1)
-                objMap.delete(obj.id)
-                nbEnts -= 1
-            } else {
-                idx += 1
+        const { objMap } = this
+        const _clearRemoved = arr => {
+            let idx = 0, nbEnts = arr.length
+            while(idx < nbEnts) {
+                const obj = arr[idx]
+                if(obj.removed) {
+                    arr.splice(idx, 1)
+                    objMap.delete(obj.id)
+                    nbEnts -= 1
+                } else {
+                    idx += 1
+                }
             }
         }
+        _clearRemoved(this.statefulObjArr)
+        _clearRemoved(this.statelessObjArr)
     }
 
     clear() {
         this.forEach(item => item.remove())
-        this.objArr.length = 0
+        this.statefulObjArr.length = 0
+        this.statelessObjArr.length = 0
         this.objMap.clear()
     }
 
@@ -1159,15 +1195,56 @@ export class GameObjectGroup {
     }
 
     sortItems() {
-        this.objArr.sort((a, b) => (b.getPriority() - a.getPriority()))
+        const _sort = arr => arr.sort((a, b) => (b.getPriority() - a.getPriority()))
+        _sort(this.statefulObjArr)
+        _sort(this.statelessObjArr)
     }
 
     drawTo(gameCtx) {
         this.clearRemoved()
-        const x = ~~this.x, y = ~~this.y
-        gameCtx.translate(x, y)
+        //const x = ~~this.x, y = ~~this.y
+        //gameCtx.translate(x, y)
         this.forEach(obj => obj.drawTo(gameCtx))
-        gameCtx.translate(-x, -y)
+        //gameCtx.translate(-x, -y)
+    }
+
+    getState(isInitState=false) {
+        const state = this._state ||= []
+        state.length = 0
+        if(isInitState) this.resetStatefulIds()
+        this.statefulObjArr.forEach(act => {
+            state.push(act.getState(isInitState))
+        })
+        return state
+    }
+
+    setState(state, isInitState=false) {
+        const { statefulObjArr, statelessObjArr, objMap } = this
+        statefulObjArr.length = 0
+        if(state) {
+            for(let idx in state) {
+                if(isInitState) {
+                    this.add(`A#${idx}`, { id: idx.toString() })
+                } else {
+                    const actState = state[idx]
+                    let { id, key } = actState
+                    let act = objMap.get(id)
+                    if(!act || act.key != key) {
+                        if(act) act.remove()
+                        act = this.add(key, { id })
+                    }
+                    else statefulObjArr.push(act)
+                    act.setState(actState, isInitState)
+                }
+            }
+            //if(isInitState) this._lastAutoId = state.length - 1
+            if(isInitState) this._nextAutoStatefulId = state.length
+            if(objMap.size != statefulObjArr.length + statelessObjArr.length) {
+                objMap.clear()
+                for(let act of statefulObjArr) objMap.set(act.id, act)
+                for(let act of statelessObjArr) objMap.set(act.id, act)
+            }
+        } else this.clear()
     }
 }
 
@@ -1176,55 +1253,57 @@ GameObjectGroup.prototype.off = off
 GameObjectGroup.prototype.trigger = trigger
 
 
-export class ActorGroup extends GameObjectGroup {
+// export class ActorGroup extends GameObjectGroup {
 
-    add(cls, kwargs) {
-        kwargs ||= {}
-        kwargs.id ??= this.nextAutoId()
-        let act
-        if(typeof cls === 'string') {
-            act = this.scene.createActorFromKey(cls, kwargs)
-        } else {
-            act = cls.create(this.scene, kwargs)
-        }
-        this.objMap.set(kwargs.id, act)
-        this.objArr.push(act)
-        this.trigger("new", act)
-        return act
-    }
+//     add(cls, kwargs) {
+//         kwargs ||= {}
+//         kwargs.id ??= this.nextAutoId()
+//         let act
+//         if(typeof cls === 'string') {
+//             act = this.scene.createActorFromKey(cls, kwargs)
+//         } else {
+//             act = cls.create(this.scene, kwargs)
+//         }
+//         this.objMap.set(kwargs.id, act)
+//         this.objArr.push(act)
+//         this.trigger("new", act)
+//         return act
+//     }
 
-    getState(isInitState=false) {
-        const state = this._state ||= []
-        state.length = 0
-        if(isInitState) this.resetIds()
-        this.forEach(act => state.push(act.getState(isInitState)))
-        return state
-    }
+//     getState(isInitState=false) {
+//         const state = this._state ||= []
+//         state.length = 0
+//         if(isInitState) this.resetIds()
+//         this.forEach(act => {
+//             if(act.constructor.STATEFUL) state.push(act.getState(isInitState))
+//         })
+//         return state
+//     }
 
-    setState(state, isInitState=false) {
-        const { objArr, objMap } = this
-        objArr.length = 0
-        if(state) {
-            for(let idx in state) {
-                if(isInitState) {
-                    this.add(`A#${idx}`, { id: idx.toString() })
-                } else {
-                    const actState = state[idx]
-                    let { id } = actState
-                    let act = objMap.get(id)
-                    if(!act) act = this.add(actState.key, { id })
-                    else objArr.push(act)
-                    act.setState(actState, isInitState)
-                }
-            }
-            if(isInitState) this._lastAutoId = state.length - 1
-            if(objMap.size != objArr.length) {
-                objMap.clear()
-                for(let act of objArr) objMap.set(act.id, act)
-            }
-        } else this.clear()
-    }
-}
+//     setState(state, isInitState=false) {
+//         const { objArr, objMap } = this
+//         objArr.length = 0
+//         if(state) {
+//             for(let idx in state) {
+//                 if(isInitState) {
+//                     this.add(`A#${idx}`, { id: idx.toString() })
+//                 } else {
+//                     const actState = state[idx]
+//                     let { id } = actState
+//                     let act = objMap.get(id)
+//                     if(!act) act = this.add(actState.key, { id })
+//                     else objArr.push(act)
+//                     act.setState(actState, isInitState)
+//                 }
+//             }
+//             if(isInitState) this._lastAutoId = state.length - 1
+//             if(objMap.size != objArr.length) {
+//                 objMap.clear()
+//                 for(let act of objArr) objMap.set(act.id, act)
+//             }
+//         } else this.clear()
+//     }
+// }
 
 
 export class ActorRefs extends Set {
@@ -1584,7 +1663,7 @@ export class SceneCommon {
             this.canvas = document.createElement("canvas")
         }
         this.walls = new GameObjectGroup(this)
-        this.actors = new ActorGroup(this)
+        this.actors = new GameObjectGroup(this)
         this.visuals = new GameObjectGroup(this)
         this.notifs = new GameObjectGroup(this)
         this.heros = {}
@@ -1812,6 +1891,7 @@ export class SceneCommon {
 
 
 export class Wall extends GameObject {
+
     init(kwargs) {
         this.key = kwargs.key
         this.x1 = kwargs.x1
@@ -2388,7 +2468,11 @@ export class GameScene extends SceneCommon {
             actsCache.iteration = this.iteration
         }
         if(!actsCache.has(key)) {
-            actsCache.set(key, this.actors.objArr.filter(filter))
+            const cache = []
+            this.actors.forEach(act => {
+                if(filter(act)) cache.push(act)
+            })
+            actsCache.set(key, cache)
         }
         return actsCache.get(key)
     }
@@ -2829,6 +2913,7 @@ const PopSprite = new Sprite(PopImg)
 const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
 
 class Pop extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 10
@@ -2932,8 +3017,8 @@ export const HeartSpriteSheets = {
     },
 }
 
-
 class LifeHeartNotif extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.num = kwargs.num
@@ -3001,6 +3086,7 @@ class PauseScene extends SceneCommon {
 
 
 class PlayerText extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.player = kwargs.player
@@ -3199,6 +3285,7 @@ class DebugScene extends SceneCommon {
 
 
 export class ScoresBoard extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.scores = kwargs.scores
