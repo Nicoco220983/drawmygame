@@ -492,13 +492,13 @@ class ActorSelectorElement extends HTMLElement {
         `
 
         const selectWrapperEl = newDomEl("div", {
+            tabindex: "0",
             style: {
                 position: "relative",
             }
         })
         this.shadowRoot.append(styleEl, selectWrapperEl)
         this.selectEl = addNewDomEl(selectWrapperEl, "cs-option", {
-            tabindex: "0",
             style: {
                 border: "1px solid black",
             }
@@ -510,6 +510,7 @@ class ActorSelectorElement extends HTMLElement {
                 top: "100%",
                 left: "0",
                 display: "none",
+                zIndex: 99,
             }
         })
         this.selectEl.onclick = () => this.setOptionsVisibility(true)
