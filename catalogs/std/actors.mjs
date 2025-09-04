@@ -324,7 +324,6 @@ const ShurikenSprite = new Sprite(ShurikenImg)
 @CATALOG.registerActor("shurikp", {
     label: "ShurikenPack",
     icon: ShurikenImg,
-    showInBuilder: true,
 })
 @HitComponent.add({
     canHit: false,
@@ -381,6 +380,7 @@ export class ShurikenPack extends Extra {
 @CATALOG.registerActor("shurik", {
     label: "Shuriken",
     icon: ShurikenImg,
+    showInBuilder: false,
 })
 @HitComponent.add({
     canBeHit: false,
