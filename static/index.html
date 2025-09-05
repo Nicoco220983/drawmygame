@@ -183,7 +183,8 @@ fullscreenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
 const showJoypadEl = document.getElementById("show_joypad")
-showJoypadEl.onchange = () => { if(game) game.setJoypadVisibility(showJoypadEl.checked) }
+function syncJoypadVisibility() { if(game) game.setJoypadVisibility(showJoypadEl.checked) }
+showJoypadEl.onchange = syncJoypadVisibility
 
 let keyLastTime = -1, currentKey = ""
 document.addEventListener('keydown', evt => {
@@ -256,6 +257,7 @@ async function startAndShowGame(pause) {
     } else {
         game.restartGame()
     }
+    syncJoypadVisibility()
     mode = "game"
     gameParentEl.style.display = ""
     game.canvas.focus()

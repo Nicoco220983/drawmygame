@@ -32,6 +32,23 @@ export class JoypadScene {
         return this.game.scenesSizeAndPos.joypad
     }
 
+    getViewWidth() {
+        return this.getSizeAndPos().viewWidth
+    }
+
+    getViewHeight(){
+        return this.getSizeAndPos().viewHeight
+    }
+
+    isPausable() {
+        return false
+    }
+
+    pause(val) {
+        if(!this.isPausable()) return
+        this.paused = val
+    }
+
     update() {
         this.buttons.update()
     }
@@ -44,26 +61,49 @@ export class JoypadScene {
         return this.buttons.add(JoypadButton, kwargs)
     }
 
-    newPauseScene() {
-        return null
+    createPauseScene() {
+        return new JoypadPauseScene(this.game)
     }
 
     draw() {
-        const { width, height, canvas } = this
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext("2d")
-        if(this.backgroundColor) {
-            ctx.fillStyle = this.backgroundColor
-            ctx.globalAlpha = this.backgroundAlpha
-            ctx.fillRect(0, 0, width, height)
-            ctx.globalAlpha = 1
-        }
+        const can = this.canvas
+        can.width = this.getViewWidth()
+        can.height = this.getViewHeight()
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const backgroundCanvas = this.initBackground()
+        if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
         this.drawTo(ctx)
     }
 
     drawTo(ctx) {
         this.buttons.drawTo(ctx)
+    }
+
+    initBackground() {
+        if(this.game.isServerEnv) return
+        let { backgroundCanvas: can } = this
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
+        if(viewWidth == 0 || viewHeight == 0) return
+        if(!can || can.width != viewWidth || can.height != viewHeight) {
+            can = this.backgroundCanvas = this.buildBackground()
+        }
+        return can
+    }
+
+    buildBackground() {
+        const viewWidth = this.getViewWidth()
+        const viewHeight = this.getViewHeight()
+        const can = document.createElement("canvas")
+        assign(can, { width: viewWidth, height: viewHeight })
+        const ctx = can.getContext("2d")
+        if(this.backgroundColor) {
+            ctx.fillStyle = this.backgroundColor
+            ctx.globalAlpha = this.backgroundAlpha
+            ctx.fillRect(0, 0, viewWidth, viewHeight)
+        }
+        return can
     }
 }
 
@@ -158,13 +198,13 @@ const BurronImg = CATALOG.registerImage("/static/core/assets/button_colorable.pn
 
 class JoypadButton extends GameObject {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
-        this.inputKey = kwargs && kwargs.inputKey
+    init(kwargs) {
+        super.init(kwargs)
+        this.inputKey = kwargs?.inputKey
         this.isDown = false
-        this.disabled = kwargs && kwargs.disabled
-        this.text = kwargs && kwargs.text
-        this.icon = kwargs && kwargs.icon
+        this.disabled = kwargs?.disabled
+        this.text = kwargs?.text
+        this.icon = kwargs?.icon
     }
 
     checkClick() {
@@ -215,11 +255,13 @@ class JoypadButton extends GameObject {
     
     createTextSprite() {
         const fontSize = floor(this.height/2)
-        return new Text(this.scene, null, {
+        const text = new Text(this.scene)
+        text.init({
             text: this.text,
             fillStyle: "white",
             font: `bold ${fontSize}px serif`,
         })
+        return text
     }
 
     drawTo(ctx) {
@@ -241,7 +283,7 @@ class JoypadButton extends GameObject {
                 ~~(this.width * .5 / textSprite.width * textSprite.height),
                 1, 1, 1,
             )
-            ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
+            if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
         }
     }
 }

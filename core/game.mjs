@@ -704,7 +704,7 @@ export class ActorLink {
 
 @PositionComponent.add()
 export class GameObject {
-    
+
     static STATEFUL = false
     static STATE_PROPS = new Map()
 
@@ -792,8 +792,9 @@ export class GameObject {
 
     checkHitTouches() {
         let { left, width, top, height } = this.getHitBox()
-        left += this.scene.x
-        top += this.scene.y
+        const { x:scnX, y:scnY } = this.scene.getSizeAndPos()
+        left += scnX
+        top += scnY
         for(let touch of this.game.touches) {
             const { isDown, x: touchX, y: touchY } = touch
             if(isDown && left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
@@ -1556,7 +1557,8 @@ export class GameCommon {
         scn.draw()
         const can = scn.canvas
         if(can.width == 0 || can.height == 0) return
-        ctx.drawImage(can, scn.x, scn.y)
+        const { x, y } = scn.getSizeAndPos()
+        ctx.drawImage(can, x, y)
     }
 
     syncSize() {
