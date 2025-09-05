@@ -236,9 +236,9 @@ try {
     }
 
     async function initGame() {
-        if(game) return
         if(!isGameVisible() && !isJoypadVisible()) return
         await catalog.preloadAll()
+        if(game) return
         game = new Game(gameParentEl, catalog, map, ws.id, {
             mode: MODE_CLIENT,
             sendPing: () => ws.send(MSG_KEYS.PING),
@@ -276,8 +276,6 @@ try {
         ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({ name, color }))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
-        initGame()
-        syncGameShow()
         if(game) game.focus()
     }
 
