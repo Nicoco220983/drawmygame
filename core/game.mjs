@@ -791,10 +791,10 @@ export class GameObject {
     }
 
     checkHitTouches() {
+        const scn = this.scene
         let { left, width, top, height } = this.getHitBox()
-        const { x:scnX, y:scnY } = this.scene.getSizeAndPos()
-        left += scnX
-        top += scnY
+        left += scn.x
+        top += scn.y
         for(let touch of this.game.touches) {
             const { isDown, x: touchX, y: touchY } = touch
             if(isDown && left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
@@ -1086,8 +1086,9 @@ export class Text extends GameObject {
 class CenteredText extends Text {
 
     drawTo(ctx) {
-        this.x = this.scene.getViewWidth() / 2
-        this.y = this.scene.getViewHeight() / 2
+        const { viewWidth, viewHeight } = this
+        this.x = viewWidth / 2
+        this.y = viewHeight / 2
         super.drawTo(ctx)
     }
 }
@@ -1408,12 +1409,9 @@ export class GameCommon {
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
-        this.scenesSizeAndPos = {
-            game: { x:0, y:0, viewWidth:0, viewHeight:0 },
-            joypad: { x:0, y:0, viewWidth:0, viewHeight:0 },
-        }
         this.scenes = {}
         this.scenes.game = new DefaultScene(this)
+        this.joypadVisible = false
         this.syncSize()
     }
 
@@ -1496,6 +1494,15 @@ export class GameCommon {
         const scn = this.createScene(cls)
         if(scnMapId !== undefined) scn.loadMap(scnMapId)
         this.scenes.game = scn
+        if(this.joypadVisible) await this.loadJoypadScene()
+        this.syncSize()
+    }
+
+    async setJoypadSceneVisibility(val) {
+        if(val == this.joypadVisible) return
+        this.joypadVisible = val
+        if(val) await this.loadJoypadScene()
+        else delete this.scenes.joypad
         this.syncSize()
     }
 
@@ -1515,18 +1522,9 @@ export class GameCommon {
         const { game: gameScn, joypad: joypadScn } = this.scenes
         if(!gameScn.paused) {
             gameScn.update()
-            delete this.scenes.pause
-        } else {
-            this.scenes.pause ||= gameScn.createPauseScene()
+            if(joypadScn) joypadScn.update()
         }
-        if(joypadScn) {
-            if(!gameScn.paused) {
-                joypadScn.update()
-                delete this.scenes.joypadPause
-            } else {
-                this.scenes.joypadPause ||= joypadScn.createPauseScene()
-            }
-        }
+        this.syncPauseScenes()
         const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
         if(pauseScn) pauseScn.update()
         if(joypadPauseScn) joypadPauseScn.update()
@@ -1557,25 +1555,32 @@ export class GameCommon {
         scn.draw()
         const can = scn.canvas
         if(can.width == 0 || can.height == 0) return
-        const { x, y } = scn.getSizeAndPos()
-        ctx.drawImage(can, x, y)
+        ctx.drawImage(can, scn.x, scn.y)
     }
 
     syncSize() {
-        const { game: gameScn } = this.scenes
+        const { joypadVisible } = this
+        const { game: gameScn, joypad: joypadScn } = this.scenes
         const width = min(gameScn.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
-        const { joypadVisible } = this
-        const { game: gameSP, joypad: joypadSP } = this.scenesSizeAndPos
-        gameSP.x = 0
-        gameSP.y = 0
-        gameSP.viewWidth = width
-        gameSP.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
-        joypadSP.x = 0
-        joypadSP.y = gameScn.visible ? gameSP.viewHeight : 0
-        joypadSP.viewWidth = width
-        joypadSP.viewHeight = height169
-        const height = max(height169, (gameScn.visible ? gameSP.viewHeight : 0) + (joypadVisible ? joypadSP.viewHeight : 0))
+        // game
+        gameScn.x = 0
+        gameScn.y = 0
+        gameScn.viewWidth = width
+        gameScn.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
+        // joypad
+        if(joypadVisible && joypadScn) {
+            joypadScn.x = 0
+            joypadScn.y = gameScn.visible ? gameScn.viewHeight : 0
+            joypadScn.viewWidth = width
+            joypadScn.viewHeight = height169
+        }
+        // pause
+        const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
+        if(pauseScn) pauseScn.syncPosAndViewSize()
+        if(joypadPauseScn) joypadPauseScn.syncPosAndViewSize()
+        // game
+        const height = max(height169, (gameScn.visible ? gameScn.viewHeight : 0) + (joypadVisible ? joypadScn.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -1616,10 +1621,21 @@ export class GameCommon {
     }
 
     pause(val) {
-        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(val ? "pause" : "unpause")
+        // game
         this.scenes.game.pause(val)
-        if(this.scenes.joypad) this.scenes.joypad.pause(val)
+        if(val) this.scenes.pause ||= this.scenes.game.createPauseScene()
+        else delete this.scenes.pause
+        // joypad
+        if(this.scenes.joypad) {
+            this.scenes.joypad.pause(val)
+            if(val) this.scenes.joypadPause ||= this.scenes.joypad.createPauseScene()
+            else delete this.scenes.joypadPause
+        }
+        // state
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(val ? "pause" : "unpause")
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
+        // sync
+        this.syncSize()
     }
 
     togglePause() {
@@ -1685,22 +1701,11 @@ export class SceneCommon {
     }
 
     setView(viewX, viewY) {
+        const { viewWidth, viewHeight } = this
         this.viewX = sumTo(this.viewX, this.viewSpeed, viewX)
         this.viewY = sumTo(this.viewY, this.viewSpeed, viewY)
-        this.viewX = max(0, min(this.width-this.getViewWidth(), this.viewX))
-        this.viewY = max(0, min(this.height-this.getViewHeight(), this.viewY))
-    }
-
-    getSizeAndPos() {
-        return this.game.scenesSizeAndPos.game
-    }
-
-    getViewWidth() {
-        return this.getSizeAndPos().viewWidth
-    }
-
-    getViewHeight(){
-        return this.getSizeAndPos().viewHeight
+        this.viewX = max(0, min(this.width-viewWidth, this.viewX))
+        this.viewY = max(0, min(this.height-viewHeight, this.viewY))
     }
 
     loadMap(scnMapId) {
@@ -1708,12 +1713,6 @@ export class SceneCommon {
         this.map = this.game.map.scenes[scnMapId]
         this.setState(this.map, true)
         this.initWalls()
-    }
-
-    async loadScenes(cls, scnMapId=undefined) {
-        await super.loadScenes(cls, scnMapId)
-        if(this.joypadVisible) await this.loadJoypadScene()
-        this.syncSize()
     }
 
     initWalls() {
@@ -1815,8 +1814,8 @@ export class SceneCommon {
 
     draw() {
         const can = this.canvas
-        can.width = this.getViewWidth()
-        can.height = this.getViewHeight()
+        can.width = this.viewWidth
+        can.height = this.viewHeight
         const ctx = can.getContext("2d")
         ctx.reset()
         const backgroundCanvas = this.initBackground()
@@ -1835,10 +1834,8 @@ export class SceneCommon {
 
     initBackground() {
         if(this.game.isServerEnv) return
-        let { backgroundCanvas: can } = this
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
-        if(viewWidth == 0 || viewHeight == 0) return
+        let { backgroundCanvas: can, viewWidth, viewHeight } = this
+        if(!viewWidth || !viewHeight) return
         if(!can || can.width != viewWidth || can.height != viewHeight) {
             can = this.backgroundCanvas = this.buildBackground()
         }
@@ -1846,8 +1843,7 @@ export class SceneCommon {
     }
 
     buildBackground() {
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
+        const { viewWidth, viewHeight } = this
         const can = document.createElement("canvas")
         assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
@@ -1927,8 +1923,6 @@ export class Game extends GameCommon {
 
         this.step = GAME_STEP_DEFAULT
 
-        this.joypadVisible = false
-
         this.players = {}
         this.localPlayerId = playerId
 
@@ -1946,7 +1940,7 @@ export class Game extends GameCommon {
         }
 
         this.initKeyListeners()
-        if(this.isDebugMode) this.showDebugScene()
+        if(this.isDebugMode) this.setDebugSceneVisibility(true)
 
         this.audio = new AudioEngine(this)
         //this.graphics = new GraphicsEngine(this)
@@ -1984,8 +1978,27 @@ export class Game extends GameCommon {
         await this.loadScenes(WaitingScene)
     }
 
-    showDebugScene() {
-        this.debugScene = new DebugScene(this)
+    setDebugSceneVisibility(val) {
+        if(val) this.debugScene ||= new DebugScene(this)
+        else delete this.debugScene
+        this.syncSize()
+    }
+
+    syncPauseScenes() {
+        const { game: gameScn, joypad: joypadScn } = this.scenes
+        if(gameScn.paused) {
+            this.scenes.pause ||= gameScn.createPauseScene(this)
+            this.scenes.joypadPause ||= joypadScn && joypadScn.createPauseScene(this)
+        } else {
+            delete this.scenes.pause
+            delete this.scenes.joypadPause
+        }
+    }
+
+    syncSize() {
+        super.syncSize()
+        const debugScn = this.debugScene
+        if(debugScn) debugScn.syncPosAndViewSize()
     }
 
     updateGameLoop() {
@@ -2002,19 +2015,8 @@ export class Game extends GameCommon {
         const { game: gameScn, joypad: joypadScn } = this.scenes
         if(this.mode == MODE_LOCAL) this.updateGame()
         else this.updateGameApplyingReceivedStates()
-        if(!gameScn.paused) {
-            delete this.scenes.pause
-        } else {
-            this.scenes.pause ||= gameScn.createPauseScene()
-        }
-        if(joypadScn) {
-            if(!gameScn.paused) {
-                joypadScn.update()
-                delete this.scenes.joypadPause
-            } else {
-                this.scenes.joypadPause ||= joypadScn.createPauseScene()
-            }
-        }
+        if(joypadScn && !gameScn.paused) joypadScn.update()
+        this.syncPauseScenes()
         const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
         if(pauseScn) pauseScn.update()
         if(joypadPauseScn) joypadPauseScn.update()
@@ -2285,14 +2287,6 @@ export class Game extends GameCommon {
         if(receivedStates.length >= 2) receivedStates.sort((a, b) => getOrder(a) - getOrder(b))
     }
 
-    async setJoypadVisibility(val) {
-        if(val == this.joypadVisible) return
-        this.joypadVisible = val
-        if(val) await this.loadJoypadScene()
-        else delete this.scenes.joypad
-        this.syncSize()
-    }
-
     async initQrcodeImg() {
         if(IS_SERVER_ENV) return
         let { qrcodeImg } = this
@@ -2321,8 +2315,7 @@ export class Game extends GameCommon {
 export class DefaultScene extends SceneCommon {
 
     buildBackground() {
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
+        const { viewWidth, viewHeight } = this
         const can = document.createElement("canvas")
         assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
@@ -3073,13 +3066,18 @@ class PauseScene extends SceneCommon {
             font: "bold 50px arial",
             fillStyle: "black",
         })
+        this.syncPosAndViewSize()
         this.syncTextPos()
+    }
+    syncPosAndViewSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
+        assign(this, { x, y, viewWidth, viewHeight })
     }
     update() {
         this.syncTextPos()
     }
     syncTextPos() {
-        assign(this.pauseText, { x: this.getViewWidth()/2, y: this.getViewHeight()/2 })
+        assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
     }
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
@@ -3185,9 +3183,7 @@ export class WaitingScene extends SceneCommon {
     }
 
     syncTextPositions() {
-        const { playerTxts } = this
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
+        const { playerTxts, viewWidth, viewHeight } = this
         // title
         assign(this.titleTxt, { x: viewWidth/2, y: viewHeight/6 })
         // players
@@ -3263,9 +3259,14 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
+        this.syncPosAndViewSize()
         this.updDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
         this.drawDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
         this.lagTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
+    }
+    syncPosAndViewSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
+        assign(this, { x, y, viewWidth, viewHeight })
     }
     update() {
         const { metrics } = this.game

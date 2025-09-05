@@ -66,9 +66,8 @@ export class ViewHerosCenterManager extends ViewManager {
 
     updateSceneView() {
         const scn = this.scene
-        const { heros, localHero } = scn
+        const { heros, localHero, viewWidth, viewHeight } = scn
         if(!hasKeys(heros)) return
-        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
         if(localHero) {
             scn.setView(
                 localHero.x - viewWidth/2,
@@ -114,9 +113,8 @@ export class ViewFirstHeroManager extends ViewManager {
 
     updateSceneView() {
         const scn = this.scene
-        const { heros, localHero } = scn
+        const { heros, localHero, viewWidth, viewHeight } = scn
         if(!hasKeys(heros)) return
-        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
         if(localHero) {
             scn.setView(
                 localHero.x - viewWidth/2,
@@ -133,11 +131,10 @@ export class ViewFirstHeroManager extends ViewManager {
 
     spawnFarHeros() {
         const scn = this.scene
-        const { heros } = scn
+        const { heros, viewWidth, viewHeight } = scn
         const firstHero = scn.getFirstHero()
         if(!firstHero) return
         const { x:fhx, y:fhy } = firstHero
-        const viewWidth = scn.getViewWidth(), viewHeight = scn.getViewHeight()
         for(let playerId in heros) {
             if(playerId === firstHero.playerId) continue
             const hero = heros[playerId]

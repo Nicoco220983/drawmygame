@@ -99,12 +99,12 @@ class DraftScene extends SceneCommon {
         this.linkedActor = null
         this.selections = []
         this.gridBoxSize = 20
+        this.syncPosAndViewSize()
     }
 
-    syncSize() {
-        const gameScn = this.game.scenes.game
-        this.width = gameScn.width
-        this.height = gameScn.height
+    syncPosAndViewSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
+        assign(this, { x, y, viewWidth, viewHeight })
     }
 
     syncMode() {
@@ -121,7 +121,7 @@ class DraftScene extends SceneCommon {
     }
 
     update() {
-        this.syncSize()
+        this.syncPosAndViewSize()
         const { mode } = this.game
         this.updateDraftActor()
         if(mode == "actor") this.addPointedActor()

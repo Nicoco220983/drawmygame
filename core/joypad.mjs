@@ -28,18 +28,6 @@ export class JoypadScene {
         this.buttons = new GameObjectGroup(this)
     }
 
-    getSizeAndPos() {
-        return this.game.scenesSizeAndPos.joypad
-    }
-
-    getViewWidth() {
-        return this.getSizeAndPos().viewWidth
-    }
-
-    getViewHeight(){
-        return this.getSizeAndPos().viewHeight
-    }
-
     isPausable() {
         return false
     }
@@ -66,9 +54,10 @@ export class JoypadScene {
     }
 
     draw() {
+        const { viewWidth, viewHeight } = this
         const can = this.canvas
-        can.width = this.getViewWidth()
-        can.height = this.getViewHeight()
+        can.width = viewWidth
+        can.height = viewHeight
         const ctx = can.getContext("2d")
         ctx.reset()
         const backgroundCanvas = this.initBackground()
@@ -82,9 +71,7 @@ export class JoypadScene {
 
     initBackground() {
         if(this.game.isServerEnv) return
-        let { backgroundCanvas: can } = this
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
+        let { backgroundCanvas: can, viewWidth, viewHeight } = this
         if(viewWidth == 0 || viewHeight == 0) return
         if(!can || can.width != viewWidth || can.height != viewHeight) {
             can = this.backgroundCanvas = this.buildBackground()
@@ -93,8 +80,7 @@ export class JoypadScene {
     }
 
     buildBackground() {
-        const viewWidth = this.getViewWidth()
-        const viewHeight = this.getViewHeight()
+        const { viewWidth, viewHeight } = this
         const can = document.createElement("canvas")
         assign(can, { width: viewWidth, height: viewHeight })
         const ctx = can.getContext("2d")
@@ -164,8 +150,14 @@ class JoypadPauseScene extends JoypadScene {
             font: "bold 50px arial",
             fillStyle: "white",
         })
+        this.syncPosAndViewSize()
         this.initButtons()
         this.syncObjectsPos()
+    }
+
+    syncPosAndViewSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenes.joypad
+        assign(this, { x, y, viewWidth, viewHeight })
     }
 
     initButtons() {

@@ -183,7 +183,7 @@ fullscreenEl.onclick = () => {
     if(game) game.requestFullscreen()
 }
 const showJoypadEl = document.getElementById("show_joypad")
-function syncJoypadVisibility() { if(game) game.setJoypadVisibility(showJoypadEl.checked) }
+function syncJoypadVisibility() { if(game) game.setJoypadSceneVisibility(showJoypadEl.checked) }
 showJoypadEl.onchange = syncJoypadVisibility
 
 let keyLastTime = -1, currentKey = ""
