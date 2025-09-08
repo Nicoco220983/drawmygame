@@ -706,7 +706,6 @@ export class ActorLink {
 export class GameObject {
 
     static STATEFUL = false
-    static STATE_PROPS = new Map()
 
     static {
         assign(this.prototype, {
