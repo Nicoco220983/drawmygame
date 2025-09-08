@@ -1411,6 +1411,7 @@ export class GameCommon {
 
         this.scenes = {}
         this.scenes.game = new DefaultScene(this)
+        this.gameVisible = true
         this.joypadVisible = false
         this.syncSize()
     }
@@ -1559,7 +1560,7 @@ export class GameCommon {
     }
 
     syncSize() {
-        const { joypadVisible } = this
+        const { gameVisible, joypadVisible } = this
         const { game: gameScn, joypad: joypadScn } = this.scenes
         const width = min(gameScn.width, CANVAS_MAX_WIDTH)
         const height169 = floor(width * 9 / 16)
@@ -1568,10 +1569,11 @@ export class GameCommon {
         gameScn.y = 0
         gameScn.viewWidth = width
         gameScn.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
+        gameScn.visible = gameVisible
         // joypad
         if(joypadVisible && joypadScn) {
             joypadScn.x = 0
-            joypadScn.y = gameScn.visible ? gameScn.viewHeight : 0
+            joypadScn.y = gameVisible ? gameScn.viewHeight : 0
             joypadScn.viewWidth = width
             joypadScn.viewHeight = height169
         }
@@ -1580,7 +1582,7 @@ export class GameCommon {
         if(pauseScn) pauseScn.syncPosAndViewSize()
         if(joypadPauseScn) joypadPauseScn.syncPosAndViewSize()
         // game
-        const height = max(height169, (gameScn.visible ? gameScn.viewHeight : 0) + (joypadVisible ? joypadScn.viewHeight : 0))
+        const height = max(height169, (gameVisible ? gameScn.viewHeight : 0) + ((joypadVisible && joypadScn) ? joypadScn.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -1961,10 +1963,11 @@ export class Game extends GameCommon {
         }
     }
 
-    showGameScene(visible) {
+    setGameSceneVisibility(val) {
+        if(val == this.gameVisible) return
+        this.gameVisible = val
         const scn = this.scenes.game
         if(!scn) return
-        scn.visible = visible
         this.syncSize()
     }
 
