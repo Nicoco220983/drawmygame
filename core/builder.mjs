@@ -656,7 +656,7 @@ class ActorLinkElement extends HTMLElement {
         trigKeyEl.addEventListener("change", () => actLink.triggerKey = trigKeyEl.value)
         addNewDomEl(keysEl, "span", { text: "reaction:" })
         const reactKeyEl = addNewDomEl(keysEl, "select")
-        actLink.reactionActor.constructor.LINK_ACTIONS.forEach((trig, funcName) => {
+        actLink.reactionActor.constructor.LINK_REACTIONS.forEach((trig, funcName) => {
             addNewDomEl(reactKeyEl, "option", {
                 value: funcName,
                 text: trig.label,

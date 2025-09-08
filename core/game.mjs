@@ -377,8 +377,7 @@ export class SpriteSheet {
 }
 
 
-// BUILDER //////////////////////////
-
+// CATEGORY //////////////////////////
 
 export class Category {
     static append(cat) {
@@ -389,27 +388,25 @@ export class Category {
 }
 
 
+// STATE PROPERTY ////////////////////
+
 export class StateProperty {
     static DEFAULT_STATE_VALUE = null
 
     static define(key, kwargs) {
         return target => {
-            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
-            if(target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
+            if(target.STATE_PROPS && target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
             const stateProp = new this(key, kwargs)
-            target.STATE_PROPS.set(key, stateProp)
             stateProp.initObjectClass(target)
             return target
         }
     }
     static modify(key, kwargs) {
         return target => {
-            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
-            if(!target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
+            if(!target.STATE_PROPS || !target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
             const prop2 = Object.create(stateProp)
             prop2.init(kwargs)
-            target.STATE_PROPS.set(key, prop2)
             prop2.initObjectClass(target)
             return target
         }
@@ -426,6 +423,11 @@ export class StateProperty {
         if(kwargs?.showInBuilder !== undefined) this.showInBuilder = kwargs.showInBuilder
     }
     initObjectClass(cls) {
+        if(!cls.hasOwnProperty('STATE_PROPS')) cls.STATE_PROPS = new Map(cls.STATE_PROPS)
+        cls.STATE_PROPS.set(this.key, this)
+        this.initObjectClassProp(cls)
+    }
+    initObjectClassProp(cls) {
         this.setObjectPropFromState(cls.prototype, this.defaultStateValue)
     }
     initObject(obj, kwargs) {}
@@ -574,21 +576,77 @@ export class StateIntEnum extends StateEnum {
 }
 
 
+// ACTOR LINK ///////////////////////
+
+export class LinkTrigger {
+    static add(funcName, kwargs) {
+        return target => {
+            const linkTrig = new this(funcName, kwargs)
+            linkTrig.initObjectClass(target)
+            return target
+        }
+    }
+    constructor(funcName, kwargs) {
+        this.funcName = funcName
+        this.label = kwargs?.label ?? funcName
+        this.isDefault = kwargs?.isDefault ?? false
+    }
+    initObjectClass(cls) {
+        if(!cls.hasOwnProperty('LINK_TRIGGERS')) cls.LINK_TRIGGERS = new Map(cls.LINK_TRIGGERS)
+        cls.LINK_TRIGGERS.set(this.funcName, this)
+        if(this.isDefault) cls.DEFAULT_LINK_TRIGGER = this.funcName
+    }
+}
+
+export class LinkReaction {
+    static add(funcName, kwargs) {
+        return target => {
+            const linkReact = new this(funcName, kwargs)
+            linkReact.initObjectClass(target)
+            return target
+        }
+    }
+    constructor(funcName, kwargs) {
+        this.funcName = funcName
+        this.label = kwargs?.label ?? funcName
+        this.isDefault = kwargs?.isDefault ?? false
+    }
+    initObjectClass(cls) {
+        if(!cls.hasOwnProperty('LINK_REACTIONS')) cls.LINK_REACTIONS = new Map(cls.LINK_REACTIONS)
+        cls.LINK_REACTIONS.set(this.funcName, this)
+        if(this.isDefault) cls.DEFAULT_LINK_REACTION = this.funcName
+    }
+}
+
+export class LinkMessage {
+    constructor(value) {
+        this.value = value
+    }
+}
+
+export class ActorLink {
+    constructor(trigAct, trigKey, reactAct, reactKey, threshold) {
+        this.triggerActor = trigAct
+        this.triggerKey = trigKey
+        this.reactionActor = reactAct
+        this.reactionKey = reactKey
+        this.threshold = threshold
+    }
+}
+
+
+// COMPONENT ///////////////////////////////
+
 export class Component {
     static STATE_PROPS = new Map()
+    static LINK_TRIGGERS = new Map()
+    static LINK_REACTIONS = new Map()
     static COMPONENTS = new Map()
 
     static add(kwargs) {
         return target => {
-            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
-            this.STATE_PROPS.forEach((prop, propKey) => {
-                target.STATE_PROPS.set(propKey, prop)
-                prop.initObjectClass(target, kwargs)
-            })
-            if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             const comp = new this(kwargs)
-            target.COMPONENTS.set(this.KEY, comp)
-            comp.initObjectClass(target, kwargs)
+            comp.initObjectClass(target)
             return target
         }
     }
@@ -607,7 +665,20 @@ export class Component {
         }
     }
 
-    initObjectClass(cls, kwargs) {}
+    constructor(kwargs) {
+        this.init(kwargs)
+    }
+
+    init(kwargs) {}
+
+    initObjectClass(cls) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.initObjectClass(cls))
+        this.constructor.LINK_TRIGGERS.forEach(trig => trig.initObjectClass(cls))
+        this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
+        this.constructor.COMPONENTS.forEach(comp => comp.initObjectClass(cls))
+        if(!cls.hasOwnProperty('COMPONENTS')) cls.COMPONENTS = new Map(cls.COMPONENTS)
+        cls.COMPONENTS.set(this.KEY, this)
+    }
     initObject(obj, kwargs) {}
     updateObject(obj) {}
     syncStateFromObject(obj, state) {}
@@ -622,26 +693,62 @@ export class Component {
 export class PositionComponent extends Component {}
 
 
+
+@LinkReaction.add("reactToggle", { label:"Toggle", isDefault: true })
+@StateBool.define("activated", { showInBuilder: true, default: true })
+export class ActivableComponent extends Component {
+    static KEY = "activable"
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+
+        proto.origActivated = true
+
+        proto.reactToggle = function(resp) {
+            this.activated = (resp.value >= .5) ? (!this.origActivated) : this.origActivated
+        }
+    }
+
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        if(kwargs?.activated !== undefined) obj.origActivated = obj.activated = kwargs.activated
+    }
+}
+
+
 @StateInt.define("speedY")
 @StateInt.define("speedX")
 @PositionComponent.addIfAbsent()
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
-    initObjectClass(cls, kwargs) {
-        super.initObjectClass(cls, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
+        this.shape = kwargs?.shape ?? "box"
+        this.width = kwargs?.width ?? 50
+        this.height = kwargs?.height ?? 50
+        this.radius = kwargs?.radius ?? 50
+        this.canMove = kwargs?.canMove ?? true
+        this.affectedByGravity = kwargs?.affectedByGravity ?? true
+        this.canBlock = kwargs?.canBlock ?? false
+        this.canBeBlocked = kwargs?.canBeBlocked ?? true
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
         const proto = cls.prototype
         proto.physicsComponent = this
-        proto.shape = kwargs?.shape ?? "box"
-        proto.width = kwargs?.width ?? 50
-        proto.height = kwargs?.height ?? 50
-        proto.radius = kwargs?.radius ?? 50
+        proto.shape = this.shape
+        proto.width = this.width
+        proto.height = this.height
+        proto.radius = this.radius
+        proto.canMove = this.canMove
+        proto.affectedByGravity = this.affectedByGravity
+        proto.canBlock = this.canBlock
+        proto.canBeBlocked = this.canBeBlocked
         proto.speedResX = 0
         proto.speedResY = 0
-        proto.canMove = kwargs?.canMove ?? true
-        proto.affectedByGravity = kwargs?.affectedByGravity ?? true
-        proto.canBlock = kwargs?.canBlock ?? false
-        proto.canBeBlocked = kwargs?.canBeBlocked ?? true
         proto.onBlock = function(act) {}
     }
     initObject(obj, kwargs) {
@@ -651,53 +758,6 @@ export class PhysicsComponent extends Component {
     }
     updateObject(obj) {
         // done by physics engine
-    }
-}
-
-
-export class LinkTrigger {
-    static add(funcName, kwargs) {
-        return target => {
-            if(!target.hasOwnProperty('LINK_TRIGGERS')) target.LINK_TRIGGERS = new Map(target.LINK_TRIGGERS)
-            const linkTrig = new this(funcName, kwargs)
-            target.LINK_TRIGGERS.set(funcName, linkTrig)
-            if(kwargs?.isDefault) target.DEFAULT_LINK_TRIGGER = funcName
-            return target
-        }
-    }
-    constructor(funcName, kwargs) {
-        this.label = kwargs?.label ?? funcName
-    }
-}
-
-export class LinkReaction {
-    static add(funcName, kwargs) {
-        return target => {
-            if(!target.hasOwnProperty('LINK_REACTIONS')) target.LINK_REACTIONS = new Map(target.LINK_REACTIONS)
-            const linkReact = new this(funcName, kwargs)
-            target.LINK_REACTIONS.set(funcName, linkReact)
-            if(kwargs?.isDefault) target.DEFAULT_LINK_REACTION = funcName
-            return target
-        }
-    }
-    constructor(funcName, kwargs) {
-        this.label = kwargs?.label ?? funcName
-    }
-}
-
-export class LinkMessage {
-    constructor(value) {
-        this.value = value
-    }
-}
-
-export class ActorLink {
-    constructor(trigAct, trigKey, reactAct, reactKey, threshold) {
-        this.triggerActor = trigAct
-        this.triggerKey = trigKey
-        this.reactionActor = reactAct
-        this.reactionKey = reactKey
-        this.threshold = threshold
     }
 }
 
@@ -958,6 +1018,9 @@ export class Actor extends GameObject {
 }
 
 Actor.StateProperty = class extends StateProperty {
+    initObjectClassProp(cls) {
+        cls.prototype[this.key] = this.nullableWith
+    }
     init(kwargs) {
         super.init(kwargs)
         this.filter = kwargs?.filter
@@ -983,9 +1046,11 @@ Actor.StateProperty = class extends StateProperty {
         objVal.setState(valState)
     }
     initObjectClass(cls) {
+        super.initObjectClass(cls)
         cls.prototype[this.key] = this.nullableWith
     }
     initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
         if(!obj.hasOwnProperty(this.key) && this.defaultStateValue) {
             this.setObjectPropFromState(obj, this.defaultStateValue)
         }
@@ -1350,10 +1415,11 @@ export class ActorRefs extends Set {
 
 
 ActorRefs.StateProperty = class extends StateProperty {
-    initObjectClass(cls) {
+    initObjectClassProp(cls) {
         cls.prototype[this.key] = this.nullableWith
     }
     initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
         obj[this.key] = new ActorRefs(obj.scene)
     }
     getObjectPropState(obj) {
@@ -2624,10 +2690,17 @@ export class GameScene extends SceneCommon {
 @StateInt.define("graceDur")
 export class HealthComponent extends Component {
 
-    initObjectClass(cls, kwargs) {
+    init(kwargs) {
+        super.init(kwargs)
+        this.canBeAttacked = kwargs?.canBeAttacked ?? true
+        this.maxHealth = kwargs?.maxHealth ?? 100
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
         const proto = cls.prototype
-        proto.canBeAttacked = kwargs?.canBeAttacked ?? true
-        proto.maxHealth = kwargs?.maxHealth ?? 100
+        proto.canBeAttacked = this.canBeAttacked
+        proto.maxHealth = this.maxHealth
         proto.getHealth ||= this.objGetHealth
         proto.isInGracePeriod ||= this.objIsInGracePeriod
         proto.onAttack ||= this.objOnAttack
@@ -2681,12 +2754,19 @@ export class HealthComponent extends Component {
 export class HitComponent extends Component {
     static KEY = "hit"
 
-    initObjectClass(cls, kwargs) {
-        super.initObjectClass(cls, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
+        this.oneHitByActor = kwargs?.oneHitByActor ?? false
+        this.canHit = kwargs?.canHit ?? true
+        this.canBeHit = kwargs?.canBeHit ?? true
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
         const proto = cls.prototype
-        const oneHitByActor = kwargs?.oneHitByActor ?? false
-        proto.canHit = kwargs?.canHit ?? true
-        proto.canBeHit = kwargs?.canBeHit ?? true
+        const oneHitByActor = this.oneHitByActor
+        proto.canHit = this.canHit
+        proto.canBeHit = this.canBeHit
         proto.canHitCategory ||= function(cat) { return false }
         const defaultCanHitActor = function(act) { return true }
         const defaultHit = function(act) {}
@@ -3399,6 +3479,7 @@ export class HeroSpawnPoint extends Actor {
 @StateInt.define("max", { default:1, showInBuilder: true })
 @StateInt.define("period", { default:1, showInBuilder: true })
 @Actor.StateProperty.define("model", { showInBuilder: true })
+@ActivableComponent.add()
 export class ActorSpawner extends Actor {
     init(kwargs) {
         super.init(kwargs)
