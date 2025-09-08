@@ -201,7 +201,7 @@ try {
         catalog = await loadCatalog()
         await getMap()
         await connectToRoom()
-        initGame()
+        await initGame()
         requestState()
     }
 
@@ -236,20 +236,24 @@ try {
         await map.importFromBinary(mapBin)
     }
 
+    let gameLoader = null
     async function initGame() {
         if(!isGameVisible() && !isJoypadVisible()) return
-        if(!game) {
-            await catalog.preloadAll()
-            game = new Game(gameParentEl, catalog, map, ws.id, {
-                mode: MODE_CLIENT,
-                sendPing: () => ws.send(MSG_KEYS.PING),
-                sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
-                sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
-                debug: isDebugMode,
-            })
-            game.run()
-        }
+        gameLoader ||= loadGame()
+        await gameLoader
         syncGameShow()
+    }
+
+    async function loadGame() {
+        await catalog.preloadAll()
+        game = new Game(gameParentEl, catalog, map, ws.id, {
+            mode: MODE_CLIENT,
+            sendPing: () => ws.send(MSG_KEYS.PING),
+            sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
+            sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
+            debug: isDebugMode,
+        })
+        game.run()
     }
 
     function requestState() {
@@ -272,13 +276,13 @@ try {
         next()
     }
 
-    function joinGame(name, color) {
+    async function joinGame(name, color) {
         if(!ws || joined) return
         joined = true
         ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({ name, color }))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
-        initGame()
+        await initGame()
         if(game) game.focus()
     }
 

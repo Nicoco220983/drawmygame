@@ -205,6 +205,8 @@ class GameServer {
     else if(data == "start" && game) game.startGame()
     else if(data == "pause" && game) game.pause(true)
     else if(data == "unpause" && game) game.pause(false)
+    else if(data == "state" && game) game.getAndSendFullState()
+    else console.warn(`Unknown game instruction: ${data}`)
   }
 
   async startGame(room) {
