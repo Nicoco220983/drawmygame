@@ -653,7 +653,7 @@ export class Component {
 
     static addIfAbsent(kwargs) {
         return target => {
-            if(target.COMPONENTS.has, this.KEY) return
+            if(target.COMPONENTS.has(this.KEY)) return
             this.add(kwargs)(target)
         }
     }
@@ -677,7 +677,7 @@ export class Component {
         this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
         this.constructor.COMPONENTS.forEach(comp => comp.initObjectClass(cls))
         if(!cls.hasOwnProperty('COMPONENTS')) cls.COMPONENTS = new Map(cls.COMPONENTS)
-        cls.COMPONENTS.set(this.KEY, this)
+        cls.COMPONENTS.set(this.constructor.KEY, this)
     }
     initObject(obj, kwargs) {}
     updateObject(obj) {}
@@ -690,7 +690,9 @@ export class Component {
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
 @StateInt.define("y", { showInBuilder: true })
 @StateInt.define("x", { showInBuilder: true })
-export class PositionComponent extends Component {}
+export class PositionComponent extends Component {
+    static KEY = "position"
+}
 
 
 
@@ -719,7 +721,7 @@ export class ActivableComponent extends Component {
 
 @StateInt.define("speedY")
 @StateInt.define("speedX")
-@PositionComponent.addIfAbsent()
+//@PositionComponent.addIfAbsent()  // TODO fix this
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -2685,72 +2687,9 @@ export class GameScene extends SceneCommon {
 
 // ACTORS ///////////////////////////////////
 
-@StateInt.define("damages")
-@StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
-@StateInt.define("graceDur")
-export class HealthComponent extends Component {
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.canBeAttacked = kwargs?.canBeAttacked ?? true
-        this.maxHealth = kwargs?.maxHealth ?? 100
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
-        const proto = cls.prototype
-        proto.canBeAttacked = this.canBeAttacked
-        proto.maxHealth = this.maxHealth
-        proto.getHealth ||= this.objGetHealth
-        proto.isInGracePeriod ||= this.objIsInGracePeriod
-        proto.onAttack ||= this.objOnAttack
-        proto.takeDamage ||= this.objTakeDamage
-        proto.die ||= this.objDie
-    }
-
-    updateObject(obj) {
-        const { iteration, step } = obj.scene
-        const { dt } = obj.game
-        if(step != "GAME" || (obj.damages >= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
-        else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
-        obj.lastDamageAge += 1
-        if(!obj.isInGracePeriod()) obj.lastDamageAge = Infinity
-    }
-
-    objGetHealth() {
-        return this.maxHealth - this.damages
-    }
-
-    objIsInGracePeriod() {
-        return this.lastDamageAge < this.graceDur 
-    }
-
-    objOnAttack(val, damager, force) {
-        if(this.getHealth() <= 0) return
-        if(!force && this.isInGracePeriod()) return
-        this.takeDamage(val, damager)
-    }
-
-    objTakeDamage(val, damager) {
-        if(val > 0) this.lastDamageAge = 0
-        this.damages += val
-        //this.trigger("damage", { damager })
-        if(this.getHealth() <= 0) {
-            this.die(damager)
-        } else if(damager) {
-            this.speedY = -200
-            this.speedX = 200 * ((this.x > damager.x) ? 1 : -1)
-        }
-    }
-
-    objDie(killer) {
-        this.remove()
-    }
-}
-
-
-@PhysicsComponent.addIfAbsent()
-@ActorRefs.StateProperty.define("alreadyHitActors")
+//@PhysicsComponent.addIfAbsent() // TODO: fix this
+//@ActorRefs.StateProperty.define("alreadyHitActors")
 export class HitComponent extends Component {
     static KEY = "hit"
 
@@ -2764,37 +2703,259 @@ export class HitComponent extends Component {
     initObjectClass(cls) {
         super.initObjectClass(cls)
         const proto = cls.prototype
-        const oneHitByActor = this.oneHitByActor
-        proto.canHit = this.canHit
-        proto.canBeHit = this.canBeHit
-        proto.canHitCategory ||= function(cat) { return false }
-        const defaultCanHitActor = function(act) { return true }
-        const defaultHit = function(act) {}
-        if(!oneHitByActor) {
-            proto.canHitActor ||= defaultCanHitActor
-            proto.hit ||= defaultHit
-        } else {
-            const origCanHitActor = proto.canHitActor || defaultCanHitActor
-            proto.canHitActor = function(act) {
-                if(this.alreadyHitActors.has(act.id)) return false
-                return origCanHitActor.call(this, act)
-            }
-            const origHit = proto.hit || defaultHit
-            proto.hit = function(act) {
-                this.alreadyHitActors.add(act.id)
-                return origHit.call(this, act)
-            }
+        // proto.canHitGroups = new Set()
+        // proto.canBeHitGroups = new Set()
+        //const oneHitByActor = this.oneHitByActor
+        // proto.canHit = this.canHit
+        // proto.canBeHit = this.canBeHit
+        //proto.canHitCategory ||= function(cat) { return false }
+        // const defaultCanHitActor = function(act) { return false }
+        // const defaultHit = function(act) {}
+        //if(!oneHitByActor) {
+        proto.canHitGroup ||= function(group) { return false }
+        proto.canBeHitAsGroup ||= function(group) { return false }
+        proto.canHitActor ||= function(act) { return false }
+        proto.hit ||= function(act) {}
+        // } else {
+        //     const origCanHitActor = proto.canHitActor || defaultCanHitActor
+        //     proto.canHitActor = function(act) {
+        //         if(this.alreadyHitActors.has(act.id)) return false
+        //         return origCanHitActor.call(this, act)
+        //     }
+        //     const origHit = proto.hit || defaultHit
+        //     proto.hit = function(act) {
+        //         this.alreadyHitActors.add(act.id)
+        //         return origHit.call(this, act)
+        //     }
+        // }
+        // proto.resetOneHitByActor = function() {
+        //     this.alreadyHitActors.clear()
+        // }
+    }
+}
+
+
+@StateInt.define("damages")
+@StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
+@ActorRefs.StateProperty.define("attackedActors")
+//@HitComponent.addIfAbsent()  TODO fix for component
+export class HealthComponent extends Component {
+    static KEY = "health"
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.canAttack = kwargs?.canAttack ?? true
+        this.canGetAttacked = kwargs?.canGetAttacked ?? true
+        this.maxHealth = kwargs?.maxHealth ?? 100
+        this.attackDamages = kwargs?.attackDamages ?? 0
+        this.oneAttackByActor = kwargs?.oneAttackByActor ?? false
+        this.graceDuration = kwargs?.graceDuration ?? 0
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+
+        proto.canAttack = this.canAttack
+        proto.canGetAttacked = this.canGetAttacked
+        proto.graceDuration = this.graceDuration
+        proto.maxHealth = this.maxHealth
+        proto.attackDamages = this.attackDamages
+
+        const origCanHitGroup = proto.canHitGroup
+        proto.canHitGroup = function(group) {
+            if(group == "health" && this.canAttack && !this.isInGracePeriod()) return true
+            return origCanHitGroup.call(this, group)
         }
-        proto.resetOneHitByActor = function() {
-            this.alreadyHitActors.clear()
+        const origCanBeHitAsGroup = proto.canBeHitAsGroup
+        proto.canBeHitAsGroup = function(group) {
+            if(group == "health" && this.canGetAttacked) return true
+            return origCanBeHitAsGroup.call(this, group)
         }
+        
+        proto.getHealth ||= this.objGetHealth
+        proto.isInGracePeriod ||= this.objIsInGracePeriod
+        proto.oneAttackByActor = this.oneAttackByActor
+        proto.canReallyAttackActor = function(act) {
+            if(this.oneAttackByActor && this.attackedActors.has(act.id)) return false
+            if(!(act.canGetAttacked && act.canGetAttackedByActor(this))) return false
+            return this.canAttackActor(act)
+        }
+        proto.canGetAttackedByActor ||= function(act) { return true }
+        proto.canAttackActor ||= function(act) { return true }
+        const origCanHitActor = proto.canHitActor
+        proto.canHitActor = function(act) {
+            return this.canReallyAttackActor(act) || origCanHitActor.call(this, act)
+        }
+
+        const origHit = proto.hit
+        proto.hit = function(act) {
+            origHit.call(this, act)
+            if(this.canReallyAttackActor(act)) this.attack(act)
+        }
+        proto.attack = this.objAttack
+        proto.onAttack ||= function(act) {}
+        proto.getAttacked ||= this.objGetAttacked
+        proto.onGetAttacked ||= function(attacker, val) {}
+        proto.getAttackOwner ||= this.objGetAttackOwner
+
+        proto.takeDamage ||= this.objTakeDamage
+        proto.die ||= this.objDie
+        proto.resetOneAttackByActor = this.objResetOneAttackByActor
+    }
+
+    updateObject(obj) {
+        const { iteration, step } = obj.scene
+        const { dt } = obj.game
+        if(step != "GAME" || (obj.getHealth() <= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
+        else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
+        obj.lastDamageAge += 1
+        if(!obj.isInGracePeriod()) obj.lastDamageAge = Infinity
+    }
+
+    objGetHealth() {
+        return this.maxHealth - this.damages
+    }
+
+    objIsInGracePeriod() {
+        return this.lastDamageAge < this.graceDuration * this.game.fps
+    }
+
+    objAttack(act) {
+        if(this.oneAttackByActor) this.attackedActors.add(act.id)
+        act.getAttacked(this.getAttackOwner(), this.attackDamages)
+        this.onAttack(act)
+    }
+
+    objGetAttackOwner() {
+        return this
+    }
+
+    objGetAttacked(attacker, val, force) {
+        if(this.getHealth() <= 0) return
+        if(!force && this.isInGracePeriod()) return
+        this.takeDamage(val, attacker)
+        this.onGetAttacked(attacker, val)
+    }
+
+    objTakeDamage(val, attacker) {
+        if(val > 0) this.lastDamageAge = 0
+        this.damages += val
+        //this.trigger("damage", { damager })
+        if(this.getHealth() <= 0) {
+            this.die(attacker)
+        } else if(attacker) {
+            this.speedY = -200
+            this.speedX = 200 * ((this.x > attacker.x) ? 1 : -1)
+        }
+    }
+
+    objDie(killer) {
+        this.remove()
+    }
+
+    objResetOneAttackByActor() {
+        this.attackedActors.clear()
+    }
+}
+
+
+@StateProperty.define("ownerId")
+//@HitComponent.addIfAbsent() TODO: fix for components
+export class CollectComponent extends Component {
+    static KEY = "collect"
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.canCollect = kwargs?.canCollect ?? true
+        this.canGetCollected = kwargs?.canGetCollected ?? true
+        this.origCanGetCollected = this.canGetCollected
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+        proto.canCollect = this.canCollect
+        proto.canGetCollected = this.canGetCollected
+
+        const origCanHitGroup = proto.canHitGroup
+        proto.canHitGroup = function(group) {
+            if(group == "collect" && this.canCollect) return true
+            return origCanHitGroup.call(this, group)
+        }
+        const origCanBeHitAsGroup = proto.canBeHitAsGroup
+        proto.canBeHitAsGroup = function(group) {
+            if(group == "collect" && this.canGetCollected) return true
+            return origCanBeHitAsGroup.call(this, group)
+        }
+        
+        proto.canReallyCollectActor = function(act) {
+            if(!(act.canGetCollected && act.canGetCollectedByActor(this))) return false
+            return this.canCollectActor(act)
+        }
+        proto.canGetCollectedByActor ||= function(act) { return true }
+        proto.canCollectActor ||= function(act) { return true }
+        const origCanHitActor = proto.canHitActor
+        proto.canHitActor = function(act) {
+            return this.canReallyCollectActor(act) || origCanHitActor.call(this, act)
+        }
+
+        const origHit = proto.hit
+        proto.hit = function(act) {
+            origHit.call(this, act)
+            if(this.canReallyCollectActor(act)) this.collect(act)
+        }
+        proto.collect = this.objCollect
+        proto.onCollect ||= function(act) {}
+        proto.getCollected ||= this.objGetCollected
+        proto.onGetCollected ||= function(collector, val) {}
+        proto.getOwner = this.objGetOwner
+        proto.drop = this.objDrop
+        proto.onDrop ||= function() {}
+        const origRemove = proto.remove
+        proto.remove = function() {
+            origRemove.call(this)
+            this.drop()
+        }
+    }
+
+    updateObject(obj) {
+        if(this.origCanGetCollected) obj.canGetCollected = (obj.ownerId === null)
+    }
+
+    objCollect(act) {
+        if(act.getCollected) act.getCollected(this)
+        this.onCollect(act)
+    }
+
+    objGetCollected(collector) {
+        this.ownerId = collector.id
+        this.onGetCollected(collector)
+    }
+
+    objGetOwner() {
+        const { ownerId } = this
+        if(ownerId === null) return null
+        return this.scene.actors.get(ownerId)
+    }
+
+    objDrop() {
+        if(!this.ownerId) return
+        this.ownerId = null
+        this.onDrop()
     }
 }
 
 
 @StateInt.define("lastSpawnIt", { default: -Infinity })
+@CollectComponent.add({
+    canCollect: true,
+    canGetCollected: false,
+})
 @HealthComponent.add({
-    graceDur: 2,
+    canAttack: false,
+    canGetAttacked: true,
+    graceDuration: 2,
 })
 @HitComponent.add()
 @Category.append("hero")
@@ -2816,13 +2977,17 @@ export class Hero extends Actor {
         return this === this.scene.localHero
     }
 
-    canHitCategory(cat) {
-        return cat.startsWith("item/collectable/")
-    }
+    // canHitCategory(cat) {
+    //     return cat.startsWith("item/collectable/")
+    // }
 
-    hit(act) {
-        if(act.canBeCollected) act.onCollected(this)
-    }
+    // hit(act) {
+    //     if(act.canBeCollected) act.onCollected(this)
+    // }
+
+    // canAttackActor(act) {
+    //     return true
+    // }
 
     initExtras() {
         const extras = this.extras ||= new ActorRefs(this.scene)
@@ -3012,6 +3177,7 @@ class Pop extends GameObject {
 }
 
 @HealthComponent.add()
+@HitComponent.add()
 @Category.append("npc/enemy")
 export class Enemy extends Actor {
 
@@ -3118,22 +3284,25 @@ class HealthHeartNotif extends LifeHeartNotif {
     }
 }
 
+@CollectComponent.add({
+    canCollect: false,
+    canGetCollected: true,
+})
+@HitComponent.add()
 @Category.append("extra")
-export class Extra extends Collectable {
+export class Extra extends Actor {
 
     getPriority() {
         const owner = this.getOwner()
         if(owner) return owner.getPriority() - 1
         else super.getPriority()
     }
-    onCollected(owner) {
-        super.onCollected(owner)
+    onGetCollected(owner) {
         owner.addExtra(this)
     }
-    drop() {
+    onDrop() {
         const owner = this.getOwner()
         if(owner) owner.dropExtra(this)
-        super.drop()
     }
 }
 
@@ -3491,6 +3660,7 @@ export class ActorSpawner extends Actor {
         this.maySpawnActor()
     }
     maySpawnActor() {
+        if(!this.activated) return
         if(this.nbSpawn >= this.max) return
         if(this.scene.iteration < this.lastSpawnIt + ceil(this.period * this.game.fps)) return
         if(this.spawnedActors.size >= this.maxLiving) return

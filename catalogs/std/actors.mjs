@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -40,6 +40,12 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 })
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
+@HealthComponent.add({
+    canAttack: false,
+    canGetAttacked: true,
+    maxHealth: 100,
+    graceDuration: 2,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 50,
@@ -71,9 +77,9 @@ export class Nico extends Hero {
         }
     }
 
-    attack(act) {
-        if(act.canBeAttacked) act.onAttack(0, this)
-    }
+    // attack(act) {
+    //     if(act.canGetAttacked) act.onAttack(0, this)
+    // }
 
     getSprite() {
         const { iteration } = this.scene
@@ -135,8 +141,7 @@ export class Nico extends Hero {
         }
     }
 
-    takeDamage(val, damager) {
-        super.takeDamage(val, damager)
+    onGetAttacked(val, damager) {
         this.game.audio.playSound(OuchAud)
     }
 
@@ -195,9 +200,12 @@ export class Nico extends Hero {
     }
 }
 
-@HitComponent.add({
-    canBeHit: false,
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: false,
+    attackDamages: 0,
 })
+@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 25,
@@ -222,17 +230,15 @@ class NicoHand extends Actor {
         this.y = owner.y
         this.dirX = owner.dirX
     }
-    canHitCategory(cat) {
-        return this.owner.canHitCategory(cat)
+    // canHitCategory(cat) {
+    //     return this.owner.canHitCategory(cat)
+    // }
+    canAttackActor(act) {
+        return act != this.owner && this.owner.canAttackActor(act)
     }
-    canHitActor(act) {
-        return act != this.owner && this.owner.canHitActor(act)
-    }
-    hit(act) {
-        if(act.canBeAttacked) {
-            act.onAttack(0, this.owner)
-            this.game.audio.playSound(HandHitAud)
-        }
+    onAttack(act) {
+        //act.onAttack(0, this.getOwner())
+        this.game.audio.playSound(HandHitAud)
     }
 }
 
@@ -252,8 +258,11 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     icon: SwordImg,
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
-@HitComponent.add({
-    oneHitByActor: true,
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: false,
+    attackDamages: 100,
+    oneAttackByActor: true,
 })
 @PhysicsComponent.add({
     shape: "box",
@@ -275,7 +284,7 @@ export class Sword extends Extra {
         if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
         this.lastAttackAge += 1
         if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
-        if(!this.isAttacking()) this.resetOneHitByActor()
+        if(!this.isAttacking()) this.resetOneAttackByActor()
     }
     syncPos() {
         const owner = this.getOwner()
@@ -290,20 +299,22 @@ export class Sword extends Extra {
             this.width = this.height = 40
         }
     }
-    canHitCategory(cat) {
-        return cat.startsWith("npc/enemy/")
+    // canHitCategory(cat) {
+    //     return cat.startsWith("npc/enemy/")
+    // }
+    canAttackActor(act) {
+        const { ownerId } = this
+        return ownerId && this.isAttacking() && act.id != ownerId && this.getOwner().canAttackActor(act)
     }
-    canHitActor(act) {
-        return act.canBeAttacked
-    }
-    hit(act) {
-        if(act.canBeAttacked) {
-            act.onAttack(100, this.getOwner())
-            this.game.audio.playSound(SwordHitAud)
-        }
+    onAttack(act) {
+        //act.onAttack(100, this.getOwner())
+        this.game.audio.playSound(SwordHitAud)
     }
     isAttacking() {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
+    }
+    getAttackOwner() {
+        return this.getOwner()
     }
     act() {
         if(this.isAttacking()) return
@@ -326,9 +337,6 @@ const ShurikenSprite = new Sprite(ShurikenImg)
 @CATALOG.registerActor("shurikp", {
     label: "ShurikenPack",
     icon: ShurikenImg,
-})
-@HitComponent.add({
-    canHit: false,
 })
 @PhysicsComponent.add({
     shape: "box",
@@ -384,9 +392,12 @@ export class ShurikenPack extends Extra {
     icon: ShurikenImg,
     showInBuilder: false,
 })
-@HitComponent.add({
-    canBeHit: false,
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: false,
+    attackDamages: 35,
 })
+@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 30,
@@ -410,17 +421,18 @@ export class Shuriken extends Actor {
         const { ownerId } = this
         return this.scene.actors.get(ownerId)
     }
-    canHitCategory(cat) {
-        return cat.startsWith("npc/enemy/")
+    // canHitCategory(cat) {
+    //     return cat.startsWith("npc/enemy/")
+    // }
+    canAttackActor(act) {
+        const { ownerId } = this
+        return act.id != ownerId && this.getOwner().canAttackActor(act)
     }
-    canHitActor(act) {
-        return act.canBeAttacked
+    onAttack(act) {
+        this.remove()
     }
-    hit(act) {
-        if(act.canBeAttacked) {
-            act.onAttack(35, this.getOwner())
-            this.remove()
-        }
+    getAttackOwner() {
+        return this.getOwner()
     }
     update() {
         this.itToLive -= 1
@@ -439,9 +451,6 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 @CATALOG.registerActor("bomb", {
     label: "Bomb",
     icon: BombImg
-})
-@HitComponent.add({
-    canHit: false,
 })
 @PhysicsComponent.add({
     shape: "box",
@@ -503,10 +512,12 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@HitComponent.add({
-    canBeHit: false,
-    oneHitByActor: true,
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: false,
+    attackDamages: 100,
 })
+@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 300,
@@ -528,14 +539,17 @@ export class Explosion extends Actor {
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
     }
-    canHitCategory(cat) {
-        return cat.startsWith("npc/enemy/")
-    }
-    canHitActor(act) {
-        return act.canBeAttacked
-    }
-    hit(act) {
-        if(act.canBeAttacked) act.onAttack(100, this.getOwner())
+    // canHitCategory(cat) {
+    //     return cat.startsWith("npc/enemy/")
+    // }
+    // canAttackActor(act) {
+    //     return act.canGetAttacked
+    // }
+    // hit(act) {
+    //     if(act.canGetAttacked) act.onAttack(100, this.getOwner())
+    // }
+    getAttackOwner() {
+        return this.getOwner() || this
     }
     update() {
         super.update()
@@ -561,7 +575,12 @@ const SpikySprite = new Sprite(SpikyImg)
     label: "Spiky",
     icon: SpikyImg,
 })
-@HitComponent.add()
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: true,
+    maxHealth: 100,
+    attackDamages: 10,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 45,
@@ -575,10 +594,6 @@ export class Spiky extends Enemy {
         super.init(kwargs)
         this.width = this.height = 45
         this.spriteRand = floor(random() * this.game.fps)
-    }
-
-    hit(act) {
-        if(act.canBeAttacked) act.onAttack(1, this)
     }
 
     getSprite() {
@@ -604,7 +619,12 @@ const BlobSprite = new Sprite(BlobImg)
 })
 @StateInt.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HitComponent.add()
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: true,
+    maxHealth: 100,
+    attackDamages: 10,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 50,
@@ -633,9 +653,9 @@ export class BlobEnemy extends Enemy {
         this.lastChangeDirAge += 1
     }
 
-    hit(act) {
-        if(act.canBeAttacked) act.onAttack(1, this)
-    }
+    // hit(act) {
+    //     if(act.canGetAttacked) act.onAttack(1, this)
+    // }
 
     getSprite() {
         return BlobSprite
@@ -670,7 +690,12 @@ const GhostSprite = new Sprite(GhostImg)
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HitComponent.add()
+@HealthComponent.add({
+    canAttack: true,
+    canGetAttacked: true,
+    maxHealth: 100,
+    attackDamages: 10,
+})
 @PhysicsComponent.add({
     shape: "box",
     width: 45,
@@ -696,9 +721,9 @@ export class Ghost extends Enemy {
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
     }
 
-    hit(act) {
-        if(act.canBeAttacked) act.onAttack(1, this)
-    }
+    // hit(act) {
+    //     if(act.canGetAttacked) act.onAttack(1, this)
+    // }
 
     getSprite() {
         return GhostSprite
@@ -867,12 +892,23 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default: 1, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
+@HealthComponent.add({
+    canAttack: false,
+    canGetAttacked: true,
+    maxHealth: Infinity,
+})
+@PhysicsComponent.add({
+    shape: "box",
+    width: 30,
+    height: 30,
+    canMove: false,
+})
 @Category.append("engine/trigger")
 export class Button extends Trigger {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = this.height = 30
+        this.team = "engine"
     }
 
     onAttack(damage, attacker) {

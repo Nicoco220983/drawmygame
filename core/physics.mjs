@@ -173,22 +173,34 @@ export default class PhysicsEngine {
                 act.speedResY = ((act.y - actOrigY) - actOrigDy) / dt
             }
         })
+
         // check hits
-        const canHits = [], actByCategory = {}
+
+        const hitGroups = ["health", "collect"]
+        const canHitActs = [], canBeHitActs = []
         actors.forEach(act => {
-            if(act.canHit) canHits.push(act)
-            if(act.canBeHit) {
-                const cat = act.constructor.CATEGORY
-                if(cat) {
-                    const acts = actByCategory[cat] ||= []
-                    acts.push(act)
-                }
+            if(!act.canHitGroup) return
+            let canHitGroupBites = 0, canBeHitGroupBites = 0
+            for(let idx in hitGroups) {
+                const hitGroup = hitGroups[idx]
+                if(act.canHitGroup(hitGroup)) canHitGroupBites |= (1 << idx)
+                if(act.canBeHitAsGroup(hitGroup)) canBeHitGroupBites += (1 << idx)
+            }
+            if(canHitGroupBites) {
+                act._canHitGroupBites = canHitGroupBites
+                canHitActs.push(act)
+            }
+            if(canBeHitGroupBites) {
+                act._canBeHitGroupBites = canBeHitGroupBites
+                canBeHitActs.push(act)
             }
         })
-        for(let act1 of canHits) for(let cat in actByCategory) {
-            if(!act1.canHitCategory(cat)) continue
-            for(let act2 of actByCategory[cat]) {
-                if(act1 === act2 || !act1.canHitActor(act2)) continue
+
+        for(let act1 of canHitActs) {
+            for(let act2 of canBeHitActs) {
+                if(act1 === act2) continue
+                if(act1._canHitHash | act2._canBeHitHash == 0) continue
+                if(!act1.canHitActor(act2)) continue
                 if(checkHit(act1, act2)) {  // TODO: do not use checkHit
                     act1.hit(act2)
                 }
