@@ -230,14 +230,10 @@ class NicoHand extends Actor {
         this.y = owner.y
         this.dirX = owner.dirX
     }
-    // canHitCategory(cat) {
-    //     return this.owner.canHitCategory(cat)
-    // }
     canAttackActor(act) {
         return act != this.owner && this.owner.canAttackActor(act)
     }
     onAttack(act) {
-        //act.onAttack(0, this.getOwner())
         this.game.audio.playSound(HandHitAud)
     }
 }
@@ -299,15 +295,11 @@ export class Sword extends Extra {
             this.width = this.height = 40
         }
     }
-    // canHitCategory(cat) {
-    //     return cat.startsWith("npc/enemy/")
-    // }
     canAttackActor(act) {
         const { ownerId } = this
         return ownerId && this.isAttacking() && act.id != ownerId && this.getOwner().canAttackActor(act)
     }
     onAttack(act) {
-        //act.onAttack(100, this.getOwner())
         this.game.audio.playSound(SwordHitAud)
     }
     isAttacking() {
@@ -421,9 +413,6 @@ export class Shuriken extends Actor {
         const { ownerId } = this
         return this.scene.actors.get(ownerId)
     }
-    // canHitCategory(cat) {
-    //     return cat.startsWith("npc/enemy/")
-    // }
     canAttackActor(act) {
         const { ownerId } = this
         return act.id != ownerId && this.getOwner().canAttackActor(act)
@@ -596,6 +585,10 @@ export class Spiky extends Enemy {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
+    canAttackActor(act) {
+        return act instanceof Hero
+    }
+
     getSprite() {
         return SpikySprite
     }
@@ -653,9 +646,9 @@ export class BlobEnemy extends Enemy {
         this.lastChangeDirAge += 1
     }
 
-    // hit(act) {
-    //     if(act.canGetAttacked) act.onAttack(1, this)
-    // }
+    canAttackActor(act) {
+        return act instanceof Hero
+    }
 
     getSprite() {
         return BlobSprite
@@ -721,9 +714,9 @@ export class Ghost extends Enemy {
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
     }
 
-    // hit(act) {
-    //     if(act.canGetAttacked) act.onAttack(1, this)
-    // }
+    canAttackActor(act) {
+        return act instanceof Hero
+    }
 
     getSprite() {
         return GhostSprite
@@ -897,6 +890,7 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
     canGetAttacked: true,
     maxHealth: Infinity,
 })
+@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 30,
@@ -911,7 +905,7 @@ export class Button extends Trigger {
         this.team = "engine"
     }
 
-    onAttack(damage, attacker) {
+    onGetAttacked(attacker, damage) {
         if(this.trigAge < this.period * this.game.fps) return
         this.triggered = !this.triggered
         if((this.triggered && this.duration != Infinity) || this.period != 0) {

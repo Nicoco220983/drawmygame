@@ -2688,8 +2688,6 @@ export class GameScene extends SceneCommon {
 // ACTORS ///////////////////////////////////
 
 
-//@PhysicsComponent.addIfAbsent() // TODO: fix this
-//@ActorRefs.StateProperty.define("alreadyHitActors")
 export class HitComponent extends Component {
     static KEY = "hit"
 
@@ -2703,34 +2701,11 @@ export class HitComponent extends Component {
     initObjectClass(cls) {
         super.initObjectClass(cls)
         const proto = cls.prototype
-        // proto.canHitGroups = new Set()
-        // proto.canBeHitGroups = new Set()
-        //const oneHitByActor = this.oneHitByActor
-        // proto.canHit = this.canHit
-        // proto.canBeHit = this.canBeHit
-        //proto.canHitCategory ||= function(cat) { return false }
-        // const defaultCanHitActor = function(act) { return false }
-        // const defaultHit = function(act) {}
-        //if(!oneHitByActor) {
+
         proto.canHitGroup ||= function(group) { return false }
         proto.canBeHitAsGroup ||= function(group) { return false }
         proto.canHitActor ||= function(act) { return false }
         proto.hit ||= function(act) {}
-        // } else {
-        //     const origCanHitActor = proto.canHitActor || defaultCanHitActor
-        //     proto.canHitActor = function(act) {
-        //         if(this.alreadyHitActors.has(act.id)) return false
-        //         return origCanHitActor.call(this, act)
-        //     }
-        //     const origHit = proto.hit || defaultHit
-        //     proto.hit = function(act) {
-        //         this.alreadyHitActors.add(act.id)
-        //         return origHit.call(this, act)
-        //     }
-        // }
-        // proto.resetOneHitByActor = function() {
-        //     this.alreadyHitActors.clear()
-        // }
     }
 }
 
@@ -2777,6 +2752,7 @@ export class HealthComponent extends Component {
         proto.isInGracePeriod ||= this.objIsInGracePeriod
         proto.oneAttackByActor = this.oneAttackByActor
         proto.canReallyAttackActor = function(act) {
+            if(!this.canAttack) return false
             if(this.oneAttackByActor && this.attackedActors.has(act.id)) return false
             if(!(act.canGetAttacked && act.canGetAttackedByActor(this))) return false
             return this.canAttackActor(act)
@@ -2890,6 +2866,7 @@ export class CollectComponent extends Component {
         }
         
         proto.canReallyCollectActor = function(act) {
+            if(!this.canCollect) return false
             if(!(act.canGetCollected && act.canGetCollectedByActor(this))) return false
             return this.canCollectActor(act)
         }
@@ -2976,18 +2953,6 @@ export class Hero extends Actor {
     isLocalHero() {
         return this === this.scene.localHero
     }
-
-    // canHitCategory(cat) {
-    //     return cat.startsWith("item/collectable/")
-    // }
-
-    // hit(act) {
-    //     if(act.canBeCollected) act.onCollected(this)
-    // }
-
-    // canAttackActor(act) {
-    //     return true
-    // }
 
     initExtras() {
         const extras = this.extras ||= new ActorRefs(this.scene)
