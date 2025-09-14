@@ -1,11 +1,12 @@
 const { floor } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, PositionComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 
 
-@PositionComponent.delete()
+@StateInt.modify("y", { showInBuilder: false })
+@StateInt.modify("x", { showInBuilder: false })
 @Category.append("manager")
 export class Manager extends Actor {}
 

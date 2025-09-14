@@ -395,7 +395,11 @@ export class StateProperty {
 
     static define(key, kwargs) {
         return target => {
-            if(target.STATE_PROPS && target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "define", key, kwargs)
+                return target
+            }
+            //if(target.STATE_PROPS && target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
             const stateProp = new this(key, kwargs)
             stateProp.initObjectClass(target)
             return target
@@ -403,6 +407,10 @@ export class StateProperty {
     }
     static modify(key, kwargs) {
         return target => {
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "modify", key, kwargs)
+                return target
+            }
             if(!target.STATE_PROPS || !target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
             const stateProp = target.STATE_PROPS.get(key)
             const prop2 = Object.create(stateProp)
@@ -581,6 +589,10 @@ export class StateIntEnum extends StateEnum {
 export class LinkTrigger {
     static add(funcName, kwargs) {
         return target => {
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "add", funcName, kwargs)
+                return target
+            }
             const linkTrig = new this(funcName, kwargs)
             linkTrig.initObjectClass(target)
             return target
@@ -601,6 +613,10 @@ export class LinkTrigger {
 export class LinkReaction {
     static add(funcName, kwargs) {
         return target => {
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "add", funcName, kwargs)
+                return target
+            }
             const linkReact = new this(funcName, kwargs)
             linkReact.initObjectClass(target)
             return target
@@ -638,13 +654,25 @@ export class ActorLink {
 // COMPONENT ///////////////////////////////
 
 export class Component {
-    static STATE_PROPS = new Map()
-    static LINK_TRIGGERS = new Map()
-    static LINK_REACTIONS = new Map()
-    static COMPONENTS = new Map()
+    static IS_COMPONENT = true
+
+    static TARGET_DECORATORS = []
+    static addTargetDecorator(cls, funcName, ...args) {
+        if(!this.hasOwnProperty('TARGET_DECORATORS')) this.TARGET_DECORATORS = [...this.TARGET_DECORATORS]
+        this.TARGET_DECORATORS.push([cls, funcName, args])
+    }
+
+    // static STATE_PROPS = new Map()
+    // static LINK_TRIGGERS = new Map()
+    // static LINK_REACTIONS = new Map()
+    // static COMPONENTS = new Map()
 
     static add(kwargs) {
         return target => {
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "add", kwargs)
+                return target
+            }
             const comp = new this(kwargs)
             comp.initObjectClass(target)
             return target
@@ -653,13 +681,21 @@ export class Component {
 
     static addIfAbsent(kwargs) {
         return target => {
-            if(target.COMPONENTS.has(this.KEY)) return
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "addIfAbsent", kwargs)
+                return target
+            }
+            if(target.COMPONENTS && target.COMPONENTS.has(this.KEY)) return
             this.add(kwargs)(target)
         }
     }
 
     static delete() {
         return target => {
+            if(target.IS_COMPONENT) {
+                target.addTargetDecorator(this, "delete")
+                return target
+            }
             if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
             target.COMPONENTS.delete(this.KEY)
         }
@@ -672,26 +708,23 @@ export class Component {
     init(kwargs) {}
 
     initObjectClass(cls) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.initObjectClass(cls))
-        this.constructor.LINK_TRIGGERS.forEach(trig => trig.initObjectClass(cls))
-        this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
-        this.constructor.COMPONENTS.forEach(comp => comp.initObjectClass(cls))
+        // this.constructor.STATE_PROPS.forEach(prop => prop.initObjectClass(cls))
+        // this.constructor.LINK_TRIGGERS.forEach(trig => trig.initObjectClass(cls))
+        // this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
+        // this.constructor.COMPONENTS.forEach(comp => comp.initObjectClass(cls))
+
         if(!cls.hasOwnProperty('COMPONENTS')) cls.COMPONENTS = new Map(cls.COMPONENTS)
         cls.COMPONENTS.set(this.constructor.KEY, this)
+
+        this.constructor.TARGET_DECORATORS.forEach(deco => {
+            const [decoCls, funcName, args] = deco
+            decoCls[funcName](...args)(cls)
+        })
     }
     initObject(obj, kwargs) {}
     updateObject(obj) {}
     syncStateFromObject(obj, state) {}
     syncObjectFromState(state, obj) {}
-}
-
-
-@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
-@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
-@StateInt.define("y", { showInBuilder: true })
-@StateInt.define("x", { showInBuilder: true })
-export class PositionComponent extends Component {
-    static KEY = "position"
 }
 
 
@@ -721,7 +754,6 @@ export class ActivableComponent extends Component {
 
 @StateInt.define("speedY")
 @StateInt.define("speedX")
-//@PositionComponent.addIfAbsent()  // TODO fix this
 export class PhysicsComponent extends Component {
     static KEY = "physics"
 
@@ -764,10 +796,18 @@ export class PhysicsComponent extends Component {
 }
 
 
-@PositionComponent.add()
+@StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
+@StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
+@StateInt.define("y", { showInBuilder: true })
+@StateInt.define("x", { showInBuilder: true })
 export class GameObject {
 
     static STATEFUL = false
+
+    // static STATE_PROPS = new Map()  // already done by x/y state props
+    static LINK_TRIGGERS = new Map()
+    static LINK_REACTIONS = new Map()
+    static COMPONENTS = new Map()
 
     static {
         assign(this.prototype, {
@@ -1730,6 +1770,7 @@ export class GameCommon {
 @StateInt.define("width", { default:800, showInBuilder:true })
 export class SceneCommon {
 
+    // static STATE_PROPS = new Map()  // already done by width & height state props
     static COMPONENTS = new Map()
 
     constructor(game, kwargs) {
@@ -2713,7 +2754,7 @@ export class HitComponent extends Component {
 @StateInt.define("damages")
 @StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @ActorRefs.StateProperty.define("attackedActors")
-//@HitComponent.addIfAbsent()  TODO fix for component
+@HitComponent.addIfAbsent()
 export class HealthComponent extends Component {
     static KEY = "health"
 
@@ -2837,7 +2878,7 @@ export class HealthComponent extends Component {
 
 
 @StateProperty.define("ownerId")
-//@HitComponent.addIfAbsent() TODO: fix for components
+@HitComponent.addIfAbsent()
 export class CollectComponent extends Component {
     static KEY = "collect"
 
@@ -2934,7 +2975,6 @@ export class CollectComponent extends Component {
     canGetAttacked: true,
     graceDuration: 2,
 })
-@HitComponent.add()
 @Category.append("hero")
 export class Hero extends Actor {
 
@@ -3142,7 +3182,6 @@ class Pop extends GameObject {
 }
 
 @HealthComponent.add()
-@HitComponent.add()
 @Category.append("npc/enemy")
 export class Enemy extends Actor {
 
@@ -3253,7 +3292,6 @@ class HealthHeartNotif extends LifeHeartNotif {
     canCollect: false,
     canGetCollected: true,
 })
-@HitComponent.add()
 @Category.append("extra")
 export class Extra extends Actor {
 

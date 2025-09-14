@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -205,7 +205,6 @@ export class Nico extends Hero {
     canGetAttacked: false,
     attackDamages: 0,
 })
-@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 25,
@@ -389,7 +388,6 @@ export class ShurikenPack extends Extra {
     canGetAttacked: false,
     attackDamages: 35,
 })
-@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 30,
@@ -505,8 +503,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
+    oneAttackByActor: true,
 })
-@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 300,
@@ -895,7 +893,6 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
     canGetAttacked: true,
     maxHealth: Infinity,
 })
-@HitComponent.add()
 @PhysicsComponent.add({
     shape: "box",
     width: 30,

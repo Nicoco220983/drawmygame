@@ -68,8 +68,18 @@ export class GameBuilder extends GameCommon {
 
     removeSelectedObject() {
         for(let obj of this.scenes.draft.selections) {
-            if(obj instanceof GameObject) obj.remove()
-            else if(obj instanceof ActorLink) {
+            if(obj instanceof GameObject) {
+                obj.remove()
+                // remove all links associated to this actor
+                this.scenes.game.actors.forEach(act => {
+                    const lnks = act.actorLinks
+                    if(lnks) for(let lnk of lnks) {
+                        if(lnk.reactionActor == obj || lnk.triggerActor == obj) {
+                            lnks.splice(lnks.indexOf(lnk), 1)
+                        }
+                    }
+                })
+            } else if(obj instanceof ActorLink) {
                 const lnks = obj.reactionActor.actorLinks
                 lnks.splice(lnks.indexOf(obj), 1)
             }
