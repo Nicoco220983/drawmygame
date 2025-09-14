@@ -714,7 +714,7 @@ export class ActivableComponent extends Component {
 
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
-        if(kwargs?.activated !== undefined) obj.origActivated = obj.activated = kwargs.activated
+        obj.origActivated = obj.activated
     }
 }
 
@@ -3609,8 +3609,8 @@ export class HeroSpawnPoint extends Actor {
 @ActorRefs.StateProperty.define("spawnedActors")
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 @StateInt.define("nbSpawn")
-@StateInt.define("maxLiving", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("max", { default:1, showInBuilder: true })
+@StateInt.define("maxLiving", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("max", { default:Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default:1, showInBuilder: true })
 @Actor.StateProperty.define("model", { showInBuilder: true })
 @ActivableComponent.add()
@@ -3620,6 +3620,7 @@ export class ActorSpawner extends Actor {
         this.width = this.height = 50
     }
     update() {
+        super.update()
         this.spawnedActors.update()
         if(this.nbSpawn >= this.max && this.spawnedActors.size == 0) this.remove()
         this.maySpawnActor()

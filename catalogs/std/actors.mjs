@@ -883,7 +883,7 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
     icon: BurronImg,
 })
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("period", { default: 1, showInBuilder: true })
+@StateInt.define("period", { default: 0, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
 @HealthComponent.add({
     canAttack: false,
