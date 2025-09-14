@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HitComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -837,6 +837,7 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_
     label: "Portal",
     icon: PortalImg,
 })
+@ActivableComponent.add()
 export class Portal extends Actor {
 
     init(kwargs) {
@@ -844,14 +845,17 @@ export class Portal extends Actor {
         this.width = this.height = 50
     }
     update() {
-        this.scene.actors.forEach(act => {
-            if(hypot(act.x-this.x, act.y-this.y)<30 && (act.speedX * (this.x-act.x) + act.speedY * (this.y-act.y))>0) {
-                this.teleport(act)
-            }
-        })
+        super.update()
+        if(this.activated) {
+            this.scene.actors.forEach(act => {
+                if(hypot(act.x-this.x, act.y-this.y)<30 && (act.speedX * (this.x-act.x) + act.speedY * (this.y-act.y))>0) {
+                    this.teleport(act)
+                }
+            })
+        }
     }
     teleport(act) {
-        const portals = this.scene.filterActors("portals", act => (act instanceof Portal))
+        const portals = this.scene.filterActors("portals", act => (act instanceof Portal && act.activated))
         if(portals.length < 2) return
         let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
         if(targetPortal === this) targetPortal = portals[portals.length - 1]
@@ -860,6 +864,7 @@ export class Portal extends Actor {
         this.game.audio.playSound(PortalJumpAud)
     }
     getSprite() {
+        this.spriteVisibility = this.activated ? 1 : .5
         return PortalSprite
     }
 }
