@@ -296,7 +296,9 @@ export class Sword extends Extra {
     }
     canAttackActor(act) {
         const { ownerId } = this
-        return ownerId && this.isAttacking() && act.id != ownerId && this.getOwner().canAttackActor(act)
+        if(!ownerId || !this.isAttacking() || act.id == ownerId) return false
+        const owner = this.getOwner()
+        return owner ? owner.canAttackActor(act) : false
     }
     onAttack(act) {
         this.game.audio.playSound(SwordHitAud)
@@ -403,7 +405,9 @@ export class Shuriken extends Actor {
         super.init(kwargs)
         this.width = this.height = 30
         this.ownerId = kwargs.ownerId
-        this.speedX = this.getOwner().dirX * 500
+        const owner = this.getOwner()
+        if(owner) this.dirX = owner.dirX
+        this.speedX = this.dirX * 500
         this.itToLive = 2 * this.game.fps
         this.game.audio.playSound(SlashAud)
     }
@@ -413,7 +417,9 @@ export class Shuriken extends Actor {
     }
     canAttackActor(act) {
         const { ownerId } = this
-        return act.id != ownerId && this.getOwner().canAttackActor(act)
+        if(act.id == ownerId) return false
+        const owner = this.getOwner()
+        return owner ? owner.canAttackActor(act) : true
     }
     onAttack(act) {
         this.remove()
@@ -464,7 +470,7 @@ export class Bomb extends Extra {
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
-                this.scene.addActor(Explosion, { x, y, owner: this.getOwner() })
+                this.scene.addActor(Explosion, { x, y, owner })
                 this.remove()
             }
             this.itToLive -= 1
