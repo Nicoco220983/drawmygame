@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent, CollectComponent } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -792,14 +792,17 @@ const StarSprite = new Sprite(StarImg)
     label: "Star",
     icon: StarImg,
 })
-export class Star extends Collectable {
+@CollectComponent.add({
+    canCollect: false,
+    canGetCollected: true,
+})
+export class Star extends Actor {
 
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
     }
-    onCollected(hero) {
-        super.onCollected(hero)
+    onGetCollected(collector) {
         this.remove()
     }
     getSprite() {

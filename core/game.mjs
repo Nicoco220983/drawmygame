@@ -1129,6 +1129,22 @@ Actor.StateProperty = class extends StateProperty {
 }
 
 
+export class ActorRefProperty extends StateProperty {
+    initObjectClassProp(cls) {}
+    getObjectPropState(obj) {
+        const val = obj[this.key]
+        if(val === this.nullableWith ?? null) return null
+        else return val.id
+    }
+    setObjectPropFromState(obj, valState) {
+        const { key } = this
+        if(valState === undefined) return delete obj[key]
+        if(valState === null) obj[key] = this.nullableWith ?? null
+        else obj[key] = obj.scene.actors.get(valState)
+    }
+}
+
+
 export function filterActor(filterDesc, act) {
     if(filterDesc.category) {
         const actCat = act.category
@@ -1192,7 +1208,7 @@ export class Text extends GameObject {
 class CenteredText extends Text {
 
     drawTo(ctx) {
-        const { viewWidth, viewHeight } = this
+        const { viewWidth, viewHeight } = this.scene
         this.x = viewWidth / 2
         this.y = viewHeight / 2
         super.drawTo(ctx)
@@ -1202,8 +1218,6 @@ class CenteredText extends Text {
 export class GameObjectGroup {
 
     constructor(scn) {
-        // this.x = 0
-        // this.y = 0
         this.scene = scn
         this.game = scn.game
         this.statelessObjArr = []
@@ -1332,14 +1346,14 @@ export class GameObjectGroup {
         if(state) {
             for(let idx in state) {
                 if(isInitState) {
-                    this.add(`A#${idx}`, { id: idx.toString() })
+                    this.scene.addActor(`A#${idx}`, { id: idx.toString() })
                 } else {
                     const actState = state[idx]
                     let { id, key } = actState
                     let act = objMap.get(id)
                     if(!act || act.key != key) {
                         if(act) act.remove()
-                        act = this.add(key, { id })
+                        act = this.scene.addActor(key, { id })
                     }
                     else statefulObjArr.push(act)
                     act.setState(actState, isInitState)
@@ -2474,7 +2488,7 @@ export class GameScene extends SceneCommon {
         if(!heroKey) return
         const hero = this.addActor(heroKey, { playerId })
         this.spawnHero(hero)
-        return hero.id
+        return hero
     }
 
     getHero(playerId) {
@@ -2729,6 +2743,24 @@ export class GameScene extends SceneCommon {
 // ACTORS ///////////////////////////////////
 
 
+@ActorRefProperty.define("owner")
+export class OwnerableComponent extends Component {
+    static KEY = "ownerable"
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+
+        proto.setOwner = this.objSetOwner
+    }
+
+    updateObject(obj) {
+        const { owner } = obj
+        if(owner && owner.deleted) obj.owner = null
+    }
+}
+
+
 export class HitComponent extends Component {
     static KEY = "hit"
 
@@ -2926,7 +2958,7 @@ export class CollectComponent extends Component {
         proto.collect = this.objCollect
         proto.onCollect ||= function(act) {}
         proto.getCollected ||= this.objGetCollected
-        proto.onGetCollected ||= function(collector, val) {}
+        proto.onGetCollected ||= function(collector) {}
         proto.getOwner = this.objGetOwner
         proto.drop = this.objDrop
         proto.onDrop ||= function() {}
@@ -3465,46 +3497,6 @@ export class WaitingScene extends SceneCommon {
 }
 
 
-export class VictoryScene extends SceneCommon {
-    constructor(game) {
-        super(game)
-        this.backgroundColor = "lightgrey"
-        this.backgroundAlpha = .5
-        this.victoryText = this.addNotif(Text, {
-            text: "VICTORY",
-            font: "bold 50px arial",
-            fillStyle: "black",
-        })
-    }
-    update() {
-        assign(this.victoryText, { x: this.width/2, y: this.height/2 })
-    }
-    drawTo(ctx) {
-        this.notifs.drawTo(ctx)
-    }
-}
-
-
-export class DefeatScene extends SceneCommon {
-    constructor(game) {
-        super(game)
-        this.backgroundColor = "lightgrey"
-        this.backgroundAlpha = .5
-        this.defeatText = this.addNotif(Text, {
-            text: "DEFEAT",
-            font: "bold 50px arial",
-            fillStyle: "black",
-        })
-    }
-    update() {
-        assign(this.defeatText, { x: this.width/2, y: this.height/2 })
-    }
-    drawTo(ctx) {
-        this.notifs.drawTo(ctx)
-    }
-}
-
-
 class DebugScene extends SceneCommon {
     constructor(game) {
         super(game)
@@ -3717,6 +3709,29 @@ class HackEvent {
     }
 }
 
+
+class Hack {
+    constructor(obj, methodName, hackFun) {
+        this.obj = obj
+        this.methodName = methodName
+        this.hackFun = hackFun
+        this.removed = false
+    }
+
+    remove() {
+        if(this.removed) return
+        const { obj, methodName, hackFun } = this
+        const hacks = obj[methodName]?.hacks
+        if(!hacks) return
+        const idx = hacks.indexOf(hackFun)
+        if(idx < 0) return
+        hacks.splice(idx, 1)
+        obj[methodName].hackPriorities.splice(idx, 1)
+        this.removed = true
+    }
+}
+
+
 export function hackMethod(obj, methodName, priority, hackFun) {
     if(obj[methodName].hacks === undefined) {
         const origMethod = obj[methodName]
@@ -3745,4 +3760,5 @@ export function hackMethod(obj, methodName, priority, hackFun) {
     for(idx in hacks) if(hackPriorities[idx] < priority) break
     hacks.splice(idx, 0, hackFun)
     hackPriorities.splice(idx, 0, priority)
+    return new Hack(obj, methodName, hackFun)
 }

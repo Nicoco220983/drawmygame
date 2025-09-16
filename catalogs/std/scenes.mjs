@@ -1,5 +1,5 @@
 const { floor } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, OwnerableComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -248,22 +248,29 @@ export class TagScene extends GameScene {
         super(game, scnId)
         this.step = "INIT"
         this.initDuration = 3
-        this.actors.on("new", "registerHerosTagEvent", ent => this.tuneHeros(ent))
     }
+
     loadMap(map) {
         super.loadMap(map)
-        this.addActor(Tag, { id: "tag" })
+        this.addActor(Tag)
     }
-    tuneHeros(hero) {
-        if(!(hero instanceof Hero)) return
+
+    addActor(cls, kwargs) {
+        const act = super.addActor(cls, kwargs)
+        if(act instanceof Hero) this.hackHero(act)
+        return act
+    }
+
+    hackHero(hero) {
         hero.maxHealth = Infinity
-        hero.on("damage", "tag", kwargs => {
-            const { damager } = kwargs
-            const tag = this.actors.get("tag")
-            if(!tag || !damager || tag.ownerId != damager.id) return
-            tag.setOwner(hero.id)
+        hackMethod(hero, "onGetAttacked", 0, evt => {
+            const attacker = evt.inputArgs[0]
+            const tag = this.tag
+            if(!tag || !attacker || tag.ownerId != attacker.id) return
+            tag.owner = hero
         })
     }
+
     initCountDown() {
         this.countDown ||= this.notifs.add(CountDown, {
             x: this.width/2,
@@ -273,10 +280,39 @@ export class TagScene extends GameScene {
             fillStyle: "black",
         })
     }
+
     update() {
         super.update()
+        this.checkTaggedHero()
+        this.preventTaggedHeroToMove(this.step == "INIT")
         if(this.step == "INIT") this.updateStepInit()
     }
+
+    checkTaggedHero() {
+        const taggedHero = this.tag.owner
+        if(taggedHero && !taggedHero.removed) return
+        let heros = []
+        this.actors.forEach(ent => {
+            if(ent instanceof Hero) heros.push(ent)
+        })
+        if(heros.length == 0) return
+        const numHero = floor(this.rand("tag") * heros.length)
+        this.tag.owner = heros[numHero]
+    }
+
+    preventTaggedHeroToMove(val) {
+        const taggedHero = this.tag.owner
+        if(!taggedHero || taggedHero.removed) return
+        if(val) {
+            this.taggedHeroPreventMoveHack ||= hackMethod(taggedHero, "getInputState", 1, evt => {
+                evt.stopPropagation()
+            })
+        } else if(this.taggedHeroPreventMoveHack) {
+            this.taggedHeroPreventMoveHack.remove()
+            this.taggedHeroPreventMoveHack = null
+        }
+    }
+
     updateStepInit() {
         const { iteration, initDuration } = this
         const { fps } = this.game
@@ -287,6 +323,7 @@ export class TagScene extends GameScene {
             delete this.countDown
         }
     }
+
     updateStepGame() {
         const { iteration, initDuration, duration } = this
         const { fps } = this.game
@@ -294,9 +331,10 @@ export class TagScene extends GameScene {
         if(iteration % fps == 0) this.incrNonTaggedPlayerScores()
         if(iteration > (initDuration + duration) * fps) this.step = "GAMEOVER"
     }
+
     incrNonTaggedPlayerScores() {
-        const tag = this.actors.get("tag")
-        const taggedHero = this.actors.get(tag.ownerId)
+        const { tag } = this
+        const taggedHero = tag.owner
         if(!taggedHero) return
         const taggedPlayerId = taggedHero.playerId
         for(let playerId in this.game.players) {
@@ -304,6 +342,7 @@ export class TagScene extends GameScene {
             this.incrScore(playerId, 1)
         }
     }
+
     updateStepGameOver() {
         const { scores } = this
         if(!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
@@ -312,6 +351,7 @@ export class TagScene extends GameScene {
             scores,
         })
     }
+
     handleHerosOut() {
         const { heros } = this
         for(let playerId in heros) {
@@ -329,20 +369,15 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @CATALOG.registerActor("tag", {
     showInBuilder: false
 })
-@StateProperty.define("ownerId")
-export class Tag extends GameObject {
+@OwnerableComponent.add()
+export class Tag extends Actor {
 
     constructor(scn, kwargs) {
         super(scn, kwargs)
         this.width = 30
         this.height = 30
-        this.ownerId = null
-    }
-
-    getOwner() {
-        const { ownerId } = this
-        if(ownerId === null) return null
-        return this.scene.actors.get(ownerId)
+        // self register in scene
+        this.scene.tag = this
     }
 
     getPhysicsProps() {
@@ -351,57 +386,17 @@ export class Tag extends GameObject {
 
     update() {
         super.update()
-        this.checkOwner()
-        this.sync()
-    }
-
-    checkOwner() {
-        if(this.ownerId) {
-            const owner = this.getOwner()
-            if(!owner || owner.deleted) this.ownerId = null
-        }
-        if(!this.ownerId) this.findOwner()
-    }
-
-    findOwner() {
-        let heros = []
-        this.scene.actors.forEach(ent => {
-            if(ent instanceof Hero) heros.push(ent)
-        })
-        if(heros.length == 0) return
-        const numHero = floor(this.scene.rand("tag")*heros.length)
-        const hero = heros[numHero]
-        this.setOwner(hero.id)
-    }
-
-    setOwner(ownerId) {
-        this.ownerId = ownerId
         this.sync()
     }
 
     sync() {
-        const owner = this.getOwner()
+        const { owner } = this
         if(!owner) return
         this.x = owner.x
         this.y = owner.y - 50
-        if(this.scene.step == "INIT") owner.getInputState = () => null
-        else delete owner.getInputState
     }
 
     getSprite() {
-        return (this.ownerId !== null) ? TagSprite : null
-    }
-
-    getState() {
-        const state = super.getState()
-        if(this.ownerId !== null) state.own = this.ownerId
-        else delete state.own
-        return state
-    }
-
-    setState(state) {
-        super.setState(state)
-        if(state.own !== undefined) this.ownerId = state.own
-        else this.ownerId = null
+        return this.owner ? TagSprite : null
     }
 }
