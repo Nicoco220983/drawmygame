@@ -169,11 +169,11 @@ export class ViewFirstHeroManager extends ViewManager {
 export class PhysicsManager extends Manager {}
 
 
-@CATALOG.registerActor("hitmng")
-@Category.append("hit")
-export class HitManager extends Manager {
+@CATALOG.registerActor("attackmng")
+@Category.append("attack")
+export class AttackManager extends Manager {
 
-    canTeamHit(team1, team2) {
+    canTeamAttack(team1, team2) {
         return true
     }
     canTeamDamage(team1, team2) {
@@ -195,9 +195,9 @@ export class HitManager extends Manager {
     default: { key: "viewheroscentermng" },
     showInBuilder: true,
 })
-@Actor.StateProperty.define("hitManager", {
-    filter: { category: "manager/hit" },
-    default: { key: "hitmng" },
+@Actor.StateProperty.define("attackManager", {
+    filter: { category: "manager/attack" },
+    default: { key: "attackmng" },
     showInBuilder: true,
 })
 @Actor.StateProperty.define("physicsManager", {
@@ -232,9 +232,9 @@ export class StandardScene extends GameScene {
 
 @CATALOG.registerScene("tag")
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
-@Actor.StateProperty.define("hitManager", {
-    filter: { category: "manager/hit" },
-    default: { key: "hitmng" },
+@Actor.StateProperty.define("attackManager", {
+    filter: { category: "manager/attack" },
+    default: { key: "attackmng" },
     showInBuilder: true,
 })
 @Actor.StateProperty.define("physicsManager", {

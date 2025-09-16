@@ -180,7 +180,7 @@ export class GameMap {
             actors: [],
             walls: [],
             physicsManager: { key: "physicsmng" },
-            hitManager: { key: "hitmng" },
+            attackManager: { key: "attackmng" },
             viewManager: { key: "viewheroscentermng" },
             herosLivesManager: { key : "heroslivesmng" },
         }}
@@ -2597,28 +2597,6 @@ export class GameScene extends SceneCommon {
         return actsCache.get(key)
     }
 
-    getTeam(team) {
-        return this.filterActors(`team:${team}`, act => {
-            const actTeam = act.team
-            return actTeam && actTeam.startsWith(team)
-        })
-    }
-
-    canTeamAttack(team1, team2) {
-        return true
-    }
-
-    getTeamAttackTargets(team) {
-        return this.filterActors(`attack:${team}`, act => {
-            const actTeam = act.team
-            return actTeam && this.canTeamAttack(team, actTeam)
-        })
-    }
-
-    canTeamDamage(team1, team2) {
-        return team1 != team2
-    }
-
     initVictoryNotifs() {
         if(this.victoryNotifs) return
         this.victoryNotifs = new GameObjectGroup(this)
@@ -2787,7 +2765,7 @@ export class HitComponent extends Component {
 @StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @ActorRefs.StateProperty.define("attackedActors")
 @HitComponent.addIfAbsent()
-export class HealthComponent extends Component {
+export class AttackComponent extends Component {
     static KEY = "health"
 
     init(kwargs) {
@@ -2826,6 +2804,7 @@ export class HealthComponent extends Component {
         proto.oneAttackByActor = this.oneAttackByActor
         proto.canReallyAttackActor = function(act) {
             if(!this.canAttack) return false
+            if(!this.scene.attackManager.canTeamAttack(this.team, act.team)) return false
             if(this.oneAttackByActor && this.attackedActors.has(act.id)) return false
             if(!(act.canGetAttacked && act.canGetAttackedByActor(this))) return false
             return this.canAttackActor(act)
@@ -2883,7 +2862,9 @@ export class HealthComponent extends Component {
     objGetAttacked(attacker, val, force) {
         if(this.getHealth() <= 0) return
         if(!force && this.isInGracePeriod()) return
-        this.takeDamage(val, attacker)
+        if(this.scene.attackManager.canTeamDamage(attacker.team, this.team)) {
+            this.takeDamage(val, attacker)
+        }
         this.onGetAttacked(attacker, val)
     }
 
@@ -3002,7 +2983,7 @@ export class CollectComponent extends Component {
     canCollect: true,
     canGetCollected: false,
 })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: false,
     canGetAttacked: true,
     graceDuration: 2,
@@ -3213,7 +3194,7 @@ class Pop extends GameObject {
     }
 }
 
-@HealthComponent.add()
+@AttackComponent.add()
 @Category.append("npc/enemy")
 export class Enemy extends Actor {
 

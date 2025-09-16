@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, HealthComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent, CollectComponent } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, AttackComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent, CollectComponent } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -40,7 +40,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 })
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: false,
     canGetAttacked: true,
     maxHealth: 100,
@@ -200,7 +200,7 @@ export class Nico extends Hero {
     }
 }
 
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 0,
@@ -253,7 +253,7 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     icon: SwordImg,
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
@@ -385,7 +385,7 @@ export class ShurikenPack extends Extra {
     icon: ShurikenImg,
     showInBuilder: false,
 })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 35,
@@ -505,7 +505,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
@@ -568,7 +568,7 @@ const SpikySprite = new Sprite(SpikyImg)
     label: "Spiky",
     icon: SpikyImg,
 })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
@@ -616,7 +616,7 @@ const BlobSprite = new Sprite(BlobImg)
 })
 @StateInt.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
@@ -687,7 +687,7 @@ const GhostSprite = new Sprite(GhostImg)
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
@@ -897,7 +897,7 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default: 0, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
-@HealthComponent.add({
+@AttackComponent.add({
     canAttack: false,
     canGetAttacked: true,
     maxHealth: Infinity,
