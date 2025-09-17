@@ -190,6 +190,7 @@ export class HeadsUpDisplay extends GameObject {
         this.barWidth = 100
         this.globalElems = new GameObjectGroup(this.scene)
         this.herosElems = new Map()
+        this.showHerosHealths = kwargs?.showHerosHealths ?? true
     }
     addGlobalHudElem(cls, args) {
         this.globalElems.add(cls, args)
@@ -202,7 +203,7 @@ export class HeadsUpDisplay extends GameObject {
             herosElems.set(playerId, grp)
             grp.nbBarElems = 0
             grp.add(PlayerIcon, { x: lineHeight/2, y: lineHeight/2, width: lineHeight, height: lineHeight, playerId })
-            this.addHeroElement(grp, HealthBar, { playerId })
+            if(this.showHerosHealths) this.addHeroElement(grp, HealthBar, { playerId })
         }
         return herosElems
     }
@@ -348,7 +349,9 @@ export class TagScene extends GameScene {
         super.init(args)
         this.step = "INIT"
         this.initDuration = 3
-        this.hud = HeadsUpDisplay.create(this)
+        this.hud = HeadsUpDisplay.create(this, {
+            showHerosHealths: false
+        })
     }
 
     loadMap(map) {
@@ -369,16 +372,6 @@ export class TagScene extends GameScene {
             const tag = this.tag
             if(!tag || !attacker || tag.ownerId != attacker.id) return
             tag.owner = hero
-        })
-    }
-
-    initCountDown() {
-        this.countDown ||= this.notifs.add(CountDown, {
-            x: this.width/2,
-            y: this.height/2,
-            duration: 3,
-            font: "bold 200px arial",
-            fillStyle: "black",
         })
     }
 
@@ -426,6 +419,16 @@ export class TagScene extends GameScene {
             this.step = "GAME"
             delete this.countDown
         }
+    }
+
+    initCountDown() {
+        this.countDown ||= this.notifs.add(CountDown, {
+            x: this.width/2,
+            y: this.height/2,
+            duration: 3,
+            font: "bold 200px arial",
+            fillStyle: "black",
+        })
     }
 
     updateStepGame() {

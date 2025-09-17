@@ -2464,8 +2464,8 @@ export class DefaultScene extends SceneCommon {
 
 
 export class GameScene extends SceneCommon {
-    constructor(game) {
-        super(game)
+    init(kwargs) {
+        super.init(kwargs)
         this.step = "GAME"
         this.herosSpawnX = 50
         this.herosSpawnY = 50
@@ -3262,8 +3262,8 @@ export class Extra extends Actor {
 
 
 class PauseScene extends SceneCommon {
-    constructor(game) {
-        super(game)
+    init(kwargs) {
+        super.init(kwargs)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
         this.pauseText = this.addNotif(Text, {
@@ -3335,8 +3335,8 @@ export class PlayerText extends Text {
 @CATALOG.registerScene("waiting")
 export class WaitingScene extends SceneCommon {
 
-    constructor(game) {
-        super(game)
+    init(kwargs) {
+        super.init(kwargs)
         this.backgroundColor = "black"
         this.playerObjs = new Map()
         this.initTitleText()
@@ -3430,8 +3430,8 @@ export class WaitingScene extends SceneCommon {
 
 
 class DebugScene extends SceneCommon {
-    constructor(game) {
-        super(game)
+    init(kwargs) {
+        super.init(kwargs)
         this.backgroundColor = null
         const fontArgs = {
             font: "20px arial",

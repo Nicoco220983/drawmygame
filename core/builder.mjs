@@ -99,8 +99,8 @@ export class GameBuilder extends GameCommon {
 
 
 class DraftScene extends SceneCommon {
-    constructor(game, kwargs) {
-        super(game, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.backgroundColor = null
         this.viewSpeed = Infinity
         this.anchor = true
