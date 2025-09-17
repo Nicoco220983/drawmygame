@@ -104,14 +104,14 @@ export default class PhysicsEngine {
             }
         })
         actors.forEach(act => {
-            const comp = act.physicsComponent
-            if(!comp) return
-            if(!(act.canMove ?? comp.canMove)) return
+            const mixin = act.physicsMixin
+            if(!mixin) return
+            if(!(act.canMove ?? mixin.canMove)) return
             let remD = 1, nbCollisions = 0
-            if(act.affectedByGravity ?? comp.affectedByGravity) this.applyGravity(dt, act)
+            if(act.affectedByGravity ?? mixin.affectedByGravity) this.applyGravity(dt, act)
             const { x: actOrigX, y: actOrigY, speedX: actOrigSpdX, speedY: actOrigSpdY } = act
             const actOrigDx = actOrigSpdX * dt, actOrigDy = actOrigSpdY * dt
-            if((act.canBeBlocked ?? comp.canBeBlocked) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
+            if((act.canBeBlocked ?? mixin.canBeBlocked) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
                 const actOrigD = dist(actOrigDx, actOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {

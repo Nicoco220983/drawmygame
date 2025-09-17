@@ -395,7 +395,7 @@ export class StateProperty {
 
     static define(key, kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "define", key, kwargs)
                 return target
             }
@@ -407,7 +407,7 @@ export class StateProperty {
     }
     static modify(key, kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "modify", key, kwargs)
                 return target
             }
@@ -589,7 +589,7 @@ export class StateIntEnum extends StateEnum {
 export class LinkTrigger {
     static add(funcName, kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "add", funcName, kwargs)
                 return target
             }
@@ -613,7 +613,7 @@ export class LinkTrigger {
 export class LinkReaction {
     static add(funcName, kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "add", funcName, kwargs)
                 return target
             }
@@ -651,10 +651,10 @@ export class ActorLink {
 }
 
 
-// COMPONENT ///////////////////////////////
+// MIXIN ///////////////////////////////
 
-export class Component {
-    static IS_COMPONENT = true
+export class Mixin {
+    static IS_MIXIN = true
 
     static TARGET_DECORATORS = []
     static addTargetDecorator(cls, funcName, ...args) {
@@ -665,39 +665,39 @@ export class Component {
     // static STATE_PROPS = new Map()
     // static LINK_TRIGGERS = new Map()
     // static LINK_REACTIONS = new Map()
-    // static COMPONENTS = new Map()
+    // static MIXINS = new Map()
 
     static add(kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "add", kwargs)
                 return target
             }
-            const comp = new this(kwargs)
-            comp.initObjectClass(target)
+            const mixin = new this(kwargs)
+            mixin.initObjectClass(target)
             return target
         }
     }
 
     static addIfAbsent(kwargs) {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "addIfAbsent", kwargs)
                 return target
             }
-            if(target.COMPONENTS && target.COMPONENTS.has(this.KEY)) return
+            if(target.MIXINS && target.MIXINS.has(this.KEY)) return
             this.add(kwargs)(target)
         }
     }
 
     static delete() {
         return target => {
-            if(target.IS_COMPONENT) {
+            if(target.IS_MIXIN) {
                 target.addTargetDecorator(this, "delete")
                 return target
             }
-            if(!target.hasOwnProperty('COMPONENTS')) target.COMPONENTS = new Map(target.COMPONENTS)
-            target.COMPONENTS.delete(this.KEY)
+            if(!target.hasOwnProperty('MIXINS')) target.MIXINS = new Map(target.MIXINS)
+            target.MIXINS.delete(this.KEY)
         }
     }
 
@@ -711,10 +711,10 @@ export class Component {
         // this.constructor.STATE_PROPS.forEach(prop => prop.initObjectClass(cls))
         // this.constructor.LINK_TRIGGERS.forEach(trig => trig.initObjectClass(cls))
         // this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
-        // this.constructor.COMPONENTS.forEach(comp => comp.initObjectClass(cls))
+        // this.constructor.MIXINS.forEach(mixin => mixin.initObjectClass(cls))
 
-        if(!cls.hasOwnProperty('COMPONENTS')) cls.COMPONENTS = new Map(cls.COMPONENTS)
-        cls.COMPONENTS.set(this.constructor.KEY, this)
+        if(!cls.hasOwnProperty('MIXINS')) cls.MIXINS = new Map(cls.MIXINS)
+        cls.MIXINS.set(this.constructor.KEY, this)
 
         this.constructor.TARGET_DECORATORS.forEach(deco => {
             const [decoCls, funcName, args] = deco
@@ -731,7 +731,7 @@ export class Component {
 
 @LinkReaction.add("reactToggle", { label:"Toggle", isDefault: true })
 @StateBool.define("activated", { showInBuilder: true, default: true })
-export class ActivableComponent extends Component {
+export class ActivableMixin extends Mixin {
     static KEY = "activable"
 
     initObjectClass(cls) {
@@ -754,7 +754,7 @@ export class ActivableComponent extends Component {
 
 @StateInt.define("speedY")
 @StateInt.define("speedX")
-export class PhysicsComponent extends Component {
+export class PhysicsMixin extends Mixin {
     static KEY = "physics"
 
     init(kwargs) {
@@ -772,7 +772,7 @@ export class PhysicsComponent extends Component {
     initObjectClass(cls) {
         super.initObjectClass(cls)
         const proto = cls.prototype
-        proto.physicsComponent = this
+        proto.physicsMixin = this
         proto.shape = this.shape
         proto.width = this.width
         proto.height = this.height
@@ -807,7 +807,7 @@ export class GameObject {
     // static STATE_PROPS = new Map()  // already done by x/y state props
     static LINK_TRIGGERS = new Map()
     static LINK_REACTIONS = new Map()
-    static COMPONENTS = new Map()
+    static MIXINS = new Map()
 
     static {
         assign(this.prototype, {
@@ -838,7 +838,7 @@ export class GameObject {
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
-        this.constructor.COMPONENTS.forEach(comp => comp.initObject(this, kwargs))
+        this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
     }
 
     getPriority() {
@@ -846,7 +846,7 @@ export class GameObject {
     }
 
     update() {
-        this.constructor.COMPONENTS.forEach(comp => comp.updateObject(this))
+        this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
     }
 
     drawTo(ctx) {
@@ -1018,7 +1018,7 @@ export class Actor extends GameObject {
         state.key = this.getKey()
         if(!isInitState) state.id = this.id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
         return state
     }
 
@@ -1038,7 +1038,7 @@ export class Actor extends GameObject {
 
     setState(state, isInitState=false) {
         this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncObjectFromState(state, this))
     }
 
     addActorLinkFromState(actLinkState) {
@@ -1525,8 +1525,13 @@ export class GameCommon {
         this.map = map
         this.isDebugMode = kwargs && kwargs.debug == true
 
-        this.scenes = {}
-        this.scenes.game = new DefaultScene(this)
+        this.scenesPosSizes = {
+            game: { visible:true, x:0, y: 0, viewWidth: 0, viewHeight: 0},
+            joypad: { visible: false, x:0, y: 0, viewWidth: 0, viewHeight: 0},
+        }
+        this.scenes = {
+            game: new DefaultScene(this)
+        }
         this.gameVisible = true
         this.joypadVisible = false
         this.syncSize()
@@ -1678,27 +1683,25 @@ export class GameCommon {
     syncSize() {
         const { gameVisible, joypadVisible } = this
         const { game: gameScn, joypad: joypadScn } = this.scenes
-        const width = min(gameScn.width, CANVAS_MAX_WIDTH)
-        const height169 = floor(width * 9 / 16)
         // game
-        gameScn.x = 0
-        gameScn.y = 0
-        gameScn.viewWidth = width
-        gameScn.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
-        gameScn.visible = gameVisible
+        const gamePS = this.scenesPosSizes.game
+        gamePS.visible = gameVisible
+        gamePS.x = 0
+        gamePS.y = 0
+        gamePS.viewWidth = min(gameScn.width, CANVAS_MAX_WIDTH)
+        gamePS.viewHeight = min(gameScn.height, CANVAS_MAX_HEIGHT)
         // joypad
+        const joypadPS = this.scenesPosSizes.joypad
         if(joypadVisible && joypadScn) {
-            joypadScn.x = 0
-            joypadScn.y = gameVisible ? gameScn.viewHeight : 0
-            joypadScn.viewWidth = width
-            joypadScn.viewHeight = height169
+            joypadPS.visible = joypadVisible
+            joypadPS.x = 0
+            joypadPS.y = gameVisible ? gamePS.viewHeight : 0
+            joypadPS.viewWidth = gamePS.viewWidth
+            joypadPS.viewHeight = floor(gamePS.viewWidth * 9 / 16)
         }
-        // pause
-        const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
-        if(pauseScn) pauseScn.syncPosAndViewSize()
-        if(joypadPauseScn) joypadPauseScn.syncPosAndViewSize()
         // game
-        const height = max(height169, (gameVisible ? gameScn.viewHeight : 0) + ((joypadVisible && joypadScn) ? joypadScn.viewHeight : 0))
+        const width = gamePS.viewWidth
+        const height = max(joypadPS.viewHeight, (gameVisible ? gamePS.viewHeight : 0) + ((joypadVisible && joypadScn) ? joypadPS.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
             assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
@@ -1780,7 +1783,7 @@ export class GameCommon {
 export class SceneCommon {
 
     // static STATE_PROPS = new Map()  // already done by width & height state props
-    static COMPONENTS = new Map()
+    static MIXINS = new Map()
 
     constructor(game, kwargs) {
         this.game = game
@@ -1794,6 +1797,8 @@ export class SceneCommon {
         this.viewY = 0
         this.viewSpeed = 100
         this.visible = true
+        this.viewWidth = this.width
+        this.viewHeight = this.height
         this.backgroundColor = "white"
         this.backgroundAlpha = 1
         this.iteration = 0
@@ -1811,7 +1816,7 @@ export class SceneCommon {
         this.map = null
         this.doCreateActorMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
-        this.constructor.COMPONENTS.forEach(comp => comp.initObject(this, kwargs))
+        this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
     }
 
     isPausable() {
@@ -1925,12 +1930,18 @@ export class SceneCommon {
     }
 
     update() {
+        this.syncPosSize()
         this.updateWorld()
         this.notifs.update()
     }
 
+    syncPosSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.game
+        assign(this, { x, y, viewWidth, viewHeight })
+    }
+
     updateWorld() {
-        this.constructor.COMPONENTS.forEach(comp => comp.updateObject(this))
+        this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
         this.actors.update()
         this.visuals.update()
     }
@@ -1997,7 +2008,7 @@ export class SceneCommon {
             state.height = this.height
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncStateFromObject(this, state))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
         return state
     }
 
@@ -2006,7 +2017,7 @@ export class SceneCommon {
             this.paused = state.paused === true
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
-        this.constructor.COMPONENTS.forEach(comp => comp.syncObjectFromState(state, this))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncObjectFromState(state, this))
     }
 }
 
@@ -2117,12 +2128,6 @@ export class Game extends GameCommon {
             delete this.scenes.pause
             delete this.scenes.joypadPause
         }
-    }
-
-    syncSize() {
-        super.syncSize()
-        const debugScn = this.debugScene
-        if(debugScn) debugScn.syncPosAndViewSize()
     }
 
     updateGameLoop() {
@@ -2723,7 +2728,7 @@ export class GameScene extends SceneCommon {
 
 
 @ActorRefProperty.define("owner")
-export class OwnerableComponent extends Component {
+export class OwnerableMixin extends Mixin {
     static KEY = "ownerable"
 
     initObjectClass(cls) {
@@ -2740,7 +2745,7 @@ export class OwnerableComponent extends Component {
 }
 
 
-export class HitComponent extends Component {
+export class HitMixin extends Mixin {
     static KEY = "hit"
 
     init(kwargs) {
@@ -2765,8 +2770,8 @@ export class HitComponent extends Component {
 @StateInt.define("damages")
 @StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @ActorRefs.StateProperty.define("attackedActors")
-@HitComponent.addIfAbsent()
-export class AttackComponent extends Component {
+@HitMixin.addIfAbsent()
+export class AttackMixin extends Mixin {
     static KEY = "health"
 
     init(kwargs) {
@@ -2892,8 +2897,8 @@ export class AttackComponent extends Component {
 
 
 @StateProperty.define("ownerId")
-@HitComponent.addIfAbsent()
-export class CollectComponent extends Component {
+@HitMixin.addIfAbsent()
+export class CollectMixin extends Mixin {
     static KEY = "collect"
 
     init(kwargs) {
@@ -2980,11 +2985,11 @@ export class CollectComponent extends Component {
 
 
 @StateInt.define("lastSpawnIt", { default: -Infinity })
-@CollectComponent.add({
+@CollectMixin.add({
     canCollect: true,
     canGetCollected: false,
 })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
     graceDuration: 2,
@@ -3159,11 +3164,11 @@ class Pop extends GameObject {
     }
 }
 
-@AttackComponent.add()
+@AttackMixin.add()
 @Category.append("npc/enemy")
 export class Enemy extends Actor {
 
-    // in case Enemy if added HitComponent
+    // in case Enemy if added HitMixin
     canHitCategory(cat) {
         return cat.startsWith("hero/")
     }
@@ -3180,7 +3185,7 @@ export class Enemy extends Actor {
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
 @StateProperty.define("ownerId")
-@HitComponent.add({
+@HitMixin.add({
     canHit: false,
 })
 @Category.append("item/collectable")
@@ -3230,7 +3235,7 @@ export class Collectable extends Actor {
     }
 }
 
-@CollectComponent.add({
+@CollectMixin.add({
     canCollect: false,
     canGetCollected: true,
 })
@@ -3255,6 +3260,7 @@ export class Extra extends Actor {
 
 
 class PauseScene extends SceneCommon {
+
     init(kwargs) {
         super.init(kwargs)
         this.backgroundColor = "lightgrey"
@@ -3264,19 +3270,19 @@ class PauseScene extends SceneCommon {
             font: "bold 50px arial",
             fillStyle: "black",
         })
-        this.syncPosAndViewSize()
+        this.syncPosSize()
         this.syncTextPos()
     }
-    syncPosAndViewSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
-        assign(this, { x, y, viewWidth, viewHeight })
-    }
+
     update() {
+        this.syncPosSize()
         this.syncTextPos()
     }
+
     syncTextPos() {
         assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
     }
+
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
     }
@@ -3425,6 +3431,7 @@ export class WaitingScene extends SceneCommon {
 
 
 class DebugScene extends SceneCommon {
+
     init(kwargs) {
         super.init(kwargs)
         this.backgroundColor = null
@@ -3432,16 +3439,14 @@ class DebugScene extends SceneCommon {
             font: "20px arial",
             fillStyle: "grey"
         }
-        this.syncPosAndViewSize()
+        this.syncPosSize()
         this.updDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:15 }, fontArgs))
         this.drawDurTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:40 }, fontArgs))
         this.lagTxt = this.addNotif(Text, assign({ x:this.game.width - 90, y:65 }, fontArgs))
     }
-    syncPosAndViewSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
-        assign(this, { x, y, viewWidth, viewHeight })
-    }
+
     update() {
+        this.syncPosSize()
         const { metrics } = this.game
         if(metrics) {
             const updDurMts = metrics["updateDur"]
@@ -3452,6 +3457,7 @@ class DebugScene extends SceneCommon {
             if(lagMts) this.lagTxt.updateText(`Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`)
         }
     }
+    
     drawTo(ctx) {
         this.updDurTxt.drawTo(ctx)
         this.drawDurTxt.drawTo(ctx)
@@ -3570,7 +3576,7 @@ export class HeroSpawnPoint extends Actor {
 @StateInt.define("max", { default:Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default:1, showInBuilder: true })
 @Actor.StateProperty.define("model", { showInBuilder: true })
-@ActivableComponent.add()
+@ActivableMixin.add()
 export class ActorSpawner extends Actor {
     init(kwargs) {
         super.init(kwargs)

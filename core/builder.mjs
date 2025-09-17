@@ -99,6 +99,7 @@ export class GameBuilder extends GameCommon {
 
 
 class DraftScene extends SceneCommon {
+    
     init(kwargs) {
         super.init(kwargs)
         this.backgroundColor = null
@@ -109,12 +110,7 @@ class DraftScene extends SceneCommon {
         this.linkedActor = null
         this.selections = []
         this.gridBoxSize = 20
-        this.syncPosAndViewSize()
-    }
-
-    syncPosAndViewSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenes.game
-        assign(this, { x, y, viewWidth, viewHeight })
+        this.syncPosSize()
     }
 
     syncMode() {
@@ -131,7 +127,7 @@ class DraftScene extends SceneCommon {
     }
 
     update() {
-        this.syncPosAndViewSize()
+        this.syncPosSize()
         const { mode } = this.game
         this.updateDraftActor()
         if(mode == "actor") this.addPointedActor()

@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, AttackComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, ActivableComponent, CollectComponent } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -40,13 +40,13 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 })
 @StateInt.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
     maxHealth: 100,
     graceDuration: 2,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 50,
     height: 50,
@@ -200,12 +200,12 @@ export class Nico extends Hero {
     }
 }
 
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 0,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 25,
     height: 25,
@@ -253,13 +253,13 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     icon: SwordImg,
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
     oneAttackByActor: true,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 40,
     height: 40,
@@ -339,7 +339,7 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     label: "ShurikenPack",
     icon: ShurikenImg,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 30,
     height: 30,
@@ -393,12 +393,12 @@ export class ShurikenPack extends Extra {
     icon: ShurikenImg,
     showInBuilder: false,
 })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 35,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 30,
     height: 30,
@@ -453,7 +453,7 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     label: "Bomb",
     icon: BombImg
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 40,
     height: 40,
@@ -513,13 +513,13 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @CATALOG.registerActor("explos", {
     showInBuilder: false
 })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
     oneAttackByActor: true,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 300,
     height: 300,
@@ -576,13 +576,13 @@ const SpikySprite = new Sprite(SpikyImg)
     label: "Spiky",
     icon: SpikyImg,
 })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 45,
     height: 45,
@@ -624,13 +624,13 @@ const BlobSprite = new Sprite(BlobImg)
 })
 @StateInt.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 50,
     height: 36,
@@ -695,13 +695,13 @@ const GhostSprite = new Sprite(GhostImg)
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: true,
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 45,
     height: 45,
@@ -811,7 +811,7 @@ const StarSprite = new Sprite(StarImg)
     label: "Star",
     icon: StarImg,
 })
-@CollectComponent.add({
+@CollectMixin.add({
     canCollect: false,
     canGetCollected: true,
 })
@@ -863,7 +863,7 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_
     label: "Portal",
     icon: PortalImg,
 })
-@ActivableComponent.add()
+@ActivableMixin.add()
 export class Portal extends Actor {
 
     init(kwargs) {
@@ -916,12 +916,12 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
 @StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default: 0, showInBuilder: true })
 @StateInt.define("trigAge", { default: Infinity, nullableWith: Infinity })
-@AttackComponent.add({
+@AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
     maxHealth: Infinity,
 })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 30,
     height: 30,
@@ -1000,7 +1000,7 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     showInBuilder: true,
 })
 @LinkReaction.add("reactToggle", { label:"toggle", isDefault: true })
-@PhysicsComponent.add({
+@PhysicsMixin.add({
     shape: "box",
     width: 50,
     height: 50,

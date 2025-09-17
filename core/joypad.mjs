@@ -17,6 +17,8 @@ export class JoypadScene {
         this.width = 800
         this.height = floor(this.width * 9 / 16)
         this.visible = true
+        this.viewWidth = this.width
+        this.viewHeight = this.height
         this.backgroundColor = "black"
         this.backgroundAlpha = 1
         if(!this.game.isServerEnv) {
@@ -38,7 +40,13 @@ export class JoypadScene {
     }
 
     update() {
+        this.syncPosSize()
         this.buttons.update()
+    }
+
+    syncPosSize() {
+        const { x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.joypad
+        assign(this, { x, y, viewWidth, viewHeight })
     }
 
     onTouch() {
@@ -150,14 +158,9 @@ class JoypadPauseScene extends JoypadScene {
             font: "bold 50px arial",
             fillStyle: "white",
         })
-        this.syncPosAndViewSize()
+        this.syncPosSize()
         this.initButtons()
         this.syncObjectsPos()
-    }
-
-    syncPosAndViewSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenes.joypad
-        assign(this, { x, y, viewWidth, viewHeight })
     }
 
     initButtons() {
@@ -247,13 +250,11 @@ class JoypadButton extends GameObject {
     
     createTextSprite() {
         const fontSize = floor(this.height/2)
-        const text = new Text(this.scene)
-        text.init({
+        return new Text(this.scene, {
             text: this.text,
             fillStyle: "white",
             font: `bold ${fontSize}px serif`,
         })
-        return text
     }
 
     drawTo(ctx) {

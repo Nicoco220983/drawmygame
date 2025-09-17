@@ -1,6 +1,6 @@
 const { assign } = Object
 const { floor, round } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, OwnerableComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -481,7 +481,7 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @CATALOG.registerActor("tag", {
     showInBuilder: false
 })
-@OwnerableComponent.add()
+@OwnerableMixin.add()
 export class Tag extends Actor {
 
     init(kwargs) {
