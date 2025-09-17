@@ -273,6 +273,7 @@ export class Sword extends Extra {
         this.sprite = SwordSprite
         this.isActionExtra = true
     }
+
     update() {
         super.update()
         this.syncPos()
@@ -281,6 +282,7 @@ export class Sword extends Extra {
         if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
         if(!this.isAttacking()) this.resetOneAttackByActor()
     }
+
     syncPos() {
         const owner = this.getOwner()
         if(!owner) return
@@ -294,25 +296,31 @@ export class Sword extends Extra {
             this.width = this.height = 40
         }
     }
+
     canAttackActor(act) {
         const { ownerId } = this
         if(!ownerId || !this.isAttacking() || act.id == ownerId) return false
         const owner = this.getOwner()
         return owner ? owner.canAttackActor(act) : false
     }
+
     onAttack(act) {
         this.game.audio.playSound(SwordHitAud)
     }
+
     isAttacking() {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
+
     getAttackOwner() {
         return this.getOwner()
     }
+
     act() {
         if(this.isAttacking()) return
         this.lastAttackAge = 0
     }
+
     getSprite() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if(this.ownerId !== null && ratioSinceLastAttack <= 1) {

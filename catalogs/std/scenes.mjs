@@ -299,7 +299,7 @@ class HealthBar extends BarNotif {
 export class StandardScene extends GameScene {
     init(args) {
         super.init(args)
-        this.hud = HeadsUpDisplay.create(this)
+        this.hud = new HeadsUpDisplay(this)
     }
     update() {
         super.update()
@@ -349,7 +349,7 @@ export class TagScene extends GameScene {
         super.init(args)
         this.step = "INIT"
         this.initDuration = 3
-        this.hud = HeadsUpDisplay.create(this, {
+        this.hud = new HeadsUpDisplay(this, {
             showHerosHealths: false
         })
     }
@@ -484,8 +484,8 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @OwnerableComponent.add()
 export class Tag extends Actor {
 
-    constructor(scn, kwargs) {
-        super(scn, kwargs)
+    init(kwargs) {
+        super.init(kwargs)
         this.width = 30
         this.height = 30
         // self register in scene

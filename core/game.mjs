@@ -819,15 +819,10 @@ export class GameObject {
         })
     }
 
-    static create(scn, kwargs) {
-        const obj = new this(scn)
-        obj.init(kwargs)
-        return obj
-    }
-
-    constructor(scn) {
+    constructor(scn, kwargs) {
         this.scene = scn
         this.game = scn.game
+        this.init(kwargs)
     }
 
     init(kwargs) {
@@ -981,12 +976,6 @@ GameObject.prototype.trigger = trigger
 @LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
 export class Actor extends GameObject {
     static STATEFUL = true
-
-    constructor(scn) {
-        super(scn)
-        this.id = null
-        this.key = null
-    }
     
     getKey() {
         return this.key ?? this.constructor.KEY
@@ -1082,7 +1071,7 @@ Actor.StateProperty = class extends StateProperty {
             const catalog = obj.game.catalog
             const cls = catalog.getActorClass(valState.key)
             const scn = (obj instanceof SceneCommon) ? obj : obj.scene
-            objVal = cls.create(scn)
+            objVal = new cls(scn)
             obj[key] = objVal
         }
         objVal.setState(valState)
@@ -1217,20 +1206,20 @@ class CenteredText extends Text {
 
 export class GameObjectGroup {
 
-    constructor(scn, args) {
+    constructor(scn, kwargs) {
         this.scene = scn
         this.game = scn.game
-        this.init(args)
+        this.init(kwargs)
     }
 
-    init(args) {
+    init(kwargs) {
         this.statelessObjArr = []
         this.statefulObjArr = []
         this.objMap = new Map()
         this._nextAutoStatefulId = 0
         this._nextAutoStatelessId = -1
-        this.x = args?.x ?? 0
-        this.y = args?.y ?? 0
+        this.x = kwargs?.x ?? 0
+        this.y = kwargs?.y ?? 0
     }
 
     nextAutoId(cls) {
@@ -1268,7 +1257,7 @@ export class GameObjectGroup {
         if(typeof cls === 'string') {
             act = this.scene.createActorFromKey(cls, kwargs)
         } else {
-            act = cls.create(this.scene, kwargs)
+            act = new cls(this.scene, kwargs)
         }
         this.objMap.set(kwargs.id, act)
         if(act.constructor.STATEFUL) this.statefulObjArr.push(act)
@@ -1877,17 +1866,17 @@ export class SceneCommon {
         let obj
         if(mapState) {
             if(this.doCreateActorMapProto) {
-                const proto = cls.create(this)
+                const proto = new cls(this)
                 proto.setState(mapState, true)
                 obj = Object.create(proto)
                 obj.init(kwargs)
                 obj.key = origKey
             } else {
-                obj = cls.create(this, kwargs)
+                obj = new cls(this, kwargs)
                 obj.setState(mapState, true)
             }
         } else {
-            obj = cls.create(this, kwargs)
+            obj = new cls(this, kwargs)
         }
         return obj
     }
@@ -3251,9 +3240,11 @@ export class Extra extends Actor {
         if(owner) return owner.getPriority() - 1
         else super.getPriority()
     }
+
     onGetCollected(owner) {
         owner.addExtra(this)
     }
+
     onDrop() {
         const owner = this.getOwner()
         if(owner) owner.dropExtra(this)
