@@ -1217,14 +1217,20 @@ class CenteredText extends Text {
 
 export class GameObjectGroup {
 
-    constructor(scn) {
+    constructor(scn, args) {
         this.scene = scn
         this.game = scn.game
+        this.init(args)
+    }
+
+    init(args) {
         this.statelessObjArr = []
         this.statefulObjArr = []
         this.objMap = new Map()
         this._nextAutoStatefulId = 0
         this._nextAutoStatelessId = -1
+        this.x = args?.x ?? 0
+        this.y = args?.y ?? 0
     }
 
     nextAutoId(cls) {
@@ -1324,10 +1330,10 @@ export class GameObjectGroup {
 
     drawTo(gameCtx) {
         this.clearRemoved()
-        //const x = ~~this.x, y = ~~this.y
-        //gameCtx.translate(x, y)
+        const x = ~~this.x, y = ~~this.y
+        gameCtx.translate(x, y)
         this.forEach(obj => obj.drawTo(gameCtx))
-        //gameCtx.translate(-x, -y)
+        gameCtx.translate(-x, -y)
     }
 
     getState(isInitState=false) {
@@ -1789,6 +1795,10 @@ export class SceneCommon {
 
     constructor(game, kwargs) {
         this.game = game
+        this.init(kwargs)
+    }
+
+    init(kwargs) {
         this.x = 0
         this.y = 0
         this.viewX = 0
@@ -3024,35 +3034,7 @@ export class Hero extends Actor {
 
     update() {
         super.update()
-        this.updateHearts()
         this.updateSpawnEffect()
-    }
-
-    updateHearts() {
-        if(this.playerId != this.game.localPlayerId) return
-        const { scene, maxHealth } = this
-        // let livesHearts
-        // if(lives !== Infinity) {
-        //     livesHearts = this.livesHearts ||= []
-        //     for(let i=livesHearts.length; i<lives; ++i)
-        //         livesHearts.push(scene.addNotif(LifeHeartNotif, { num: i }))
-        //     livesHearts.forEach(heart => {
-        //         heart.x = 20 + heart.num * 35
-        //         heart.y = 20
-        //         heart.setFull(heart.num < lives)
-        //     })
-        // }
-        if(maxHealth !== Infinity) {
-            const healthHearts = this.healthHearts ||= []
-            for(let i=healthHearts.length; i<maxHealth; ++i)
-                healthHearts.push(scene.addNotif(HealthHeartNotif, { num: i }))
-            healthHearts.forEach(heart => {
-                heart.x = 15 + heart.num * 23
-                //heart.y = (livesHearts && livesHearts.length > 0) ? 50 : 15
-                heart.y = 15
-                heart.setFull(heart.num < maxHealth)
-            })
-        }
     }
 
     updateSpawnEffect() {
@@ -3129,14 +3111,6 @@ export class Hero extends Actor {
     remove() {
         super.remove()
         this.scene.syncHero(this)
-        if(this.livesHearts) {
-            this.livesHearts.forEach(h => h.remove())
-            delete this.livesHearts
-        }
-        if(this.healthHearts) {
-            this.healthHearts.forEach(h => h.remove())
-            delete this.healthHearts
-        }
     }
 }
 
@@ -3265,42 +3239,6 @@ export class Collectable extends Actor {
     }
 }
 
-
-const HeartImg = CATALOG.registerImage("/static/core/assets/colorable_heart.png")
-export const HeartSpriteSheets = {
-    spritesheets: {},
-    get: function(color) {
-        return this.spritesheets[color] ||= new SpriteSheet((() => {
-            if(!color) return HeartImg
-            return colorizeCanvas(cloneCanvas(HeartImg), color)
-        })(), 2, 1)
-    },
-}
-
-class LifeHeartNotif extends GameObject {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.num = kwargs.num
-        this.width = this.height = 30
-        this.color = "red"
-    }
-    setFull(isFull) {
-        this.isFull = isFull
-    }
-    getSprite() {
-        return HeartSpriteSheets.get(this.color).get(this.isFull ? 0 : 1)
-    }
-}
-
-class HealthHeartNotif extends LifeHeartNotif {
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 20
-        this.color = "pink"
-    }
-}
-
 @CollectComponent.add({
     canCollect: false,
     canGetCollected: true,
@@ -3352,36 +3290,44 @@ class PauseScene extends SceneCommon {
 }
 
 
-class PlayerText extends GameObject {
-
+export class PlayerIcon extends GameObject {
     init(kwargs) {
         super.init(kwargs)
-        this.player = kwargs.player
+        this.playerId = kwargs.playerId
+        this.strokeColor = kwargs?.strokeColor ?? "black"
         this.initSprite()
     }
     initSprite() {
         if(IS_SERVER_ENV) return
-        const { player } = this
-        const text = newTextCanvas(player.name, {
-            font: "30px arial",
-            fillStyle: "white",
-        })
+        const { playerId } = this
+        const player = this.game.players[playerId]
         const can = document.createElement("canvas")
-        this.width = can.width = text.width + 40
-        this.height = can.height = 35
+        can.width = can.height = 36
         const ctx = can.getContext("2d")
         ctx.beginPath()
-        ctx.arc(floor(can.height/2), floor(can.height/2), 15, 0, 2 * PI)
-        ctx.strokeStyle = "white"
+        ctx.arc(floor(can.width/2), floor(can.height/2), 15, 0, 2 * PI)
+        ctx.strokeStyle = this.strokeColor
         ctx.lineWidth = 3
         ctx.stroke()
         ctx.fillStyle = player.color
         ctx.fill()
-        ctx.drawImage(text, 40, floor((can.height-text.height)/2))
         this.sprite = new Sprite(can)
     }
     getSprite() {
         return this.sprite
+    }
+}
+
+
+export class PlayerText extends Text {
+    init(kwargs) {
+        super.init(kwargs)
+        this.playerId = kwargs.playerId
+    }
+    update() {
+        const { playerId } = this
+        const player = this.game.players[playerId]
+        this.text = player.name
     }
 }
 
@@ -3392,23 +3338,23 @@ export class WaitingScene extends SceneCommon {
     constructor(game) {
         super(game)
         this.backgroundColor = "black"
-        this.playerTxts = []
+        this.playerObjs = new Map()
         this.initTitleText()
         this.initQrcodeSprite()
     }
 
-    update() {
-        this.syncPlayerTexts()
-        this.syncTextPositions()
-    }
-
     initTitleText() {
-        this.titleTxt = this.addNotif(Text, {
+        const titleTxt = this.addNotif(Text, {
             text: "WAITING PLAYERS",
             font: "bold 50px arial",
             fillStyle: "white",
         })
-        this.syncTextPositions()
+        titleTxt.syncPos = () => {
+            titleTxt.x = this.viewWidth/2
+            titleTxt.y = this.viewHeight/6
+        }
+        hackMethod(titleTxt, "update", 0, evt => titleTxt.syncPos())
+        titleTxt.syncPos()
     }
 
     async initQrcodeSprite() {
@@ -3426,45 +3372,50 @@ export class WaitingScene extends SceneCommon {
         return qrcodeSprite
     }
 
-    syncPlayerTexts() {
-        const { playerTxts } = this
-        const { players } = this.game
-        for(let playerId in players) {
-            const player = players[playerId]
-            let playerTxt = playerTxts[playerId]
-            // add new players
-            if(playerTxt === undefined) {
-                playerTxt = playerTxts[playerId] = this.addNotif(PlayerText, { player })
-                playerTxt.playerId = playerId
-            }
-        }
-        // rm removed players
-        for(let idx in playerTxts) {
-            const playerTxt = playerTxts[idx]
-            if(!playerTxt) continue
-            if(!players[playerTxt.playerId]) {
-                playerTxt.remove()
-                playerTxts[idx] = null
-            }
-        }
+    update() {
+        this.notifs.update()
+        this.syncPlayerObjs()
+        this.playerObjs.forEach(objs => objs.update())
     }
 
-    syncTextPositions() {
-        const { playerTxts, viewWidth, viewHeight } = this
-        // title
-        assign(this.titleTxt, { x: viewWidth/2, y: viewHeight/6 })
-        // players
+    syncPlayerObjs() {
+        const { playerObjs, viewWidth, viewHeight } = this
+        const { players } = this.game
+        // add & place players
         let numPlayer = 0
-        for(let idx in playerTxts) {
-            const playerTxt = playerTxts[idx]
-            if(!playerTxt) continue
-            assign(playerTxt, { x: viewWidth/2+playerTxt.width/2, y: viewHeight/3 + (numPlayer * 40) })
+        for(let playerId in players) {
+            const grp = this.initPlayerObjGroup(playerId)
+            grp.x = viewWidth/2
+            grp.y = viewHeight/3 + (numPlayer * 40)
             numPlayer += 1
         }
+        // rm removed players
+        for(let playerId in playerObjs)
+            if(!(playerId in players))
+                playerObjs.remove(playerId)
+    }
+
+    initPlayerObjGroup(playerId) {
+        const { game, playerObjs } = this
+        let grp = playerObjs.get(playerId)
+        if(!grp) {
+            grp = new GameObjectGroup(this)
+            playerObjs.set(playerId, grp)
+            grp.add(PlayerIcon, { x: 15, y: 15, playerId, width: 30, height: 30, strokeColor: "white" })
+            const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
+            txt.sync = () => {
+                txt.x = 35 + txt.width/2
+                txt.updateText(game.players[playerId]?.name ?? "")
+            }
+            txt.sync()
+            hackMethod(txt, "update", 0, evt => txt.sync())
+        }
+        return grp
     }
 
     drawTo(ctx) {
         this.notifs.drawTo(ctx)
+        this.playerObjs.forEach(objs => objs.drawTo(ctx))
         if(this.qrcodeSprite) {
             const qrcodeImg = this.qrcodeSprite.getImg(200, 200, 1, 1)
             if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))

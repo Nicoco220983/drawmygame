@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, AttackComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, HeartSpriteSheets, ActivableComponent, CollectComponent } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsComponent, AttackComponent, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, ActivableComponent, CollectComponent } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -747,7 +747,18 @@ export class Ghost extends Enemy {
 
 // COLLECTABLES
 
-const HeartImg = CATALOG.registerImage("/static/core/assets/heart.png")
+const HeartImg = CATALOG.registerImage("/static/catalogs/std/assets/heart.png")
+
+const HeartSpriteSheetsImg = CATALOG.registerImage("/static/catalogs/std/assets/colorable_heart.png")
+export const HeartSpriteSheets = {
+    spritesheets: {},
+    get: function(color) {
+        return this.spritesheets[color] ||= new SpriteSheet((() => {
+            if(!color) return HeartSpriteSheetsImg
+            return colorizeCanvas(cloneCanvas(HeartSpriteSheetsImg), color)
+        })(), 2, 1)
+    },
+}
 
 @CATALOG.registerActor("heart", {
     label: "Heart",

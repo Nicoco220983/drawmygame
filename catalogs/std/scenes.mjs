@@ -1,5 +1,6 @@
-const { floor } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, OwnerableComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys } from '../../core/game.mjs'
+const { assign } = Object
+const { floor, round } = Math
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Component, OwnerableComponent, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
 import { Star } from './actors.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -182,9 +183,98 @@ export class AttackManager extends Manager {
 }
 
 
+export class HeadsUpDisplay extends GameObject {
+    init(kwargs) {
+        super.init(kwargs)
+        this.heroLineHeight = 20
+        this.barWidth = 100
+        this.globalElems = new GameObjectGroup(this.scene)
+        this.herosElems = new Map()
+    }
+    addGlobalHudElem(cls, args) {
+        this.globalElems.add(cls, args)
+    }
+    initHeroElements(hero) {
+        const { game, herosElems, heroLineHeight: lineHeight } = this
+        for(let playerId in game.players) {
+            if(herosElems.has(playerId)) continue
+            const grp = new GameObjectGroup(this.scene, { x: 5, y: 5 + herosElems.size * lineHeight })
+            herosElems.set(playerId, grp)
+            grp.nbBarElems = 0
+            grp.add(PlayerIcon, { x: lineHeight/2, y: lineHeight/2, width: lineHeight, height: lineHeight, playerId })
+            this.addHeroElement(grp, HealthBar, { playerId })
+        }
+        return herosElems
+    }
+    addHeroElement(grp, cls, args) {
+        const { heroLineHeight: lineHeight } = this
+        const elem = grp.add(cls, args)
+        if(elem instanceof BarNotif) {
+            elem.barElemNum = grp.nbBarElems
+            assign(elem, {
+                width: 100,
+                height: 10,
+                x: lineHeight + 5 + 100 / 2,
+                y: lineHeight / 2, // TODO: adapt if several bars
+            })
+            grp.nbBarElems += 1
+        }
+        return elem
+    }
+    update() {
+        this.initHeroElements()
+        this.globalElems.update()
+        this.herosElems.forEach(elems => elems.update())
+    }
+    drawTo(ctx) {
+        super.drawTo(ctx)
+        this.globalElems.drawTo(ctx)
+        this.herosElems.forEach(elems => elems.drawTo(ctx))
+    }
+}
+
+
+class BarNotif extends GameObject {
+    init(args) {
+        super.init(args)
+        this.color = "white"
+        this.value = 1  // from 0 to 1
+        this.width = 100
+        this.height = 10
+    }
+    drawTo(ctx) {
+        const { x, y, width, height } = this
+        const left = ~~(x-width/2), top = ~~(y-height/2)
+        const valWidth = ~~(width * this.value)
+        ctx.fillStyle = "grey"
+        ctx.fillRect(left, top, width, height)
+        ctx.fillStyle = this.color
+        ctx.fillRect(left, top, valWidth, height)
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 1
+        ctx.strokeRect(left, top, width, height)
+    }
+}
+
+
+class HealthBar extends BarNotif {
+    init(args) {
+        super.init(args)
+        this.color = "red"
+        this.playerId = args.playerId
+    }
+    update() {
+        const hero = this.scene.getHero(this.playerId)
+        this.value = hero ? (hero.getHealth() / hero.maxHealth) : 0
+    }
+}
+
+
 // Standard
 
 @CATALOG.registerScene("std")
+@StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
+@StateBool.define("catchAllStars", { default: false, showInBuilder: true })
 @Actor.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
     default: { key: "heroslivesmng" },
@@ -205,13 +295,18 @@ export class AttackManager extends Manager {
     default: { key: "physicsmng" },
     showInBuilder: true,
 })
-@StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
-@StateBool.define("catchAllStars", { default: false, showInBuilder: true })
 export class StandardScene extends GameScene {
+    init(args) {
+        super.init(args)
+        this.hud = HeadsUpDisplay.create(this)
+    }
     update() {
         super.update()
+        this.hud.update()
         this.viewManager.update()
         this.herosLivesManager.update()
+        this.attackManager.update()
+        this.physicsManager.update()
         if(this.step == "GAME") {
             let allOk = null
             if(allOk!==false && this.catchAllStars) {
@@ -224,6 +319,11 @@ export class StandardScene extends GameScene {
             }
             if(allOk) this.step = "VICTORY"
         }
+    }
+
+    drawTo(ctx) {
+        super.drawTo(ctx)
+        this.hud.drawTo(ctx)
     }
 }
 
@@ -244,10 +344,11 @@ export class StandardScene extends GameScene {
 })
 export class TagScene extends GameScene {
     
-    constructor(game, scnId) {
-        super(game, scnId)
+    init(args) {
+        super.init(args)
         this.step = "INIT"
         this.initDuration = 3
+        this.hud = HeadsUpDisplay.create(this)
     }
 
     loadMap(map) {
@@ -283,6 +384,9 @@ export class TagScene extends GameScene {
 
     update() {
         super.update()
+        this.hud.update()
+        this.attackManager.update()
+        this.physicsManager.update()
         this.checkTaggedHero()
         this.preventTaggedHeroToMove(this.step == "INIT")
         if(this.step == "INIT") this.updateStepInit()
@@ -360,6 +464,11 @@ export class TagScene extends GameScene {
             if(hero.x > this.map.width) hero.x -= this.map.width
             if(hero.x < 0) hero.x += this.map.width
         }
+    }
+
+    drawTo(ctx) {
+        super.drawTo(ctx)
+        this.hud.drawTo(ctx)
     }
 }
 
