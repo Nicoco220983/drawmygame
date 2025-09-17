@@ -77,10 +77,6 @@ export class Nico extends Hero {
         }
     }
 
-    // attack(act) {
-    //     if(act.canGetAttacked) act.onAttack(0, this)
-    // }
-
     getSprite() {
         const { iteration } = this.scene
         const { dt, players } = this.game
@@ -540,15 +536,6 @@ export class Explosion extends Actor {
         if(ownerId === null) return null
         return this.scene.actors.get(ownerId)
     }
-    // canHitCategory(cat) {
-    //     return cat.startsWith("npc/enemy/")
-    // }
-    // canAttackActor(act) {
-    //     return act.canGetAttacked
-    // }
-    // hit(act) {
-    //     if(act.canGetAttacked) act.onAttack(100, this.getOwner())
-    // }
     getAttackOwner() {
         return this.getOwner() || this
     }

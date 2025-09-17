@@ -662,11 +662,6 @@ export class Mixin {
         this.TARGET_DECORATORS.push([cls, funcName, args])
     }
 
-    // static STATE_PROPS = new Map()
-    // static LINK_TRIGGERS = new Map()
-    // static LINK_REACTIONS = new Map()
-    // static MIXINS = new Map()
-
     static add(kwargs) {
         return target => {
             if(target.IS_MIXIN) {
@@ -708,10 +703,6 @@ export class Mixin {
     init(kwargs) {}
 
     initObjectClass(cls) {
-        // this.constructor.STATE_PROPS.forEach(prop => prop.initObjectClass(cls))
-        // this.constructor.LINK_TRIGGERS.forEach(trig => trig.initObjectClass(cls))
-        // this.constructor.LINK_REACTIONS.forEach(react => react.initObjectClass(cls))
-        // this.constructor.MIXINS.forEach(mixin => mixin.initObjectClass(cls))
 
         if(!cls.hasOwnProperty('MIXINS')) cls.MIXINS = new Map(cls.MIXINS)
         cls.MIXINS.set(this.constructor.KEY, this)
@@ -1370,59 +1361,6 @@ GameObjectGroup.prototype.off = off
 GameObjectGroup.prototype.trigger = trigger
 
 
-// export class ActorGroup extends GameObjectGroup {
-
-//     add(cls, kwargs) {
-//         kwargs ||= {}
-//         kwargs.id ??= this.nextAutoId()
-//         let act
-//         if(typeof cls === 'string') {
-//             act = this.scene.createActorFromKey(cls, kwargs)
-//         } else {
-//             act = cls.create(this.scene, kwargs)
-//         }
-//         this.objMap.set(kwargs.id, act)
-//         this.objArr.push(act)
-//         this.trigger("new", act)
-//         return act
-//     }
-
-//     getState(isInitState=false) {
-//         const state = this._state ||= []
-//         state.length = 0
-//         if(isInitState) this.resetIds()
-//         this.forEach(act => {
-//             if(act.constructor.STATEFUL) state.push(act.getState(isInitState))
-//         })
-//         return state
-//     }
-
-//     setState(state, isInitState=false) {
-//         const { objArr, objMap } = this
-//         objArr.length = 0
-//         if(state) {
-//             for(let idx in state) {
-//                 if(isInitState) {
-//                     this.add(`A#${idx}`, { id: idx.toString() })
-//                 } else {
-//                     const actState = state[idx]
-//                     let { id } = actState
-//                     let act = objMap.get(id)
-//                     if(!act) act = this.add(actState.key, { id })
-//                     else objArr.push(act)
-//                     act.setState(actState, isInitState)
-//                 }
-//             }
-//             if(isInitState) this._lastAutoId = state.length - 1
-//             if(objMap.size != objArr.length) {
-//                 objMap.clear()
-//                 for(let act of objArr) objMap.set(act.id, act)
-//             }
-//         } else this.clear()
-//     }
-// }
-
-
 export class ActorRefs extends Set {
     constructor(scn) {
         super()
@@ -1481,16 +1419,6 @@ ActorRefs.StateProperty = class extends StateProperty {
         const val = obj[this.key]
         val.setState(valState ?? null)
     }
-    // syncStateFromObject(obj, state) {
-    //     const { key } = this
-    //     const valState = obj[key].getState()
-    //     if(valState) state[key] = valState
-    // }
-    // syncObjectFromState(state, obj) {
-    //     const { key } = this
-    //     const val = obj[key], valState = state[key]
-    //     val.setState(valState ?? null)
-    // }
     createInput(obj) {
         // TODO
     }
@@ -2512,18 +2440,6 @@ export class GameScene extends SceneCommon {
         if(hero) hero.remove()
     }
 
-    // checkHeros() {
-    //     const { heros } = this
-    //     let nbHeros = 0, nbHerosAlive = 0
-    //     for(let playerId in heros) {
-    //         const hero = heros[playerId]
-    //         nbHeros += 1
-    //         if(hero.lives !== 0) nbHerosAlive += 1
-    //     }
-    //     const firstHero = this.getFirstHero()
-    //     if(firstHero && this.step == "GAME" && firstHero.lives <= 0) this.step = "GAMEOVER"
-    // }
-
     spawnHero(hero) {
         hero.spawn(this.herosSpawnX, this.herosSpawnY)
     }
@@ -3065,8 +2981,6 @@ export class Hero extends Actor {
             stExtras.length = 0
             for(let exId of extras) stExtras.push(exId)
         } else if(state.extras) state.extras.length = 0
-        // if(this.lastSpawnIt === -Infinity) delete state.lsi
-        // else state.lsi = this.lastSpawnIt
         return state
     }
 
@@ -3079,8 +2993,6 @@ export class Hero extends Actor {
             extras.clear()
             if(state.extras) for(let exId of state.extras) extras.add(exId)
         }
-        // if(state.lsi) this.lastSpawnIt = state.lsi
-        // else this.lastSpawnIt = -Infinity
     }
 
     getInputState() {
