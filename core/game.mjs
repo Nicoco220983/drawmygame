@@ -2435,7 +2435,9 @@ export class Game extends GameCommon {
 }
 
 
-@CATALOG.registerScene("default")
+@CATALOG.registerScene("default", {
+    showInBuilder: false,
+})
 export class DefaultScene extends SceneCommon {
 
     buildBackground() {
@@ -3323,7 +3325,9 @@ export class PlayerText extends Text {
 }
 
 
-@CATALOG.registerScene("waiting")
+@CATALOG.registerScene("waiting", {
+    showInBuilder: false,
+})
 export class WaitingScene extends SceneCommon {
 
     init(kwargs) {
