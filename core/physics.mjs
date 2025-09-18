@@ -37,11 +37,11 @@ export default class PhysicsEngine {
         }
         this.initPhysicsData(data)
     }
-    initActor(dt, act) {
-        const data = act._physicsData ||= {}
+    initObject(dt, obj) {
+        const data = obj._physicsData ||= {}
         const polygon = data.polygon ||= []
         polygon.length = 0
-        const { x, y, width, height, speedX, speedY } = act
+        const { x, y, width, height, speedX, speedY } = obj
         const hWidth = width/2, hHeight = height/2
         const xMin = x - hWidth, yMin = data.yMin = y - hHeight, xMax = data.xMax = x + hWidth, yMax = data.yMax = y + hHeight
         polygon.push(
@@ -93,125 +93,125 @@ export default class PhysicsEngine {
         }
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
     }
-    apply(dt, actors) {
+    apply(dt, objects) {
         // apply blocks and speeds
         const { walls } = this.scene.map
         const blockers = [...walls]
-        actors.forEach(act => {
-            if(act.canBlock) {
-                this.initActor(0, act)
-                blockers.push(act)
+        objects.forEach(obj => {
+            if(obj.canBlock) {
+                this.initObject(0, obj)
+                blockers.push(obj)
             }
         })
-        actors.forEach(act => {
-            const mixin = act.physicsMixin
+        objects.forEach(obj => {
+            const mixin = obj.physicsMixin
             if(!mixin) return
-            if(!(act.canMove ?? mixin.canMove)) return
+            if(!(obj.canMove ?? mixin.canMove)) return
             let remD = 1, nbCollisions = 0
-            if(act.affectedByGravity ?? mixin.affectedByGravity) this.applyGravity(dt, act)
-            const { x: actOrigX, y: actOrigY, speedX: actOrigSpdX, speedY: actOrigSpdY } = act
-            const actOrigDx = actOrigSpdX * dt, actOrigDy = actOrigSpdY * dt
-            if((act.canBeBlocked ?? mixin.canBeBlocked) && (actOrigSpdX != 0 || actOrigSpdY != 0)) {
-                const actOrigD = dist(actOrigDx, actOrigDy) * dt
+            if(obj.affectedByGravity ?? mixin.affectedByGravity) this.applyGravity(dt, obj)
+            const { x: objOrigX, y: objOrigY, speedX: objOrigSpdX, speedY: objOrigSpdY } = obj
+            const objOrigDx = objOrigSpdX * dt, objOrigDy = objOrigSpdY * dt
+            if((obj.canBeBlocked ?? mixin.canBeBlocked) && (objOrigSpdX != 0 || objOrigSpdY != 0)) {
+                const objOrigD = dist(objOrigDx, objOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
                     colRes.time = Infinity
-                    this.initActor(dt*remD, act)
-                    let { speedX: actSpdX, speedY: actSpdY } = act
-                    const actData = act._physicsData
+                    this.initObject(dt*remD, obj)
+                    let { speedX: objSpdX, speedY: objSpdY } = obj
+                    const objData = obj._physicsData
                     const {
-                        minX: actMinX, minY: actMinY, maxX: actMaxX, maxY: actMaxY,
-                        sMinX: actSMinX, sMinY: actSMinY, sMaxX: actSMaxX, sMaxY: actSMaxY,
-                    } = actData
+                        minX: objMinX, minY: objMinY, maxX: objMaxX, maxY: objMaxY,
+                        sMinX: objSMinX, sMinY: objSMinY, sMaxX: objSMaxX, sMaxY: objSMaxY,
+                    } = objData
                     for(let wall of blockers) {
-                        if(act == wall) continue
+                        if(obj == wall) continue
                         const wallData = wall._physicsData
                         // quick filteringgs
-                        if(actSMinX > wallData.sMaxX || actSMaxX < wallData.sMinX || actSMinY > wallData.sMaxY || actSMaxY < wallData.sMinY) continue
+                        if(objSMinX > wallData.sMaxX || objSMaxX < wallData.sMinX || objSMinY > wallData.sMaxY || objSMaxY < wallData.sMinY) continue
                         // detect collision
-                        detectCollisionTime(actData, wallData, wallColRes)
+                        detectCollisionTime(objData, wallData, wallColRes)
                         if(wallColRes.time == Infinity) continue
                         if(wallColRes.time < colRes.time) assign(colRes, wallColRes)
                         if(colRes.time == 0) break
                     }
                     if(colRes.time == Infinity) break
                     nbCollisions += 1
-                    const  { dx: actDx, dy: actDy } = actData
+                    const  { dx: objDx, dy: objDy } = objData
                     const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
                     if(colTime > 0) {
                         // move
-                        let dx = actDx * colTime, dy = actDy * colTime
+                        let dx = objDx * colTime, dy = objDy * colTime
                         if(dx > 0) dx -= min(dx, FLOAT_PRECISION_CORRECTION)
                         else if(dx < 0) dx -= max(dx, -FLOAT_PRECISION_CORRECTION)
                         if(dy > 0) dy -= min(dy, FLOAT_PRECISION_CORRECTION)
                         else if(dy < 0) dy -= max(dy, -FLOAT_PRECISION_CORRECTION)
-                        act.x += dx
-                        act.y += dy
+                        obj.x += dx
+                        obj.y += dy
                         // compute remaining speed
-                        projection(actSpdX, actSpdY, colNormalY, -colNormalX, projRes)
-                        act.speedX = projRes.x; act.speedY = projRes.y
+                        projection(objSpdX, objSpdY, colNormalY, -colNormalX, projRes)
+                        obj.speedX = projRes.x; obj.speedY = projRes.y
                         // stop collisions detection condition
-                        const actD = hypot(actDx, actDy), colD = actD * colTime
-                        remD -= colD / actOrigD
-                        if(hypot(act.speedX, act.speedY) * remD < 1) remD = 0
+                        const objD = hypot(objDx, objDy), colD = objD * colTime
+                        remD -= colD / objOrigD
+                        if(hypot(obj.speedX, obj.speedY) * remD < 1) remD = 0
                     } else {
-                        act.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
-                        act.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                     }
                     if(nbCollisions==5) remD = 0
                 }
             }
             if(remD > 0) {
-                act.x += act.speedX * dt * remD
-                act.y += act.speedY * dt * remD
+                obj.x += obj.speedX * dt * remD
+                obj.y += obj.speedY * dt * remD
             }
             // determine speed resistance
             if(nbCollisions == 0) {
-                act.speedResX = act.speedResY = 0
+                obj.speedResX = obj.speedResY = 0
             } else {
-                act.speedResX = ((act.x - actOrigX) - actOrigDx) / dt
-                act.speedResY = ((act.y - actOrigY) - actOrigDy) / dt
+                obj.speedResX = ((obj.x - objOrigX) - objOrigDx) / dt
+                obj.speedResY = ((obj.y - objOrigY) - objOrigDy) / dt
             }
         })
 
         // check hits
 
         const hitGroups = ["health", "collect"]
-        const canHitActs = [], canBeHitActs = []
-        actors.forEach(act => {
-            if(!act.canHitGroup) return
+        const canHitObjs = [], canBeHitObjs = []
+        objects.forEach(obj => {
+            if(!obj.canHitGroup) return
             let canHitGroupBites = 0, canBeHitGroupBites = 0
             for(let idx in hitGroups) {
                 const hitGroup = hitGroups[idx]
-                if(act.canHitGroup(hitGroup)) canHitGroupBites |= (1 << idx)
-                if(act.canBeHitAsGroup(hitGroup)) canBeHitGroupBites += (1 << idx)
+                if(obj.canHitGroup(hitGroup)) canHitGroupBites |= (1 << idx)
+                if(obj.canBeHitAsGroup(hitGroup)) canBeHitGroupBites += (1 << idx)
             }
             if(canHitGroupBites) {
-                act._canHitGroupBites = canHitGroupBites
-                canHitActs.push(act)
+                obj._canHitGroupBites = canHitGroupBites
+                canHitObjs.push(obj)
             }
             if(canBeHitGroupBites) {
-                act._canBeHitGroupBites = canBeHitGroupBites
-                canBeHitActs.push(act)
+                obj._canBeHitGroupBites = canBeHitGroupBites
+                canBeHitObjs.push(obj)
             }
         })
 
-        for(let act1 of canHitActs) {
-            for(let act2 of canBeHitActs) {
-                if(act1 === act2) continue
-                if(act1._canHitHash | act2._canBeHitHash == 0) continue
-                if(!act1.canHitActor(act2)) continue
-                if(checkHit(act1, act2)) {  // TODO: do not use checkHit
-                    act1.hit(act2)
+        for(let obj1 of canHitObjs) {
+            for(let obj2 of canBeHitObjs) {
+                if(obj1 === obj2) continue
+                if(obj1._canHitHash | obj2._canBeHitHash == 0) continue
+                if(!obj1.canHitObject(obj2)) continue
+                if(checkHit(obj1, obj2)) {  // TODO: do not use checkHit
+                    obj1.hit(obj2)
                 }
             }
         }
     }
 
-    applyGravity(dt, act) {
+    applyGravity(dt, obj) {
         const { gravityAcc, gravityMaxSpeed } = this
-        if(act.speedY >= gravityMaxSpeed) return
-        act.speedY = min(act.speedY + gravityAcc * dt, gravityMaxSpeed)
+        if(obj.speedY >= gravityMaxSpeed) return
+        obj.speedY = min(obj.speedY + gravityAcc * dt, gravityMaxSpeed)
     }
 }
 

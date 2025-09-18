@@ -1,7 +1,7 @@
 const { assign } = Object
 const { floor, round } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Actor, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
-import { Star } from './actors.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
+import { Star } from './objects.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
 
@@ -9,10 +9,10 @@ export const CATALOG = new ModuleCatalog("std")
 @StateInt.modify("y", { showInBuilder: false })
 @StateInt.modify("x", { showInBuilder: false })
 @Category.append("manager")
-export class Manager extends Actor {}
+export class Manager extends GameObject {}
 
 
-@CATALOG.registerActor("heroslivesmng", {
+@CATALOG.registerObject("heroslivesmng", {
     showInBuilder: true,
 })
 @StateProperty.define("deathsIts")
@@ -24,12 +24,12 @@ export class HerosLivesManager extends Manager {
     init(kwargs) {
         super.init(kwargs)
         const { scene } = this
-        hackMethod(scene, "addActor", -1, evt => {
-            const act = evt.returnValue
-            if(!(act instanceof Hero)) return
-            hackMethod(act, "die", -1, evt => {
+        hackMethod(scene, "onAddObject", -1, evt => {
+            const obj = evt.inputArgs[0]
+            if(!(obj instanceof Hero)) return
+            hackMethod(obj, "die", -1, evt => {
                 const deathsIts = this.deathsIts ||= {}
-                deathsIts[act.playerId] = scene.iteration
+                deathsIts[obj.playerId] = scene.iteration
             })
         })
     }
@@ -56,7 +56,7 @@ export class HerosLivesManager extends Manager {
 export class ViewManager extends Manager {}
 
 
-@CATALOG.registerActor("viewheroscentermng", {
+@CATALOG.registerObject("viewheroscentermng", {
     showInBuilder: true
 })
 export class ViewHerosCenterManager extends ViewManager {
@@ -92,7 +92,7 @@ export class ViewHerosCenterManager extends ViewManager {
 }
 
 
-@CATALOG.registerActor("viewfirstheromng", {
+@CATALOG.registerObject("viewfirstheromng", {
     showInBuilder: true
 })
 export class ViewFirstHeroManager extends ViewManager {
@@ -163,14 +163,14 @@ export class ViewFirstHeroManager extends ViewManager {
 }
 
 
-@CATALOG.registerActor("physicsmng")
+@CATALOG.registerObject("physicsmng")
 @StateInt.define("gravityAcc", { default: 1000 })
 @StateInt.define("gravityMaxSpeed", { default: 1000 })
 @Category.append("physics")
 export class PhysicsManager extends Manager {}
 
 
-@CATALOG.registerActor("attackmng")
+@CATALOG.registerObject("attackmng")
 @Category.append("attack")
 export class AttackManager extends Manager {
 
@@ -276,22 +276,22 @@ class HealthBar extends BarNotif {
 @CATALOG.registerScene("std")
 @StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
-@Actor.StateProperty.define("herosLivesManager", {
+@GameObject.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
     default: { key: "heroslivesmng" },
     showInBuilder: true,
 })
-@Actor.StateProperty.define("viewManager", {
+@GameObject.StateProperty.define("viewManager", {
     filter: { category: "manager/view" },
     default: { key: "viewheroscentermng" },
     showInBuilder: true,
 })
-@Actor.StateProperty.define("attackManager", {
+@GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
     default: { key: "attackmng" },
     showInBuilder: true,
 })
-@Actor.StateProperty.define("physicsManager", {
+@GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
     default: { key: "physicsmng" },
     showInBuilder: true,
@@ -311,11 +311,11 @@ export class StandardScene extends GameScene {
         if(this.step == "GAME") {
             let allOk = null
             if(allOk!==false && this.catchAllStars) {
-                const stars = this.filterActors("stars", act => act instanceof Star)
+                const stars = this.filterObjects("stars", obj => obj instanceof Star)
                 allOk = (stars.length == 0)
             }
             if(allOk!==false && this.killAllEnemies) {
-                const enemies = this.filterActors("enemies", act => act instanceof Enemy)
+                const enemies = this.filterObjects("enemies", obj => obj instanceof Enemy)
                 allOk = (enemies.length == 0)
             }
             if(allOk) this.step = "VICTORY"
@@ -333,12 +333,12 @@ export class StandardScene extends GameScene {
 
 @CATALOG.registerScene("tag")
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
-@Actor.StateProperty.define("attackManager", {
+@GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
     default: { key: "attackmng" },
     showInBuilder: true,
 })
-@Actor.StateProperty.define("physicsManager", {
+@GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
     default: { key: "physicsmng" },
     showInBuilder: true,
@@ -356,13 +356,12 @@ export class TagScene extends GameScene {
 
     loadMap(map) {
         super.loadMap(map)
-        this.addActor(Tag)
+        this.addObject(Tag)
     }
 
-    addActor(cls, kwargs) {
-        const act = super.addActor(cls, kwargs)
-        if(act instanceof Hero) this.hackHero(act)
-        return act
+    onAddObject(obj) {
+        super.onAddObject(obj)
+        if(obj instanceof Hero) this.hackHero(obj)
     }
 
     hackHero(hero) {
@@ -389,7 +388,7 @@ export class TagScene extends GameScene {
         const taggedHero = this.tag.owner
         if(taggedHero && !taggedHero.removed) return
         let heros = []
-        this.actors.forEach(ent => {
+        this.objects.forEach(ent => {
             if(ent instanceof Hero) heros.push(ent)
         })
         if(heros.length == 0) return
@@ -478,11 +477,11 @@ export class TagScene extends GameScene {
 
 const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/tag.png"))
 
-@CATALOG.registerActor("tag", {
+@CATALOG.registerObject("tag", {
     showInBuilder: false
 })
 @OwnerableMixin.add()
-export class Tag extends Actor {
+export class Tag extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)

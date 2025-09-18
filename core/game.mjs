@@ -78,7 +78,7 @@ export class Aud {
 export class Catalog {
     constructor() {
         this.mods = {}
-        this.actors = {}
+        this.objects = {}
         this.scenes = {}
     }
     async addModuleCatalogs(paths) {
@@ -94,7 +94,7 @@ export class Catalog {
         }
         for(let i in paths) {
             const path = paths[i], mod = mods[i]
-            addItems(path, mod.CATALOG.actors, this.actors)
+            addItems(path, mod.CATALOG.objects, this.objects)
             addItems(path, mod.CATALOG.scenes, this.scenes)
         }
     }
@@ -112,29 +112,29 @@ export class Catalog {
         const mod = this.mods[scnCat.path]
         return mod[scnCat.name]
     }
-    getActorClass(key) {
-        const actCat = this.actors[key]
-        const mod = this.mods[actCat.path]
-        return mod[actCat.name]
+    getObjectClass(key) {
+        const objCat = this.objects[key]
+        const mod = this.mods[objCat.path]
+        return mod[objCat.name]
     }
 }
 
 export class ModuleCatalog {
     constructor() {
-        this.actors = {}
+        this.objects = {}
         this.scenes = {}
         this.assets = []
     }
-    registerActor(key, kwargs) {
+    registerObject(key, kwargs) {
         return target => {
             target.KEY = key
-            const actCat = this.actors[key] = {}
-            actCat.name = target.name
-            actCat.category = target.CATEGORY
-            actCat.label = kwargs?.label ?? key
-            actCat.icon = kwargs?.icon ?? null
-            actCat.showInBuilder = kwargs?.showInBuilder ?? true
-            actCat.isHero = Hero.isPrototypeOf(target)
+            const objCat = this.objects[key] = {}
+            objCat.name = target.name
+            objCat.category = target.CATEGORY
+            objCat.label = kwargs?.label ?? key
+            objCat.icon = kwargs?.icon ?? null
+            objCat.showInBuilder = kwargs?.showInBuilder ?? true
+            objCat.isHero = Hero.isPrototypeOf(target)
             return target
         }
     }
@@ -177,7 +177,7 @@ export class GameMap {
             key: "std",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
-            actors: [],
+            objects: [],
             walls: [],
             physicsManager: { key: "physicsmng" },
             attackManager: { key: "attackmng" },
@@ -584,7 +584,7 @@ export class StateIntEnum extends StateEnum {
 }
 
 
-// ACTOR LINK ///////////////////////
+// OBJECT LINK ///////////////////////
 
 export class LinkTrigger {
     static add(funcName, kwargs) {
@@ -640,11 +640,11 @@ export class LinkMessage {
     }
 }
 
-export class ActorLink {
-    constructor(trigAct, trigKey, reactAct, reactKey, threshold) {
-        this.triggerActor = trigAct
+export class ObjectLink {
+    constructor(trigObj, trigKey, reactObj, reactKey, threshold) {
+        this.triggerObject = trigObj
         this.triggerKey = trigKey
-        this.reactionActor = reactAct
+        this.reactionObject = reactObj
         this.reactionKey = reactKey
         this.threshold = threshold
     }
@@ -774,7 +774,7 @@ export class PhysicsMixin extends Mixin {
         proto.canBeBlocked = this.canBeBlocked
         proto.speedResX = 0
         proto.speedResY = 0
-        proto.onBlock = function(act) {}
+        proto.onBlock = function(obj) {}
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
@@ -787,17 +787,19 @@ export class PhysicsMixin extends Mixin {
 }
 
 
+@LinkTrigger.add("isRemoved", { isDefault: true })
+@LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
 @StateInt.define("y", { showInBuilder: true })
 @StateInt.define("x", { showInBuilder: true })
 export class GameObject {
 
-    static STATEFUL = false
+    static STATEFUL = true
 
     // static STATE_PROPS = new Map()  // already done by x/y state props
-    static LINK_TRIGGERS = new Map()
-    static LINK_REACTIONS = new Map()
+    // static LINK_TRIGGERS = new Map()  // already done by isRemoved/reactRemove links
+    // static LINK_REACTIONS = new Map()  // same...
     static MIXINS = new Map()
 
     static {
@@ -831,6 +833,10 @@ export class GameObject {
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
     }
+    
+    getKey() {
+        return this.key ?? this.constructor.KEY
+    }
 
     getPriority() {
         return 0
@@ -838,33 +844,7 @@ export class GameObject {
 
     update() {
         this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
-    }
-
-    drawTo(ctx) {
-        const img = this.getImg()
-        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
-    }
-
-    scaleSprite(sprite) {
-        this.spriteFit(sprite)
-    }
-
-    getSprite() {
-        return this.sprite // TODO: return null when this.sprite deprecated
-    }
-
-    getImg() {
-        if(this.spriteVisibility === 0) return
-        const sprite = this.getSprite()
-        if(!sprite || !sprite.baseImg) return
-        this.scaleSprite(sprite)
-        return sprite.getImg(
-            this.spriteWidth,
-            this.spriteHeight,
-            this.dirX,
-            this.dirY,
-            this.spriteVisibility,
-        )
+        this.requestLinkMessages()
     }
 
     getHitBox() {
@@ -895,6 +875,94 @@ export class GameObject {
 
     isRemoved() {
         return Boolean(this.removed)
+    }
+
+    addObjectLink(trigObj, trigKey, reactKey, threshold) {
+        const objLinks = this.objectLinks ||= []
+        if(!trigKey) trigKey = trigObj.constructor.DEFAULT_LINK_TRIGGER
+        if(!reactKey) reactKey = this.constructor.DEFAULT_LINK_REACTION
+        if(threshold===undefined) threshold = .5
+        objLinks.push(new ObjectLink(trigObj, trigKey, this, reactKey, threshold))
+    }
+
+    requestLinkMessages() {
+        const objLinks = this.objectLinks
+        if(!objLinks) return
+        for(let objLink of objLinks) {
+            let msg = objLink.triggerObject[objLink.triggerKey]()
+            if(typeof msg == "boolean") msg = msg ? 1 : 0
+            if(typeof msg == "number") {
+                const _msg = this._linkResp ||= new LinkMessage()
+                _msg.value = msg
+                msg = _msg
+            }
+            this[objLink.reactionKey](msg)
+        }
+    }
+
+    reactRemove(msg) {
+        if(msg.value > .5) this.remove()
+    }
+
+    getState(isInitState=false) {
+        const state = {}
+        state.key = this.getKey()
+        if(!isInitState) state.id = this.id
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
+        return state
+    }
+
+    getObjectLinksState() {
+        const objLinks = this.objectLinks
+        if(!objLinks) return null
+        const state = []
+        for(let objLink of objLinks) state.push([
+            this.id,
+            objLink.triggerObject.id,
+            objLink.triggerKey,
+            objLink.reactionKey,
+            objLink.threshold,
+        ])
+        return state
+    }
+
+    setState(state, isInitState=false) {
+        this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
+        this.constructor.MIXINS.forEach(mixin => mixin.syncObjectFromState(state, this))
+    }
+
+    addObjectLinkFromState(objLinkState) {
+        const [reactObjId, trigObjId, trigKey, reactKey, threshold] = objLinkState
+        const trigObj = this.scene.objects.get(trigObjId)
+        this.addObjectLink(trigObj, trigKey, reactKey, threshold)
+    }
+
+    drawTo(ctx) {
+        const img = this.getImg()
+        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
+    }
+
+    scaleSprite(sprite) {
+        this.spriteFit(sprite)
+    }
+
+    getSprite() {
+        return this.sprite // TODO: return null when this.sprite deprecated
+    }
+
+    getImg() {
+        if(this.spriteVisibility === 0) return
+        const sprite = this.getSprite()
+        if(!sprite || !sprite.baseImg) return
+        this.scaleSprite(sprite)
+        return sprite.getImg(
+            this.spriteWidth,
+            this.spriteHeight,
+            this.dirX,
+            this.dirY,
+            this.spriteVisibility,
+        )
     }
 
     spriteFit(sprite) {
@@ -963,83 +1031,7 @@ GameObject.prototype.off = off
 GameObject.prototype.trigger = trigger
 
 
-@LinkTrigger.add("isRemoved", { isDefault: true })
-@LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
-export class Actor extends GameObject {
-    static STATEFUL = true
-    
-    getKey() {
-        return this.key ?? this.constructor.KEY
-    }
-
-    update() {
-        super.update()
-        this.requestLinkMessages()
-    }
-
-    addActorLink(trigAct, trigKey, reactKey, threshold) {
-        const actLinks = this.actorLinks ||= []
-        if(!trigKey) trigKey = trigAct.constructor.DEFAULT_LINK_TRIGGER
-        if(!reactKey) reactKey = this.constructor.DEFAULT_LINK_REACTION
-        if(threshold===undefined) threshold = .5
-        actLinks.push(new ActorLink(trigAct, trigKey, this, reactKey, threshold))
-    }
-
-    requestLinkMessages() {
-        const actLinks = this.actorLinks
-        if(!actLinks) return
-        for(let actLink of actLinks) {
-            let msg = actLink.triggerActor[actLink.triggerKey]()
-            if(typeof msg == "boolean") msg = msg ? 1 : 0
-            if(typeof msg == "number") {
-                const _msg = this._linkResp ||= new LinkMessage()
-                _msg.value = msg
-                msg = _msg
-            }
-            this[actLink.reactionKey](msg)
-        }
-    }
-
-    reactRemove(msg) {
-        if(msg.value > .5) this.remove()
-    }
-
-    getState(isInitState=false) {
-        const state = {}
-        state.key = this.getKey()
-        if(!isInitState) state.id = this.id
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
-        this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
-        return state
-    }
-
-    getActorLinksState() {
-        const actLinks = this.actorLinks
-        if(!actLinks) return null
-        const state = []
-        for(let actLink of actLinks) state.push([
-            this.id,
-            actLink.triggerActor.id,
-            actLink.triggerKey,
-            actLink.reactionKey,
-            actLink.threshold,
-        ])
-        return state
-    }
-
-    setState(state, isInitState=false) {
-        this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
-        this.constructor.MIXINS.forEach(mixin => mixin.syncObjectFromState(state, this))
-    }
-
-    addActorLinkFromState(actLinkState) {
-        const [reactActId, trigActId, trigKey, reactKey, threshold] = actLinkState
-        const trigAct = this.scene.actors.get(trigActId)
-        this.addActorLink(trigAct, trigKey, reactKey, threshold)
-    }
-}
-
-Actor.StateProperty = class extends StateProperty {
+GameObject.StateProperty = class extends StateProperty {
     initObjectClassProp(cls) {
         cls.prototype[this.key] = this.nullableWith
     }
@@ -1060,7 +1052,7 @@ Actor.StateProperty = class extends StateProperty {
         let objVal = obj[key]
         if(!objVal || objVal.getKey() != valState.key) {
             const catalog = obj.game.catalog
-            const cls = catalog.getActorClass(valState.key)
+            const cls = catalog.getObjectClass(valState.key)
             const scn = (obj instanceof SceneCommon) ? obj : obj.scene
             objVal = new cls(scn)
             obj[key] = objVal
@@ -1081,24 +1073,24 @@ Actor.StateProperty = class extends StateProperty {
         const objVal = obj[this.key]
         const { catalog } = obj.game
         const inputEl = newDomEl("div")
-        const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-actor-selector")
+        const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-object-selector")
         let filterFun = null
-        if(this.filter) filterFun = act => filterActor(this.filter, act)
+        if(this.filter) filterFun = obj => filterObject(this.filter, obj)
         selectEl.initCatalog(catalog, filterFun)
-        const statesEl = addNewDomEl(inputEl, "dmg-actor-state", {
+        const statesEl = addNewDomEl(inputEl, "dmg-object-state", {
             style: { display: "none" }
         })
-        const showActorStates = objVal => {
+        const showObjectStates = objVal => {
             statesEl.style.display = ""
-            statesEl.initActor(objVal)
+            statesEl.initObject(objVal)
         }
         if(objVal) {
-            selectEl.setSelectedActor(objVal.getKey())
-            showActorStates(objVal)
+            selectEl.setSelectedObject(objVal.getKey())
+            showObjectStates(objVal)
         }
         selectEl.addEventListener("change", () => {
             this.syncObjectFromInput(inputEl, obj)
-            showActorStates(obj[this.key])
+            showObjectStates(obj[this.key])
         })
         return inputEl
     }
@@ -1109,7 +1101,7 @@ Actor.StateProperty = class extends StateProperty {
 }
 
 
-export class ActorRefProperty extends StateProperty {
+export class ObjectRefProperty extends StateProperty {
     initObjectClassProp(cls) {}
     getObjectPropState(obj) {
         const val = obj[this.key]
@@ -1120,25 +1112,25 @@ export class ActorRefProperty extends StateProperty {
         const { key } = this
         if(valState === undefined) return delete obj[key]
         if(valState === null) obj[key] = this.nullableWith ?? null
-        else obj[key] = obj.scene.actors.get(valState)
+        else obj[key] = obj.scene.objects.get(valState)
     }
 }
 
 
-export function filterActor(filterDesc, act) {
+export function filterObject(filterDesc, obj) {
     if(filterDesc.category) {
-        const actCat = act.category
-        if(!actCat || !actCat.startsWith(filterDesc.category)) return false
+        const objCat = obj.category
+        if(!objCat || !objCat.startsWith(filterDesc.category)) return false
     }
     if(filterDesc.and) {
-        for(let f of filterDesc.and) if(!filterActor(f, act)) return false
+        for(let f of filterDesc.and) if(!filterObject(f, obj)) return false
     }
     if(filterDesc.or) {
-        for(let f of filterDesc.or) if(!filterActor(f, act)) return true
+        for(let f of filterDesc.or) if(!filterObject(f, obj)) return true
         return false
     }
     if(filterDesc.not) {
-        return !filterActor(filterDesc.not, act)
+        return !filterObject(filterDesc.not, obj)
     }
     return true
 }
@@ -1211,6 +1203,7 @@ export class GameObjectGroup {
         this._nextAutoStatelessId = -1
         this.x = kwargs?.x ?? 0
         this.y = kwargs?.y ?? 0
+        if(kwargs?.onAdd) this.onAdd = kwargs.onAdd
     }
 
     nextAutoId(cls) {
@@ -1244,18 +1237,20 @@ export class GameObjectGroup {
     add(cls, kwargs) {
         kwargs ||= {}
         kwargs.id ??= this.nextAutoId(cls)
-        let act
+        let obj
         if(typeof cls === 'string') {
-            act = this.scene.createActorFromKey(cls, kwargs)
+            obj = this.scene.createObjectFromKey(cls, kwargs)
         } else {
-            act = new cls(this.scene, kwargs)
+            obj = new cls(this.scene, kwargs)
         }
-        this.objMap.set(kwargs.id, act)
-        if(act.constructor.STATEFUL) this.statefulObjArr.push(act)
-        else this.statelessObjArr.push(act)
-        this.trigger("new", act)
-        return act
+        this.objMap.set(kwargs.id, obj)
+        if(obj.constructor.STATEFUL) this.statefulObjArr.push(obj)
+        else this.statelessObjArr.push(obj)
+        this.onAdd(obj)
+        return obj
     }
+
+    onAdd(obj) {}
 
     get(id) {
         return this.objMap.get(id)
@@ -1320,8 +1315,8 @@ export class GameObjectGroup {
         const state = this._state ||= []
         state.length = 0
         if(isInitState) this.resetStatefulIds()
-        this.statefulObjArr.forEach(act => {
-            state.push(act.getState(isInitState))
+        this.statefulObjArr.forEach(obj => {
+            state.push(obj.getState(isInitState))
         })
         return state
     }
@@ -1332,25 +1327,25 @@ export class GameObjectGroup {
         if(state) {
             for(let idx in state) {
                 if(isInitState) {
-                    this.scene.addActor(`A#${idx}`, { id: idx.toString() })
+                    this.scene.addObject(`A#${idx}`, { id: idx.toString() })
                 } else {
-                    const actState = state[idx]
-                    let { id, key } = actState
-                    let act = objMap.get(id)
-                    if(!act || act.key != key) {
-                        if(act) act.remove()
-                        act = this.scene.addActor(key, { id })
+                    const objState = state[idx]
+                    let { id, key } = objState
+                    let obj = objMap.get(id)
+                    if(!obj || obj.key != key) {
+                        if(obj) obj.remove()
+                        obj = this.add(key, { id })
                     }
-                    else statefulObjArr.push(act)
-                    act.setState(actState, isInitState)
+                    else statefulObjArr.push(obj)
+                    obj.setState(objState, isInitState)
                 }
             }
             //if(isInitState) this._lastAutoId = state.length - 1
             if(isInitState) this._nextAutoStatefulId = state.length
             if(objMap.size != statefulObjArr.length + statelessObjArr.length) {
                 objMap.clear()
-                for(let act of statefulObjArr) objMap.set(act.id, act)
-                for(let act of statelessObjArr) objMap.set(act.id, act)
+                for(let obj of statefulObjArr) objMap.set(obj.id, obj)
+                for(let obj of statelessObjArr) objMap.set(obj.id, obj)
             }
         } else this.clear()
     }
@@ -1361,7 +1356,7 @@ GameObjectGroup.prototype.off = off
 GameObjectGroup.prototype.trigger = trigger
 
 
-export class ActorRefs extends Set {
+export class ObjectRefs extends Set {
     constructor(scn) {
         super()
         this.scene = scn
@@ -1373,14 +1368,14 @@ export class ActorRefs extends Set {
     clearRemoved() {
         const { scene } = this
         for(let id of this) {
-            const obj = scene.actors.get(id)
+            const obj = scene.objects.get(id)
             if(!obj || obj.removed) this.delete(id)
         }
     }
     forEach(next) {
         const { scene } = this
         for(let id of this) {
-            const obj = scene.actors.get(id)
+            const obj = scene.objects.get(id)
             if(!obj || obj.removed) this.delete(id)
             else next(obj)
         }
@@ -1403,13 +1398,13 @@ export class ActorRefs extends Set {
 }
 
 
-ActorRefs.StateProperty = class extends StateProperty {
+ObjectRefs.StateProperty = class extends StateProperty {
     initObjectClassProp(cls) {
         cls.prototype[this.key] = this.nullableWith
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
-        obj[this.key] = new ActorRefs(obj.scene)
+        obj[this.key] = new ObjectRefs(obj.scene)
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
@@ -1531,10 +1526,10 @@ export class GameCommon {
         const { catalog } = this, scnCat = catalog.scenes[scnKey]
         const  { map } = this.game
         const paths = new Set([scnCat.path])
-        map.heros.forEach(heroMap => paths.add(catalog.actors[heroMap.key].path))
+        map.heros.forEach(heroMap => paths.add(catalog.objects[heroMap.key].path))
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         if(scnMap) {
-            scnMap.actors.forEach(actMap => paths.add(catalog.actors[actMap.key].path))
+            scnMap.objects.forEach(objMap => paths.add(catalog.objects[objMap.key].path))
         }
         const mods = await catalog.preload(Array.from(paths))
         await this.loadScenes(mods[0][scnCat.name], scnMapId)
@@ -1737,12 +1732,14 @@ export class SceneCommon {
             this.canvas = document.createElement("canvas")
         }
         this.walls = new GameObjectGroup(this)
-        this.actors = new GameObjectGroup(this)
+        this.objects = new GameObjectGroup(this, {
+            onAdd: obj => this.onAddObject(obj)
+        })
         this.visuals = new GameObjectGroup(this)
         this.notifs = new GameObjectGroup(this)
         this.heros = {}
         this.map = null
-        this.doCreateActorMapProto = true
+        this.doCreateObjectMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
     }
@@ -1784,21 +1781,23 @@ export class SceneCommon {
         return this.walls.add(Wall, kwargs)
     }
 
-    addActor(cls, kwargs) {
-        return this.actors.add(cls, kwargs)
+    addObject(cls, kwargs) {
+        return this.objects.add(cls, kwargs)
     }
 
-    createActorFromKey(key, kwargs) {
-        const mapState = this.getActorMapState(key)
+    onAddObject(obj) {}
+
+    createObjectFromKey(key, kwargs) {
+        const mapState = this.getObjectMapState(key)
         let origKey
         if(mapState) {
             origKey = key
             key = mapState.key
         }
-        const cls = this.game.catalog.getActorClass(key)
+        const cls = this.game.catalog.getObjectClass(key)
         let obj
         if(mapState) {
-            if(this.doCreateActorMapProto) {
+            if(this.doCreateObjectMapProto) {
                 const proto = new cls(this)
                 proto.setState(mapState, true)
                 obj = Object.create(proto)
@@ -1814,7 +1813,7 @@ export class SceneCommon {
         return obj
     }
     
-    getActorMapState(key) {
+    getObjectMapState(key) {
         const dotIdx = key.indexOf('.')
         let props = null
         if(dotIdx >= 0) {
@@ -1824,7 +1823,7 @@ export class SceneCommon {
         let res = null
         if(key.startsWith('A#')) {
             const mapNum = parseInt(key.substring(2))
-            res = this.map.actors[mapNum]
+            res = this.map.objects[mapNum]
         } else if(key.startsWith('H#')) {
             const mapNum = parseInt(key.substring(2))
             res = this.game.map.heros[mapNum]
@@ -1870,7 +1869,7 @@ export class SceneCommon {
 
     updateWorld() {
         this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
-        this.actors.update()
+        this.objects.update()
         this.visuals.update()
     }
 
@@ -1888,7 +1887,7 @@ export class SceneCommon {
     drawTo(ctx) {
         ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.walls.drawTo(ctx)
-        this.actors.drawTo(ctx)
+        this.objects.drawTo(ctx)
         this.visuals.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
         this.notifs.drawTo(ctx)
@@ -2409,7 +2408,7 @@ export class GameScene extends SceneCommon {
 
     initHeros() {
         this.initHerosSpawnPos()
-        if(this.game.mode == MODE_CLIENT) return  // actors are init by first full state
+        if(this.game.mode == MODE_CLIENT) return  // objects are init by first full state
         for(let playerId in this.game.players) this.addHero(playerId)
     }
 
@@ -2420,7 +2419,7 @@ export class GameScene extends SceneCommon {
         if(prevHero && !prevHero.removed) return
         const { heroKey } = player
         if(!heroKey) return
-        const hero = this.addActor(heroKey, { playerId })
+        const hero = this.addObject(heroKey, { playerId })
         this.spawnHero(hero)
         return hero
     }
@@ -2462,7 +2461,7 @@ export class GameScene extends SceneCommon {
 
     updateWorld() {
         const { dt } = this.game
-        this.physics.apply(dt, this.actors)
+        this.physics.apply(dt, this.objects)
         super.updateWorld()
         this.handleHerosOut()
     }
@@ -2503,20 +2502,20 @@ export class GameScene extends SceneCommon {
         if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.drawTo(ctx)
     }
 
-    filterActors(key, filter) {
-        const actsCache = this._filteredActorsCache ||= new Map()
-        if(actsCache.iteration !== this.iteration) {
-            actsCache.clear()
-            actsCache.iteration = this.iteration
+    filterObjects(key, filter) {
+        const objsCache = this._filteredObjectsCache ||= new Map()
+        if(objsCache.iteration !== this.iteration) {
+            objsCache.clear()
+            objsCache.iteration = this.iteration
         }
-        if(!actsCache.has(key)) {
+        if(!objsCache.has(key)) {
             const cache = []
-            this.actors.forEach(act => {
-                if(filter(act)) cache.push(act)
+            this.objects.forEach(obj => {
+                if(filter(obj)) cache.push(obj)
             })
-            actsCache.set(key, cache)
+            objsCache.set(key, cache)
         }
-        return actsCache.get(key)
+        return objsCache.get(key)
     }
 
     initVictoryNotifs() {
@@ -2544,7 +2543,7 @@ export class GameScene extends SceneCommon {
     }
 
     initHerosSpawnPos() {
-        const points = this.filterActors("heroSpawnPoints", act => act instanceof HeroSpawnPoint)
+        const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
         if(points.length == 0) return
         const firstPoint = points[0]
         this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
@@ -2574,8 +2573,8 @@ export class GameScene extends SceneCommon {
             state.sco = this.scores
             state.seed = this.seed
         }
-        state.actors = this.actors.getState(isInitState)
-        if(isInitState) state.links = this.getActorLinksState()
+        state.objects = this.objects.getState(isInitState)
+        if(isInitState) state.links = this.getObjectLinksState()
         return state
     }
 
@@ -2589,10 +2588,10 @@ export class GameScene extends SceneCommon {
         return res
     }
 
-    getActorLinksState() {
+    getObjectLinksState() {
         const res = []
-        this.actors.forEach(act => {
-            const linksState = act.getActorLinksState()
+        this.objects.forEach(obj => {
+            const linksState = obj.getObjectLinksState()
             if(linksState) for(let linkState of linksState) res.push(linkState)
         })
         return res
@@ -2607,16 +2606,16 @@ export class GameScene extends SceneCommon {
             this.scores = state.sco
             this.seed = state.seed
         }
-        this.actors.setState(state.actors, isInitState)
-        if(isInitState) this.setActorLinksFromState(state.links)
+        this.objects.setState(state.objects, isInitState)
+        if(isInitState) this.setObjectLinksFromState(state.links)
     }
 
-    setActorLinksFromState(state) {
+    setObjectLinksFromState(state) {
         if(!state) return
         for(let linkState of state) {
-            const actionActId = linkState[0]
-            const actionAct = this.actors.get(actionActId)
-            actionAct.addActorLinkFromState(linkState)
+            const actionObjId = linkState[0]
+            const actionObj = this.objects.get(actionObjId)
+            actionObj.addObjectLinkFromState(linkState)
         }
     }
 
@@ -2640,10 +2639,10 @@ export class GameScene extends SceneCommon {
 }
 
 
-// ACTORS ///////////////////////////////////
+// OBJECTS ///////////////////////////////////
 
 
-@ActorRefProperty.define("owner")
+@ObjectRefProperty.define("owner")
 export class OwnerableMixin extends Mixin {
     static KEY = "ownerable"
 
@@ -2666,7 +2665,7 @@ export class HitMixin extends Mixin {
 
     init(kwargs) {
         super.init(kwargs)
-        this.oneHitByActor = kwargs?.oneHitByActor ?? false
+        this.oneHitByObject = kwargs?.oneHitByObject ?? false
         this.canHit = kwargs?.canHit ?? true
         this.canBeHit = kwargs?.canBeHit ?? true
     }
@@ -2677,15 +2676,15 @@ export class HitMixin extends Mixin {
 
         proto.canHitGroup ||= function(group) { return false }
         proto.canBeHitAsGroup ||= function(group) { return false }
-        proto.canHitActor ||= function(act) { return false }
-        proto.hit ||= function(act) {}
+        proto.canHitObject ||= function(obj) { return false }
+        proto.hit ||= function(obj) {}
     }
 }
 
 
 @StateInt.define("damages")
 @StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
-@ActorRefs.StateProperty.define("attackedActors")
+@ObjectRefs.StateProperty.define("attackedObjects")
 @HitMixin.addIfAbsent()
 export class AttackMixin extends Mixin {
     static KEY = "health"
@@ -2696,7 +2695,7 @@ export class AttackMixin extends Mixin {
         this.canGetAttacked = kwargs?.canGetAttacked ?? true
         this.maxHealth = kwargs?.maxHealth ?? 100
         this.attackDamages = kwargs?.attackDamages ?? 0
-        this.oneAttackByActor = kwargs?.oneAttackByActor ?? false
+        this.oneAttackByObject = kwargs?.oneAttackByObject ?? false
         this.graceDuration = kwargs?.graceDuration ?? 0
     }
 
@@ -2723,35 +2722,35 @@ export class AttackMixin extends Mixin {
         
         proto.getHealth ||= this.objGetHealth
         proto.isInGracePeriod ||= this.objIsInGracePeriod
-        proto.oneAttackByActor = this.oneAttackByActor
-        proto.canReallyAttackActor = function(act) {
+        proto.oneAttackByObject = this.oneAttackByObject
+        proto.canReallyAttackObject = function(obj) {
             if(!this.canAttack) return false
-            if(!this.scene.attackManager.canTeamAttack(this.team, act.team)) return false
-            if(this.oneAttackByActor && this.attackedActors.has(act.id)) return false
-            if(!(act.canGetAttacked && act.canGetAttackedByActor(this))) return false
-            return this.canAttackActor(act)
+            if(!this.scene.attackManager.canTeamAttack(this.team, obj.team)) return false
+            if(this.oneAttackByObject && this.attackedObjects.has(obj.id)) return false
+            if(!(obj.canGetAttacked && obj.canGetAttackedByObject(this))) return false
+            return this.canAttackObject(obj)
         }
-        proto.canGetAttackedByActor ||= function(act) { return true }
-        proto.canAttackActor ||= function(act) { return true }
-        const origCanHitActor = proto.canHitActor
-        proto.canHitActor = function(act) {
-            return this.canReallyAttackActor(act) || origCanHitActor.call(this, act)
+        proto.canGetAttackedByObject ||= function(obj) { return true }
+        proto.canAttackObject ||= function(obj) { return true }
+        const origCanHitObject = proto.canHitObject
+        proto.canHitObject = function(obj) {
+            return this.canReallyAttackObject(obj) || origCanHitObject.call(this, obj)
         }
 
         const origHit = proto.hit
-        proto.hit = function(act) {
-            origHit.call(this, act)
-            if(this.canReallyAttackActor(act)) this.attack(act)
+        proto.hit = function(obj) {
+            origHit.call(this, obj)
+            if(this.canReallyAttackObject(obj)) this.attack(obj)
         }
         proto.attack = this.objAttack
-        proto.onAttack ||= function(act) {}
+        proto.onAttack ||= function(obj) {}
         proto.getAttacked ||= this.objGetAttacked
         proto.onGetAttacked ||= function(attacker, val) {}
         proto.getAttackOwner ||= this.objGetAttackOwner
 
         proto.takeDamage ||= this.objTakeDamage
         proto.die ||= this.objDie
-        proto.resetOneAttackByActor = this.objResetOneAttackByActor
+        proto.resetOneAttackByObject = this.objResetOneAttackByObject
     }
 
     updateObject(obj) {
@@ -2771,10 +2770,10 @@ export class AttackMixin extends Mixin {
         return this.lastDamageAge < this.graceDuration * this.game.fps
     }
 
-    objAttack(act) {
-        if(this.oneAttackByActor) this.attackedActors.add(act.id)
-        act.getAttacked(this.getAttackOwner(), this.attackDamages)
-        this.onAttack(act)
+    objAttack(obj) {
+        if(this.oneAttackByObject) this.attackedObjects.add(obj.id)
+        obj.getAttacked(this.getAttackOwner(), this.attackDamages)
+        this.onAttack(obj)
     }
 
     objGetAttackOwner() {
@@ -2806,8 +2805,8 @@ export class AttackMixin extends Mixin {
         this.remove()
     }
 
-    objResetOneAttackByActor() {
-        this.attackedActors.clear()
+    objResetOneAttackByObject() {
+        this.attackedObjects.clear()
     }
 }
 
@@ -2841,25 +2840,25 @@ export class CollectMixin extends Mixin {
             return origCanBeHitAsGroup.call(this, group)
         }
         
-        proto.canReallyCollectActor = function(act) {
+        proto.canReallyCollectObject = function(obj) {
             if(!this.canCollect) return false
-            if(!(act.canGetCollected && act.canGetCollectedByActor(this))) return false
-            return this.canCollectActor(act)
+            if(!(obj.canGetCollected && obj.canGetCollectedByObject(this))) return false
+            return this.canCollectObject(obj)
         }
-        proto.canGetCollectedByActor ||= function(act) { return true }
-        proto.canCollectActor ||= function(act) { return true }
-        const origCanHitActor = proto.canHitActor
-        proto.canHitActor = function(act) {
-            return this.canReallyCollectActor(act) || origCanHitActor.call(this, act)
+        proto.canGetCollectedByObject ||= function(obj) { return true }
+        proto.canCollectObject ||= function(obj) { return true }
+        const origCanHitObject = proto.canHitObject
+        proto.canHitObject = function(obj) {
+            return this.canReallyCollectObject(obj) || origCanHitObject.call(this, obj)
         }
 
         const origHit = proto.hit
-        proto.hit = function(act) {
-            origHit.call(this, act)
-            if(this.canReallyCollectActor(act)) this.collect(act)
+        proto.hit = function(obj) {
+            origHit.call(this, obj)
+            if(this.canReallyCollectObject(obj)) this.collect(obj)
         }
         proto.collect = this.objCollect
-        proto.onCollect ||= function(act) {}
+        proto.onCollect ||= function(obj) {}
         proto.getCollected ||= this.objGetCollected
         proto.onGetCollected ||= function(collector) {}
         proto.getOwner = this.objGetOwner
@@ -2876,9 +2875,9 @@ export class CollectMixin extends Mixin {
         if(this.origCanGetCollected) obj.canGetCollected = (obj.ownerId === null)
     }
 
-    objCollect(act) {
-        if(act.getCollected) act.getCollected(this)
-        this.onCollect(act)
+    objCollect(obj) {
+        if(obj.getCollected) obj.getCollected(this)
+        this.onCollect(obj)
     }
 
     objGetCollected(collector) {
@@ -2889,7 +2888,7 @@ export class CollectMixin extends Mixin {
     objGetOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.scene.actors.get(ownerId)
+        return this.scene.objects.get(ownerId)
     }
 
     objDrop() {
@@ -2911,7 +2910,7 @@ export class CollectMixin extends Mixin {
     graceDuration: 2,
 })
 @Category.append("hero")
-export class Hero extends Actor {
+export class Hero extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -2930,7 +2929,7 @@ export class Hero extends Actor {
     }
 
     initExtras() {
-        const extras = this.extras ||= new ActorRefs(this.scene)
+        const extras = this.extras ||= new ObjectRefs(this.scene)
         return extras
     }
 
@@ -3028,7 +3027,7 @@ export const PuffAud = CATALOG.registerAudio("/static/core/assets/puff.opus")
 
 const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/smoke_explosion.png"), 4, 1)
 
-@CATALOG.registerActor("smokee", {
+@CATALOG.registerObject("smokee", {
     showInBuilder: false
 })
 @StateInt.define("iteration")
@@ -3078,7 +3077,7 @@ class Pop extends GameObject {
 
 @AttackMixin.add()
 @Category.append("npc/enemy")
-export class Enemy extends Actor {
+export class Enemy extends GameObject {
 
     // in case Enemy if added HitMixin
     canHitCategory(cat) {
@@ -3101,7 +3100,7 @@ export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
     canHit: false,
 })
 @Category.append("item/collectable")
-export class Collectable extends Actor {
+export class Collectable extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -3118,7 +3117,7 @@ export class Collectable extends Actor {
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.scene.actors.get(ownerId)
+        return this.scene.objects.get(ownerId)
     }
 
     onCollected(owner) {
@@ -3152,7 +3151,7 @@ export class Collectable extends Actor {
     canGetCollected: true,
 })
 @Category.append("extra")
-export class Extra extends Actor {
+export class Extra extends GameObject {
 
     getPriority() {
         const owner = this.getOwner()
@@ -3460,11 +3459,11 @@ export class CountDown extends Text {
 }
 
 
-@CATALOG.registerActor("hero", {
+@CATALOG.registerObject("hero", {
     label: "Hero",
     icon: PopImg,
 })
-export class HeroSpawnPoint extends Actor {
+export class HeroSpawnPoint extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -3477,51 +3476,51 @@ export class HeroSpawnPoint extends Actor {
 }
 
 
-@CATALOG.registerActor("spawn", {
-    label: "ActorSpawner",
+@CATALOG.registerObject("spawn", {
+    label: "ObjectSpawner",
     icon: PopImg,
 })
-@ActorRefs.StateProperty.define("spawnedActors")
+@ObjectRefs.StateProperty.define("spawnedObjects")
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 @StateInt.define("nbSpawn")
 @StateInt.define("maxLiving", { default: 10, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("max", { default:Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateInt.define("period", { default:1, showInBuilder: true })
-@Actor.StateProperty.define("model", { showInBuilder: true })
+@GameObject.StateProperty.define("model", { showInBuilder: true })
 @ActivableMixin.add()
-export class ActorSpawner extends Actor {
+export class ObjectSpawner extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
     }
     update() {
         super.update()
-        this.spawnedActors.update()
-        if(this.nbSpawn >= this.max && this.spawnedActors.size == 0) this.remove()
-        this.maySpawnActor()
+        this.spawnedObjects.update()
+        if(this.nbSpawn >= this.max && this.spawnedObjects.size == 0) this.remove()
+        this.maySpawnObject()
     }
-    maySpawnActor() {
+    maySpawnObject() {
         if(!this.activated) return
         if(this.nbSpawn >= this.max) return
         if(this.scene.iteration < this.lastSpawnIt + ceil(this.period * this.game.fps)) return
-        if(this.spawnedActors.size >= this.maxLiving) return
-        this.spawnActor()
+        if(this.spawnedObjects.size >= this.maxLiving) return
+        this.spawnObject()
     }
-    spawnActor() {
+    spawnObject() {
         const { scene, model } = this
         if(!model) return
-        const act = scene.addActor(model.getKey())
+        const obj = scene.addObject(model.getKey())
         const state = {
             ...model.getState(),
             x: this.x,
             y: this.y,
         }
-        act.setState(state)
+        obj.setState(state)
         this.nbSpawn += 1
-        this.spawnedActors.add(act.id)
+        this.spawnedObjects.add(obj.id)
         this.lastSpawnIt = scene.iteration
         scene.addVisual(Pop, { x:this.x, y:this.y })
-        return act
+        return obj
     }
     getSprite() {
         return PopSprite

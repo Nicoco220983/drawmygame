@@ -66,16 +66,16 @@
             </flexrow>
             <div class="section_title">Game:</div>
             <flexcol>
-                <flexrow>Heros: <dmg-actor-selector id="heros"></dmg-actor-selector></flexrow>
+                <flexrow>Heros: <dmg-object-selector id="heros"></dmg-object-selector></flexrow>
             </flexcol>
             <div class="section_title">Scene:</div>
             <flexcol>
                 <flexrow>Scene: <select id="scene_key"></select></flexrow>
-                <flexrow><dmg-actor-state id="scene"></dmg-actor-state></flexrow>
+                <flexrow><dmg-object-state id="scene"></dmg-object-state></flexrow>
             </flexcol>
             <div class="section_title">Objects:</div>
             <flexrow>
-                Actors: <dmg-actor-selector id="actors"></dmg-actor-selector>
+                Objects: <dmg-object-selector id="objects"></dmg-object-selector>
             </flexrow>
             <flexrow>
                 <label><input id="anchor" type="checkbox" checked> Anchor</label>
@@ -113,24 +113,24 @@ async function initInputEls(catalog) {
     }
     const scnMap = map.scenes["0"]
     scnKeyEl.value = scnMap.key
-    herosEl.initCatalog(catalog, actCat => actCat.isHero)
-    herosEl.setSelectedActor("nico")
-    actorsEl.initCatalog(catalog, actCat => {
-        return !actCat.isHero && (!actCat.category || !actCat.category.startsWith("manager"))
+    herosEl.initCatalog(catalog, objCat => objCat.isHero)
+    herosEl.setSelectedObject("nico")
+    objectsEl.initCatalog(catalog, objCat => {
+        return !objCat.isHero && (!objCat.category || !objCat.category.startsWith("manager"))
     })
 }
 async function updScene() {
     const scnCat = catalog.scenes[scnKeyEl.value]
     const mods = await catalog.preload([scnCat.path])
     await gameBuilder.loadScenes(mods[0][scnCat.name])
-    scnStateEl.initActor(gameBuilder.scenes.game)
+    scnStateEl.initObject(gameBuilder.scenes.game)
 }
 scnKeyEl.onchange = updScene
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {
     if(!gameBuilder) return
-    scnStateEl.initActor(gameBuilder.scenes.game)
+    scnStateEl.initObject(gameBuilder.scenes.game)
     anchorEl.checked = gameBuilder.scenes.draft.anchor
 }
 function syncBuilderAnchor() {
@@ -142,8 +142,8 @@ anchorEl.onchange = syncBuilderAnchor
 const Keys = {}
 document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'wall')
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'platform')
-const actorsEl = document.getElementById("actors")
-actorsEl.addEventListener("change", evt => setBuilderMode('actor', evt.detail.key))
+const objectsEl = document.getElementById("objects")
+objectsEl.addEventListener("change", evt => setBuilderMode('object', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, builderModeKey)

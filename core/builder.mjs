@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Actor, ActorLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, ObjectLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -40,7 +40,7 @@ export class GameBuilder extends GameCommon {
 
     createScene(cls, kwargs) {
         const scn = new cls(this, kwargs)
-        scn.doCreateActorMapProto = false
+        scn.doCreateObjectMapProto = false
         return scn
     }
 
@@ -70,17 +70,17 @@ export class GameBuilder extends GameCommon {
         for(let obj of this.scenes.draft.selections) {
             if(obj instanceof GameObject) {
                 obj.remove()
-                // remove all links associated to this actor
-                this.scenes.game.actors.forEach(act => {
-                    const lnks = act.actorLinks
+                // remove all links associated to this object
+                this.scenes.game.objects.forEach(obj => {
+                    const lnks = obj.objectLinks
                     if(lnks) for(let lnk of lnks) {
-                        if(lnk.reactionActor == obj || lnk.triggerActor == obj) {
+                        if(lnk.reactionObject == obj || lnk.triggerObject == obj) {
                             lnks.splice(lnks.indexOf(lnk), 1)
                         }
                     }
                 })
-            } else if(obj instanceof ActorLink) {
-                const lnks = obj.reactionActor.actorLinks
+            } else if(obj instanceof ObjectLink) {
+                const lnks = obj.reactionObject.objectLinks
                 lnks.splice(lnks.indexOf(obj), 1)
             }
         }
@@ -105,9 +105,9 @@ class DraftScene extends SceneCommon {
         this.backgroundColor = null
         this.viewSpeed = Infinity
         this.anchor = true
-        this.draftActor = null
+        this.draftObject = null
         this.touchedObj = null
-        this.linkedActor = null
+        this.linkedObject = null
         this.selections = []
         this.gridBoxSize = 20
         this.syncPosSize()
@@ -116,21 +116,21 @@ class DraftScene extends SceneCommon {
     syncMode() {
         const { mode, modeKey } = this.game
         this.prevPos = null
-        if(this.draftActor) {
-            this.draftActor.remove()
-            this.draftActor = null
+        if(this.draftObject) {
+            this.draftObject.remove()
+            this.draftObject = null
         }
-        if(mode == "actor") {
-            this.draftActor = this.addActor(modeKey)
-            this.draftActor.spriteVisibility = 0
+        if(mode == "object") {
+            this.draftObject = this.addObject(modeKey)
+            this.draftObject.spriteVisibility = 0
         }
     }
 
     update() {
         this.syncPosSize()
         const { mode } = this.game
-        this.updateDraftActor()
-        if(mode == "actor") this.addPointedActor()
+        this.updateDraftObject()
+        if(mode == "object") this.addPointedObject()
         else if(mode == "wall") this.addPointedWall()
         else if(mode == "cursor") this.cursorUpdate()
     }
@@ -144,7 +144,7 @@ class DraftScene extends SceneCommon {
                 this.initMove(touch, this.touchedObj)
             } else {
                 const touchedObj = this.checkTouchSelect(touch, this.touchedObj)
-                this.linkedActor = (touchedObj instanceof Actor) ? touchedObj : null
+                this.linkedObject = (touchedObj instanceof GameObject) ? touchedObj : null
                 this.updateMove(touch)
             }
         } else {
@@ -153,14 +153,14 @@ class DraftScene extends SceneCommon {
                     if(this.touchedObj) this.select(this.touchedObj)
                     else this.clearSelection()
                 } else {
-                    if(this.linkedActor) {
-                        this.addActorLink(this.linkedActor)
+                    if(this.linkedObject) {
+                        this.addObjectLink(this.linkedObject)
                         this.cancelMove()
                     }
                 }
             }
             this.touchedObj = null
-            this.linkedActor = null
+            this.linkedObject = null
             this.clearMove()
         }
     }
@@ -177,21 +177,21 @@ class DraftScene extends SceneCommon {
             }
         })
         if(res) return res
-        // actors
-        gameScn.actors.forEach(act  => {
-            if(act == ignore) return
-            const { left, width, top, height } = act.getHitBox()
+        // objects
+        gameScn.objects.forEach(obj  => {
+            if(obj == ignore) return
+            const { left, width, top, height } = obj.getHitBox()
             if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                res = act
+                res = obj
             }
         })
         if(res) return res
         // links
-        gameScn.actors.forEach(act  => {
-            if(!act.actorLinks) return
-            act.actorLinks.forEach(lnk => {
-                const { x:x1, y:y1 } = lnk.triggerActor
-                const { x:x2, y:y2 } = lnk.reactionActor
+        gameScn.objects.forEach(obj  => {
+            if(!obj.objectLinks) return
+            obj.objectLinks.forEach(lnk => {
+                const { x:x1, y:y1 } = lnk.triggerObject
+                const { x:x2, y:y2 } = lnk.reactionObject
                 if(distancePointSegment(x, y, x1, y1, x2, y2) <= 5) {
                     res = lnk
                 }
@@ -221,7 +221,7 @@ class DraftScene extends SceneCommon {
     }
 
     canMove(obj) {
-        return obj instanceof Actor || obj instanceof Wall
+        return obj instanceof GameObject || obj instanceof Wall
     }
 
     updateMove(touch) {
@@ -270,41 +270,41 @@ class DraftScene extends SceneCommon {
         this._moveOrig = null
     }
     
-    addActorLink(trigAct) {
+    addObjectLink(trigObj) {
         const orig = this._moveOrig
         if(!orig) return
         const objs = orig.objs
         if(!objs) return
         for(let idx in orig.objs) {
             const obj = orig.objs[idx]
-            obj.addActorLink(trigAct)
+            obj.addObjectLink(trigObj)
         }
     }
 
-    updateDraftActor() {
-        if(!this.draftActor) return
+    updateDraftObject() {
+        if(!this.draftObject) return
         const { mode } = this.game
         const touch = this.game.touches[0]
         if(touch) {
-            this.draftActor.spriteVisibility = .5
+            this.draftObject.spriteVisibility = .5
             const draftPos = {
                 x: touch.x,
                 y: touch.y,
             }
-            if(mode == "actor") {
-                this.draftActor.x = draftPos.x
-                this.draftActor.y = draftPos.y
+            if(mode == "object") {
+                this.draftObject.x = draftPos.x
+                this.draftObject.y = draftPos.y
             } else if(mode == "wall") {
                 if(this.anchor) this.applyAnchor(draftPos)
-                this.draftActor.x2 = draftPos.x
-                this.draftActor.y2 = draftPos.y
+                this.draftObject.x2 = draftPos.x
+                this.draftObject.y2 = draftPos.y
             }
         } else {
-            this.draftActor.spriteVisibility = 0
+            this.draftObject.spriteVisibility = 0
         }
     }
 
-    addPointedActor() {
+    addPointedObject() {
         const { touches, prevTouchIsDown } = this.game
         const { modeKey } = this.game
         const touch = touches[0]
@@ -312,7 +312,7 @@ class DraftScene extends SceneCommon {
             const gameScn = this.game.scenes.game
             const x = floor(touch.x + gameScn.viewX)
             const y = floor(touch.y + gameScn.viewY)
-            gameScn.addActor(modeKey, { x, y })
+            gameScn.addObject(modeKey, { x, y })
         }
     }
     
@@ -330,12 +330,12 @@ class DraftScene extends SceneCommon {
             if(this.prevPos !== null) {
                 gameScn.addWall({ key:modeKey, x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
-            if(!this.draftActor) {
-                this.draftActor = this.addWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
-                this.draftActor.visibility = .5
+            if(!this.draftObject) {
+                this.draftObject = this.addWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
+                this.draftObject.visibility = .5
             } else {
-                this.draftActor.x1 = pos.x
-                this.draftActor.y1 = pos.y
+                this.draftObject.x1 = pos.x
+                this.draftObject.y1 = pos.y
             }
             this.prevPos = pos
         }
@@ -360,12 +360,12 @@ class DraftScene extends SceneCommon {
         }
         const selMenuEl = this.game.selectionMenuEl
         selMenuEl.innerHTML = ""
-        if(obj instanceof Actor) {
-            const stateEl = addNewDomEl(selMenuEl, "dmg-actor-state")
-            stateEl.initActor(obj)
-        } else if(obj instanceof ActorLink) {
-            const linkEl = addNewDomEl(selMenuEl, "dmg-actor-link")
-            linkEl.initActorLink(obj)
+        if(obj instanceof GameObject) {
+            const stateEl = addNewDomEl(selMenuEl, "dmg-object-state")
+            stateEl.initObject(obj)
+        } else if(obj instanceof ObjectLink) {
+            const linkEl = addNewDomEl(selMenuEl, "dmg-object-link")
+            linkEl.initObjectLink(obj)
         }
     }
 
@@ -384,8 +384,8 @@ class DraftScene extends SceneCommon {
         super.drawTo(ctx)
         ctx.translate(~~-this.viewX, ~~-this.viewY)
         this.drawSelections(ctx)
-        this.drawLinkedActor(ctx)
-        this.drawActorLinks(ctx)
+        this.drawLinkedObject(ctx)
+        this.drawObjectLinks(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
     }
 
@@ -422,15 +422,15 @@ class DraftScene extends SceneCommon {
                 top = min(sel.y1, sel.y2)
                 width = abs(sel.x1 - sel.x2)
                 height = abs(sel.y1 - sel.y2)
-            } else if(sel instanceof Actor) {
+            } else if(sel instanceof GameObject) {
                 const hitBox = sel.getHitBox()
                 left = hitBox.left
                 top = hitBox.top
                 width = hitBox.width
                 height = hitBox.height
-            } else if(sel instanceof ActorLink) {
-                const { x:x1, y:y1 } = sel.triggerActor
-                const { x:x2, y:y2 } = sel.reactionActor
+            } else if(sel instanceof ObjectLink) {
+                const { x:x1, y:y1 } = sel.triggerObject
+                const { x:x2, y:y2 } = sel.reactionObject
                 left = x1
                 top = y1
                 width = x2 - x1
@@ -445,9 +445,9 @@ class DraftScene extends SceneCommon {
         }
     }
 
-    drawLinkedActor(ctx) {
-        if(!this.linkedActor) return
-        const { left, top, width, height } = this.linkedActor.getHitBox()
+    drawLinkedObject(ctx) {
+        if(!this.linkedObject) return
+        const { left, top, width, height } = this.linkedObject.getHitBox()
         ctx.lineWidth = 2
         ctx.strokeStyle = "red"
         ctx.beginPath()
@@ -455,18 +455,18 @@ class DraftScene extends SceneCommon {
         ctx.stroke()
     }
 
-    drawActorLinks(ctx) {
+    drawObjectLinks(ctx) {
         const gameScn = this.game.scenes.game
         ctx.lineWidth = 1
         ctx.strokeStyle = "red"
         ctx.beginPath()
         ctx.setLineDash([5, 5])
-        gameScn.actors.forEach(act => {
-            const actLinks = act.actorLinks
-            if(actLinks) actLinks.forEach(actLink => {
-                const trigAct = actLink.triggerActor
-                ctx.moveTo(act.x, act.y)
-                ctx.lineTo(trigAct.x, trigAct.y)
+        gameScn.objects.forEach(obj => {
+            const objLinks = obj.objectLinks
+            if(objLinks) objLinks.forEach(objLink => {
+                const trigObj = objLink.triggerObject
+                ctx.moveTo(obj.x, obj.y)
+                ctx.lineTo(trigObj.x, trigObj.y)
             })
         })
         ctx.stroke()
@@ -474,7 +474,7 @@ class DraftScene extends SceneCommon {
 }
 
 
-class ActorSelectorElement extends HTMLElement {
+class ObjectSelectorElement extends HTMLElement {
     constructor() {
         super()
         this.value = null
@@ -525,22 +525,22 @@ class ActorSelectorElement extends HTMLElement {
     initCatalog(catalog, filter) {
         this.catalog = catalog
         this.optionsEl.innerHTML = ""
-        for(let actKey in catalog.actors) {
-            const actCat = catalog.actors[actKey]
-            if(!actCat.showInBuilder) continue
-            if(filter && !filter(actCat)) continue
+        for(let objKey in catalog.objects) {
+            const objCat = catalog.objects[objKey]
+            if(!objCat.showInBuilder) continue
+            if(filter && !filter(objCat)) continue
             const optionEl = addNewDomEl(this.optionsEl, "cs-option")
-            this.setOptionKey(optionEl, actKey)
+            this.setOptionKey(optionEl, objKey)
             optionEl.onclick = () => {
-                this.setSelectedActor(actKey)
+                this.setSelectedObject(objKey)
                 this.setOptionsVisibility(false)
             }
         }
     }
-    setOptionKey(optionEl, actKey) {
-        const actCat = this.catalog.actors[actKey]
-        const label = actCat.label
-        const icon = actCat.icon
+    setOptionKey(optionEl, objKey) {
+        const objCat = this.catalog.objects[objKey]
+        const label = objCat.label
+        const icon = objCat.icon
         optionEl.innerHTML = ""
         if(icon) optionEl.appendChild(icon.cloneNode(true))
         addNewDomEl(optionEl, "span", {
@@ -553,22 +553,22 @@ class ActorSelectorElement extends HTMLElement {
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
     }
-    setSelectedActor(actKey) {
-        this.value = actKey
-        this.setOptionKey(this.selectEl, actKey)
+    setSelectedObject(objKey) {
+        this.value = objKey
+        this.setOptionKey(this.selectEl, objKey)
         // this.dispatchEvent(new CustomEvent("select", {
-        //     detail: { key: actKey }
+        //     detail: { key: objKey }
         // }))
         this.dispatchEvent(new CustomEvent("change", {
-            detail: { key: actKey }
+            detail: { key: objKey }
         }))
     }
 }
-customElements.define('dmg-actor-selector', ActorSelectorElement)
+customElements.define('dmg-object-selector', ObjectSelectorElement)
 
 
 
-class ActorStateElement extends HTMLElement {
+class ObjectStateElement extends HTMLElement {
     constructor() {
         super()
         this.value = null
@@ -584,9 +584,9 @@ class ActorStateElement extends HTMLElement {
         })
         this.shadowRoot.append(styleEl, this.statesEl)
     }
-    initActor(act) {
+    initObject(obj) {
         this.statesEl.innerHTML = ""
-        act.constructor.STATE_PROPS.forEach(prop => {
+        obj.constructor.STATE_PROPS.forEach(prop => {
             if(!prop.showInBuilder) return
             const wrapperEl = addNewDomEl(this.statesEl, "div", {
                 style: {
@@ -597,13 +597,13 @@ class ActorStateElement extends HTMLElement {
             addNewDomEl(wrapperEl, "span", {
                 text: prop.key
             })
-            wrapperEl.appendChild(prop.createObjectInput(act))
+            wrapperEl.appendChild(prop.createObjectInput(obj))
         })
     }
-    setOptionKey(optionEl, actKey) {
-        const actCat = this.catalog.actors[actKey]
-        const label = actCat.label
-        const icon = actCat.icon
+    setOptionKey(optionEl, objKey) {
+        const objCat = this.catalog.objects[objKey]
+        const label = objCat.label
+        const icon = objCat.icon
         optionEl.innerHTML = ""
         if(icon) optionEl.appendChild(icon.cloneNode(true))
         addNewDomEl(optionEl, "span", {
@@ -616,18 +616,18 @@ class ActorStateElement extends HTMLElement {
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
     }
-    setSelectedActor(actKey) {
-        this.value = actKey
-        this.setOptionKey(this.selectEl, actKey)
+    setSelectedObject(objKey) {
+        this.value = objKey
+        this.setOptionKey(this.selectEl, objKey)
         this.dispatchEvent(new CustomEvent("change", {
-            detail: { key: actKey }
+            detail: { key: objKey }
         }))
     }
 }
-customElements.define('dmg-actor-state', ActorStateElement)
+customElements.define('dmg-object-state', ObjectStateElement)
 
 
-class ActorLinkElement extends HTMLElement {
+class ObjectLinkElement extends HTMLElement {
     constructor() {
         super()
         this.attachShadow({ mode: 'open' })
@@ -641,10 +641,10 @@ class ActorLinkElement extends HTMLElement {
         })
         this.shadowRoot.append(styleEl, this.wrapperEl)
 
-        this.actorLink = null
+        this.objectLink = null
     }
-    initActorLink(actLink) {
-        this.actorLink = actLink
+    initObjectLink(objLink) {
+        this.objectLink = objLink
         this.wrapperEl.innerHTML = ""
         const keysEl = addNewDomEl(this.wrapperEl, "div", {
             display: "flex",
@@ -652,27 +652,27 @@ class ActorLinkElement extends HTMLElement {
         })
         addNewDomEl(keysEl, "span", { text: "trigger:" })
         const trigKeyEl = addNewDomEl(keysEl, "select")
-        actLink.triggerActor.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
+        objLink.triggerObject.constructor.LINK_TRIGGERS.forEach((trig, funcName) => {
             addNewDomEl(trigKeyEl, "option", {
                 value: funcName,
                 text: trig.label,
             })
         })
-        trigKeyEl.value = actLink.triggerKey
-        trigKeyEl.addEventListener("change", () => actLink.triggerKey = trigKeyEl.value)
+        trigKeyEl.value = objLink.triggerKey
+        trigKeyEl.addEventListener("change", () => objLink.triggerKey = trigKeyEl.value)
         addNewDomEl(keysEl, "span", { text: "reaction:" })
         const reactKeyEl = addNewDomEl(keysEl, "select")
-        actLink.reactionActor.constructor.LINK_REACTIONS.forEach((trig, funcName) => {
+        objLink.reactionObject.constructor.LINK_REACTIONS.forEach((trig, funcName) => {
             addNewDomEl(reactKeyEl, "option", {
                 value: funcName,
                 text: trig.label,
             })
         })
-        reactKeyEl.value = actLink.reactionKey
-        reactKeyEl.addEventListener("change", () => actLink.reactionKey = reactKeyEl.value)
+        reactKeyEl.value = objLink.reactionKey
+        reactKeyEl.addEventListener("change", () => objLink.reactionKey = reactKeyEl.value)
     }
 }
-customElements.define('dmg-actor-link', ActorLinkElement)
+customElements.define('dmg-object-link', ObjectLinkElement)
 
 
 function distancePointSegment(x, y, x1, y1, x2, y2) {

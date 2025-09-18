@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, Actor, ActorRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -34,7 +34,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
 
 
 
-@CATALOG.registerActor("nico", {
+@CATALOG.registerObject("nico", {
     label: "Nico",
     icon: NicoImg,
 })
@@ -68,7 +68,7 @@ export class Nico extends Hero {
 
     updateHand() {
         if(this.handRemIt == this.handDur) {
-            this.hand ||= this.scene.addActor(NicoHand, {
+            this.hand ||= this.scene.addObject(NicoHand, {
                 owner: this
             })
         } else if(this.hand) {
@@ -96,8 +96,8 @@ export class Nico extends Hero {
         else delete inputState.walkX
         if(game.isKeyPressed("ArrowUp")) inputState.jump = true
         else delete inputState.jump
-        if(game.isKeyPressed(" ")) inputState.act = true
-        else delete inputState.act
+        if(game.isKeyPressed(" ")) inputState.obj = true
+        else delete inputState.obj
         return inputState
     }
 
@@ -118,7 +118,7 @@ export class Nico extends Hero {
             this.game.audio.playSound(JumpAud)
         }
         if(this.handRemIt) this.handRemIt -= 1
-        if(inputState && inputState.act) this.act()
+        if(inputState && inputState.obj) this.act()
         else if(this.handRemIt === 0) this.handRemIt = null
     }
 
@@ -207,7 +207,7 @@ export class Nico extends Hero {
     height: 25,
     canMove: false,
 })
-class NicoHand extends Actor {
+class NicoHand extends GameObject {
     static STATEFUL = false
 
     init(kwargs) {
@@ -225,10 +225,10 @@ class NicoHand extends Actor {
         this.y = owner.y
         this.dirX = owner.dirX
     }
-    canAttackActor(act) {
-        return act != this.owner && this.owner.canAttackActor(act)
+    canAttackObject(obj) {
+        return obj != this.owner && this.owner.canAttackObject(obj)
     }
-    onAttack(act) {
+    onAttack(obj) {
         this.game.audio.playSound(HandHitAud)
     }
 }
@@ -244,7 +244,7 @@ const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cat
 
 const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
 
-@CATALOG.registerActor("sword", {
+@CATALOG.registerObject("sword", {
     label: "Sword",
     icon: SwordImg,
 })
@@ -253,7 +253,7 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
-    oneAttackByActor: true,
+    oneAttackByObject: true,
 })
 @PhysicsMixin.add({
     shape: "box",
@@ -276,7 +276,7 @@ export class Sword extends Extra {
         if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
         this.lastAttackAge += 1
         if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
-        if(!this.isAttacking()) this.resetOneAttackByActor()
+        if(!this.isAttacking()) this.resetOneAttackByObject()
     }
 
     syncPos() {
@@ -293,14 +293,14 @@ export class Sword extends Extra {
         }
     }
 
-    canAttackActor(act) {
+    canAttackObject(obj) {
         const { ownerId } = this
-        if(!ownerId || !this.isAttacking() || act.id == ownerId) return false
+        if(!ownerId || !this.isAttacking() || obj.id == ownerId) return false
         const owner = this.getOwner()
-        return owner ? owner.canAttackActor(act) : false
+        return owner ? owner.canAttackObject(obj) : false
     }
 
-    onAttack(act) {
+    onAttack(obj) {
         this.game.audio.playSound(SwordHitAud)
     }
 
@@ -331,7 +331,7 @@ export class Sword extends Extra {
 const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
 const ShurikenSprite = new Sprite(ShurikenImg)
 
-@CATALOG.registerActor("shurikp", {
+@CATALOG.registerObject("shurikp", {
     label: "ShurikenPack",
     icon: ShurikenImg,
 })
@@ -365,7 +365,7 @@ export class ShurikenPack extends Extra {
     throwOneShuriken() {
         const owner = this.getOwner()
         if(!owner) return
-        this.scene.addActor(Shuriken, {
+        this.scene.addObject(Shuriken, {
             x: this.x, y: this.y,
             ownerId: this.ownerId,
         })
@@ -384,7 +384,7 @@ export class ShurikenPack extends Extra {
     }
 }
 
-@CATALOG.registerActor("shurik", {
+@CATALOG.registerObject("shurik", {
     label: "Shuriken",
     icon: ShurikenImg,
     showInBuilder: false,
@@ -403,7 +403,7 @@ export class ShurikenPack extends Extra {
 @StateProperty.define("ownerId")
 @StateInt.define("itToLive", { default: null })
 @Category.append("projectile")
-export class Shuriken extends Actor {
+export class Shuriken extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -417,15 +417,15 @@ export class Shuriken extends Actor {
     }
     getOwner() {
         const { ownerId } = this
-        return this.scene.actors.get(ownerId)
+        return this.scene.objects.get(ownerId)
     }
-    canAttackActor(act) {
+    canAttackObject(obj) {
         const { ownerId } = this
-        if(act.id == ownerId) return false
+        if(obj.id == ownerId) return false
         const owner = this.getOwner()
-        return owner ? owner.canAttackActor(act) : true
+        return owner ? owner.canAttackObject(obj) : true
     }
-    onAttack(act) {
+    onAttack(obj) {
         this.remove()
     }
     getAttackOwner() {
@@ -445,7 +445,7 @@ export class Shuriken extends Actor {
 const BombImg = CATALOG.registerImage("/static/catalogs/std/assets/bomb.png")
 const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb_spritesheet.png"), 2, 1)
 
-@CATALOG.registerActor("bomb", {
+@CATALOG.registerObject("bomb", {
     label: "Bomb",
     icon: BombImg
 })
@@ -474,7 +474,7 @@ export class Bomb extends Extra {
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
-                this.scene.addActor(Explosion, { x, y, owner })
+                this.scene.addObject(Explosion, { x, y, owner })
                 this.remove()
             }
             this.itToLive -= 1
@@ -506,14 +506,14 @@ export class Bomb extends Extra {
 
 const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
 
-@CATALOG.registerActor("explos", {
+@CATALOG.registerObject("explos", {
     showInBuilder: false
 })
 @AttackMixin.add({
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
-    oneAttackByActor: true,
+    oneAttackByObject: true,
 })
 @PhysicsMixin.add({
     shape: "box",
@@ -524,7 +524,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @StateProperty.define("ownerId")
 @StateInt.define("lastAttackAge", { default: Infinity })
 @StateInt.define("iteration")
-export class Explosion extends Actor {
+export class Explosion extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -534,7 +534,7 @@ export class Explosion extends Actor {
     getOwner() {
         const { ownerId } = this
         if(ownerId === null) return null
-        return this.scene.actors.get(ownerId)
+        return this.scene.objects.get(ownerId)
     }
     getAttackOwner() {
         return this.getOwner() || this
@@ -559,7 +559,7 @@ export class Explosion extends Actor {
 const SpikyImg = CATALOG.registerImage("/static/catalogs/std/assets/spiky.png")
 const SpikySprite = new Sprite(SpikyImg)
 
-@CATALOG.registerActor("spiky", {
+@CATALOG.registerObject("spiky", {
     label: "Spiky",
     icon: SpikyImg,
 })
@@ -584,8 +584,8 @@ export class Spiky extends Enemy {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    canAttackActor(act) {
-        return act instanceof Hero
+    canAttackObject(obj) {
+        return obj instanceof Hero
     }
 
     getSprite() {
@@ -605,7 +605,7 @@ export class Spiky extends Enemy {
 const BlobImg = CATALOG.registerImage("/static/catalogs/std/assets/blob.png")
 const BlobSprite = new Sprite(BlobImg)
 
-@CATALOG.registerActor("blob", {
+@CATALOG.registerObject("blob", {
     label: "Blob",
     icon: BlobImg,
 })
@@ -645,8 +645,8 @@ export class BlobEnemy extends Enemy {
         this.lastChangeDirAge += 1
     }
 
-    canAttackActor(act) {
-        return act instanceof Hero
+    canAttackObject(obj) {
+        return obj instanceof Hero
     }
 
     getSprite() {
@@ -677,7 +677,7 @@ export class BlobEnemy extends Enemy {
 const GhostImg = CATALOG.registerImage("/static/catalogs/std/assets/ghost.png")
 const GhostSprite = new Sprite(GhostImg)
 
-@CATALOG.registerActor("ghost", {
+@CATALOG.registerObject("ghost", {
     label: "Ghost",
     icon: GhostImg,
 })
@@ -713,8 +713,8 @@ export class Ghost extends Enemy {
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
     }
 
-    canAttackActor(act) {
-        return act instanceof Hero
+    canAttackObject(obj) {
+        return obj instanceof Hero
     }
 
     getSprite() {
@@ -755,11 +755,15 @@ export const HeartSpriteSheets = {
     },
 }
 
-@CATALOG.registerActor("heart", {
+@CATALOG.registerObject("heart", {
     label: "Heart",
     icon: HeartImg,
 })
-export class Heart extends Collectable {
+@CollectMixin.add({
+    canCollect: false,
+    canGetCollected: true,
+})
+export class Heart extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -767,14 +771,13 @@ export class Heart extends Collectable {
         this.spriteRand = floor(random() * this.game.fps)
     }
 
-    onCollected(hero) {
-        super.onCollected(hero)
+    canGetCollectedByObject(obj) {
+        return obj instanceof Hero
+    }
+
+    onGetCollected(hero) {
         this.remove()
-        if(hero.getHealth() < hero.maxHealth) {
-            hero.damages = 0
-        } else {
-            hero.lives += 1
-        }
+        hero.damages = 0
     }
 
     getSprite() {
@@ -794,7 +797,7 @@ export class Heart extends Collectable {
 const StarImg = CATALOG.registerImage("/static/catalogs/std/assets/star.png")
 const StarSprite = new Sprite(StarImg)
 
-@CATALOG.registerActor("star", {
+@CATALOG.registerObject("star", {
     label: "Star",
     icon: StarImg,
 })
@@ -802,7 +805,7 @@ const StarSprite = new Sprite(StarImg)
     canCollect: false,
     canGetCollected: true,
 })
-export class Star extends Actor {
+export class Star extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -820,7 +823,7 @@ export class Star extends Actor {
 const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/assets/checkpoint.png")
 const CheckpointSprite = new Sprite(CheckpointImg)
 
-@CATALOG.registerActor("checkpt", {
+@CATALOG.registerObject("checkpt", {
     label: "CheckPoint",
     icon: CheckpointImg,
 })
@@ -846,12 +849,12 @@ const PortalImg = CATALOG.registerImage("/static/catalogs/std/assets/portal.png"
 const PortalSprite = new Sprite(PortalImg)
 const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_jump.opus")
 
-@CATALOG.registerActor("portal", {
+@CATALOG.registerObject("portal", {
     label: "Portal",
     icon: PortalImg,
 })
 @ActivableMixin.add()
-export class Portal extends Actor {
+export class Portal extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -860,20 +863,20 @@ export class Portal extends Actor {
     update() {
         super.update()
         if(this.activated) {
-            this.scene.actors.forEach(act => {
-                if(hypot(act.x-this.x, act.y-this.y)<30 && (act.speedX * (this.x-act.x) + act.speedY * (this.y-act.y))>0) {
-                    this.teleport(act)
+            this.scene.objects.forEach(obj => {
+                if(hypot(obj.x-this.x, obj.y-this.y)<30 && (obj.speedX * (this.x-obj.x) + obj.speedY * (this.y-obj.y))>0) {
+                    this.teleport(obj)
                 }
             })
         }
     }
-    teleport(act) {
-        const portals = this.scene.filterActors("portals", act => (act instanceof Portal && act.activated))
+    teleport(obj) {
+        const portals = this.scene.filterObjects("portals", obj => (obj instanceof Portal && obj.activated))
         if(portals.length < 2) return
         let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
         if(targetPortal === this) targetPortal = portals[portals.length - 1]
-        act.x = targetPortal.x + (this.x - act.x)
-        act.y = targetPortal.y + (this.y - act.y)
+        obj.x = targetPortal.x + (this.x - obj.x)
+        obj.y = targetPortal.y + (this.y - obj.y)
         this.game.audio.playSound(PortalJumpAud)
     }
     getSprite() {
@@ -885,7 +888,7 @@ export class Portal extends Actor {
 
 @LinkTrigger.add("isTriggered", { isDefault: true })
 @StateBool.define("triggered")
-export class Trigger extends Actor {
+export class Trigger extends GameObject {
 
     isTriggered() {
         return this.triggered
@@ -896,7 +899,7 @@ export class Trigger extends Actor {
 const BurronImg = CATALOG.registerImage("/static/core/assets/button.png")
 const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/button_spritesheet.png"), 2, 1)
 
-@CATALOG.registerActor("button", {
+@CATALOG.registerObject("button", {
     label: "Button",
     icon: BurronImg,
 })
@@ -950,7 +953,7 @@ export class Button extends Trigger {
 const ClockImg = CATALOG.registerImage("/static/catalogs/std/assets/clock.png")
 const ClockSprite = new Sprite(ClockImg)
 
-@CATALOG.registerActor("clock", {
+@CATALOG.registerObject("clock", {
     label: "Clock",
     icon: ClockImg,
     showInBuilder: true,
@@ -981,7 +984,7 @@ export class Clock extends Trigger {
 const DoorImg = CATALOG.registerImage("/static/catalogs/std/assets/door.png")
 const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/door_spritesheet.png"), 2, 1)
 
-@CATALOG.registerActor("door", {
+@CATALOG.registerObject("door", {
     label: "Door",
     icon: DoorImg,
     showInBuilder: true,
@@ -996,7 +999,7 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 })
 @StateBool.define("closed", { default: true, showInBuilder: true })
 @Category.append("engine")
-export class Door extends Actor {
+export class Door extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
