@@ -18,44 +18,29 @@ export default class PhysicsEngine {
         this.syncMap()
     }
     syncMap() {
-        this.scene.walls.forEach(wall => this.initWall(wall))
+        this.scene.walls.forEach(wall => {
+            this.initObject(0, wall)
+        })
     }
-    initWall(wall) {
-        const data = wall._physicsData ||= { obj: wall }
-        const polygon = data.polygon ||= []
-        const { x1, x2, y1, y2 } = wall
-        polygon.length = 0
-        polygon.push(
-            x1, y1,
-            x2, y2,
-        )
-        data.dx = data.dy = 0
-        if(wall.key == "platform") {
-            const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
-            data.uniDirX = dy/dd
-            data.uniDirY = -dx/dd
-        }
-        this.initPhysicsData(data)
-    }
+    // initWall(wall) {
+    //     const data = wall._physicsData ||= { obj: wall }
+    //     data.polygon = obj.getBodyPolygon()
+    //     data.dx = data.dy = 0
+    //     if(wall.key == "platform") {
+    //         const { x1, x2, y1, y2 } = wall
+    //         const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
+    //         data.uniDirX = dy/dd
+    //         data.uniDirY = -dx/dd
+    //     }
+    //     this.initPhysicsData(data)
+    // }
     initObject(dt, obj) {
-        const data = obj._physicsData ||= { obj }
-        const polygon = data.polygon ||= []
-        polygon.length = 0
-        const { x, y, width, height, speedX, speedY } = obj
-        const hWidth = width/2, hHeight = height/2
-        const xMin = x - hWidth, yMin = data.yMin = y - hHeight, xMax = data.xMax = x + hWidth, yMax = data.yMax = y + hHeight
-        polygon.push(
-            xMin, yMin,
-            xMax, yMin,
-            xMax, yMax,
-            xMin, yMax,
-        )
-        data.dx = speedX * dt
-        data.dy = speedY * dt
-        this.initPhysicsData(data)
+        const props = obj.getPhysicsProps(dt)
+        props.obj = obj
+        this.initPhysicsProps(props)
     }
-    initPhysicsData(physicsData) {
-        const { polygon, dx, dy } = physicsData
+    initPhysicsProps(physicsProps) {
+        const { polygon, dx, dy } = physicsProps
         // min/max
         const minDx = (dx<0 ? dx : 0), minDy = (dy<0 ? dy : 0)
         const maxDx = (dx>0 ? dx : 0), maxDy = (dy>0 ? dy : 0)
@@ -80,9 +65,9 @@ export default class PhysicsEngine {
                 sMaxY = max(sMaxY, y + maxDy)
             }
         }
-        assign(physicsData, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
+        assign(physicsProps, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
         // normals
-        const normals = physicsData.normals ||= []
+        const normals = physicsProps.normals ||= []
         normals.length = 0
         for(let i=0; i<polygon.length/2; i+=2) {  // /2 because of symetry
             const edgeX = polygon[i+2] - polygon[i]
@@ -116,18 +101,18 @@ export default class PhysicsEngine {
                     colRes.time = Infinity
                     this.initObject(dt*remD, obj)
                     let { speedX: objSpdX, speedY: objSpdY } = obj
-                    const objData = obj._physicsData
+                    const objProps = obj._physicsProps
                     const {
                         minX: objMinX, minY: objMinY, maxX: objMaxX, maxY: objMaxY,
                         sMinX: objSMinX, sMinY: objSMinY, sMaxX: objSMaxX, sMaxY: objSMaxY,
-                    } = objData
+                    } = objProps
                     for(let wall of blockers) {
                         if(obj == wall) continue
-                        const wallData = wall._physicsData
+                        const wallProps = wall._physicsProps
                         // quick filteringgs
-                        if(objSMinX > wallData.sMaxX || objSMaxX < wallData.sMinX || objSMinY > wallData.sMaxY || objSMaxY < wallData.sMinY) continue
+                        if(objSMinX > wallProps.sMaxX || objSMaxX < wallProps.sMinX || objSMinY > wallProps.sMaxY || objSMaxY < wallProps.sMinY) continue
                         // detect collision
-                        detectCollisionTime(objData, wallData, wallColRes)
+                        detectCollisionTime(objProps, wallProps, wallColRes)
                         if(wallColRes.time == Infinity) continue
                         if(wallColRes.time < colRes.time) assign(colRes, wallColRes)
                         if(colRes.time == 0) break
@@ -135,7 +120,7 @@ export default class PhysicsEngine {
                     if(colRes.time == Infinity) break
                     // collision detected...
                     nbCollisions += 1
-                    const  { dx: objDx, dy: objDy } = objData
+                    const  { dx: objDx, dy: objDy } = objProps
                     const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
                     // move
                     if(obj.canMove) {
@@ -226,44 +211,44 @@ export default class PhysicsEngine {
 }
 
 // Fonction principale pour détecter le moment de collision
-function detectCollisionTime(physicsData1, physicsData2, res) {
+function detectCollisionTime(physicsProps1, physicsProps2, res) {
     res.obj = null
     res.time = 0
     res.dist = -Infinity
     res.distFixSign = 0
     res.normalX = null
     res.normalY = null
-    if(_checkUniDir(physicsData1, physicsData2)
-    || _checkUniDir(physicsData2, physicsData1)) {
+    if(_checkUniDir(physicsProps1, physicsProps2)
+    || _checkUniDir(physicsProps2, physicsProps1)) {
         res.time = Infinity
         return
     }
-    _detectCollisionTime(physicsData1, physicsData2, 0, res)
+    _detectCollisionTime(physicsProps1, physicsProps2, 0, res)
     if(res.time == Infinity) return
-    _detectCollisionTime(physicsData1, physicsData2, 1, res)
-    _checkUniDir2(physicsData1, physicsData2, res)
+    _detectCollisionTime(physicsProps1, physicsProps2, 1, res)
+    _checkUniDir2(physicsProps1, physicsProps2, res)
 }
 
-function _checkUniDir(physicsData1, physicsData2) {
-    if(physicsData1.uniDirX === undefined) return false
-    const { dx: dx1, dy: dy1 } = physicsData1
-    const { dx: dx2, dy: dy2 } = physicsData2
+function _checkUniDir(physicsProps1, physicsProps2) {
+    if(physicsProps1.uniDirX === null) return false
+    const { dx: dx1, dy: dy1 } = physicsProps1
+    const { dx: dx2, dy: dy2 } = physicsProps2
     const dx = dx2-dx1, dy = dy2-dy1
-    const dp = dotProduct(dx, dy, physicsData1.uniDirX, physicsData1.uniDirY)
+    const dp = dotProduct(dx, dy, physicsProps1.uniDirX, physicsProps1.uniDirY)
     return dp >= 0
 }
 
-function _checkUniDir2(physicsData1, physicsData2, res) {
-    if(physicsData1.uniDirX === undefined && physicsData2.uniDirX === undefined) return
+function _checkUniDir2(physicsProps1, physicsProps2, res) {
+    if(physicsProps1.uniDirX === null && physicsProps2.uniDirX === null) return
     if(res.dist < -1) res.time = Infinity
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
-function _detectCollisionTime(physicsData1, physicsData2, num, res) {
-    const pdata1 = (num==0) ? physicsData1 : physicsData2
-    const pdata2 = (num==1) ? physicsData1 : physicsData2
-    const { polygon: poly1, dx: dx1, dy: dy1, normals } = pdata1
-    const { polygon: poly2, dx: dx2, dy: dy2} = pdata2
+function _detectCollisionTime(physicsProps1, physicsProps2, num, res) {
+    const pprops1 = (num==0) ? physicsProps1 : physicsProps2
+    const pprops2 = (num==1) ? physicsProps1 : physicsProps2
+    const { polygon: poly1, dx: dx1, dy: dy1, normals } = pprops1
+    const { polygon: poly2, dx: dx2, dy: dy2} = pprops2
     const dx = dx1-dx2, dy = dy1-dy2
     for(let i=0; i<normals.length; i+=2) {
         const ax = normals[i], ay = normals[i+1]
@@ -274,7 +259,7 @@ function _detectCollisionTime(physicsData1, physicsData2, num, res) {
         const { time: colTime, dist: colDist, distFixSign: colDistFixSign } = resOverlapTime
         if(colTime < res.time) continue
         if(colTime == 0 && colDist < res.dist) return
-        res.obj = physicsData2.obj
+        res.obj = physicsProps2.obj
         res.time = colTime
         res.dist = colDist
         res.distFixSign = colDistFixSign

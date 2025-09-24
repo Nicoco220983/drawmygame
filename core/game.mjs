@@ -1816,30 +1816,6 @@ export class SceneCommon {
 }
 
 
-export class Wall extends GameObject {
-
-    init(kwargs) {
-        this.key = kwargs.key
-        this.x1 = kwargs.x1
-        this.y1 = kwargs.y1
-        this.x2 = kwargs.x2
-        this.y2 = kwargs.y2
-        this.canBlock = true
-    }
-    drawTo(ctx) {
-        ctx.lineWidth = 5
-        ctx.strokeStyle = (this.key == "platform") ? "grey" : "black"
-        ctx.beginPath()
-        ctx.moveTo(this.x1, this.y1)
-        ctx.lineTo(this.x2, this.y2)
-        ctx.globalAlpha = this.spriteVisibility
-        ctx.stroke()
-        ctx.globalAlpha = 1
-    }
-    onBlock(obj) {}
-}
-
-
 // GAME //////////////////////////
 
 export const GAME_STEP_DEFAULT = 0
@@ -2610,6 +2586,35 @@ export class BodyMixin extends Mixin {
         this.height = kwargs?.height ?? 50
         this.radius = kwargs?.radius ?? 50
     }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+
+        proto.shape = this.shape
+        proto.width = this.width
+        proto.height = this.height
+        proto.radius = this.radius
+
+        proto.getBodyPolygon ||= this.objGetBodyPolygon
+    }
+
+    objGetBodyPolygon() {
+        const pol = this._bodyPolygons ||= []
+        pol.length = 0
+        if(this.shape == "box") {
+            const { x, y, width, height } = this
+            const hWidth = width/2, hHeight = height/2
+            const xMin = x-hWidth, yMin = y-hHeight, xMax = x+hWidth, yMax = y+hHeight
+            pol.push(
+                xMin, yMin,
+                xMax, yMin,
+                xMax, yMax,
+                xMin, yMax,
+            )
+        }
+        return pol
+    }
 }
 
 
@@ -2696,12 +2701,23 @@ export class PhysicsMixin extends Mixin {
             if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj)
             if(this.canGetBlocked || this.checkGetBlockedAnyway) obj.onGetBlocked(this)
         }
+
+        proto.getPhysicsProps ||= this.objGetPhysicsProps
     }
 
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
         if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
         if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
+    }
+
+    objGetPhysicsProps(dt) {
+        const props = this._physicsProps ||= {}
+        props.polygon = this.getBodyPolygon()
+        props.dx = this.speedX * dt
+        props.dy = this.speedY * dt
+        props.uniDirX = props.uniDirY = null
+        return props
     }
 
     updateObject(obj) {
@@ -2959,6 +2975,58 @@ export class CollectMixin extends Mixin {
 
 
 // OBJECTS ///////////////////////////////////
+
+
+@PhysicsMixin.add({
+    canMove: false,
+    canBlock: true,
+})
+export class Wall extends GameObject {
+    static STATEFUL = false
+
+    init(kwargs) {
+        this.key = kwargs.key
+        this.x1 = kwargs.x1
+        this.y1 = kwargs.y1
+        this.x2 = kwargs.x2
+        this.y2 = kwargs.y2
+    }
+
+    getBodyPolygon() {
+        const pol = this.bodyPolygons ||= []
+        pol.length = 0
+        const { x1, x2, y1, y2 } = this
+        pol.push(
+            x1, y1,
+            x2, y2,
+        )
+        return pol
+    }
+
+    getPhysicsProps(dt) {
+        const props = this._physicsProps ||= {}
+        props.polygon = this.getBodyPolygon()
+        props.dx = props.dy = 0
+        if(this.key == "platform") {
+            const { x1, x2, y1, y2 } = this
+            const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
+            props.uniDirX = dy/dd
+            props.uniDirY = -dx/dd
+        }
+        return props
+    }
+
+    drawTo(ctx) {
+        ctx.lineWidth = 5
+        ctx.strokeStyle = (this.key == "platform") ? "grey" : "black"
+        ctx.beginPath()
+        ctx.moveTo(this.x1, this.y1)
+        ctx.lineTo(this.x2, this.y2)
+        ctx.globalAlpha = this.spriteVisibility
+        ctx.stroke()
+        ctx.globalAlpha = 1
+    }
+}
 
 
 @StateInt.define("lastSpawnIt", { default: -Infinity })
