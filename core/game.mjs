@@ -2646,7 +2646,7 @@ export class PhysicsMixin extends Mixin {
     init(kwargs) {
         super.init(kwargs)
         this.canMove = kwargs?.canMove ?? true
-        this.affectedByGravity = kwargs?.affectedByGravity ?? true
+        this.affectedByGravity = kwargs?.affectedByGravity ?? this.canMove
         this.canBlock = kwargs?.canBlock ?? false
         this.canGetBlocked = kwargs?.canGetBlocked ?? this.canMove
         this.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
@@ -2665,8 +2665,7 @@ export class PhysicsMixin extends Mixin {
         proto.speedResX = 0
         proto.speedResY = 0
         proto.onBlock ||= function(obj) {}
-        proto.onGetBlocked ||= function(obj, blockDetails) {}
-
+        proto.onGetBlocked ||= function(obj) {}
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2715,16 +2714,29 @@ export class PhysicsMixin extends Mixin {
 export class OwnerableMixin extends Mixin {
     static KEY = "ownerable"
 
+    init(kwargs) {
+        this.removedWithOwner = kwargs?.removedWithOwner ?? true
+    }
+
     initObjectClass(cls) {
         super.initObjectClass(cls)
         const proto = cls.prototype
 
-        proto.setOwner = this.objSetOwner
+        proto.removedWithOwner = this.removedWithOwner
+    }
+
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        obj.owner = kwargs?.owner ?? null
     }
 
     updateObject(obj) {
+        super.updateObject(obj)
         const { owner } = obj
-        if(owner && owner.deleted) obj.owner = null
+        if(owner && owner.removed) {
+            obj.owner = null
+            if(obj.removedWithOwner) obj.remove()
+        }
     }
 }
 

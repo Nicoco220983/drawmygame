@@ -480,7 +480,9 @@ const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/
 @CATALOG.registerObject("tag", {
     showInBuilder: false
 })
-@OwnerableMixin.add()
+@OwnerableMixin.add({
+    removedWithOwner: false,
+})
 export class Tag extends GameObject {
 
     init(kwargs) {

@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -632,20 +632,24 @@ export class BlobEnemy extends Enemy {
         this.width = 50
         this.height = 36
         this.spriteRand = floor(random() * this.game.fps)
+        // this.checker = this.scene.addObject(BlobEnemyChecker, {
+        //     owner: this,
+        // })  // TODO: fix checker
     }
 
     update() {
         super.update()
         const { fps } = this.game
         // move
-        if(this.speedX != 0 && this.lastChangeDirAge > fps && abs(this.speedResX) > .8 * 20) {
-            this.dirX *= -1
-            this.lastChangeDirAge = 0
-        }
-        if(this.speedResY < 0) {
-            this.speedX = this.dirX * 30
-        }
+        if(abs(this.speedX) < 10) this.mayChangeDir()
+        if(this.speedResY < 0) this.speedX = this.dirX * 30
         this.lastChangeDirAge += 1
+    }
+
+    mayChangeDir() {
+        if(this.lastChangeDirAge < this.game.fps) return
+        this.dirX *= -1
+        this.lastChangeDirAge = 0
     }
 
     canAttackObject(obj) {
@@ -673,6 +677,38 @@ export class BlobEnemy extends Enemy {
             top: this.y - 30,
             height: 60,
         }
+    }
+}
+
+
+@OwnerableMixin.add()
+@PhysicsMixin.add({
+    canMove: false,
+    checkGetBlockedAnyway: true,
+})
+@BodyMixin.add({
+    width: 5,
+    height: 20,
+})
+class BlobEnemyChecker extends GameObject {
+    static STATEFUL = false
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.lastGetBlockedIteration = 0
+    }
+
+    update() {
+        const { owner } = this
+        this.x = owner.x + owner.dirX * owner.width/2
+        this.y = owner.y + owner.dirY
+        if(this.lastGetBlockedIteration < this.scene.iteration - 3) {
+            owner.mayChangeDir()
+        }
+    }
+
+    onGetBlocked(obj) {
+        this.lastGetBlockedIteration = this.scene.iteration
     }
 }
 
