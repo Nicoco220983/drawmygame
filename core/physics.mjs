@@ -159,7 +159,8 @@ export default class PhysicsEngine {
                             obj.onGetBlocked(colRes.obj)
                             colRes.obj.onBlock(obj)
                         } else {
-                            obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                            // static collision : fix position
+                            obj.x -= colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                             obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                         }
                         if(nbCollisions==5) remD = 0
