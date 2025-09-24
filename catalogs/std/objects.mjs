@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -46,7 +46,8 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
     maxHealth: 100,
     graceDuration: 2,
 })
-@PhysicsMixin.add({
+@PhysicsMixin.add()
+@BodyMixin.add({
     shape: "box",
     width: 50,
     height: 50,
@@ -201,11 +202,10 @@ export class Nico extends Hero {
     canGetAttacked: false,
     attackDamages: 0,
 })
-@PhysicsMixin.add({
+@BodyMixin.add({
     shape: "box",
     width: 25,
     height: 25,
-    canMove: false,
 })
 class NicoHand extends GameObject {
     static STATEFUL = false
@@ -255,11 +255,10 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit
     attackDamages: 100,
     oneAttackByObject: true,
 })
-@PhysicsMixin.add({
+@BodyMixin.add({
     shape: "box",
     width: 40,
     height: 40,
-    canMove: false,
 })
 export class Sword extends Extra {
 
@@ -336,10 +335,12 @@ const ShurikenSprite = new Sprite(ShurikenImg)
     icon: ShurikenImg,
 })
 @PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@BodyMixin.add({
     shape: "box",
     width: 30,
     height: 30,
-    affectedByGravity: false,
 })
 @StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 export class ShurikenPack extends Extra {
@@ -395,10 +396,12 @@ export class ShurikenPack extends Extra {
     attackDamages: 35,
 })
 @PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@BodyMixin.add({
     shape: "box",
     width: 30,
     height: 30,
-    affectedByGravity: false,
 })
 @StateProperty.define("ownerId")
 @StateInt.define("itToLive", { default: null })
@@ -450,10 +453,12 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     icon: BombImg
 })
 @PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@BodyMixin.add({
     shape: "box",
     width: 40,
     height: 40,
-    affectedByGravity: false,
 })
 @StateInt.define("countdown", { default: 2, showInBuilder: true })
 @StateInt.define("itToLive", { default: null })
@@ -470,7 +475,7 @@ export class Bomb extends Extra {
         const { dt } = this.game
         const { x, y } = this
         const owner = this.getOwner()
-        this.affectedByGravity = this.canBeBlocked = (this.itToLive !== null)
+        this.affectedByGravity = this.canGetBlocked = (this.itToLive !== null)
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
@@ -515,11 +520,10 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     attackDamages: 100,
     oneAttackByObject: true,
 })
-@PhysicsMixin.add({
+@BodyMixin.add({
     shape: "box",
     width: 300,
     height: 300,
-    canMove: false,
 })
 @StateProperty.define("ownerId")
 @StateInt.define("lastAttackAge", { default: Infinity })
@@ -569,12 +573,10 @@ const SpikySprite = new Sprite(SpikyImg)
     maxHealth: 100,
     attackDamages: 10,
 })
-@PhysicsMixin.add({
+@BodyMixin.add({
     shape: "box",
     width: 45,
     height: 45,
-    canMove: false,
-    canBeBlocked: false,
 })
 export class Spiky extends Enemy {
 
@@ -617,7 +619,8 @@ const BlobSprite = new Sprite(BlobImg)
     maxHealth: 100,
     attackDamages: 10,
 })
-@PhysicsMixin.add({
+@PhysicsMixin.add()
+@BodyMixin.add({
     shape: "box",
     width: 50,
     height: 36,
@@ -689,10 +692,12 @@ const GhostSprite = new Sprite(GhostImg)
     attackDamages: 10,
 })
 @PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@BodyMixin.add({
     shape: "box",
     width: 45,
     height: 45,
-    affectedByGravity: false,
 })
 export class Ghost extends Enemy {
 
@@ -911,11 +916,10 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/as
     canGetAttacked: true,
     maxHealth: Infinity,
 })
-@PhysicsMixin.add({
+@BodyMixin.add({
     shape: "box",
     width: 30,
     height: 30,
-    canMove: false,
 })
 @Category.append("engine/trigger")
 export class Button extends Trigger {
@@ -991,11 +995,14 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 })
 @LinkReaction.add("reactToggle", { label:"toggle", isDefault: true })
 @PhysicsMixin.add({
+    canMove: false,
+    canBlock: true,
+    checkBlockAnyway: true,
+})
+@BodyMixin.add({
     shape: "box",
     width: 50,
     height: 50,
-    canMove:false,
-    canBlock: true,
 })
 @StateBool.define("closed", { default: true, showInBuilder: true })
 @Category.append("engine")
@@ -1005,15 +1012,21 @@ export class Door extends GameObject {
         super.init(kwargs)
         this.width = this.height = 50
         this.origClosed = this.closed
+        this.lastBlockIt = -Infinity
     }
 
     reactToggle(resp) {
-        this.closed = (resp.value >= .5) ? (!this.origClosed) : this.origClosed
+        const shouldBeClosed = (resp.value >= .5) ? (!this.origClosed) : this.origClosed
+        this.closed = shouldBeClosed && (this.closed || this.lastBlockIt < this.scene.iteration)
     }
 
     update() {
         super.update()
         this.canBlock = this.closed
+    }
+
+    onBlock(obj) {
+        this.lastBlockIt = this.scene.iteration
     }
 
     getSprite() {

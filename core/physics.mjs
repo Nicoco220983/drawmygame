@@ -18,10 +18,10 @@ export default class PhysicsEngine {
         this.syncMap()
     }
     syncMap() {
-        this.scene.map.walls.forEach(wall => this.initWall(wall))
+        this.scene.walls.forEach(wall => this.initWall(wall))
     }
     initWall(wall) {
-        const data = wall._physicsData ||= {}
+        const data = wall._physicsData ||= { obj: wall }
         const polygon = data.polygon ||= []
         const { x1, x2, y1, y2 } = wall
         polygon.length = 0
@@ -38,7 +38,7 @@ export default class PhysicsEngine {
         this.initPhysicsData(data)
     }
     initObject(dt, obj) {
-        const data = obj._physicsData ||= {}
+        const data = obj._physicsData ||= { obj }
         const polygon = data.polygon ||= []
         polygon.length = 0
         const { x, y, width, height, speedX, speedY } = obj
@@ -95,8 +95,8 @@ export default class PhysicsEngine {
     }
     apply(dt, objects) {
         // apply blocks and speeds
-        const { walls } = this.scene.map
-        const blockers = [...walls]
+        const blockers = []
+        this.scene.walls.forEach(w => blockers.push(w))
         objects.forEach(obj => {
             if(obj.canBlock) {
                 this.initObject(0, obj)
@@ -104,14 +104,12 @@ export default class PhysicsEngine {
             }
         })
         objects.forEach(obj => {
-            const mixin = obj.physicsMixin
-            if(!mixin) return
-            if(!(obj.canMove ?? mixin.canMove)) return
+            if(!(obj.canMove || obj.checkBlocksAnyway)) return
             let remD = 1, nbCollisions = 0
-            if(obj.affectedByGravity ?? mixin.affectedByGravity) this.applyGravity(dt, obj)
+            if(obj.affectedByGravity) this.applyGravity(dt, obj)
             const { x: objOrigX, y: objOrigY, speedX: objOrigSpdX, speedY: objOrigSpdY } = obj
             const objOrigDx = objOrigSpdX * dt, objOrigDy = objOrigSpdY * dt
-            if((obj.canBeBlocked ?? mixin.canBeBlocked) && (objOrigSpdX != 0 || objOrigSpdY != 0)) {
+            if((obj.canGetBlocked || obj.checkBlocksAnyway) && (objOrigSpdX != 0 || objOrigSpdY != 0)) {
                 const objOrigD = dist(objOrigDx, objOrigDy) * dt
                 colWalls.clear()
                 while(remD > 0) {
@@ -135,33 +133,44 @@ export default class PhysicsEngine {
                         if(colRes.time == 0) break
                     }
                     if(colRes.time == Infinity) break
+                    // collision detected...
                     nbCollisions += 1
                     const  { dx: objDx, dy: objDy } = objData
                     const { time: colTime, dist: colDist, distFixSign: colDistFixSign, normalX: colNormalX, normalY: colNormalY } = colRes
-                    if(colTime > 0) {
-                        // move
-                        let dx = objDx * colTime, dy = objDy * colTime
-                        if(dx > 0) dx -= min(dx, FLOAT_PRECISION_CORRECTION)
-                        else if(dx < 0) dx -= max(dx, -FLOAT_PRECISION_CORRECTION)
-                        if(dy > 0) dy -= min(dy, FLOAT_PRECISION_CORRECTION)
-                        else if(dy < 0) dy -= max(dy, -FLOAT_PRECISION_CORRECTION)
-                        obj.x += dx
-                        obj.y += dy
-                        // compute remaining speed
-                        projection(objSpdX, objSpdY, colNormalY, -colNormalX, projRes)
-                        obj.speedX = projRes.x; obj.speedY = projRes.y
-                        // stop collisions detection condition
-                        const objD = hypot(objDx, objDy), colD = objD * colTime
-                        remD -= colD / objOrigD
-                        if(hypot(obj.speedX, obj.speedY) * remD < 1) remD = 0
+                    // move
+                    if(obj.canMove) {
+                        if(colTime > 0) {
+                            // move
+                            let dx = objDx * colTime, dy = objDy * colTime
+                            if(dx > 0) dx -= min(dx, FLOAT_PRECISION_CORRECTION)
+                            else if(dx < 0) dx -= max(dx, -FLOAT_PRECISION_CORRECTION)
+                            if(dy > 0) dy -= min(dy, FLOAT_PRECISION_CORRECTION)
+                            else if(dy < 0) dy -= max(dy, -FLOAT_PRECISION_CORRECTION)
+                            obj.x += dx
+                            obj.y += dy
+                            // compute remaining speed
+                            projection(objSpdX, objSpdY, colNormalY, -colNormalX, projRes)
+                            obj.speedX = projRes.x; obj.speedY = projRes.y
+                            // stop collisions detection condition
+                            const objD = hypot(objDx, objDy), colD = objD * colTime
+                            remD -= colD / objOrigD
+                            if(hypot(obj.speedX, obj.speedY) * remD < 1) remD = 0
+                            // callbacks
+                            obj.onGetBlocked(colRes.obj)
+                            colRes.obj.onBlock(obj)
+                        } else {
+                            obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                            obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        }
+                        if(nbCollisions==5) remD = 0
                     } else {
-                        obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
-                        obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                        remD = 0
                     }
-                    if(nbCollisions==5) remD = 0
+                    obj.onGetBlocked(null, colRes)
                 }
             }
-            if(remD > 0) {
+            // last move
+            if(remD > 0 && obj.canMove) {
                 obj.x += obj.speedX * dt * remD
                 obj.y += obj.speedY * dt * remD
             }
@@ -176,7 +185,7 @@ export default class PhysicsEngine {
 
         // check hits
 
-        const hitGroups = ["health", "collect"]
+        const hitGroups = ["physics", "health", "collect"]
         const canHitObjs = [], canBeHitObjs = []
         objects.forEach(obj => {
             if(!obj.canHitGroup) return
@@ -217,6 +226,7 @@ export default class PhysicsEngine {
 
 // Fonction principale pour détecter le moment de collision
 function detectCollisionTime(physicsData1, physicsData2, res) {
+    res.obj = null
     res.time = 0
     res.dist = -Infinity
     res.distFixSign = 0
@@ -263,6 +273,7 @@ function _detectCollisionTime(physicsData1, physicsData2, num, res) {
         const { time: colTime, dist: colDist, distFixSign: colDistFixSign } = resOverlapTime
         if(colTime < res.time) continue
         if(colTime == 0 && colDist < res.dist) return
+        res.obj = physicsData2.obj
         res.time = colTime
         res.dist = colDist
         res.distFixSign = colDistFixSign

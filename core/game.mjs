@@ -584,6 +584,22 @@ export class StateIntEnum extends StateEnum {
 }
 
 
+export class StateObjectRef extends StateProperty {
+    initObjectClassProp(cls) {}
+    getObjectPropState(obj) {
+        const val = obj[this.key]
+        if(val === this.nullableWith ?? null) return null
+        else return val.id
+    }
+    setObjectPropFromState(obj, valState) {
+        const { key } = this
+        if(valState === undefined) return delete obj[key]
+        if(valState === null) obj[key] = this.nullableWith ?? null
+        else obj[key] = obj.scene.objects.get(valState)
+    }
+}
+
+
 // OBJECT LINK ///////////////////////
 
 export class LinkTrigger {
@@ -651,140 +667,7 @@ export class ObjectLink {
 }
 
 
-// MIXIN ///////////////////////////////
-
-export class Mixin {
-    static IS_MIXIN = true
-
-    static TARGET_DECORATORS = []
-    static addTargetDecorator(cls, funcName, ...args) {
-        if(!this.hasOwnProperty('TARGET_DECORATORS')) this.TARGET_DECORATORS = [...this.TARGET_DECORATORS]
-        this.TARGET_DECORATORS.push([cls, funcName, args])
-    }
-
-    static add(kwargs) {
-        return target => {
-            if(target.IS_MIXIN) {
-                target.addTargetDecorator(this, "add", kwargs)
-                return target
-            }
-            const mixin = new this(kwargs)
-            mixin.initObjectClass(target)
-            return target
-        }
-    }
-
-    static addIfAbsent(kwargs) {
-        return target => {
-            if(target.IS_MIXIN) {
-                target.addTargetDecorator(this, "addIfAbsent", kwargs)
-                return target
-            }
-            if(target.MIXINS && target.MIXINS.has(this.KEY)) return
-            this.add(kwargs)(target)
-        }
-    }
-
-    static delete() {
-        return target => {
-            if(target.IS_MIXIN) {
-                target.addTargetDecorator(this, "delete")
-                return target
-            }
-            if(!target.hasOwnProperty('MIXINS')) target.MIXINS = new Map(target.MIXINS)
-            target.MIXINS.delete(this.KEY)
-        }
-    }
-
-    constructor(kwargs) {
-        this.init(kwargs)
-    }
-
-    init(kwargs) {}
-
-    initObjectClass(cls) {
-
-        if(!cls.hasOwnProperty('MIXINS')) cls.MIXINS = new Map(cls.MIXINS)
-        cls.MIXINS.set(this.constructor.KEY, this)
-
-        this.constructor.TARGET_DECORATORS.forEach(deco => {
-            const [decoCls, funcName, args] = deco
-            decoCls[funcName](...args)(cls)
-        })
-    }
-    initObject(obj, kwargs) {}
-    updateObject(obj) {}
-    syncStateFromObject(obj, state) {}
-    syncObjectFromState(state, obj) {}
-}
-
-
-
-@LinkReaction.add("reactToggle", { label:"Toggle", isDefault: true })
-@StateBool.define("activated", { showInBuilder: true, default: true })
-export class ActivableMixin extends Mixin {
-    static KEY = "activable"
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
-        const proto = cls.prototype
-
-        proto.origActivated = true
-
-        proto.reactToggle = function(resp) {
-            this.activated = (resp.value >= .5) ? (!this.origActivated) : this.origActivated
-        }
-    }
-
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        obj.origActivated = obj.activated
-    }
-}
-
-
-@StateInt.define("speedY")
-@StateInt.define("speedX")
-export class PhysicsMixin extends Mixin {
-    static KEY = "physics"
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.shape = kwargs?.shape ?? "box"
-        this.width = kwargs?.width ?? 50
-        this.height = kwargs?.height ?? 50
-        this.radius = kwargs?.radius ?? 50
-        this.canMove = kwargs?.canMove ?? true
-        this.affectedByGravity = kwargs?.affectedByGravity ?? true
-        this.canBlock = kwargs?.canBlock ?? false
-        this.canBeBlocked = kwargs?.canBeBlocked ?? true
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
-        const proto = cls.prototype
-        proto.physicsMixin = this
-        proto.shape = this.shape
-        proto.width = this.width
-        proto.height = this.height
-        proto.radius = this.radius
-        proto.canMove = this.canMove
-        proto.affectedByGravity = this.affectedByGravity
-        proto.canBlock = this.canBlock
-        proto.canBeBlocked = this.canBeBlocked
-        proto.speedResX = 0
-        proto.speedResY = 0
-        proto.onBlock = function(obj) {}
-    }
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
-        if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
-    }
-    updateObject(obj) {
-        // done by physics engine
-    }
-}
+// CORE
 
 
 @LinkTrigger.add("isRemoved", { isDefault: true })
@@ -1097,22 +980,6 @@ GameObject.StateProperty = class extends StateProperty {
     syncObjectFromInput(inputEl, obj) {
         const objKey = inputEl.selectEl.value
         this.setObjectPropFromState(obj, { key: objKey })
-    }
-}
-
-
-export class ObjectRefProperty extends StateProperty {
-    initObjectClassProp(cls) {}
-    getObjectPropState(obj) {
-        const val = obj[this.key]
-        if(val === this.nullableWith ?? null) return null
-        else return val.id
-    }
-    setObjectPropFromState(obj, valState) {
-        const { key } = this
-        if(valState === undefined) return delete obj[key]
-        if(valState === null) obj[key] = this.nullableWith ?? null
-        else obj[key] = obj.scene.objects.get(valState)
     }
 }
 
@@ -1957,6 +1824,7 @@ export class Wall extends GameObject {
         this.y1 = kwargs.y1
         this.x2 = kwargs.x2
         this.y2 = kwargs.y2
+        this.canBlock = true
     }
     drawTo(ctx) {
         ctx.lineWidth = 5
@@ -1968,6 +1836,7 @@ export class Wall extends GameObject {
         ctx.stroke()
         ctx.globalAlpha = 1
     }
+    onBlock(obj) {}
 }
 
 
@@ -2639,27 +2508,112 @@ export class GameScene extends SceneCommon {
 }
 
 
-// OBJECTS ///////////////////////////////////
+// MIXIN ///////////////////////////////
+
+export class Mixin {
+    static IS_MIXIN = true
+
+    static TARGET_DECORATORS = []
+    static addTargetDecorator(cls, funcName, ...args) {
+        if(!this.hasOwnProperty('TARGET_DECORATORS')) this.TARGET_DECORATORS = [...this.TARGET_DECORATORS]
+        this.TARGET_DECORATORS.push([cls, funcName, args])
+    }
+
+    static add(kwargs) {
+        return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "add", kwargs)
+                return target
+            }
+            const mixin = new this(kwargs)
+            mixin.initObjectClass(target)
+            return target
+        }
+    }
+
+    static addIfAbsent(kwargs) {
+        return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "addIfAbsent", kwargs)
+                return target
+            }
+            if(target.MIXINS && target.MIXINS.has(this.KEY)) return
+            this.add(kwargs)(target)
+        }
+    }
+
+    static delete() {
+        return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "delete")
+                return target
+            }
+            if(!target.hasOwnProperty('MIXINS')) target.MIXINS = new Map(target.MIXINS)
+            target.MIXINS.delete(this.KEY)
+        }
+    }
+
+    constructor(kwargs) {
+        this.init(kwargs)
+    }
+
+    init(kwargs) {}
+
+    initObjectClass(cls) {
+
+        if(!cls.hasOwnProperty('MIXINS')) cls.MIXINS = new Map(cls.MIXINS)
+        cls.MIXINS.set(this.constructor.KEY, this)
+
+        this.constructor.TARGET_DECORATORS.forEach(deco => {
+            const [decoCls, funcName, args] = deco
+            decoCls[funcName](...args)(cls)
+        })
+    }
+    initObject(obj, kwargs) {}
+    updateObject(obj) {}
+    syncStateFromObject(obj, state) {}
+    syncObjectFromState(state, obj) {}
+}
 
 
-@ObjectRefProperty.define("owner")
-export class OwnerableMixin extends Mixin {
-    static KEY = "ownerable"
+
+@LinkReaction.add("reactToggle", { label:"Toggle", isDefault: true })
+@StateBool.define("activated", { showInBuilder: true, default: true })
+export class ActivableMixin extends Mixin {
+    static KEY = "activable"
 
     initObjectClass(cls) {
         super.initObjectClass(cls)
         const proto = cls.prototype
 
-        proto.setOwner = this.objSetOwner
+        proto.origActivated = true
+
+        proto.reactToggle = function(resp) {
+            this.activated = (resp.value >= .5) ? (!this.origActivated) : this.origActivated
+        }
     }
 
-    updateObject(obj) {
-        const { owner } = obj
-        if(owner && owner.deleted) obj.owner = null
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        obj.origActivated = obj.activated
     }
 }
 
 
+export class BodyMixin extends Mixin {
+    static KEY = "body"
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.shape = kwargs?.shape ?? "box"
+        this.width = kwargs?.width ?? 50
+        this.height = kwargs?.height ?? 50
+        this.radius = kwargs?.radius ?? 50
+    }
+}
+
+
+@BodyMixin.addIfAbsent()
 export class HitMixin extends Mixin {
     static KEY = "hit"
 
@@ -2678,6 +2632,99 @@ export class HitMixin extends Mixin {
         proto.canBeHitAsGroup ||= function(group) { return false }
         proto.canHitObject ||= function(obj) { return false }
         proto.hit ||= function(obj) {}
+    }
+}
+
+
+@StateInt.define("speedY")
+@StateInt.define("speedX")
+@HitMixin.addIfAbsent()
+@BodyMixin.addIfAbsent()
+export class PhysicsMixin extends Mixin {
+    static KEY = "physics"
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.canMove = kwargs?.canMove ?? true
+        this.affectedByGravity = kwargs?.affectedByGravity ?? true
+        this.canBlock = kwargs?.canBlock ?? false
+        this.canGetBlocked = kwargs?.canGetBlocked ?? this.canMove
+        this.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
+        this.checkGetBlockedAnyway = kwargs?.checkGetBlockedAnyway ?? false
+    }
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+        proto.canMove = this.canMove
+        proto.affectedByGravity = this.affectedByGravity
+        proto.canBlock = this.canBlock
+        proto.canGetBlocked = this.canGetBlocked
+        proto.checkBlockAnyway = this.checkBlockAnyway
+        proto.checkGetBlockedAnyway = this.checkGetBlockedAnyway
+        proto.speedResX = 0
+        proto.speedResY = 0
+        proto.onBlock ||= function(obj) {}
+        proto.onGetBlocked ||= function(obj, blockDetails) {}
+
+
+        const origCanHitGroup = proto.canHitGroup
+        proto.canHitGroup = function(group) {
+            if(group == "physics" && (this.canBlock || this.checkBlockAnyway)) return true
+            return origCanHitGroup.call(this, group)
+        }
+        const origCanBeHitAsGroup = proto.canBeHitAsGroup
+        proto.canBeHitAsGroup = function(group) {
+            if(group == "physics" && (this.canGetBlocked || this.checkGetBlockedAnyway)) return true
+            return origCanBeHitAsGroup.call(this, group)
+        }
+
+        proto.canReallyBlockObject = function(obj) {
+            return (
+                (this.canBlock || this.checkBlockAnyway)
+                && (obj.canGetBlocked || obj.checkGetBlockedAnyway)
+                && !(this.canBlock && obj.canGetBlocked) // in this case the check is already done by physics engine
+            )
+        }
+        const origCanHitObject = proto.canHitObject
+        proto.canHitObject = function(obj) {
+            return this.canReallyBlockObject(obj) || origCanHitObject.call(this, obj)
+        }
+
+        const origHit = proto.hit
+        proto.hit = function(obj) {
+            origHit.call(this, obj)
+            if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj)
+            if(this.canGetBlocked || this.checkGetBlockedAnyway) obj.onGetBlocked(this)
+        }
+    }
+
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
+        if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
+    }
+
+    updateObject(obj) {
+        // done by physics engine
+    }
+}
+
+
+@StateObjectRef.define("owner")
+export class OwnerableMixin extends Mixin {
+    static KEY = "ownerable"
+
+    initObjectClass(cls) {
+        super.initObjectClass(cls)
+        const proto = cls.prototype
+
+        proto.setOwner = this.objSetOwner
+    }
+
+    updateObject(obj) {
+        const { owner } = obj
+        if(owner && owner.deleted) obj.owner = null
     }
 }
 
@@ -2897,6 +2944,9 @@ export class CollectMixin extends Mixin {
         this.onDrop()
     }
 }
+
+
+// OBJECTS ///////////////////////////////////
 
 
 @StateInt.define("lastSpawnIt", { default: -Infinity })
