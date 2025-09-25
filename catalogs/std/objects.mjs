@@ -632,9 +632,9 @@ export class BlobEnemy extends Enemy {
         this.width = 50
         this.height = 36
         this.spriteRand = floor(random() * this.game.fps)
-        // this.checker = this.scene.addObject(BlobEnemyChecker, {
-        //     owner: this,
-        // })  // TODO: fix checker
+        this.checker = this.scene.addObject(BlobEnemyChecker, {
+            owner: this,
+        })  // TODO: fix checker
     }
 
     update() {
@@ -687,8 +687,8 @@ export class BlobEnemy extends Enemy {
     checkGetBlockedAnyway: true,
 })
 @BodyMixin.add({
-    width: 5,
-    height: 20,
+    width: 10,
+    height: 50,
 })
 class BlobEnemyChecker extends GameObject {
     static STATEFUL = false
@@ -699,10 +699,11 @@ class BlobEnemyChecker extends GameObject {
     }
 
     update() {
+        super.update()
         const { owner } = this
         this.x = owner.x + owner.dirX * owner.width/2
-        this.y = owner.y + owner.dirY
-        if(this.lastGetBlockedIteration < this.scene.iteration - 3) {
+        this.y = owner.y + owner.height/2
+        if(this.lastGetBlockedIteration < this.scene.iteration) {
             owner.mayChangeDir()
         }
     }

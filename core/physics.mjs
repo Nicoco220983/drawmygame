@@ -167,13 +167,14 @@ export default class PhysicsEngine {
         })
 
         for(let obj1 of canHitObjs) {
+            const obj1Props = this.getObjectPhysicsProps(obj1, 0)
             for(let obj2 of canBeHitObjs) {
                 if(obj1 === obj2) continue
                 if(obj1._canHitHash | obj2._canBeHitHash == 0) continue
                 if(!obj1.canHitObject(obj2)) continue
-                if(checkHit(obj1, obj2)) {  // TODO: do not use checkHit
-                    obj1.hit(obj2)
-                }
+                const obj2Props = this.getObjectPhysicsProps(obj2, 0)
+                detectCollisionTime(obj1Props, obj2Props, blockerColRes)
+                if(blockerColRes.time == 0) obj1.hit(obj2)
             }
         }
     }

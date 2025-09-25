@@ -692,6 +692,7 @@ export class GameObject {
             spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
+            removed: false,
         })
     }
 
@@ -1184,6 +1185,7 @@ export class GameObjectGroup {
         if(isInitState) {
             this.resetStatefulIds()
             this.statelessObjArr.forEach(obj => {
+                if(obj.getKey() === undefined) return
                 state.push(obj.getState(isInitState))
             })
         }
@@ -2704,7 +2706,7 @@ export class PhysicsMixin extends Mixin {
         proto.hit = function(obj) {
             origHit.call(this, obj)
             if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj)
-            if(this.canGetBlocked || this.checkGetBlockedAnyway) obj.onGetBlocked(this)
+            if(obj.canGetBlocked || obj.checkGetBlockedAnyway) obj.onGetBlocked(this)
         }
 
         proto.getPhysicsProps ||= this.objGetPhysicsProps
