@@ -8,39 +8,18 @@ const DEFAULT_GRAVITY_ACC = 1000
 const DEFAULT_GRAVITY_MAX_SPEED = 1000
 
 
-const colRes = {}, wallColRes = {}, projRes = {}, fixRes = {}, detectColRes = {}, colWalls = new Set()
+const colRes = {}, blockerColRes = {}, projRes = {}
 
 export default class PhysicsEngine {
     constructor(scn) {
         this.scene = scn
         this.gravityAcc = scn?.physicsManager.gravityAcc ?? DEFAULT_GRAVITY_ACC
         this.gravityMaxSpeed = scn?.physicsManager.gravityMaxSpeed ?? DEFAULT_GRAVITY_MAX_SPEED
-        this.syncMap()
     }
-    syncMap() {
-        this.scene.walls.forEach(wall => {
-            this.initObject(0, wall)
-        })
-    }
-    // initWall(wall) {
-    //     const data = wall._physicsData ||= { obj: wall }
-    //     data.polygon = obj.getBodyPolygon()
-    //     data.dx = data.dy = 0
-    //     if(wall.key == "platform") {
-    //         const { x1, x2, y1, y2 } = wall
-    //         const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
-    //         data.uniDirX = dy/dd
-    //         data.uniDirY = -dx/dd
-    //     }
-    //     this.initPhysicsData(data)
-    // }
-    initObject(dt, obj) {
+    getObjectPhysicsProps(obj, dt) {
         const props = obj.getPhysicsProps(dt)
         props.obj = obj
-        this.initPhysicsProps(props)
-    }
-    initPhysicsProps(physicsProps) {
-        const { polygon, dx, dy } = physicsProps
+        const { polygon, dx, dy } = props
         // min/max
         const minDx = (dx<0 ? dx : 0), minDy = (dy<0 ? dy : 0)
         const maxDx = (dx>0 ? dx : 0), maxDy = (dy>0 ? dy : 0)
@@ -65,9 +44,9 @@ export default class PhysicsEngine {
                 sMaxY = max(sMaxY, y + maxDy)
             }
         }
-        assign(physicsProps, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
+        assign(props, { minX, minY, maxX, maxY, sMinX, sMinY, sMaxX, sMaxY })
         // normals
-        const normals = physicsProps.normals ||= []
+        const normals = props.normals ||= []
         normals.length = 0
         for(let i=0; i<polygon.length/2; i+=2) {  // /2 because of symetry
             const edgeX = polygon[i+2] - polygon[i]
@@ -77,15 +56,15 @@ export default class PhysicsEngine {
             normals.push(edgeY/size, -edgeX/size)
         }
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
+        return props
     }
     apply(dt, objects) {
         // apply blocks and speeds
-        const blockers = []
-        this.scene.walls.forEach(w => blockers.push(w))
+        const blockersProps = []
+        this.scene.walls.forEach(w => blockersProps.push(this.getObjectPhysicsProps(w, 0)))
         objects.forEach(obj => {
             if(obj.canBlock) {
-                this.initObject(0, obj)
-                blockers.push(obj)
+                blockersProps.push(this.getObjectPhysicsProps(obj, 0))
             }
         })
         objects.forEach(obj => {
@@ -96,25 +75,22 @@ export default class PhysicsEngine {
             const objOrigDx = objOrigSpdX * dt, objOrigDy = objOrigSpdY * dt
             if((obj.canGetBlocked || obj.checkBlocksAnyway) && (objOrigSpdX != 0 || objOrigSpdY != 0)) {
                 const objOrigD = dist(objOrigDx, objOrigDy) * dt
-                colWalls.clear()
                 while(remD > 0) {
                     colRes.time = Infinity
-                    this.initObject(dt*remD, obj)
+                    const objProps = this.getObjectPhysicsProps(obj, dt*remD)
                     let { speedX: objSpdX, speedY: objSpdY } = obj
-                    const objProps = obj._physicsProps
                     const {
                         minX: objMinX, minY: objMinY, maxX: objMaxX, maxY: objMaxY,
                         sMinX: objSMinX, sMinY: objSMinY, sMaxX: objSMaxX, sMaxY: objSMaxY,
                     } = objProps
-                    for(let wall of blockers) {
-                        if(obj == wall) continue
-                        const wallProps = wall._physicsProps
+                    for(let blockerProps of blockersProps) {
+                        if(obj == blockerProps.obj) continue
                         // quick filteringgs
-                        if(objSMinX > wallProps.sMaxX || objSMaxX < wallProps.sMinX || objSMinY > wallProps.sMaxY || objSMaxY < wallProps.sMinY) continue
+                        if(objSMinX > blockerProps.sMaxX || objSMaxX < blockerProps.sMinX || objSMinY > blockerProps.sMaxY || objSMaxY < blockerProps.sMinY) continue
                         // detect collision
-                        detectCollisionTime(objProps, wallProps, wallColRes)
-                        if(wallColRes.time == Infinity) continue
-                        if(wallColRes.time < colRes.time) assign(colRes, wallColRes)
+                        detectCollisionTime(objProps, blockerProps, blockerColRes)
+                        if(blockerColRes.time == Infinity) continue
+                        if(blockerColRes.time < colRes.time) assign(colRes, blockerColRes)
                         if(colRes.time == 0) break
                     }
                     if(colRes.time == Infinity) break
