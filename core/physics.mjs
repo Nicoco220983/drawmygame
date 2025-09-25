@@ -61,7 +61,6 @@ export default class PhysicsEngine {
     apply(dt, objects) {
         // apply blocks and speeds
         const blockersProps = []
-        this.scene.walls.forEach(w => blockersProps.push(this.getObjectPhysicsProps(w, 0)))
         objects.forEach(obj => {
             if(obj.canBlock) {
                 blockersProps.push(this.getObjectPhysicsProps(obj, 0))

@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, ObjectLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Platform, ObjectLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
 
 
 // BUILDER //////////////////////////
@@ -169,20 +169,18 @@ class DraftScene extends SceneCommon {
         const gameScn = this.game.scenes.game
         const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
         let res = null
-        // walls
-        gameScn.walls.forEach(wall => {
-            if(wall == ignore) return
-            if(distancePointSegment(x, y, wall.x1, wall.y1, wall.x2, wall.y2) <= 5) {
-                res = wall
-            }
-        })
-        if(res) return res
         // objects
         gameScn.objects.forEach(obj  => {
             if(obj == ignore) return
-            const { left, width, top, height } = obj.getHitBox()
-            if(left <= x && left+width >= x && top <= y && top+height >= y) {
-                res = obj
+            if(obj instanceof Wall) {
+                if(distancePointSegment(x, y, obj.x1, obj.y1, obj.x2, obj.y2) <= 5) {
+                    res = obj
+                }
+            } else {
+                const { left, width, top, height } = obj.getHitBox()
+                if(left <= x && left+width >= x && top <= y && top+height >= y) {
+                    res = obj
+                }
             }
         })
         if(res) return res
@@ -328,10 +326,14 @@ class DraftScene extends SceneCommon {
             }
             if(this.anchor) this.applyAnchor(pos)
             if(this.prevPos !== null) {
-                gameScn.addWall({ key:modeKey, x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
+                let cls = Wall
+                if(modeKey == "platform") cls = Platform
+                gameScn.addObject(cls, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
             if(!this.draftObject) {
-                this.draftObject = this.addWall({ key:modeKey, x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
+                let cls = Wall
+                if(modeKey == "platform") cls = Platform
+                this.draftObject = this.addObject(cls, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
                 this.draftObject.visibility = .5
             } else {
                 this.draftObject.x1 = pos.x

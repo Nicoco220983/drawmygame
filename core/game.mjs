@@ -1181,7 +1181,12 @@ export class GameObjectGroup {
     getState(isInitState=false) {
         const state = this._state ||= []
         state.length = 0
-        if(isInitState) this.resetStatefulIds()
+        if(isInitState) {
+            this.resetStatefulIds()
+            this.statelessObjArr.forEach(obj => {
+                state.push(obj.getState(isInitState))
+            })
+        }
         this.statefulObjArr.forEach(obj => {
             state.push(obj.getState(isInitState))
         })
@@ -1598,7 +1603,7 @@ export class SceneCommon {
             this.backgroundCanvas = null
             this.canvas = document.createElement("canvas")
         }
-        this.walls = new GameObjectGroup(this)
+        //this.walls = new GameObjectGroup(this)
         this.objects = new GameObjectGroup(this, {
             onAdd: obj => this.onAddObject(obj)
         })
@@ -1632,21 +1637,21 @@ export class SceneCommon {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
         this.setState(this.map, true)
-        this.initWalls()
+        //this.initWalls()
     }
 
-    initWalls() {
-        const mapWalls = this.map?.walls
-        if(!mapWalls) return
-        mapWalls.forEach(w => {
-            const { x1, y1, x2, y2, key } = w
-            this.addWall({ x1, y1, x2, y2, key })
-        })
-    }
+    // initWalls() {
+    //     const mapWalls = this.map?.walls
+    //     if(!mapWalls) return
+    //     mapWalls.forEach(w => {
+    //         const { x1, y1, x2, y2, key } = w
+    //         this.addObject(Wall, { x1, y1, x2, y2, key })
+    //     })
+    // }
 
-    addWall(kwargs) {
-        return this.walls.add(Wall, kwargs)
-    }
+    // addWall(kwargs) {
+    //     return this.walls.add(Wall, kwargs)
+    // }
 
     addObject(cls, kwargs) {
         return this.objects.add(cls, kwargs)
@@ -1753,7 +1758,7 @@ export class SceneCommon {
 
     drawTo(ctx) {
         ctx.translate(~~-this.viewX, ~~-this.viewY)
-        this.walls.drawTo(ctx)
+        //this.walls.drawTo(ctx)
         this.objects.drawTo(ctx)
         this.visuals.drawTo(ctx)
         ctx.translate(~~this.viewX, ~~this.viewY)
@@ -2409,7 +2414,7 @@ export class GameScene extends SceneCommon {
         if(isInitState) {
             state.width = this.width
             state.height = this.height
-            state.walls = this.getWallsState()
+            //state.walls = this.getWallsState()
         } else {
             state.it = this.iteration
             state.step = this.step
@@ -2423,15 +2428,15 @@ export class GameScene extends SceneCommon {
         return state
     }
 
-    getWallsState() {
-        const res = []
-        this.walls.forEach(wall => {
-            if(wall.removed) return
-            const { x1, y1, x2, y2, key } = wall
-            res.push({ x1, y1, x2, y2, key })
-        })
-        return res
-    }
+    // getWallsState() {
+    //     const res = []
+    //     this.walls.forEach(wall => {
+    //         if(wall.removed) return
+    //         const { x1, y1, x2, y2, key } = wall
+    //         res.push({ x1, y1, x2, y2, key })
+    //     })
+    //     return res
+    // }
 
     getObjectLinksState() {
         const res = []
@@ -2977,58 +2982,6 @@ export class CollectMixin extends Mixin {
 // OBJECTS ///////////////////////////////////
 
 
-@PhysicsMixin.add({
-    canMove: false,
-    canBlock: true,
-})
-export class Wall extends GameObject {
-    static STATEFUL = false
-
-    init(kwargs) {
-        this.key = kwargs.key
-        this.x1 = kwargs.x1
-        this.y1 = kwargs.y1
-        this.x2 = kwargs.x2
-        this.y2 = kwargs.y2
-    }
-
-    getBodyPolygon() {
-        const pol = this.bodyPolygons ||= []
-        pol.length = 0
-        const { x1, x2, y1, y2 } = this
-        pol.push(
-            x1, y1,
-            x2, y2,
-        )
-        return pol
-    }
-
-    getPhysicsProps(dt) {
-        const props = this._physicsProps ||= {}
-        props.polygon = this.getBodyPolygon()
-        props.dx = props.dy = 0
-        if(this.key == "platform") {
-            const { x1, x2, y1, y2 } = this
-            const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
-            props.uniDirX = dy/dd
-            props.uniDirY = -dx/dd
-        }
-        return props
-    }
-
-    drawTo(ctx) {
-        ctx.lineWidth = 5
-        ctx.strokeStyle = (this.key == "platform") ? "grey" : "black"
-        ctx.beginPath()
-        ctx.moveTo(this.x1, this.y1)
-        ctx.lineTo(this.x2, this.y2)
-        ctx.globalAlpha = this.spriteVisibility
-        ctx.stroke()
-        ctx.globalAlpha = 1
-    }
-}
-
-
 @StateInt.define("lastSpawnIt", { default: -Infinity })
 @CollectMixin.add({
     canCollect: true,
@@ -3205,6 +3158,7 @@ class Pop extends GameObject {
     }
 }
 
+
 @AttackMixin.add()
 @Category.append("npc/enemy")
 export class Enemy extends GameObject {
@@ -3276,6 +3230,7 @@ export class Collectable extends GameObject {
     }
 }
 
+
 @CollectMixin.add({
     canCollect: false,
     canGetCollected: true,
@@ -3297,6 +3252,80 @@ export class Extra extends GameObject {
         const owner = this.getOwner()
         if(owner) owner.dropExtra(this)
     }
+}
+
+
+@CATALOG.registerObject("wall")
+@Category.append("wall")
+@PhysicsMixin.add({
+    canMove: false,
+    canBlock: true,
+})
+export class Wall extends GameObject {
+    static STATEFUL = false
+
+    init(kwargs) {
+        if(kwargs?.x1 !== undefined) this.x1 = kwargs.x1
+        if(kwargs?.y1 !== undefined) this.y1 = kwargs.y1
+        if(kwargs?.x2 !== undefined) this.x2 = kwargs.x2
+        if(kwargs?.y2 !== undefined) this.y2 = kwargs.y2
+        this.color = "black"
+    }
+
+    getBodyPolygon() {
+        const pol = this.bodyPolygons ||= []
+        pol.length = 0
+        const { x1, x2, y1, y2 } = this
+        pol.push(
+            x1, y1,
+            x2, y2,
+        )
+        return pol
+    }
+
+    drawTo(ctx) {
+        ctx.lineWidth = 5
+        ctx.strokeStyle = this.color
+        ctx.beginPath()
+        ctx.moveTo(this.x1, this.y1)
+        ctx.lineTo(this.x2, this.y2)
+        ctx.globalAlpha = this.spriteVisibility
+        ctx.stroke()
+        ctx.globalAlpha = 1
+    }
+
+    getState(isInitState=false) {
+        const state = super.getState(isInitState)
+        const { x1, y1, x2, y2 } = this
+        assign(state, { x1, y1, x2, y2 })
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        const { x1, y1, x2, y2 } = state
+        assign(this, { x1, y1, x2, y2 })
+    }
+}
+
+
+@CATALOG.registerObject("platform")
+export class Platform extends Wall {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.color = "grey"
+    }
+
+    getPhysicsProps(dt) {
+        const props = super.getPhysicsProps(dt)
+        const { x1, x2, y1, y2 } = this
+        const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
+        props.uniDirX = dy/dd
+        props.uniDirY = -dx/dd
+        return props
+    }
+
 }
 
 

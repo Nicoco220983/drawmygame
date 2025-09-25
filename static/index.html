@@ -116,7 +116,7 @@ async function initInputEls(catalog) {
     herosEl.initCatalog(catalog, objCat => objCat.isHero)
     herosEl.setSelectedObject("nico")
     objectsEl.initCatalog(catalog, objCat => {
-        return !objCat.isHero && (!objCat.category || !objCat.category.startsWith("manager"))
+        return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("manager") || objCat.category.startsWith("wall")))
     })
 }
 async function updScene() {
@@ -154,6 +154,7 @@ document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
 document.getElementById("game_start").onclick = Keys["p"] = () => startAndShowGame(false)
 document.getElementById("game_share").onclick = async () => {
     if(mode == "builder") gameBuilder.syncMap()
+    console.log("Map: ", map)
     const mapStr = await map.exportAsSafeBase64()
     console.log(`Map export size: ${mapStr.length}`)
     const valEl = document.getElementById("game_url_val")
