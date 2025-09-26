@@ -16,8 +16,8 @@ export default class PhysicsEngine {
         this.gravityAcc = scn?.physicsManager.gravityAcc ?? DEFAULT_GRAVITY_ACC
         this.gravityMaxSpeed = scn?.physicsManager.gravityMaxSpeed ?? DEFAULT_GRAVITY_MAX_SPEED
     }
-    getObjectPhysicsProps(obj, dt) {
-        const props = obj.getPhysicsProps(dt)
+    getObjectHitProps(obj, dt) {
+        const props = obj.getHitProps(dt)
         props.obj = obj
         const { polygon, dx, dy } = props
         // min/max
@@ -63,7 +63,7 @@ export default class PhysicsEngine {
         const blockersProps = []
         objects.forEach(obj => {
             if(obj.canBlock) {
-                blockersProps.push(this.getObjectPhysicsProps(obj, 0))
+                blockersProps.push(this.getObjectHitProps(obj, 0))
             }
         })
         objects.forEach(obj => {
@@ -76,7 +76,7 @@ export default class PhysicsEngine {
                 const objOrigD = dist(objOrigDx, objOrigDy) * dt
                 while(remD > 0) {
                     colRes.time = Infinity
-                    const objProps = this.getObjectPhysicsProps(obj, dt*remD)
+                    const objProps = this.getObjectHitProps(obj, dt*remD)
                     let { speedX: objSpdX, speedY: objSpdY } = obj
                     const {
                         minX: objMinX, minY: objMinY, maxX: objMaxX, maxY: objMaxY,
@@ -167,12 +167,12 @@ export default class PhysicsEngine {
         })
 
         for(let obj1 of canHitObjs) {
-            const obj1Props = this.getObjectPhysicsProps(obj1, 0)
+            const obj1Props = this.getObjectHitProps(obj1, 0)
             for(let obj2 of canBeHitObjs) {
                 if(obj1 === obj2) continue
                 if(obj1._canHitHash | obj2._canBeHitHash == 0) continue
                 if(!obj1.canHitObject(obj2)) continue
-                const obj2Props = this.getObjectPhysicsProps(obj2, 0)
+                const obj2Props = this.getObjectHitProps(obj2, 0)
                 detectCollisionTime(obj1Props, obj2Props, blockerColRes)
                 if(blockerColRes.time == 0) obj1.hit(obj2)
             }
@@ -187,42 +187,42 @@ export default class PhysicsEngine {
 }
 
 // Fonction principale pour détecter le moment de collision
-function detectCollisionTime(physicsProps1, physicsProps2, res) {
+function detectCollisionTime(hitProps1, hitProps2, res) {
     res.obj = null
     res.time = 0
     res.dist = -Infinity
     res.distFixSign = 0
     res.normalX = null
     res.normalY = null
-    if(_checkUniDir(physicsProps1, physicsProps2)
-    || _checkUniDir(physicsProps2, physicsProps1)) {
+    if(_checkUniDir(hitProps1, hitProps2)
+    || _checkUniDir(hitProps2, hitProps1)) {
         res.time = Infinity
         return
     }
-    _detectCollisionTime(physicsProps1, physicsProps2, 0, res)
+    _detectCollisionTime(hitProps1, hitProps2, 0, res)
     if(res.time == Infinity) return
-    _detectCollisionTime(physicsProps1, physicsProps2, 1, res)
-    _checkUniDir2(physicsProps1, physicsProps2, res)
+    _detectCollisionTime(hitProps1, hitProps2, 1, res)
+    _checkUniDir2(hitProps1, hitProps2, res)
 }
 
-function _checkUniDir(physicsProps1, physicsProps2) {
-    if(physicsProps1.uniDirX === null) return false
-    const { dx: dx1, dy: dy1 } = physicsProps1
-    const { dx: dx2, dy: dy2 } = physicsProps2
+function _checkUniDir(hitProps1, hitProps2) {
+    if(hitProps1.uniDirX === null) return false
+    const { dx: dx1, dy: dy1 } = hitProps1
+    const { dx: dx2, dy: dy2 } = hitProps2
     const dx = dx2-dx1, dy = dy2-dy1
-    const dp = dotProduct(dx, dy, physicsProps1.uniDirX, physicsProps1.uniDirY)
+    const dp = dotProduct(dx, dy, hitProps1.uniDirX, hitProps1.uniDirY)
     return dp >= 0
 }
 
-function _checkUniDir2(physicsProps1, physicsProps2, res) {
-    if(physicsProps1.uniDirX === null && physicsProps2.uniDirX === null) return
+function _checkUniDir2(hitProps1, hitProps2, res) {
+    if(hitProps1.uniDirX === null && hitProps2.uniDirX === null) return
     if(res.dist < -1) res.time = Infinity
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
-function _detectCollisionTime(physicsProps1, physicsProps2, num, res) {
-    const pprops1 = (num==0) ? physicsProps1 : physicsProps2
-    const pprops2 = (num==1) ? physicsProps1 : physicsProps2
+function _detectCollisionTime(hitProps1, hitProps2, num, res) {
+    const pprops1 = (num==0) ? hitProps1 : hitProps2
+    const pprops2 = (num==1) ? hitProps1 : hitProps2
     const { polygon: poly1, dx: dx1, dy: dy1, normals } = pprops1
     const { polygon: poly2, dx: dx2, dy: dy2} = pprops2
     const dx = dx1-dx2, dy = dy1-dy2
@@ -235,7 +235,7 @@ function _detectCollisionTime(physicsProps1, physicsProps2, num, res) {
         const { time: colTime, dist: colDist, distFixSign: colDistFixSign } = resOverlapTime
         if(colTime < res.time) continue
         if(colTime == 0 && colDist < res.dist) return
-        res.obj = physicsProps2.obj
+        res.obj = hitProps2.obj
         res.time = colTime
         res.dist = colDist
         res.distFixSign = colDistFixSign

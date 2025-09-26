@@ -4,6 +4,7 @@ import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
 import { AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
+import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
 
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
@@ -313,49 +314,21 @@ export function nbKeys(obj) {
     return res
 }
 
-export class Sprite {
-    constructor(src) {
-        if(typeof src === "string") src = loadImg(src)  
-        if(src instanceof Promise) src.then(img => this.baseImg = img)
-        else this.baseImg = src
-        this.transImgs = {}
-    }
-    getImg(width, height, dirX, dirY, visibility) {
-        const key = `${width}:${height}:${dirX}:${dirY}:${visibility}`
-        let res = this.transImgs[key]
-        if(res) return res
-        const { baseImg } = this
-        if(!baseImg || baseImg.unloaded || baseImg.width==0 || baseImg.height==0) return null // TODO: deprecate it
-        const { width: baseWidth, height: baseHeight } = baseImg
-        const resImg = newCanvas(width, height)
-        const ctx = resImg.getContext("2d")
-        ctx.translate(dirX >= 0 ? 0 : width, dirY >= 0 ? 0 : height)
-        ctx.scale(width/baseWidth * dirX, height/baseHeight * dirY)
-        ctx.globalAlpha = visibility
-        ctx.drawImage(baseImg, 0, 0)
-        this.transImgs[key] = resImg
-        return resImg
-    }
-}
-
 
 export class SpriteSheet {
     constructor(img, nbCols, nbRows) {
         this.img = img
         this.nbCols = nbCols
         this.nbRows = nbRows
-        this.sprites = []
+        this.imgs = []
         if(IS_SERVER_ENV) return
         this.unloaded = true
-        //if(typeof src === "string") src = loadImg(src)  
-        //if(src instanceof Promise) src.then(img => this.initSprites(img, nbCols, nbRows))
-        this.initSprites()
+        this.initImgs()
     }
-    initSprites() {
+    initImgs() {
         if(!this.unloaded) return
         const { img, nbRows, nbCols } = this
         if(img.unloaded) return
-        for(let i=0; i<nbCols*nbRows; ++i) this.sprites.push(new Sprite())
         const frameWidth = floor(img.width / nbCols)
         const frameHeight = floor(img.height / nbRows)
         for (let j = 0; j < nbRows; ++j) for (let i = 0; i < nbCols; ++i) {
@@ -363,16 +336,17 @@ export class SpriteSheet {
             can.width = frameWidth
             can.height = frameHeight
             can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
-            this.sprites[i + j*nbCols].baseImg = can
+            this.imgs[i + j*nbCols] = can
         }
         this.unloaded = false
     }
     get(num, loop = false) {
-        this.initSprites()
-        const { sprites } = this
-        if(loop) num = num % sprites.length
-        else if(num >= sprites.length) return null
-        return sprites[num]
+        this.initImgs()
+        const { imgs } = this, nbImgs = imgs.length
+        if(nbImgs == 0) return null
+        if(loop) num = num % nbImgs
+        else if(num >= nbImgs) return null
+        return imgs[num]
     }
 }
 
@@ -689,7 +663,6 @@ export class GameObject {
         assign(this.prototype, {
             width: 10,
             height: 10,
-            spriteVisibility: 1,
             spriteDx: 0,
             spriteDy: 0,
             removed: false,
@@ -791,7 +764,7 @@ export class GameObject {
     getState(isInitState=false) {
         const state = {}
         state.key = this.getKey()
-        if(!isInitState) state.id = this.id
+        state.id = this.id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
         return state
@@ -822,70 +795,82 @@ export class GameObject {
         this.addObjectLink(trigObj, trigKey, reactKey, threshold)
     }
 
-    drawTo(ctx) {
-        const img = this.getImg()
-        if(img && img.width>0 && img.height>0) ctx.drawImage(img, ~~(this.x + this.spriteDx - img.width/2), ~~(this.y + this.spriteDy - img.height/2))
+    draw(drawer) {
+        const props = this.getGraphicsProps()
+        if(props) drawer.draw(props)
     }
 
-    scaleSprite(sprite) {
-        this.spriteFit(sprite)
+    getGraphicsProps() {
+        const img = this.getBaseImg()
+        if(!img) return null
+        const props = this._graphicsProps ||= new GraphicsProps()
+        props.img = img
+        props.x = this.x
+        props.y = this.y
+        props.width = this.width ?? 50
+        props.height = this.height ?? 50
+        props.dirX = this.dirX
+        props.dirY = this.dirY
+        return props
     }
 
-    getSprite() {
-        return this.sprite // TODO: return null when this.sprite deprecated
-    }
+    getBaseImg() {}
 
-    getImg() {
-        if(this.spriteVisibility === 0) return
-        const sprite = this.getSprite()
-        if(!sprite || !sprite.baseImg) return
-        this.scaleSprite(sprite)
-        return sprite.getImg(
-            this.spriteWidth,
-            this.spriteHeight,
-            this.dirX,
-            this.dirY,
-            this.spriteVisibility,
-        )
-    }
+    // getSprite() {
+    //     return this.sprite // TODO: return null when this.sprite deprecated
+    // }
 
-    spriteFit(sprite) {
-        const { width, height } = this
-        const { width: baseWidth, height: baseHeight } = sprite.baseImg
-        if(width * baseHeight > baseWidth * height){
-            this.spriteWidth = ~~(baseWidth*height/baseHeight)
-            this.spriteHeight = height
-        } else {
-            this.spriteWidth = width
-            this.spriteHeight = ~~(baseHeight*width/baseWidth)
-        }
-    }
+    // getImg() {
+    //     if(this.spriteVisibility === 0) return
+    //     const sprite = this.getSprite()
+    //     if(!sprite || !sprite.baseImg) return
+    //     this.scaleSprite(sprite)
+    //     return sprite.getImg(
+    //         this.spriteWidth,
+    //         this.spriteHeight,
+    //         this.dirX,
+    //         this.dirY,
+    //         this.spriteVisibility,
+    //     )
+    // }
+
+    // spriteFit(sprite) {
+    //     const { width, height } = this
+    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
+    //     if(width * baseHeight > baseWidth * height){
+    //         this.spriteWidth = ~~(baseWidth*height/baseHeight)
+    //         this.spriteHeight = height
+    //     } else {
+    //         this.spriteWidth = width
+    //         this.spriteHeight = ~~(baseHeight*width/baseWidth)
+    //     }
+    // }
     
-    spriteFill(sprite) {
-        const { width, height } = this
-        const { width: baseWidth, height: baseHeight } = sprite.baseImg
-        if(width * baseHeight < baseWidth * height){
-            this.spriteWidth = ~~(baseWidth*height/baseHeight)
-            this.spriteHeight = height
-        } else {
-            this.spriteWidth = width
-            this.spriteHeight = ~~(baseHeight*width/baseWidth)
-        }
-    }
+    // spriteFill(sprite) {
+    //     const { width, height } = this
+    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
+    //     if(width * baseHeight < baseWidth * height){
+    //         this.spriteWidth = ~~(baseWidth*height/baseHeight)
+    //         this.spriteHeight = height
+    //     } else {
+    //         this.spriteWidth = width
+    //         this.spriteHeight = ~~(baseHeight*width/baseWidth)
+    //     }
+    // }
     
-    spriteFitWidth(sprite) {
-        const { width } = this
-        const { width: baseWidth, height: baseHeight } = sprite.baseImg
-        this.spriteWidth = width
-        this.spriteHeight = ~~(baseHeight*width/baseWidth)
-    }
+    // spriteFitWidth(sprite) {
+    //     const { width } = this
+    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
+    //     this.spriteWidth = width
+    //     this.spriteHeight = ~~(baseHeight*width/baseWidth)
+    // }
     
-    spriteFitHeight(sprite) {
-        const { height } = this
-        const { width: baseWidth, height: baseHeight } = sprite.baseImg
-        this.spriteWidth = ~~(baseWidth*height/baseHeight)
-        this.spriteHeight = height
-    }
+    // spriteFitHeight(sprite) {
+    //     const { height } = this
+    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
+    //     this.spriteWidth = ~~(baseWidth*height/baseHeight)
+    //     this.spriteHeight = height
+    // }
 }
 
 function on(trigKey, nextKey, next) {
@@ -1027,21 +1012,17 @@ export class Text extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.textArgs = kwargs
-        this.updateText(kwargs.text)
     }
 
-    updateText(text) {
-        if(this.game.isServerEnv) return
-        if(this.text == text) return
-        this.text = text
-        const canvas = newTextCanvas(text, this.textArgs)
-        this.width = canvas.width
-        this.height = canvas.height
-        this.sprite = new Sprite(canvas)
-    }
-
-    getSprite() {
-        return this.sprite
+    getBaseImg() {
+        let baseImg = this._baseImg
+        const { width, height, text } = this
+        if(baseImg && baseImg.width == width && baseImg.height == height && baseImg.text == text) return baseImg
+        baseImg = this._baseImg = newTextCanvas(text, this.textArgs)
+        baseImg.width = width
+        baseImg.height = height
+        baseImg.text = text
+        return baseImg
     }
 }
 
@@ -1091,16 +1072,22 @@ export class GameObjectGroup {
         // return res
     }
 
-    resetStatefulIds() {
-        const { statefulObjArr, objMap } = this
-        for(let obj of statefulObjArr) objMap.delete(obj.id)
-        for(let idx in statefulObjArr) {
-            const obj = statefulObjArr[idx]
-            obj.id = idx.toString()
-            this.objMap.set(obj.id, obj)
-        }
-        this._nextAutoStatefulId = statefulObjArr.length
-    }
+    // resetIds() {
+    //     const { statefulObjArr, statelessObjArr, objMap } = this
+    //     objMap.clear()
+    //     for(let idx in statefulObjArr) {
+    //         const obj = statefulObjArr[idx]
+    //         obj.id = idx.toString()
+    //         this.objMap.set(obj.id, obj)
+    //     }
+    //     this._nextAutoStatefulId = statefulObjArr.length
+    //     for(let idx in statelessObjArr) {
+    //         const obj = statelessObjArr[idx]
+    //         obj.id = (-1-idx).toString()
+    //         this.objMap.set(obj.id, obj)
+    //     }
+    //     this._nextAutoStatelessId = statelessObjArr.length
+    // }
 
     add(cls, kwargs) {
         kwargs ||= {}
@@ -1171,6 +1158,20 @@ export class GameObjectGroup {
         _sort(this.statelessObjArr)
     }
 
+    draw(drawer) {
+        const propss = []
+        const addProps = obj => {
+            const props = obj.getGraphicsProps()
+            if(!props) return
+            props.x += this.x
+            props.y += this.y
+            propss.push(props)
+        }
+        this.statefulObjArr.forEach(addProps)
+        this.statelessObjArr.forEach(addProps)
+        drawer.draw(...propss)
+    }
+
     drawTo(gameCtx) {
         this.clearRemoved()
         const x = ~~this.x, y = ~~this.y
@@ -1183,7 +1184,7 @@ export class GameObjectGroup {
         const state = this._state ||= []
         state.length = 0
         if(isInitState) {
-            this.resetStatefulIds()
+            //this.resetIds()
             this.statelessObjArr.forEach(obj => {
                 if(obj.getKey() === undefined) return
                 state.push(obj.getState(isInitState))
@@ -1200,11 +1201,11 @@ export class GameObjectGroup {
         statefulObjArr.length = 0
         if(state) {
             for(let idx in state) {
+                const objState = state[idx]
+                const { id, key } = objState
                 if(isInitState) {
-                    this.scene.addObject(`A#${idx}`, { id: idx.toString() })
+                    this.scene.addObject(`A#${idx}`, { id })
                 } else {
-                    const objState = state[idx]
-                    let { id, key } = objState
                     let obj = objMap.get(id)
                     if(!obj || obj.key != key) {
                         if(obj) obj.remove()
@@ -1460,21 +1461,18 @@ export class GameCommon {
     }
 
     draw() {
-        const { game:gameScn, pause:pauseScn, joypad:joypadScn, joypadPause: joypadPauseScn } = this.scenes
-        const ctx = this.canvas.getContext("2d")
-        this.drawScene(ctx, gameScn)
-        this.drawScene(ctx, pauseScn)
-        this.drawScene(ctx, joypadScn)
-        this.drawScene(ctx, joypadPauseScn)
-        return ctx
+        const { game:gameScn, pause:pauseScn, joypad:joypadScn, joypadPause:joypadPauseScn } = this.scenes
+        this.drawScene(gameScn)
+        this.drawScene(pauseScn)
+        this.drawScene(joypadScn)
+        this.drawScene(joypadPauseScn)
     }
 
-    drawScene(ctx, scn) {
+    drawScene(scn) {
         if(!scn || !scn.visible) return
-        scn.draw()
-        const can = scn.canvas
+        const can = scn.draw()
         if(can.width == 0 || can.height == 0) return
-        ctx.drawImage(can, scn.x, scn.y)
+        this.canvas.getContext("2d").drawImage(can, scn.x, scn.y)
     }
 
     syncSize() {
@@ -1604,8 +1602,8 @@ export class SceneCommon {
         if(!this.game.isServerEnv) {
             this.backgroundCanvas = null
             this.canvas = document.createElement("canvas")
+            this.graphicsEngine = new GraphicsEngine(this)
         }
-        //this.walls = new GameObjectGroup(this)
         this.objects = new GameObjectGroup(this, {
             onAdd: obj => this.onAddObject(obj)
         })
@@ -1639,21 +1637,7 @@ export class SceneCommon {
         this.mapId = scnMapId
         this.map = this.game.map.scenes[scnMapId]
         this.setState(this.map, true)
-        //this.initWalls()
     }
-
-    // initWalls() {
-    //     const mapWalls = this.map?.walls
-    //     if(!mapWalls) return
-    //     mapWalls.forEach(w => {
-    //         const { x1, y1, x2, y2, key } = w
-    //         this.addObject(Wall, { x1, y1, x2, y2, key })
-    //     })
-    // }
-
-    // addWall(kwargs) {
-    //     return this.walls.add(Wall, kwargs)
-    // }
 
     addObject(cls, kwargs) {
         return this.objects.add(cls, kwargs)
@@ -1753,18 +1737,39 @@ export class SceneCommon {
         can.height = this.viewHeight
         const ctx = can.getContext("2d")
         ctx.reset()
-        const backgroundCanvas = this.initBackground()
-        if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
-        this.drawTo(ctx)
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        ctx.translate(~~-this.viewX, ~~-this.viewY)
+        this.objects.draw(drawer)
+        this.visuals.draw(drawer)
+        ctx.translate(~~this.viewX, ~~this.viewY)
+        this.notifs.draw(drawer)
+        // const backgroundCanvas = this.initBackground()
+        // if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
+        // this.drawTo(ctx)
+        return can
     }
 
-    drawTo(ctx) {
-        ctx.translate(~~-this.viewX, ~~-this.viewY)
-        //this.walls.drawTo(ctx)
-        this.objects.drawTo(ctx)
-        this.visuals.drawTo(ctx)
-        ctx.translate(~~this.viewX, ~~this.viewY)
-        this.notifs.drawTo(ctx)
+    // drawTo(ctx) {
+    //     ctx.translate(~~-this.viewX, ~~-this.viewY)
+    //     //this.walls.drawTo(ctx)
+    //     this.objects.drawTo(ctx)
+    //     this.visuals.drawTo(ctx)
+    //     ctx.translate(~~this.viewX, ~~this.viewY)
+    //     this.notifs.drawTo(ctx)
+    // }
+
+    drawBackground(drawer) {
+        drawer.draw(this.getBackgroundGraphicsProps())
+    }
+
+    getBackgroundGraphicsProps() {
+        const props = this._backgroundGraphicsProps ||= new GraphicsProps()
+        props.color = this.backgroundColor
+        props.width = this.viewWidth
+        props.height = this.viewHeight
+        props.visibility = this.backgroundAlpha
+        return props
     }
 
     initBackground() {
@@ -1856,7 +1861,6 @@ export class Game extends GameCommon {
         if(this.isDebugMode) this.setDebugSceneVisibility(true)
 
         this.audio = new AudioEngine(this)
-        //this.graphics = new GraphicsEngine(this)
     }
 
     initKeyListeners() {
@@ -1985,9 +1989,9 @@ export class Game extends GameCommon {
 
     draw() {
         const drawStartTime = now()
-        const ctx = super.draw()
+        super.draw()
         if(this.isDebugMode) this.pushMetric("drawDur", now() - drawStartTime, this.fps * 5)
-        this.drawScene(ctx, this.debugScene)
+        this.drawScene(this.debugScene)
     }
 
     async startGame() {
@@ -2644,6 +2648,17 @@ export class HitMixin extends Mixin {
         proto.canBeHitAsGroup ||= function(group) { return false }
         proto.canHitObject ||= function(obj) { return false }
         proto.hit ||= function(obj) {}
+
+        proto.getHitProps ||= this.objGetHitProps
+    }
+
+    objGetHitProps(dt) {
+        const props = this._hitProps ||= {}
+        props.polygon = this.getBodyPolygon()
+        props.dx = (this.speedX ?? 0) * dt
+        props.dy = (this.speedY ?? 0) * dt
+        props.uniDirX = props.uniDirY = null
+        return props
     }
 }
 
@@ -2708,23 +2723,12 @@ export class PhysicsMixin extends Mixin {
             if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj)
             if(obj.canGetBlocked || obj.checkGetBlockedAnyway) obj.onGetBlocked(this)
         }
-
-        proto.getPhysicsProps ||= this.objGetPhysicsProps
     }
 
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
         if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
         if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
-    }
-
-    objGetPhysicsProps(dt) {
-        const props = this._physicsProps ||= {}
-        props.polygon = this.getBodyPolygon()
-        props.dx = this.speedX * dt
-        props.dy = this.speedY * dt
-        props.uniDirX = props.uniDirY = null
-        return props
     }
 
     updateObject(obj) {
@@ -2838,8 +2842,8 @@ export class AttackMixin extends Mixin {
     updateObject(obj) {
         const { iteration, step } = obj.scene
         const { dt } = obj.game
-        if(step != "GAME" || (obj.getHealth() <= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
-        else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
+        // if(step != "GAME" || (obj.getHealth() <= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
+        // else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
         obj.lastDamageAge += 1
         if(!obj.isInGracePeriod()) obj.lastDamageAge = Infinity
     }
@@ -3122,12 +3126,14 @@ export class SmokeExplosion extends GameObject {
         super.init(kwargs)
         this.width = this.height = 100
     }
+
     update() {
         this.iteration += 1
         const time = this.iteration * this.game.dt
         if(time > .5) { this.remove(); return }
     }
-    getSprite() {
+
+    getBaseImg() {
         const time = this.iteration * this.game.dt
         return SmokeExplosionSpriteSheet.get(floor(time/.5*4))
     }
@@ -3135,7 +3141,6 @@ export class SmokeExplosion extends GameObject {
 
 
 const PopImg = CATALOG.registerImage("/static/core/assets/pop.png")
-const PopSprite = new Sprite(PopImg)
 const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
 
 class Pop extends GameObject {
@@ -3155,8 +3160,8 @@ class Pop extends GameObject {
         this.remIt -= 1
         if(this.remIt <= 0) this.remove()
     }
-    getSprite() {
-        return PopSprite
+    getBaseImg() {
+        return PopImg
     }
 }
 
@@ -3285,15 +3290,46 @@ export class Wall extends GameObject {
         return pol
     }
 
-    drawTo(ctx) {
-        ctx.lineWidth = 5
+    // drawTo(ctx) {
+    //     ctx.lineWidth = 5
+    //     ctx.strokeStyle = this.color
+    //     ctx.beginPath()
+    //     ctx.moveTo(this.x1, this.y1)
+    //     ctx.lineTo(this.x2, this.y2)
+    //     ctx.globalAlpha = this.spriteVisibility
+    //     ctx.stroke()
+    //     ctx.globalAlpha = 1
+    // }
+
+    getGraphicsProps() {
+        const { x1, y1, x2, y2 } = this
+        const img = this.getBaseImg()
+        const props = this._graphicsProps ||= new GraphicsProps()
+        const lineWidth = 5
+        props.img = img
+        props.x = (x1 + x2) / 2
+        props.y = (y1 + y2) / 2
+        props.width = abs(x1 - x2) + 2*lineWidth
+        props.height = abs(y1 - y2) + 2*lineWidth
+        return props
+    }
+
+    getBaseImg() {
+        const { x1, y1, x2, y2 } = this
+        let baseImg = this._baseImg
+        if(baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return baseImg
+        const lineWidth = 5
+        baseImg = this._baseImg = newCanvas(abs(x1-x2)+2*lineWidth, abs(y1-y2)+2*lineWidth)
+        assign(baseImg, { x1, y1, x2, y2 })
+        const ctx = baseImg.getContext("2d")
+        ctx.lineWidth = lineWidth
         ctx.strokeStyle = this.color
         ctx.beginPath()
-        ctx.moveTo(this.x1, this.y1)
-        ctx.lineTo(this.x2, this.y2)
-        ctx.globalAlpha = this.spriteVisibility
+        const minX = min(x1, x2), minY = min(y1, y2)
+        ctx.moveTo(lineWidth+x1-minX, lineWidth+y1-minY)
+        ctx.lineTo(lineWidth+x2-minX, lineWidth+y2-minY)
         ctx.stroke()
-        ctx.globalAlpha = 1
+        return baseImg
     }
 
     getState(isInitState=false) {
@@ -3319,8 +3355,8 @@ export class Platform extends Wall {
         this.color = "grey"
     }
 
-    getPhysicsProps(dt) {
-        const props = super.getPhysicsProps(dt)
+    getHitProps(dt) {
+        const props = super.getHitProps(dt)
         const { x1, x2, y1, y2 } = this
         const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
         props.uniDirX = dy/dd
@@ -3366,26 +3402,24 @@ export class PlayerIcon extends GameObject {
         super.init(kwargs)
         this.playerId = kwargs.playerId
         this.strokeColor = kwargs?.strokeColor ?? "black"
-        this.initSprite()
     }
-    initSprite() {
-        if(IS_SERVER_ENV) return
+
+    getBaseImg() {
+        let baseImg = this._baseImg
+        if(baseImg) return baseImg
         const { playerId } = this
         const player = this.game.players[playerId]
-        const can = document.createElement("canvas")
-        can.width = can.height = 36
-        const ctx = can.getContext("2d")
+        baseImg = this._baseImg = document.createElement("canvas")
+        baseImg.width = baseImg.height = 36
+        const ctx = baseImg.getContext("2d")
         ctx.beginPath()
-        ctx.arc(floor(can.width/2), floor(can.height/2), 15, 0, 2 * PI)
+        ctx.arc(floor(baseImg.width/2), floor(baseImg.height/2), 15, 0, 2 * PI)
         ctx.strokeStyle = this.strokeColor
         ctx.lineWidth = 3
         ctx.stroke()
         ctx.fillStyle = player.color
         ctx.fill()
-        this.sprite = new Sprite(can)
-    }
-    getSprite() {
-        return this.sprite
+        return baseImg
     }
 }
 
@@ -3413,7 +3447,7 @@ export class WaitingScene extends SceneCommon {
         this.backgroundColor = "black"
         this.playerObjs = new Map()
         this.initTitleText()
-        this.initQrcodeSprite()
+        this.initQrcodeImg()
     }
 
     initTitleText() {
@@ -3430,19 +3464,19 @@ export class WaitingScene extends SceneCommon {
         titleTxt.syncPos()
     }
 
-    async initQrcodeSprite() {
+    async initQrcodeImg() {
         if(IS_SERVER_ENV) return
-        let qrcodeSprite = this.qrcodeSprite
-        if(!qrcodeSprite) {
+        let qrcodeImg = this._qrcodeImg
+        if(!qrcodeImg) {
             const qrcodeImg = await this.game.initQrcodeImg()
             const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
             const ctx = can.getContext("2d")
             ctx.fillStyle = "white"
             ctx.fillRect(0, 0, can.width, can.height)
             ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
-            qrcodeSprite = this.qrcodeSprite = new Sprite(can)
+            qrcodeImg = this.qrcodeImg = new Sprite(can)
         }
-        return qrcodeSprite
+        return qrcodeImg
     }
 
     update() {
@@ -3478,7 +3512,7 @@ export class WaitingScene extends SceneCommon {
             const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
             txt.sync = () => {
                 txt.x = 35 + txt.width/2
-                txt.updateText(game.players[playerId]?.name ?? "")
+                txt.text = game.players[playerId]?.name ?? ""
             }
             txt.sync()
             hackMethod(txt, "update", 0, evt => txt.sync())
@@ -3486,13 +3520,40 @@ export class WaitingScene extends SceneCommon {
         return grp
     }
 
-    drawTo(ctx) {
-        this.notifs.drawTo(ctx)
-        this.playerObjs.forEach(objs => objs.drawTo(ctx))
-        if(this.qrcodeSprite) {
-            const qrcodeImg = this.qrcodeSprite.getImg(200, 200, 1, 1)
-            if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))
-        }
+    // drawTo(ctx) {
+    //     this.notifs.drawTo(ctx)
+    //     this.playerObjs.forEach(objs => objs.drawTo(ctx))
+    //     if(this._qrcodeImg) {
+    //         const qrcodeImg = this.qrcodeSprite.getImg(200, 200, 1, 1)
+    //         if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))
+    //     }
+    // }
+
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.notifs.draw(drawer)
+        this.playerObjs.forEach(objs => objs.draw(drawer))
+        const qrcodeProps = this.getQrcodeGraphicsProps()
+        if(qrcodeProps) qrcodeProps.draw(drawer)
+        return can
+    }
+
+    getQrcodeGraphicsProps() {
+        const qrcodeImg = this._qrcodeImg
+        if(!qrcodeImg) return null
+        const qrcodeProps = this._qrcodeGraphicsProps ||= new GraphicsProps({
+            img: qrcodeImg,
+            width: qrcodeImg.width,
+            height: qrcodeImg.height,
+            x: 60,
+            y: (this.height - qrcodeImg.height)/2
+        })
+        return qrcodeProps
     }
 
     async loadJoypadScene() {
@@ -3522,11 +3583,11 @@ class DebugScene extends SceneCommon {
         const { metrics } = this.game
         if(metrics) {
             const updDurMts = metrics["updateDur"]
-            if(updDurMts) this.updDurTxt.updateText(`Upd: ${arrAvg(updDurMts).toFixed(3)} / ${arrMax(updDurMts).toFixed(3)}`)
+            if(updDurMts) this.updDurTxt.text = `Upd: ${arrAvg(updDurMts).toFixed(3)} / ${arrMax(updDurMts).toFixed(3)}`
             const drawDurMts = metrics["drawDur"]
-            if(drawDurMts) this.drawDurTxt.updateText(`Draw: ${arrAvg(drawDurMts).toFixed(3)} / ${arrMax(drawDurMts).toFixed(3)}`)
+            if(drawDurMts) this.drawDurTxt.text = `Draw: ${arrAvg(drawDurMts).toFixed(3)} / ${arrMax(drawDurMts).toFixed(3)}`
             const lagMts = metrics["lag"]
-            if(lagMts) this.lagTxt.updateText(`Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`)
+            if(lagMts) this.lagTxt.text = `Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`
         }
     }
     
@@ -3548,12 +3609,16 @@ export class ScoresBoard extends GameObject {
         this.lineHeight = 40
         this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
     }
-    getSprite() {
-        const sprite = this.sprite ||= new Sprite(
-            this.buildCanvas()
-        )
-        return sprite
+
+    getBaseImg() {
+        const baseImg = this._baseImg ||= document.createElement("canvas")
+        baseImg.width = this.width
+        baseImg.height = this.height
+        this.drawBackground(baseImg)
+        this.drawScores(baseImg)
+        return baseImg
     }
+
     buildCanvas() {
         const can = document.createElement("canvas")
         can.width = this.width
@@ -3562,6 +3627,7 @@ export class ScoresBoard extends GameObject {
         this.drawScores(can)
         return can
     }
+
     drawBackground(can) {
         const { width, height } = can
         const ctx = can.getContext("2d")
@@ -3573,6 +3639,7 @@ export class ScoresBoard extends GameObject {
         ctx.lineWidth = 1
         ctx.strokeRect(0, 0, width, height)
     }
+
     drawScores(can) {
         const { headerHeight, lineHeight, scores } = this
         const { width } = can
@@ -3615,7 +3682,7 @@ export class CountDown extends Text {
     syncText() {
         const { iteration } = this.scene
         const { fps } = this.game
-        this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
+        this.text = ceil((this.duration - (iteration - this.startIt)/fps))
     }
 }
 
@@ -3631,8 +3698,8 @@ export class HeroSpawnPoint extends GameObject {
         this.width = this.height = 50
     }
 
-    getSprite() {
-        return PopSprite
+    getBaseImg() {
+        return PopImg
     }
 }
 
@@ -3650,16 +3717,19 @@ export class HeroSpawnPoint extends GameObject {
 @GameObject.StateProperty.define("model", { showInBuilder: true })
 @ActivableMixin.add()
 export class ObjectSpawner extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 50
     }
+
     update() {
         super.update()
         this.spawnedObjects.update()
         if(this.nbSpawn >= this.max && this.spawnedObjects.size == 0) this.remove()
         this.maySpawnObject()
     }
+
     maySpawnObject() {
         if(!this.activated) return
         if(this.nbSpawn >= this.max) return
@@ -3667,6 +3737,7 @@ export class ObjectSpawner extends GameObject {
         if(this.spawnedObjects.size >= this.maxLiving) return
         this.spawnObject()
     }
+
     spawnObject() {
         const { scene, model } = this
         if(!model) return
@@ -3683,8 +3754,9 @@ export class ObjectSpawner extends GameObject {
         scene.addVisual(Pop, { x:this.x, y:this.y })
         return obj
     }
-    getSprite() {
-        return PopSprite
+
+    getBaseImg() {
+        return PopImg
     }
 }
 

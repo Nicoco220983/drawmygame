@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, Sprite, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -24,7 +24,7 @@ const NicoSpriteSheets = {
     },
 }
 
-const HandSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/hand.png"))
+const HandImg = CATALOG.registerImage("/static/catalogs/std/assets/hand.png")
 const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/arrows.png"), 4, 1)
 
 const OuchAud = CATALOG.registerAudio("/static/catalogs/std/assets/ouch.opus")
@@ -78,7 +78,7 @@ export class Nico extends Hero {
         }
     }
 
-    getSprite() {
+    getBaseImg() {
         const { iteration } = this.scene
         const { dt, players } = this.game
         const player = players && players[this.playerId]
@@ -148,7 +148,7 @@ export class Nico extends Hero {
         joypadScn.addButton({ inputKey:"ArrowLeft", x:width*.15, y:height*.27, size, icon: ArrowsSpriteSheet.get(3) })
         joypadScn.addButton({ inputKey:"ArrowRight", x:width*.3, y:height*.73, size, icon: ArrowsSpriteSheet.get(1) })
         joypadScn.addButton({ inputKey:"ArrowUp", x:width*.85, y:height*.27, size, icon: ArrowsSpriteSheet.get(0) })
-        joypadScn.actionButton = joypadScn.addButton({ inputKey:" ", x:width*.7, y:height*.73, size, icon: HandSprite })
+        joypadScn.actionButton = joypadScn.addButton({ inputKey:" ", x:width*.7, y:height*.73, size, icon: HandImg })
         this.syncJoypadActionButton()
     }
 
@@ -157,7 +157,7 @@ export class Nico extends Hero {
         const actionButton = scenes.joypad && scenes.joypad.actionButton
         if(!actionButton) return
         const actionExtra = this.getActionExtra()
-        actionButton.icon = actionExtra ? actionExtra.getSprite() : HandSprite
+        actionButton.icon = actionExtra ? actionExtra.getBaseImg() : HandImg
     }
 
     addExtra(extra) {
@@ -181,20 +181,6 @@ export class Nico extends Hero {
         })
         return actionExtra
     }
-
-    drawTo(ctx) {
-        if(this.disabled) return
-        super.drawTo(ctx)
-        if(this.handRemIt && this.spriteWidth>0 && this.spriteHeight>0) {
-            const handImg = HandSprite.getImg(
-                ~~(this.spriteWidth * .5),
-                ~~(this.spriteHeight * .5),
-                this.dirX,
-                this.dirY,
-            )
-            if(handImg) ctx.drawImage(handImg, ~~(this.x + handImg.width * (-.5 + this.dirX * 1.1)), ~~(this.y - handImg.height/2))
-        }
-    }
 }
 
 @AttackMixin.add({
@@ -215,21 +201,29 @@ class NicoHand extends GameObject {
         this.syncPos()
         this.game.audio.playSound(SlashAud)
     }
+
     update() {
         super.update()
         this.syncPos()
     }
+
     syncPos() {
         const { owner } = this
         this.x = owner.x + owner.dirX * 28
         this.y = owner.y
         this.dirX = owner.dirX
     }
+
     canAttackObject(obj) {
         return obj != this.owner && this.owner.canAttackObject(obj)
     }
+
     onAttack(obj) {
         this.game.audio.playSound(HandHitAud)
+    }
+
+    getBaseImg() {
+        return HandImg
     }
 }
 
@@ -239,7 +233,6 @@ class NicoHand extends GameObject {
 const SWORD_ATTACK_PERIOD = .5
 
 const SwordImg = CATALOG.registerImage("/static/catalogs/std/assets/sword.png")
-const SwordSprite = new Sprite(SwordImg)
 const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/slash.png"), 3, 2)
 
 const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
@@ -265,7 +258,6 @@ export class Sword extends Extra {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 40
-        this.sprite = SwordSprite
         this.isActionExtra = true
     }
 
@@ -316,19 +308,18 @@ export class Sword extends Extra {
         this.lastAttackAge = 0
     }
 
-    getSprite() {
+    getBaseImg() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if(this.ownerId !== null && ratioSinceLastAttack <= 1) {
             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
-            return SwordSprite
+            return SwordImg
         }
     }
 }
 
 
 const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
-const ShurikenSprite = new Sprite(ShurikenImg)
 
 @CATALOG.registerObject("shurikp", {
     label: "ShurikenPack",
@@ -380,8 +371,8 @@ export class ShurikenPack extends Extra {
         }
         if(this.actRemIt > 0) this.actRemIt -= 1
     }
-    getSprite() {
-        return ShurikenSprite
+    getBaseImg() {
+        return ShurikenImg
     }
 }
 
@@ -439,8 +430,8 @@ export class Shuriken extends GameObject {
         if(this.itToLive <= 0) this.remove()
         if(this.speedResX || this.speedResY) this.remove()
     }
-    getSprite() {
-        return ShurikenSprite
+    getBaseImg() {
+        return ShurikenImg
     }
 }
 
@@ -497,14 +488,10 @@ export class Bomb extends Extra {
         this.speedY = -500
         this.itToLive = this.countdown * this.game.fps
     }
-    getSprite() {
+    getBaseImg() {
         const { itToLive, countdown } = this
         if(itToLive === null) return BombSpriteSheet.get(0)
         return BombSpriteSheet.get(floor(pow(3*(1 - (itToLive / this.game.fps)/countdown), 2)*2) % 2)
-    }
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        if(this.itToLive !== null) this.spriteDy = 0
     }
 }
 
@@ -549,7 +536,7 @@ export class Explosion extends GameObject {
         if(age >= 1) return this.remove()
         this.iteration += 1
     }
-    getSprite() {
+    getBaseImg() {
         return ExplosionSpriteSheet.get(floor(
             this.iteration / this.game.fps * 8 * 6
         ))
@@ -561,7 +548,6 @@ export class Explosion extends GameObject {
 
 
 const SpikyImg = CATALOG.registerImage("/static/catalogs/std/assets/spiky.png")
-const SpikySprite = new Sprite(SpikyImg)
 
 @CATALOG.registerObject("spiky", {
     label: "Spiky",
@@ -583,29 +569,28 @@ export class Spiky extends Enemy {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 45
-        this.spriteRand = floor(random() * this.game.fps)
     }
 
     canAttackObject(obj) {
         return obj instanceof Hero
     }
 
-    getSprite() {
-        return SpikySprite
+    getGraphicsProps() {
+        const { fps } = this.game, { iteration } = this.scene
+        const props = super.getGraphicsProps()
+        const rand = this._graphicsRand ||= floor(random() * fps)
+        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
+        props.y += props.height * .05 * cosAngle
+        return props
     }
-    
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        const { iteration } = this.scene
-        const { fps } = this.game
-        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
-        this.spriteDy = -this.spriteWidth * .05 * cosAngle
+
+    getBaseImg() {
+        return SpikyImg
     }
 }
 
 
 const BlobImg = CATALOG.registerImage("/static/catalogs/std/assets/blob.png")
-const BlobSprite = new Sprite(BlobImg)
 
 @CATALOG.registerObject("blob", {
     label: "Blob",
@@ -622,7 +607,7 @@ const BlobSprite = new Sprite(BlobImg)
 @PhysicsMixin.add()
 @BodyMixin.add({
     shape: "box",
-    width: 50,
+    width: 40,
     height: 36,
 })
 export class BlobEnemy extends Enemy {
@@ -631,7 +616,6 @@ export class BlobEnemy extends Enemy {
         super.init(kwargs)
         this.width = 50
         this.height = 36
-        this.spriteRand = floor(random() * this.game.fps)
         this.checker = this.scene.addObject(BlobEnemyChecker, {
             owner: this,
         })  // TODO: fix checker
@@ -656,18 +640,19 @@ export class BlobEnemy extends Enemy {
         return obj instanceof Hero
     }
 
-    getSprite() {
-        return BlobSprite
+    getGraphicsProps() {
+        const { fps } = this.game, { iteration } = this.scene
+        const props = super.getGraphicsProps()
+        const rand = this._graphicsRand ||= floor(random() * fps)
+        const angle = 2 * PI * (rand + iteration) / fps, cosAngle = cos(angle), sinAngle = sin(angle)
+        props.width = 50 * (1 + .1 * cosAngle)
+        props.height = 35 * (1 + .1 * sinAngle)
+        props.y -= 35 * .1 * sinAngle / 2
+        return props
     }
-    
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        const { iteration } = this.scene
-        const { fps } = this.game
-        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle), sinAngle = sin(angle)
-        this.spriteWidth *= (1 + .1 * cosAngle)
-        this.spriteHeight *= (1 + .1 * sinAngle)
-        this.spriteDy = -this.spriteWidth * .1 * sinAngle / 2
+
+    getBaseImg() {
+        return BlobImg
     }
 
     getHitBox() {
@@ -715,7 +700,6 @@ class BlobEnemyChecker extends GameObject {
 
 
 const GhostImg = CATALOG.registerImage("/static/catalogs/std/assets/ghost.png")
-const GhostSprite = new Sprite(GhostImg)
 
 @CATALOG.registerObject("ghost", {
     label: "Ghost",
@@ -742,7 +726,6 @@ export class Ghost extends Enemy {
         super.init(kwargs)
         this.width = 45
         this.height = 45
-        this.spriteRand = floor(random() * this.game.fps)
     }
 
     update() {
@@ -759,16 +742,17 @@ export class Ghost extends Enemy {
         return obj instanceof Hero
     }
 
-    getSprite() {
-        return GhostSprite
+    getBaseImg() {
+        return GhostImg
     }
-    
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        const { iteration } = this.scene
-        const { fps } = this.game
-        const angle = 2 * PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
-        this.spriteDy = -this.spriteWidth * .1 * cosAngle
+
+    getGraphicsProps() {
+        const { fps } = this.game, { iteration } = this.scene
+        const props = super.getGraphicsProps()
+        const rand = this._graphicsRand ||= floor(random() * fps)
+        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
+        props.y += props.height * .1 * cosAngle
+        return props
     }
 
     getHitBox() {
@@ -810,7 +794,6 @@ export class Heart extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 30
-        this.spriteRand = floor(random() * this.game.fps)
     }
 
     canGetCollectedByObject(obj) {
@@ -822,22 +805,22 @@ export class Heart extends GameObject {
         hero.damages = 0
     }
 
-    getSprite() {
-        return HeartSpriteSheets.get("red").get(0)
+    getGraphicsProps() {
+        const { fps } = this.game, { iteration } = this.scene
+        const props = super.getGraphicsProps()
+        const rand = this._graphicsRand ||= floor(random() * fps)
+        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
+        props.y += props.height * .05 * cosAngle
+        return props
     }
-    
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        const { iteration } = this.scene
-        const { fps } = this.game
-        const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
-        this.spriteDy = -this.spriteWidth * .05 * cosAngle
+
+    getBaseImg() {
+        return HeartSpriteSheets.get("red").get(0)
     }
 }
 
 
 const StarImg = CATALOG.registerImage("/static/catalogs/std/assets/star.png")
-const StarSprite = new Sprite(StarImg)
 
 @CATALOG.registerObject("star", {
     label: "Star",
@@ -853,17 +836,27 @@ export class Star extends GameObject {
         super.init(kwargs)
         this.width = this.height = 30
     }
+
     onGetCollected(collector) {
         this.remove()
     }
-    getSprite() {
-        return StarSprite
+
+    getGraphicsProps() {
+        const { fps } = this.game, { iteration } = this.scene
+        const props = super.getGraphicsProps()
+        const rand = this._graphicsRand ||= floor(random() * fps)
+        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
+        props.y += props.height * .05 * cosAngle
+        return props
+    }
+
+    getBaseImg() {
+        return StarImg
     }
 }
 
 
 const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/assets/checkpoint.png")
-const CheckpointSprite = new Sprite(CheckpointImg)
 
 @CATALOG.registerObject("checkpt", {
     label: "CheckPoint",
@@ -875,20 +868,21 @@ export class Checkpoint extends Collectable {
         super.init(kwargs)
         this.width = this.height = 40
     }
+
     onCollected(hero) {
         super.onCollected(hero)
         this.remove()
         this.scene.herosSpawnX = this.x
         this.scene.herosSpawnY = this.y
     }
-    getSprite() {
-        return CheckpointSprite
+
+    getBaseImg() {
+        return CheckpointImg
     }
 }
 
 
 const PortalImg = CATALOG.registerImage("/static/catalogs/std/assets/portal.png")
-const PortalSprite = new Sprite(PortalImg)
 const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_jump.opus")
 
 @CATALOG.registerObject("portal", {
@@ -902,6 +896,7 @@ export class Portal extends GameObject {
         super.init(kwargs)
         this.width = this.height = 50
     }
+
     update() {
         super.update()
         if(this.activated) {
@@ -912,6 +907,7 @@ export class Portal extends GameObject {
             })
         }
     }
+
     teleport(obj) {
         const portals = this.scene.filterObjects("portals", obj => (obj instanceof Portal && obj.activated))
         if(portals.length < 2) return
@@ -921,9 +917,15 @@ export class Portal extends GameObject {
         obj.y = targetPortal.y + (this.y - obj.y)
         this.game.audio.playSound(PortalJumpAud)
     }
-    getSprite() {
-        this.spriteVisibility = this.activated ? 1 : .5
-        return PortalSprite
+
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        props.visibility = this.activated ? 1 : .5
+        return props
+    }
+
+    getBaseImg() {
+        return PortalImg
     }
 }
 
@@ -985,14 +987,13 @@ export class Button extends Trigger {
         }
     }
 
-    getSprite() {
+    getBaseImg() {
         return ButtonSpriteSheet.get(this.triggered ? 1 : 0)
     }
 }
 
 
 const ClockImg = CATALOG.registerImage("/static/catalogs/std/assets/clock.png")
-const ClockSprite = new Sprite(ClockImg)
 
 @CATALOG.registerObject("clock", {
     label: "Clock",
@@ -1007,6 +1008,7 @@ export class Clock extends Trigger {
         super.init(kwargs)
         this.width = this.height = 30
     }
+
     update() {
         super.update()
         const { fps } = this.game
@@ -1016,8 +1018,9 @@ export class Clock extends Trigger {
         this.triggered = it > (untriggered_period * fps)
         this.iteration += 1
     }
-    getSprite() {
-        return ClockSprite
+
+    getBaseImg() {
+        return ClockImg
     }
 }
 
@@ -1066,7 +1069,7 @@ export class Door extends GameObject {
         this.lastBlockIt = this.scene.iteration
     }
 
-    getSprite() {
+    getBaseImg() {
         return DoorSpriteSheet.get(this.closed ? 0 : 1)
     }
 }

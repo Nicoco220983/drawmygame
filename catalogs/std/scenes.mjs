@@ -1,6 +1,6 @@
 const { assign } = Object
 const { floor, round } = Math
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Sprite, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../core/game.mjs'
 import { Star } from './objects.mjs'
 
 export const CATALOG = new ModuleCatalog("std")
@@ -475,7 +475,7 @@ export class TagScene extends GameScene {
 }
 
 
-const TagSprite = new Sprite(CATALOG.registerImage("/static/catalogs/std/assets/tag.png"))
+const TagImg = CATALOG.registerImage("/static/catalogs/std/assets/tag.png")
 
 @CATALOG.registerObject("tag", {
     showInBuilder: false
@@ -493,10 +493,6 @@ export class Tag extends GameObject {
         this.scene.tag = this
     }
 
-    getPhysicsProps() {
-        return null
-    }
-
     update() {
         super.update()
         this.sync()
@@ -509,7 +505,7 @@ export class Tag extends GameObject {
         this.y = owner.y - 50
     }
 
-    getSprite() {
-        return this.owner ? TagSprite : null
+    getBaseImg() {
+        return this.owner ? TagImg : null
     }
 }

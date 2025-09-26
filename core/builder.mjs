@@ -2,7 +2,8 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Platform, ObjectLink, Sprite, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, Platform, ObjectLink, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GraphicsProps } from './graphics.mjs'
 
 
 // BUILDER //////////////////////////
@@ -92,8 +93,8 @@ export class GameBuilder extends GameCommon {
     }
 
     draw() {
-        const ctx = super.draw()
-        this.drawScene(ctx, this.scenes.draft)
+        super.draw()
+        this.drawScene(this.scenes.draft)
     }
 }
 
@@ -121,8 +122,7 @@ class DraftScene extends SceneCommon {
             this.draftObject = null
         }
         if(mode == "object") {
-            this.draftObject = this.addObject(modeKey)
-            this.draftObject.spriteVisibility = 0
+            this.draftObject = this.createObjectFromKey(modeKey)
         }
     }
 
@@ -199,11 +199,12 @@ class DraftScene extends SceneCommon {
     }
 
     initMove(touch, obj) {
+        const { viewX, viewY } = this.game.scenes.game
         const orig = this._moveOrig = {
             touchX: touch.x,
             touchY: touch.y,
-            viewX: this.viewX,
-            viewY: this.viewY,
+            viewX,
+            viewY,
             objs: null,
             objsX: null,
             objsY: null,
@@ -284,7 +285,6 @@ class DraftScene extends SceneCommon {
         const { mode } = this.game
         const touch = this.game.touches[0]
         if(touch) {
-            this.draftObject.spriteVisibility = .5
             const draftPos = {
                 x: touch.x,
                 y: touch.y,
@@ -297,8 +297,6 @@ class DraftScene extends SceneCommon {
                 this.draftObject.x2 = draftPos.x
                 this.draftObject.y2 = draftPos.y
             }
-        } else {
-            this.draftObject.spriteVisibility = 0
         }
     }
 
@@ -334,7 +332,7 @@ class DraftScene extends SceneCommon {
                 let cls = Wall
                 if(modeKey == "platform") cls = Platform
                 this.draftObject = this.addObject(cls, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
-                this.draftObject.visibility = .5
+                //this.draftObject.visibility = .5
             } else {
                 this.draftObject.x1 = pos.x
                 this.draftObject.y1 = pos.y
@@ -376,31 +374,41 @@ class DraftScene extends SceneCommon {
         this.game.selectionMenuEl.innerHTML = ""
     }
 
-    drawTo(ctx) {
-        const grid = this.initGrid()
-        if(grid) {
-            ctx.translate(~~-this.viewX, ~~-this.viewY)
-            grid.drawTo(ctx)
-            ctx.translate(~~this.viewX, ~~this.viewY)
+    draw() {
+        const { viewX, viewY } = this.game.scenes.game
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        const gridImg = this.initGridImg()
+        if(gridImg) {
+            ctx.translate(~~-viewX, ~~-viewY)
+            ctx.drawImage(gridImg, 0, 0)
+            ctx.translate(~~viewX, ~~viewY)
         }
-        super.drawTo(ctx)
-        ctx.translate(~~-this.viewX, ~~-this.viewY)
+        if(this.draftObject) {
+            const props = this.draftObject.getGraphicsProps()
+            if(props) {
+                props.visibility = .5
+                drawer.draw(props)
+            }
+        }
+        ctx.translate(~~-viewX, ~~-viewY)
         this.drawSelections(ctx)
         this.drawLinkedObject(ctx)
         this.drawObjectLinks(ctx)
-        ctx.translate(~~this.viewX, ~~this.viewY)
+        ctx.translate(~~viewX, ~~viewY)
+        return can
     }
 
-    initGrid() {
+    initGridImg() {
+        let gridImg = this._gridImg
         const { width, height } = this.game.scenes.game
-        let { grid } = this
-        if(grid && grid.width == width && grid.height == height) return grid
-        grid = this.grid ||= new GameObject(this)
-        grid.x = width / 2
-        grid.y = height / 2
-        grid.width = width
-        grid.height = height
-        const can = newCanvas(width, height), ctx = can.getContext("2d")
+        if(gridImg && gridImg.width == width && gridImg.height == height) return gridImg
+        gridImg = this._gridImg = newCanvas(width, height)
+        const ctx = gridImg.getContext("2d")
         ctx.strokeStyle = "lightgrey"
         const addLine = (x1, y1, x2, y2) => {
             ctx.beginPath()
@@ -412,8 +420,7 @@ class DraftScene extends SceneCommon {
         const nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
         for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
         for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
-        grid.sprite = new Sprite(can)
-        return grid
+        return gridImg
     }
 
     drawSelections(ctx) {
