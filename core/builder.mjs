@@ -110,7 +110,6 @@ class DraftScene extends SceneCommon {
         this.touchedObj = null
         this.linkedObject = null
         this.selections = []
-        this.gridBoxSize = 20
         this.syncPosSize()
     }
 
@@ -290,6 +289,7 @@ class DraftScene extends SceneCommon {
                 y: touch.y,
             }
             if(mode == "object") {
+                if(this.draftObject.constructor.STICK_TO_GRID) this.applyAnchor(draftPos)
                 this.draftObject.x = draftPos.x
                 this.draftObject.y = draftPos.y
             } else if(mode == "wall") {
@@ -303,11 +303,17 @@ class DraftScene extends SceneCommon {
     addPointedObject() {
         const { touches, prevTouchIsDown } = this.game
         const { modeKey } = this.game
+        const { draftObject } = this
         const touch = touches[0]
         if(touch && touch.isDown && !prevTouchIsDown) {
             const gameScn = this.game.scenes.game
-            const x = floor(touch.x + gameScn.viewX)
-            const y = floor(touch.y + gameScn.viewY)
+            const pos = {
+                x: touch.x + gameScn.viewX,
+                y: touch.y + gameScn.viewY,
+            }
+            if(draftObject && draftObject.constructor.STICK_TO_GRID) this.applyAnchor(pos)
+            const x = floor(pos.x)
+            const y = floor(pos.y)
             gameScn.addObject(modeKey, { x, y })
         }
     }
@@ -342,11 +348,12 @@ class DraftScene extends SceneCommon {
     }
 
     applyAnchor(pos) {
-        const boxSize = this.gridBoxSize
-        const x1 = floor(pos.x / boxSize) * boxSize, x2 = x1 + boxSize
-        pos.x = (pos.x-x1 < x2-pos.x) ? x1 : x2
-        const y1 = floor(pos.y / boxSize) * boxSize, y2 = y1 + boxSize
-        pos.y = (pos.y-y1 < y2-pos.y) ? y1 : y2
+        const { gridSize } = this.game.scenes.game
+        const { x, y } = pos
+        const x1 = floor(x / gridSize) * gridSize, x2 = x1 + gridSize
+        pos.x = (x-x1 < x2-x) ? x1 : x2
+        const y1 = floor(y / gridSize) * gridSize, y2 = y1 + gridSize
+        pos.y = (y-y1 < y2-y) ? y1 : y2
     }
 
     select(obj) {
@@ -405,9 +412,10 @@ class DraftScene extends SceneCommon {
 
     initGridImg() {
         let gridImg = this._gridImg
-        const { width, height } = this.game.scenes.game
-        if(gridImg && gridImg.width == width && gridImg.height == height) return gridImg
+        const { width, height, gridSize } = this.game.scenes.game
+        if(gridImg && gridImg.width == width && gridImg.height == height && gridImg.gridSize == gridSize) return gridImg
         gridImg = this._gridImg = newCanvas(width, height)
+        assign(gridImg, { gridSize })
         const ctx = gridImg.getContext("2d")
         ctx.strokeStyle = "lightgrey"
         const addLine = (x1, y1, x2, y2) => {
@@ -416,10 +424,9 @@ class DraftScene extends SceneCommon {
             ctx.lineTo(x2, y2)
             ctx.stroke()
         }
-        const boxSize = this.gridBoxSize
-        const nbCols = ceil(width/boxSize), nbRows = ceil(height/boxSize)
-        for(let x=1; x<nbCols; ++x) addLine(boxSize*x, 0, boxSize*x, height)
-        for(let y=1; y<nbRows; ++y) addLine(0, boxSize*y, width, boxSize*y)
+        const nbCols = ceil(width/gridSize), nbRows = ceil(height/gridSize)
+        for(let x=1; x<nbCols; ++x) addLine(gridSize*x, 0, gridSize*x, height)
+        for(let y=1; y<nbRows; ++y) addLine(0, gridSize*y, width, gridSize*y)
         return gridImg
     }
 

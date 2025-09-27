@@ -1573,6 +1573,7 @@ export class GameCommon {
 }
 
 
+@StateInt.define("gridSize", { default:50, showInBuilder:true })
 @StateInt.define("height", { default:600, showInBuilder:true })
 @StateInt.define("width", { default:800, showInBuilder:true })
 export class SceneCommon {
