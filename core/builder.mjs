@@ -289,7 +289,7 @@ class DraftScene extends SceneCommon {
                 y: touch.y,
             }
             if(mode == "object") {
-                if(this.draftObject.constructor.STICK_TO_GRID) this.applyAnchor(draftPos)
+                if(this.draftObject.constructor.STICK_TO_GRID) this.applyAnchor(draftPos, true)
                 this.draftObject.x = draftPos.x
                 this.draftObject.y = draftPos.y
             } else if(mode == "wall") {
@@ -311,7 +311,7 @@ class DraftScene extends SceneCommon {
                 x: touch.x + gameScn.viewX,
                 y: touch.y + gameScn.viewY,
             }
-            if(draftObject && draftObject.constructor.STICK_TO_GRID) this.applyAnchor(pos)
+            if(draftObject && draftObject.constructor.STICK_TO_GRID) this.applyAnchor(pos, true)
             const x = floor(pos.x)
             const y = floor(pos.y)
             gameScn.addObject(modeKey, { x, y })
@@ -347,13 +347,15 @@ class DraftScene extends SceneCommon {
         }
     }
 
-    applyAnchor(pos) {
+    applyAnchor(pos, targetCenters) {
         const { gridSize } = this.game.scenes.game
-        const { x, y } = pos
+        let { x, y } = pos
+        if(targetCenters) { x -= gridSize/2; y -= gridSize/2 }
         const x1 = floor(x / gridSize) * gridSize, x2 = x1 + gridSize
         pos.x = (x-x1 < x2-x) ? x1 : x2
         const y1 = floor(y / gridSize) * gridSize, y2 = y1 + gridSize
         pos.y = (y-y1 < y2-y) ? y1 : y2
+        if(targetCenters) { pos.x += gridSize/2; pos.y += gridSize/2 }
     }
 
     select(obj) {

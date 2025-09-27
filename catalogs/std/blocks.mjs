@@ -1,3 +1,4 @@
+const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
 
 
@@ -15,7 +16,14 @@ export class Block extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = this.height = this.scene.gridSize
+        this.width = this.height = floor(this.scene.gridSize *.9)
+    }
+
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        props.width = this.width * 1.1
+        props.height = this.height * 1.1
+        return props
     }
 }
 
