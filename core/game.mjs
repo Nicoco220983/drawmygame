@@ -3186,57 +3186,6 @@ export class Enemy extends GameObject {
 
 export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
 
-@StateProperty.define("ownerId")
-@HitMixin.add({
-    canHit: false,
-})
-@Category.append("item/collectable")
-export class Collectable extends GameObject {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.canBeCollected = true
-        this.ownerId = kwargs?.ownerId ?? null
-        this.spriteRand = floor(random() * this.game.fps)
-    }
-
-    update() {
-        super.update()
-        this.canBeHit = (this.ownerId == null)
-    }
-
-    getOwner() {
-        const { ownerId } = this
-        if(ownerId === null) return null
-        return this.scene.objects.get(ownerId)
-    }
-
-    onCollected(owner) {
-        this.playCollectedSound()
-        this.ownerId = owner.id
-    }
-
-    drop() {
-        this.ownerId = null
-    }
-
-    playCollectedSound() {
-        this.game.audio.playSound(ItemAud)
-    }
-    
-    scaleSprite(sprite) {
-        super.scaleSprite(sprite)
-        if(this.ownerId !== null) {
-            this.spriteDy = 0
-        } else {
-            const { iteration } = this.scene
-            const { fps } = this.game
-            const angle = PI * (this.spriteRand + iteration) / fps, cosAngle = cos(angle)
-            this.spriteDy = -this.spriteWidth * .05 * cosAngle
-        }
-    }
-}
-
 
 @CollectMixin.add({
     canCollect: false,

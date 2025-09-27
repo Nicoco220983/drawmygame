@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../core/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Collectable, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -862,15 +862,16 @@ const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/assets/checkpo
     label: "CheckPoint",
     icon: CheckpointImg,
 })
-export class Checkpoint extends Collectable {
+@CollectMixin.add({
+    canGetCollected: true,
+})
+@BodyMixin.add({
+    width: 40,
+    height: 40,
+})
+export class Checkpoint extends GameObject {
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 40
-    }
-
-    onCollected(hero) {
-        super.onCollected(hero)
+    onGetCollected(hero) {
         this.remove()
         this.scene.herosSpawnX = this.x
         this.scene.herosSpawnY = this.y
