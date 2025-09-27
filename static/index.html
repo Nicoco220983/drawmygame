@@ -88,10 +88,10 @@
         <flexcol id="game" style="padding:1em; display: none"></flexcol>
     </flexrow>
 <script type="module">
-import { newDomEl } from './static/core/utils.mjs'
-import { GameMap, Game, MODE_LOCAL } from './static/core/game.mjs'
-import { GameBuilder } from './static/core/builder.mjs'
-import { loadCatalog } from './static/core/catalog.mjs'
+import { newDomEl } from './static/core/v1/utils.mjs'
+import { GameMap, Game, MODE_LOCAL } from './static/core/v1/game.mjs'
+import { GameBuilder } from './static/core/v1/builder.mjs'
+import { loadCatalog } from './static/core/v1/catalog.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)

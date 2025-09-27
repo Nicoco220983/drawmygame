@@ -256,7 +256,7 @@ async function concatUint8Arrays(uint8arrays) {
 }
 
 async function decompressUsingPako(compressedBytes) {
-    const { ungzip } = await import('../deps/pako.mjs')
+    const { ungzip } = await import('../../deps/pako.mjs')
     const decompressedBytes = ungzip(new Uint8Array(compressedBytes))
     return new TextDecoder().decode(decompressedBytes)
 }
@@ -1091,14 +1091,14 @@ export class GameObjectGroup {
 
     add(cls, kwargs) {
         kwargs ||= {}
-        kwargs.id ??= this.nextAutoId(cls)
         let obj
         if(typeof cls === 'string') {
             obj = this.scene.createObjectFromKey(cls, kwargs)
         } else {
             obj = new cls(this.scene, kwargs)
         }
-        this.objMap.set(kwargs.id, obj)
+        if(obj.id === undefined) obj.id = this.nextAutoId(obj.constructor)
+        this.objMap.set(obj.id, obj)
         if(obj.constructor.STATEFUL) this.statefulObjArr.push(obj)
         else this.statelessObjArr.push(obj)
         this.onAdd(obj)
@@ -1159,6 +1159,7 @@ export class GameObjectGroup {
     }
 
     draw(drawer) {
+        this.clearRemoved()
         const propss = []
         const addProps = obj => {
             const props = obj.getGraphicsProps()
@@ -1172,13 +1173,13 @@ export class GameObjectGroup {
         drawer.draw(...propss)
     }
 
-    drawTo(gameCtx) {
-        this.clearRemoved()
-        const x = ~~this.x, y = ~~this.y
-        gameCtx.translate(x, y)
-        this.forEach(obj => obj.drawTo(gameCtx))
-        gameCtx.translate(-x, -y)
-    }
+    // drawTo(gameCtx) {
+    //     this.clearRemoved()
+    //     const x = ~~this.x, y = ~~this.y
+    //     gameCtx.translate(x, y)
+    //     this.forEach(obj => obj.drawTo(gameCtx))
+    //     gameCtx.translate(-x, -y)
+    // }
 
     getState(isInitState=false) {
         const state = this._state ||= []
@@ -1595,7 +1596,7 @@ export class SceneCommon {
         this.visible = true
         this.viewWidth = this.width
         this.viewHeight = this.height
-        this.backgroundColor = "white"
+        this.backgroundColor = "#EEE"
         this.backgroundAlpha = 1
         this.iteration = 0
         this.time = 0
@@ -1773,28 +1774,29 @@ export class SceneCommon {
         return props
     }
 
-    initBackground() {
-        if(this.game.isServerEnv) return
-        let { backgroundCanvas: can, viewWidth, viewHeight } = this
-        if(!viewWidth || !viewHeight) return
-        if(!can || can.width != viewWidth || can.height != viewHeight) {
-            can = this.backgroundCanvas = this.buildBackground()
-        }
-        return can
-    }
+    // initBackground() {
+    //     if(this.game.isServerEnv) return
+    //     let { backgroundCanvas: can, viewWidth, viewHeight } = this
+    //     if(!viewWidth || !viewHeight) return
+    //     if(!can || can.width != viewWidth || can.height != viewHeight) {
+    //         can = this.backgroundCanvas = this.buildBackground()
+    //     }
+    //     return can
+    // }
 
-    buildBackground() {
-        const { viewWidth, viewHeight } = this
-        const can = document.createElement("canvas")
-        assign(can, { width: viewWidth, height: viewHeight })
-        const ctx = can.getContext("2d")
-        if(this.backgroundColor) {
-            ctx.fillStyle = this.backgroundColor
-            ctx.globalAlpha = this.backgroundAlpha
-            ctx.fillRect(0, 0, viewWidth, viewHeight)
-        }
-        return can
-    }
+    // buildBackground() {
+    //     const { viewWidth, viewHeight } = this
+    //     const can = document.createElement("canvas")
+    //     assign(can, { width: viewWidth, height: viewHeight })
+    //     const ctx = can.getContext("2d")
+    //     if(this.backgroundColor) {
+    //         console.log("TMP backgroundColor", this.backgroundColor)
+    //         ctx.fillStyle = this.backgroundColor
+    //         ctx.globalAlpha = this.backgroundAlpha
+    //         ctx.fillRect(0, 0, viewWidth, viewHeight)
+    //     }
+    //     return can
+    // }
 
     async loadJoypadScene() {
         return null
@@ -3112,10 +3114,10 @@ export class Hero extends GameObject {
 }
 
 
-export const PuffAud = CATALOG.registerAudio("/static/core/assets/puff.opus")
+export const PuffAud = CATALOG.registerAudio("/static/core/v1/assets/puff.opus")
 
 
-const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/smoke_explosion.png"), 4, 1)
+const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/smoke_explosion.png"), 4, 1)
 
 @CATALOG.registerObject("smokee", {
     showInBuilder: false
@@ -3141,8 +3143,8 @@ export class SmokeExplosion extends GameObject {
 }
 
 
-const PopImg = CATALOG.registerImage("/static/core/assets/pop.png")
-const PopAud = CATALOG.registerAudio("/static/core/assets/pop.opus")
+const PopImg = CATALOG.registerImage("/static/core/v1/assets/pop.png")
+const PopAud = CATALOG.registerAudio("/static/core/v1/assets/pop.opus")
 
 class Pop extends GameObject {
 
@@ -3185,7 +3187,7 @@ export class Enemy extends GameObject {
 }
 
 
-export const ItemAud = CATALOG.registerAudio("/static/core/assets/item.opus")
+export const ItemAud = CATALOG.registerAudio("/static/core/v1/assets/item.opus")
 
 
 @CollectMixin.add({
@@ -3416,17 +3418,17 @@ export class WaitingScene extends SceneCommon {
 
     async initQrcodeImg() {
         if(IS_SERVER_ENV) return
-        let qrcodeImg = this._qrcodeImg
-        if(!qrcodeImg) {
-            const qrcodeImg = await this.game.initQrcodeImg()
+        let res = this._qrcodeImg
+        if(!res) {
+            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
             const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
             const ctx = can.getContext("2d")
             ctx.fillStyle = "white"
             ctx.fillRect(0, 0, can.width, can.height)
             ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
-            qrcodeImg = this.qrcodeImg = new Sprite(can)
+            res = this._qrcodeImg = can
         }
-        return qrcodeImg
+        return res
     }
 
     update() {
@@ -3489,7 +3491,7 @@ export class WaitingScene extends SceneCommon {
         this.notifs.draw(drawer)
         this.playerObjs.forEach(objs => objs.draw(drawer))
         const qrcodeProps = this.getQrcodeGraphicsProps()
-        if(qrcodeProps) qrcodeProps.draw(drawer)
+        if(qrcodeProps) drawer.draw(qrcodeProps.draw(drawer))
         return can
     }
 

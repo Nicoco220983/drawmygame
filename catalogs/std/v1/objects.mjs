@@ -1,8 +1,8 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import * as utils from '../../core/utils.mjs'
+import * as utils from '../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -10,9 +10,9 @@ export const CATALOG = new ModuleCatalog("std")
 
 // HEROES
 
-const NicoImg = CATALOG.registerImage("/static/catalogs/std/assets/nico.png")
-const NicoBaseSpriteSheet = CATALOG.registerImage("/static/catalogs/std/assets/nico_full.png")
-const NicoColorableSpriteSheet = CATALOG.registerImage("/static/catalogs/std/assets/nico_full_colorable.png")
+const NicoImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/nico.png")
+const NicoBaseSpriteSheet = CATALOG.registerImage("/static/catalogs/std/v1/assets/nico_full.png")
+const NicoColorableSpriteSheet = CATALOG.registerImage("/static/catalogs/std/v1/assets/nico_full_colorable.png")
 const NicoSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -24,13 +24,13 @@ const NicoSpriteSheets = {
     },
 }
 
-const HandImg = CATALOG.registerImage("/static/catalogs/std/assets/hand.png")
-const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/arrows.png"), 4, 1)
+const HandImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/hand.png")
+const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/arrows.png"), 4, 1)
 
-const OuchAud = CATALOG.registerAudio("/static/catalogs/std/assets/ouch.opus")
-const SlashAud = CATALOG.registerAudio("/static/catalogs/std/assets/slash.opus")
-const HandHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/hand_hit.opus")
-const JumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/jump.opus")
+const OuchAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/ouch.opus")
+const SlashAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/slash.opus")
+const HandHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/hand_hit.opus")
+const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/jump.opus")
 
 
 
@@ -230,10 +230,10 @@ class NicoHand extends GameObject {
 
 const SWORD_ATTACK_PERIOD = .5
 
-const SwordImg = CATALOG.registerImage("/static/catalogs/std/assets/sword.png")
-const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/slash.png"), 3, 2)
+const SwordImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/sword.png")
+const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/slash.png"), 3, 2)
 
-const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/assets/sword_hit.opus")
+const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/sword_hit.opus")
 
 @CATALOG.registerObject("sword", {
     label: "Sword",
@@ -317,7 +317,7 @@ export class Sword extends Extra {
 }
 
 
-const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/assets/shuriken.png")
+const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/shuriken.png")
 
 @CATALOG.registerObject("shurikp", {
     label: "ShurikenPack",
@@ -434,8 +434,8 @@ export class Shuriken extends GameObject {
 }
 
 
-const BombImg = CATALOG.registerImage("/static/catalogs/std/assets/bomb.png")
-const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/bomb_spritesheet.png"), 2, 1)
+const BombImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/bomb.png")
+const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/bomb_spritesheet.png"), 2, 1)
 
 @CATALOG.registerObject("bomb", {
     label: "Bomb",
@@ -494,7 +494,7 @@ export class Bomb extends Extra {
 }
 
 
-const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/explosion.png"), 8, 6)
+const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/explosion.png"), 8, 6)
 
 @CATALOG.registerObject("explos", {
     showInBuilder: false
@@ -545,7 +545,7 @@ export class Explosion extends GameObject {
 // ENEMIES
 
 
-const SpikyImg = CATALOG.registerImage("/static/catalogs/std/assets/spiky.png")
+const SpikyImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/spiky.png")
 
 @CATALOG.registerObject("spiky", {
     label: "Spiky",
@@ -588,7 +588,7 @@ export class Spiky extends Enemy {
 }
 
 
-const BlobImg = CATALOG.registerImage("/static/catalogs/std/assets/blob.png")
+const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blob.png")
 
 @CATALOG.registerObject("blob", {
     label: "Blob",
@@ -697,7 +697,7 @@ class BlobEnemyChecker extends GameObject {
 }
 
 
-const GhostImg = CATALOG.registerImage("/static/catalogs/std/assets/ghost.png")
+const GhostImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/ghost.png")
 
 @CATALOG.registerObject("ghost", {
     label: "Ghost",
@@ -766,9 +766,9 @@ export class Ghost extends Enemy {
 
 // COLLECTABLES
 
-const HeartImg = CATALOG.registerImage("/static/catalogs/std/assets/heart.png")
+const HeartImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/heart.png")
 
-const HeartSpriteSheetsImg = CATALOG.registerImage("/static/catalogs/std/assets/colorable_heart.png")
+const HeartSpriteSheetsImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/colorable_heart.png")
 export const HeartSpriteSheets = {
     spritesheets: {},
     get: function(color) {
@@ -818,7 +818,7 @@ export class Heart extends GameObject {
 }
 
 
-const StarImg = CATALOG.registerImage("/static/catalogs/std/assets/star.png")
+const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
 
 @CATALOG.registerObject("star", {
     label: "Star",
@@ -854,7 +854,7 @@ export class Star extends GameObject {
 }
 
 
-const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/assets/checkpoint.png")
+const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/checkpoint.png")
 
 @CATALOG.registerObject("checkpt", {
     label: "CheckPoint",
@@ -881,8 +881,8 @@ export class Checkpoint extends GameObject {
 }
 
 
-const PortalImg = CATALOG.registerImage("/static/catalogs/std/assets/portal.png")
-const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/assets/portal_jump.opus")
+const PortalImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/portal.png")
+const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/portal_jump.opus")
 
 @CATALOG.registerObject("portal", {
     label: "Portal",
@@ -939,8 +939,8 @@ export class Trigger extends GameObject {
 }
 
 
-const BurronImg = CATALOG.registerImage("/static/core/assets/button.png")
-const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/assets/button_spritesheet.png"), 2, 1)
+const BurronImg = CATALOG.registerImage("/static/core/v1/assets/button.png")
+const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/button_spritesheet.png"), 2, 1)
 
 @CATALOG.registerObject("button", {
     label: "Button",
@@ -992,7 +992,7 @@ export class Button extends Trigger {
 }
 
 
-const ClockImg = CATALOG.registerImage("/static/catalogs/std/assets/clock.png")
+const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/clock.png")
 
 @CATALOG.registerObject("clock", {
     label: "Clock",
@@ -1024,8 +1024,8 @@ export class Clock extends Trigger {
 }
 
 
-const DoorImg = CATALOG.registerImage("/static/catalogs/std/assets/door.png")
-const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/assets/door_spritesheet.png"), 2, 1)
+const DoorImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/door.png")
+const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/door_spritesheet.png"), 2, 1)
 
 @CATALOG.registerObject("door", {
     label: "Door",

@@ -1,5 +1,5 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../core/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -29,7 +29,7 @@ export class Block extends GameObject {
 
 
 
-const GrassImg = CATALOG.registerImage("/static/catalogs/std/assets/blocks/grass.png")
+const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/grass.png")
 
 @CATALOG.registerObject("grass", {
     label: "Grass",
