@@ -457,7 +457,9 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     attackDamages: 100,
     oneAttackByObject: true,
 })
-@OwnerableMixin.add()
+@OwnerableMixin.add({
+    removedWithOwner: false,
+})
 @BodyMixin.add({
     width: 300,
     height: 300,
