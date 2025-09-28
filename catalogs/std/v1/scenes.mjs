@@ -2,6 +2,8 @@ const { assign } = Object
 const { floor, round } = Math
 import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
 import { Star } from './objects.mjs'
+import * as utils from '../../../core/v1/utils.mjs'
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
 
 export const CATALOG = new ModuleCatalog("std")
 
@@ -227,15 +229,16 @@ export class HeadsUpDisplay extends GameObject {
         this.globalElems.update()
         this.herosElems.forEach(elems => elems.update())
     }
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        this.globalElems.drawTo(ctx)
-        this.herosElems.forEach(elems => elems.drawTo(ctx))
+    draw(drawer) {
+        super.draw(drawer)
+        this.globalElems.draw(drawer)
+        this.herosElems.forEach(elems => elems.draw(drawer))
     }
 }
 
 
 class BarNotif extends GameObject {
+
     init(args) {
         super.init(args)
         this.color = "white"
@@ -243,17 +246,21 @@ class BarNotif extends GameObject {
         this.width = 100
         this.height = 10
     }
-    drawTo(ctx) {
-        const { x, y, width, height } = this
-        const left = ~~(x-width/2), top = ~~(y-height/2)
+
+    getBaseImg() {
+        const { width, height } = this
+        const can = this._baseImg || newCanvas(width, height)
+        assign(can, { width, height })
+        const ctx = can.getContext("2d")
         const valWidth = ~~(width * this.value)
         ctx.fillStyle = "grey"
-        ctx.fillRect(left, top, width, height)
+        ctx.fillRect(0, 0, width, height)
         ctx.fillStyle = this.color
-        ctx.fillRect(left, top, valWidth, height)
+        ctx.fillRect(0, 0, valWidth, height)
         ctx.strokeStyle = "black"
         ctx.lineWidth = 1
-        ctx.strokeRect(left, top, width, height)
+        ctx.strokeRect(0, 0, width, height)
+        return can
     }
 }
 
@@ -297,10 +304,12 @@ class HealthBar extends BarNotif {
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {
+
     init(args) {
         super.init(args)
         this.hud = new HeadsUpDisplay(this)
     }
+
     update() {
         super.update()
         this.hud.update()
@@ -322,9 +331,11 @@ export class StandardScene extends GameScene {
         }
     }
 
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        this.hud.drawTo(ctx)
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
     }
 }
 
@@ -468,9 +479,11 @@ export class TagScene extends GameScene {
         }
     }
 
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        this.hud.drawTo(ctx)
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
     }
 }
 

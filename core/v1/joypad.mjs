@@ -1,8 +1,9 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
-import { Sprite, GameObject, Text, GameObjectGroup, ModuleCatalog } from "./game.mjs"
-import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas } from "./utils.mjs"
+import { GraphicsEngine, GraphicsProps } from "./graphics.mjs"
+import { GameObject, Text, GameObjectGroup, ModuleCatalog } from "./game.mjs"
+import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas } from "./utils.mjs"
 
 export const CATALOG = new ModuleCatalog()
 
@@ -25,6 +26,7 @@ export class JoypadScene {
             this.canvas = document.createElement("canvas")
             this.canvas.width = this.width
             this.canvas.height = this.height
+            this.graphicsEngine = new GraphicsEngine(this)
         }
         this.game.initTouches()
         this.buttons = new GameObjectGroup(this)
@@ -68,36 +70,23 @@ export class JoypadScene {
         can.height = viewHeight
         const ctx = can.getContext("2d")
         ctx.reset()
-        const backgroundCanvas = this.initBackground()
-        if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
-        this.drawTo(ctx)
-    }
-
-    drawTo(ctx) {
-        this.buttons.drawTo(ctx)
-    }
-
-    initBackground() {
-        if(this.game.isServerEnv) return
-        let { backgroundCanvas: can, viewWidth, viewHeight } = this
-        if(viewWidth == 0 || viewHeight == 0) return
-        if(!can || can.width != viewWidth || can.height != viewHeight) {
-            can = this.backgroundCanvas = this.buildBackground()
-        }
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        this.buttons.draw(drawer)
         return can
     }
+    
+    drawBackground(drawer) {
+        drawer.draw(this.getBackgroundGraphicsProps())
+    }
 
-    buildBackground() {
-        const { viewWidth, viewHeight } = this
-        const can = document.createElement("canvas")
-        assign(can, { width: viewWidth, height: viewHeight })
-        const ctx = can.getContext("2d")
-        if(this.backgroundColor) {
-            ctx.fillStyle = this.backgroundColor
-            ctx.globalAlpha = this.backgroundAlpha
-            ctx.fillRect(0, 0, viewWidth, viewHeight)
-        }
-        return can
+    getBackgroundGraphicsProps() {
+        const props = this._backgroundGraphicsProps ||= new GraphicsProps()
+        props.color = this.backgroundColor
+        props.width = this.viewWidth
+        props.height = this.viewHeight
+        props.visibility = this.backgroundAlpha
+        return props
     }
 }
 
@@ -182,9 +171,11 @@ class JoypadPauseScene extends JoypadScene {
         assign(this.restartButton, { x: floor(width/2), y:floor(height/2)+120 })
     }
 
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        this.notifs.drawTo(ctx)
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.notifs.draw(drawer)
+        return res
     }
 }
 
@@ -220,7 +211,33 @@ class JoypadButton extends GameObject {
         if(this.inputKey) this.game.setInputKey(this.inputKey, false)
     }
 
-    getSprite() {
+    draw(drawer) {
+        console.log("TMP JoypadButton.draw")
+        if(this.disabled) return
+        super.draw(drawer)
+        if(this.icon) {
+            const iconProps = this._iconGraphicsProps ||= new GraphicsProps()
+            iconProps.img = this.icon
+            iconProps.x = this.x
+            iconProps.y = this.y
+            iconProps.width = this.width*.5
+            iconProps.height = this.height*.5
+            console.log("TMP iconProps", iconProps)
+            iconProps.draw(drawer)
+        }
+        if(this.text) {
+            const textProps = this._textGraphicsProps ||= new GraphicsProps({
+                img: this.createTextImg(this.text)
+            })
+            textProps.x = this.x
+            textProps.y = this.y
+            textProps.width = this.width*.5
+            textProps.height = this.width*.5/textProps.img.width*textProps.img.height,
+            textProps.draw(drawer)
+        }
+    }
+
+    getBaseImg() {
         if(BurronImg.unloaded) return
         let img = BurronImg
         const { game } = this
@@ -235,48 +252,24 @@ class JoypadButton extends GameObject {
             return color ? colorizeCanvas(res, color) : res
         })
         const sizeRatio = this.width/this.height
-        const sprite = cachedTransform(img, sizeRatio, () => {
-            if(sizeRatio == 1) return new Sprite(cloneCanvas(img))
+        img = cachedTransform(img, sizeRatio, () => {
+            if(sizeRatio == 1) return cloneCanvas(img)
             const { width:iw, height:ih } = img, iw2 = ceil(iw/2)
             const rw = ceil(ih * sizeRatio), rh = ih
             const res = newCanvas(rw, rh), ctx = res.getContext("2d")
             ctx.drawImage(img, 0, 0, iw2, ih, 0, 0, iw2, ih)
             ctx.drawImage(img, iw2, 0, iw2, ih, rw-iw2, 0, iw2, ih)
             for(let x=iw2; x<rw-iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
-            return new Sprite(res)
+            return res
         })
-        return sprite
+        return img
     }
     
-    createTextSprite() {
+    createTextImg(text) {
         const fontSize = floor(this.height/2)
-        return new Text(this.scene, {
-            text: this.text,
+        return newTextCanvas(text, {
             fillStyle: "white",
             font: `bold ${fontSize}px serif`,
         })
-    }
-
-    drawTo(ctx) {
-        if(this.disabled) return
-        super.drawTo(ctx)
-        if(this.icon && this.spriteWidth>0 && this.spriteHeight>0) {
-            const iconImg = this.icon.getImg(
-                ~~(this.spriteWidth * .5),
-                ~~(this.spriteHeight * .5),
-                this.dirX,
-                this.dirY,
-            )
-            if(iconImg) ctx.drawImage(iconImg, ~~(this.x - iconImg.width/2), ~~(this.y - iconImg.height/2))
-        }
-        if(this.text) {
-            const textSprite = this.textSprite ||= this.createTextSprite()
-            const img = textSprite.getImg(
-                ~~(this.width * .5),
-                ~~(this.width * .5 / textSprite.width * textSprite.height),
-                1, 1, 1,
-            )
-            if(img) ctx.drawImage(img, ~~(this.x - img.width/2), ~~(this.y - img.height/2))
-        }
     }
 }

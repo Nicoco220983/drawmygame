@@ -614,9 +614,9 @@ export class BlobEnemy extends Enemy {
         super.init(kwargs)
         this.width = 50
         this.height = 36
-        this.checker = this.scene.addObject(BlobEnemyChecker, {
+        this.blockChecker = this.scene.addObject(BlobEnemyBlockChecker, {
             owner: this,
-        })  // TODO: fix checker
+        })
     }
 
     update() {
@@ -661,10 +661,14 @@ export class BlobEnemy extends Enemy {
             height: 60,
         }
     }
+
+    remove() {
+        super.remove()
+        this.blockChecker.remove()
+    }
 }
 
 
-@OwnerableMixin.add()
 @PhysicsMixin.add({
     canMove: false,
     checkGetBlockedAnyway: true,
@@ -673,11 +677,12 @@ export class BlobEnemy extends Enemy {
     width: 10,
     height: 50,
 })
-class BlobEnemyChecker extends GameObject {
+class BlobEnemyBlockChecker extends GameObject {
     static STATEFUL = false
 
     init(kwargs) {
         super.init(kwargs)
+        this.owner = kwargs.owner
         this.lastGetBlockedIteration = 0
     }
 

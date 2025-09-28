@@ -229,6 +229,23 @@ function addCanvas(canvas, canvas2, x=0, y=0) {
     return canvas
 }
 
+function newTextCanvas(text, kwargs) {
+    if(IS_SERVER_ENV) return null
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    ctx.fillStyle = "black"
+    ctx.font = "30px serif"
+    assign(ctx, kwargs)
+    const metrics = ctx.measureText(text)
+    canvas.width = max(1, metrics.width)
+    canvas.height = max(1, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
+    ctx.fillStyle = "black"
+    ctx.font = "30px serif"
+    assign(ctx, kwargs)
+    ctx.fillText(text, 0, metrics.actualBoundingBoxAscent)
+    return canvas
+}
+
 function cachedTransform(obj, cacheKey, tranformFun) {
     const cache = obj._transformCache ||= {}
     let res = cache[cacheKey]
@@ -307,6 +324,7 @@ export {
     cloneCanvas,
     colorizeCanvas,
     addCanvas,
+    newTextCanvas,
     cachedTransform,
     checkAllLoadsDone,
     checkHit,

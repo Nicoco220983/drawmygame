@@ -14,6 +14,10 @@ export class GraphicsProps {
         this.dirY = kwargs?.dirY ?? 1
         this.visibility = kwargs?.visibility ?? 1
     }
+
+    draw(drawer) {
+        drawer.draw(this)
+    }
 }
 
 
@@ -28,7 +32,9 @@ export class GraphicsEngine {
         for(let props of propss) {
             if(props.color) {
                 ctx.fillStyle = props.color
+                ctx.globalAlpha = props.visibility
                 ctx.fillRect(0, 0, can.width, can.height)
+                ctx.globalAlpha = 1  // TODO: should not be necessary
             }
             if(props.img) {
                 const img = this.transformImg(props.img, props.width, props.height, props.dirX, props.dirY, props.visibility)

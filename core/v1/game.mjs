@@ -1,7 +1,7 @@
 const { assign, getPrototypeOf } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newTextCanvas, newDomEl, addNewDomEl, importJs } = utils
 import { AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
@@ -35,6 +35,7 @@ const RESEND_INPUT_STATE_PERIOD = .5
 // CATALOG
 
 export async function importAndPreload(path) {
+    console.log("TMP importAndPreload", import.meta.url, path)
     const mod = await import(path)
     if(mod.CATALOG) await mod.CATALOG.preloadAssets()
     return mod
@@ -989,50 +990,39 @@ export function filterObject(filterDesc, obj) {
 }
 
 
-function newTextCanvas(text, kwargs) {
-    if(IS_SERVER_ENV) return null
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")
-    ctx.fillStyle = "black"
-    ctx.font = "30px serif"
-    assign(ctx, kwargs)
-    const metrics = ctx.measureText(text)
-    canvas.width = max(1, metrics.width)
-    canvas.height = max(1, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
-    ctx.fillStyle = "black"
-    ctx.font = "30px serif"
-    assign(ctx, kwargs)
-    ctx.fillText(text, 0, metrics.actualBoundingBoxAscent)
-    return canvas
-}
-
-
 export class Text extends GameObject {
+    static STATEFUL = false
 
     init(kwargs) {
         super.init(kwargs)
         this.textArgs = kwargs
+        this.updateText(kwargs?.text ?? "")
+    }
+
+    updateText(text) {
+        this.text = text
+        this.initBaseImg()
+    }
+
+    initBaseImg() {
+        const img = this._baseImg = newTextCanvas(this.text, this.textArgs)
+        this.width = img?.width ?? 0
+        this.height = img?.height ?? 0
     }
 
     getBaseImg() {
-        let baseImg = this._baseImg
-        const { width, height, text } = this
-        if(baseImg && baseImg.width == width && baseImg.height == height && baseImg.text == text) return baseImg
-        baseImg = this._baseImg = newTextCanvas(text, this.textArgs)
-        baseImg.width = width
-        baseImg.height = height
-        baseImg.text = text
-        return baseImg
+        return this._baseImg
     }
 }
 
 class CenteredText extends Text {
 
-    drawTo(ctx) {
+    getGraphicsProps() {
         const { viewWidth, viewHeight } = this.scene
-        this.x = viewWidth / 2
-        this.y = viewHeight / 2
-        super.drawTo(ctx)
+        const props = this.getGraphicsProps()
+        props.x = viewWidth / 2
+        props.y = viewHeight / 2
+        return props
     }
 }
 
@@ -1161,25 +1151,24 @@ export class GameObjectGroup {
     draw(drawer) {
         this.clearRemoved()
         const propss = []
-        const addProps = obj => {
-            const props = obj.getGraphicsProps()
+        const objDrawer = this._objDrawer ||= {}
+        objDrawer.draw = props => {
             if(!props) return
             props.x += this.x
             props.y += this.y
             propss.push(props)
         }
-        this.statefulObjArr.forEach(addProps)
-        this.statelessObjArr.forEach(addProps)
+        // const addProps = obj => {
+        //     const props = obj.getGraphicsProps()
+        //     if(!props) return
+        //     props.x += this.x
+        //     props.y += this.y
+        //     propss.push(props)
+        // }
+        this.statefulObjArr.forEach(obj => obj.draw(objDrawer))
+        this.statelessObjArr.forEach(obj => obj.draw(objDrawer))
         drawer.draw(...propss)
     }
-
-    // drawTo(gameCtx) {
-    //     this.clearRemoved()
-    //     const x = ~~this.x, y = ~~this.y
-    //     gameCtx.translate(x, y)
-    //     this.forEach(obj => obj.drawTo(gameCtx))
-    //     gameCtx.translate(-x, -y)
-    // }
 
     getState(isInitState=false) {
         const state = this._state ||= []
@@ -1596,7 +1585,7 @@ export class SceneCommon {
         this.visible = true
         this.viewWidth = this.width
         this.viewHeight = this.height
-        this.backgroundColor = "#EEE"
+        this.backgroundColor = "white"
         this.backgroundAlpha = 1
         this.iteration = 0
         this.time = 0
@@ -1746,20 +1735,8 @@ export class SceneCommon {
         this.visuals.draw(drawer)
         ctx.translate(~~this.viewX, ~~this.viewY)
         this.notifs.draw(drawer)
-        // const backgroundCanvas = this.initBackground()
-        // if(backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0)
-        // this.drawTo(ctx)
         return can
     }
-
-    // drawTo(ctx) {
-    //     ctx.translate(~~-this.viewX, ~~-this.viewY)
-    //     //this.walls.drawTo(ctx)
-    //     this.objects.drawTo(ctx)
-    //     this.visuals.drawTo(ctx)
-    //     ctx.translate(~~this.viewX, ~~this.viewY)
-    //     this.notifs.drawTo(ctx)
-    // }
 
     drawBackground(drawer) {
         drawer.draw(this.getBackgroundGraphicsProps())
@@ -2354,11 +2331,13 @@ export class GameScene extends SceneCommon {
         if(hero.getHealth() > 0) this.spawnHero(hero)
     }
 
-    drawTo(ctx) {
-        super.drawTo(ctx)
-        this.notifs.drawTo(ctx)
-        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.drawTo(ctx)
-        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.drawTo(ctx)
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.notifs.draw(drawer)
+        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.draw(drawer)
+        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.draw(drawer)
+        return res
     }
 
     filterObjects(key, filter) {
@@ -3242,17 +3221,6 @@ export class Wall extends GameObject {
         return pol
     }
 
-    // drawTo(ctx) {
-    //     ctx.lineWidth = 5
-    //     ctx.strokeStyle = this.color
-    //     ctx.beginPath()
-    //     ctx.moveTo(this.x1, this.y1)
-    //     ctx.lineTo(this.x2, this.y2)
-    //     ctx.globalAlpha = this.spriteVisibility
-    //     ctx.stroke()
-    //     ctx.globalAlpha = 1
-    // }
-
     getGraphicsProps() {
         const { x1, y1, x2, y2 } = this
         const img = this.getBaseImg()
@@ -3343,8 +3311,16 @@ class PauseScene extends SceneCommon {
         assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
     }
 
-    drawTo(ctx) {
-        this.notifs.drawTo(ctx)
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        this.notifs.draw(drawer)
+        return this.canvas
     }
 }
 
@@ -3416,21 +3392,6 @@ export class WaitingScene extends SceneCommon {
         titleTxt.syncPos()
     }
 
-    async initQrcodeImg() {
-        if(IS_SERVER_ENV) return
-        let res = this._qrcodeImg
-        if(!res) {
-            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
-            const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
-            const ctx = can.getContext("2d")
-            ctx.fillStyle = "white"
-            ctx.fillRect(0, 0, can.width, can.height)
-            ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
-            res = this._qrcodeImg = can
-        }
-        return res
-    }
-
     update() {
         this.notifs.update()
         this.syncPlayerObjs()
@@ -3464,22 +3425,13 @@ export class WaitingScene extends SceneCommon {
             const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
             txt.sync = () => {
                 txt.x = 35 + txt.width/2
-                txt.text = game.players[playerId]?.name ?? ""
+                txt.updateText(game.players[playerId]?.name ?? "")
             }
             txt.sync()
             hackMethod(txt, "update", 0, evt => txt.sync())
         }
         return grp
     }
-
-    // drawTo(ctx) {
-    //     this.notifs.drawTo(ctx)
-    //     this.playerObjs.forEach(objs => objs.drawTo(ctx))
-    //     if(this._qrcodeImg) {
-    //         const qrcodeImg = this.qrcodeSprite.getImg(200, 200, 1, 1)
-    //         if(qrcodeImg) ctx.drawImage(qrcodeImg, 60, ~~((this.height - qrcodeImg.height)/2))
-    //     }
-    // }
 
     draw() {
         const can = this.canvas
@@ -3488,10 +3440,11 @@ export class WaitingScene extends SceneCommon {
         const ctx = can.getContext("2d")
         ctx.reset()
         const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
         this.notifs.draw(drawer)
         this.playerObjs.forEach(objs => objs.draw(drawer))
         const qrcodeProps = this.getQrcodeGraphicsProps()
-        if(qrcodeProps) drawer.draw(qrcodeProps.draw(drawer))
+        if(qrcodeProps) drawer.draw(qrcodeProps)
         return can
     }
 
@@ -3500,12 +3453,27 @@ export class WaitingScene extends SceneCommon {
         if(!qrcodeImg) return null
         const qrcodeProps = this._qrcodeGraphicsProps ||= new GraphicsProps({
             img: qrcodeImg,
-            width: qrcodeImg.width,
-            height: qrcodeImg.height,
-            x: 60,
-            y: (this.height - qrcodeImg.height)/2
+            width: 200,
+            height: 200,
+            x: 150,
+            y: this.viewHeight/2,
         })
         return qrcodeProps
+    }
+
+    async initQrcodeImg() {
+        if(IS_SERVER_ENV) return
+        let res = this._qrcodeImg
+        if(!res) {
+            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
+            const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
+            const ctx = can.getContext("2d")
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, can.width, can.height)
+            ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
+            res = this._qrcodeImg = can
+        }
+        return res
     }
 
     async loadJoypadScene() {
@@ -3543,10 +3511,17 @@ class DebugScene extends SceneCommon {
         }
     }
     
-    drawTo(ctx) {
-        this.updDurTxt.drawTo(ctx)
-        this.drawDurTxt.drawTo(ctx)
-        this.lagTxt.drawTo(ctx)
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.updDurTxt.draw(drawer)
+        this.drawDurTxt.draw(drawer)
+        this.lagTxt.draw(drawer)
+        return this.canvas
     }
 }
 
@@ -3619,18 +3594,21 @@ export class ScoresBoard extends GameObject {
 
 
 export class CountDown extends Text {
+
     init(kwargs) {
         super.init(kwargs)
         this.duration = kwargs && kwargs.duration || 3
         this.startIt = this.scene.iteration
         this.syncText()
     }
+
     update() {
         const { iteration } = this.scene
         const { fps } = this.game
         if((iteration - this.startIt)/fps > this.duration) this.remove()
         this.syncText()
     }
+
     syncText() {
         const { iteration } = this.scene
         const { fps } = this.game
