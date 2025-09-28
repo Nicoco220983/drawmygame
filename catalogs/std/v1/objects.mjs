@@ -68,7 +68,7 @@ export class Nico extends Hero {
     updateHand() {
         if(this.handRemIt == this.handDur) {
             this.hand ||= this.scene.addObject(NicoHand, {
-                ownerId: this.id
+                owner: this
             })
         } else if(this.hand) {
             this.hand.remove()
@@ -202,7 +202,7 @@ class NicoHand extends Weapon {
     }
 
     syncPos() {
-        const owner = this.getOwner()
+        const { owner } = this
         this.x = owner.x + owner.dirX * 28
         this.y = owner.y
         this.dirX = owner.dirX
@@ -255,7 +255,7 @@ export class Sword extends Weapon {
     }
 
     syncPos() {
-        const owner = this.getOwner()
+        const { owner } = this
         if(!owner) return
         this.dirX = owner.dirX
         this.y = owner.y
@@ -288,7 +288,7 @@ export class Sword extends Weapon {
 
     getBaseImg() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
-        if(this.ownerId !== null && ratioSinceLastAttack <= 1) {
+        if(ratioSinceLastAttack <= 1) {
             return SwordSlashSpriteSheet.get(floor(6*ratioSinceLastAttack))
         } else {
             return SwordImg
@@ -330,17 +330,16 @@ export class ShurikenPack extends Extra {
     }
 
     throwOneShuriken() {
-        const owner = this.getOwner()
+        const { x, y, owner } = this
         if(!owner) return
         this.scene.addObject(Shuriken, {
-            x: this.x, y: this.y,
-            owner: this.getOwner(),
+            x, y, owner,
         })
     }
 
     update() {
         super.update()
-        const owner = this.getOwner()
+        const { owner } = this
         if(owner) {
             this.x = owner.x
             this.y = owner.y
@@ -409,12 +408,12 @@ export class Bomb extends Extra {
         this.width = this.height = 40
         this.isActionExtra = true
     }
+
     update() {
         super.update()
-        this.canBeHit = this.ownerId == null && this.itToLive == null
+        this.canBeHit = this.owner == null && this.itToLive == null
         const { dt } = this.game
-        const { x, y } = this
-        const owner = this.getOwner()
+        const { x, y, owner } = this
         this.affectedByGravity = this.canGetBlocked = (this.itToLive !== null)
         if(this.itToLive !== null) {
             if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
@@ -428,15 +427,17 @@ export class Bomb extends Extra {
             this.y = owner.y
         }
     }
+
     act() {
-        const owner = this.getOwner()
+        const { owner } = this
         if(!owner) return
         this.drop()
-        this.ownerId = owner.id
+        this.owner = owner
         this.speedX = owner.dirX * 200
         this.speedY = -500
         this.itToLive = this.countdown * this.game.fps
     }
+
     getBaseImg() {
         const { itToLive, countdown } = this
         if(itToLive === null) return BombSpriteSheet.get(0)
@@ -456,36 +457,28 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     attackDamages: 100,
     oneAttackByObject: true,
 })
+@OwnerableMixin.add()
 @BodyMixin.add({
     width: 300,
     height: 300,
 })
-@StateProperty.define("ownerId")
 @StateInt.define("lastAttackAge", { default: Infinity })
 @StateInt.define("iteration")
 export class Explosion extends GameObject {
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 300
-        this.ownerId = (kwargs && kwargs.owner && kwargs.owner.id) || null
-    }
-    getOwner() {
-        const { ownerId } = this
-        if(ownerId === null) return null
-        return this.scene.objects.get(ownerId)
-    }
     getAttackProps() {
         const props = AttackMixin.prototype.objGetAttackProps.call(this)
-        props.attacker = this.getOwner() || this
+        props.attacker = this.owner || this
         return props
     }
+
     update() {
         super.update()
         const age = this.iteration/this.game.fps
         if(age >= 1) return this.remove()
         this.iteration += 1
     }
+
     getBaseImg() {
         return ExplosionSpriteSheet.get(floor(
             this.iteration / this.game.fps * 8 * 6

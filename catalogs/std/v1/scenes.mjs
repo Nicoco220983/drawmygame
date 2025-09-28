@@ -380,7 +380,7 @@ export class TagScene extends GameScene {
         hackMethod(hero, "onGetAttacked", 0, evt => {
             const attacker = evt.inputArgs[0]
             const tag = this.tag
-            if(!tag || !attacker || tag.ownerId != attacker.id) return
+            if(!tag || !attacker || tag.owner != attacker) return
             tag.owner = hero
         })
     }

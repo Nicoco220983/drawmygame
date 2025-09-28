@@ -562,7 +562,7 @@ export class StateObjectRef extends StateProperty {
     initObjectClassProp(cls) {}
     getObjectPropState(obj) {
         const val = obj[this.key]
-        if(val === this.nullableWith ?? null) return null
+        if(val === (this.nullableWith ?? null)) return null
         else return val.id
     }
     setObjectPropFromState(obj, valState) {
@@ -2879,10 +2879,9 @@ export class AttackMixin extends Mixin {
     }
 
     objTakeDamage(damages, props) {
-        const attacker = props?.ttacker
         if(damages > 0) this.lastDamageAge = 0
         this.damages += damages
-        //this.trigger("damage", { damager })
+        const attacker = props?.attacker
         if(this.getHealth() <= 0) {
             this.die(attacker)
         } else if(attacker) {
@@ -2901,8 +2900,8 @@ export class AttackMixin extends Mixin {
 }
 
 
-@StateProperty.define("ownerId")
 @HitMixin.addIfAbsent()
+@OwnerableMixin.addIfAbsent()
 export class CollectMixin extends Mixin {
     static KEY = "collect"
 
@@ -2951,7 +2950,6 @@ export class CollectMixin extends Mixin {
         proto.onCollect ||= function(obj) {}
         proto.getCollected ||= this.objGetCollected
         proto.onGetCollected ||= function(collector) {}
-        proto.getOwner = this.objGetOwner
         proto.drop = this.objDrop
         proto.onDrop ||= function() {}
         const origRemove = proto.remove
@@ -2961,13 +2959,8 @@ export class CollectMixin extends Mixin {
         }
     }
 
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        obj.ownerId = kwargs?.ownerId ?? null
-    }
-
     updateObject(obj) {
-        if(this.origCanGetCollected) obj.canGetCollected = (obj.ownerId === null)
+        if(this.origCanGetCollected) obj.canGetCollected = (!obj.owner)
     }
 
     objCollect(obj) {
@@ -2976,19 +2969,13 @@ export class CollectMixin extends Mixin {
     }
 
     objGetCollected(collector) {
-        this.ownerId = collector.id
+        this.owner = collector
         this.onGetCollected(collector)
     }
 
-    objGetOwner() {
-        const { ownerId } = this
-        if(ownerId === null) return null
-        return this.scene.objects.get(ownerId)
-    }
-
     objDrop() {
-        if(!this.ownerId) return
-        this.ownerId = null
+        if(!this.owner) return
+        this.owner = null
         this.onDrop()
     }
 }
@@ -3184,16 +3171,11 @@ export class Enemy extends GameObject {
         this.team = "enemy"
     }
 
-    // in case Enemy if added HitMixin
-    canHitCategory(cat) {
-        return cat.startsWith("hero/")
-    }
-
-    die() {
+    die(killer) {
+        this.remove()
         const { x, y } = this
         this.scene.addVisual(SmokeExplosion, { x, y })
         this.game.audio.playSound(PuffAud)
-        this.remove()
     }
 }
 
@@ -3209,7 +3191,7 @@ export const ItemAud = CATALOG.registerAudio("/static/core/v1/assets/item.opus")
 export class Extra extends GameObject {
 
     getPriority() {
-        const owner = this.getOwner()
+        const { owner } = this
         if(owner) return owner.getPriority() - 1
         else super.getPriority()
     }
@@ -3219,7 +3201,7 @@ export class Extra extends GameObject {
     }
 
     onDrop() {
-        const owner = this.getOwner()
+        const { owner } = this
         if(owner) owner.dropExtra(this)
     }
 }
@@ -3247,13 +3229,13 @@ export class Weapon extends Extra {
     }
 
     canAttackObject(obj) {
-        const owner = this.getOwner()
+        const { owner } = this
         return owner ? (obj != owner && owner.canAttackObject(obj)) : true
     }
 
     getAttackProps() {
         const props = AttackMixin.prototype.objGetAttackProps.call(this)
-        props.attacker = this.getOwner() ?? this
+        props.attacker = this.owner ?? this
         return props
     }
 }
