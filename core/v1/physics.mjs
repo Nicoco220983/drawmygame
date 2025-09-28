@@ -120,7 +120,9 @@ export default class PhysicsEngine {
                             colRes.obj.onBlock(obj)
                         } else {
                             // static collision : fix position
-                            obj.x -= colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
+                            // TODO: fix one bug here with doors
+                            // console.log("TODO fix col:", colNormalX, colNormalY, colDistFixSign, colDist)
+                            obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                             obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                         }
                         if(nbCollisions==5) remD = 0

@@ -35,7 +35,6 @@ const RESEND_INPUT_STATE_PERIOD = .5
 // CATALOG
 
 export async function importAndPreload(path) {
-    console.log("TMP importAndPreload", import.meta.url, path)
     const mod = await import(path)
     if(mod.CATALOG) await mod.CATALOG.preloadAssets()
     return mod
@@ -1767,7 +1766,6 @@ export class SceneCommon {
     //     assign(can, { width: viewWidth, height: viewHeight })
     //     const ctx = can.getContext("2d")
     //     if(this.backgroundColor) {
-    //         console.log("TMP backgroundColor", this.backgroundColor)
     //         ctx.fillStyle = this.backgroundColor
     //         ctx.globalAlpha = this.backgroundAlpha
     //         ctx.fillRect(0, 0, viewWidth, viewHeight)
@@ -2327,7 +2325,7 @@ export class GameScene extends SceneCommon {
     }
 
     onHeroOut(hero) {
-        hero.onAttack(1, null, true)
+        hero.takeDamage(1)
         if(hero.getHealth() > 0) this.spawnHero(hero)
     }
 
@@ -2750,6 +2748,15 @@ export class OwnerableMixin extends Mixin {
 }
 
 
+class AttackProps {
+    constructor(attacker, kwargs) {
+        this.attacker = attacker
+        this.damages = kwargs?.damages ?? 0
+        this.knockback = kwargs?.knockback ?? 0
+    }
+}
+
+
 @StateInt.define("damages")
 @StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @ObjectRefs.StateProperty.define("attackedObjects")
@@ -2763,6 +2770,7 @@ export class AttackMixin extends Mixin {
         this.canGetAttacked = kwargs?.canGetAttacked ?? true
         this.maxHealth = kwargs?.maxHealth ?? 100
         this.attackDamages = kwargs?.attackDamages ?? 0
+        this.attackKnockback = kwargs?.attackKnockback ?? 0
         this.oneAttackByObject = kwargs?.oneAttackByObject ?? false
         this.graceDuration = kwargs?.graceDuration ?? 0
     }
@@ -2776,6 +2784,7 @@ export class AttackMixin extends Mixin {
         proto.graceDuration = this.graceDuration
         proto.maxHealth = this.maxHealth
         proto.attackDamages = this.attackDamages
+        proto.attackKnockback = this.attackKnockback
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2810,11 +2819,11 @@ export class AttackMixin extends Mixin {
             origHit.call(this, obj)
             if(this.canReallyAttackObject(obj)) this.attack(obj)
         }
+        proto.getAttackProps = this.objGetAttackProps
         proto.attack = this.objAttack
-        proto.onAttack ||= function(obj) {}
+        proto.onAttack ||= function(obj, props) {}
         proto.getAttacked ||= this.objGetAttacked
-        proto.onGetAttacked ||= function(attacker, val) {}
-        proto.getAttackOwner ||= this.objGetAttackOwner
+        proto.onGetAttacked ||= function(props) {}
 
         proto.takeDamage ||= this.objTakeDamage
         proto.die ||= this.objDie
@@ -2838,28 +2847,41 @@ export class AttackMixin extends Mixin {
         return this.lastDamageAge < this.graceDuration * this.game.fps
     }
 
+    objGetAttackProps(obj) {
+        const props = this._attackProps ||= new AttackProps(this, {
+            damages: this.attackDamages,
+            knockback: this.attackKnockback,
+        })
+        return props
+    }
+
     objAttack(obj) {
         if(this.oneAttackByObject) this.attackedObjects.add(obj.id)
-        obj.getAttacked(this.getAttackOwner(), this.attackDamages)
-        this.onAttack(obj)
+        const props = this.getAttackProps(obj)
+        obj.getAttacked(props)
+        this.onAttack(obj, props)
     }
 
-    objGetAttackOwner() {
-        return this
-    }
-
-    objGetAttacked(attacker, val, force) {
+    objGetAttacked(props) {
         if(this.getHealth() <= 0) return
-        if(!force && this.isInGracePeriod()) return
+        if(!props?.force && this.isInGracePeriod()) return
+        const { attacker, damages } = props
         if(this.scene.attackManager.canTeamDamage(attacker.team, this.team)) {
-            this.takeDamage(val, attacker)
+            this.takeDamage(damages, props)
         }
-        this.onGetAttacked(attacker, val)
+        const knockback = props?.knockback
+        if(knockback) {
+            const dirX = (props.attacker.x - this.x) > 0 ? -1 : 1
+            this.speedX = knockback * dirX
+            this.speedY = -knockback
+        }
+        this.onGetAttacked(props)
     }
 
-    objTakeDamage(val, attacker) {
-        if(val > 0) this.lastDamageAge = 0
-        this.damages += val
+    objTakeDamage(damages, props) {
+        const attacker = props?.ttacker
+        if(damages > 0) this.lastDamageAge = 0
+        this.damages += damages
         //this.trigger("damage", { damager })
         if(this.getHealth() <= 0) {
             this.die(attacker)
@@ -2937,6 +2959,11 @@ export class CollectMixin extends Mixin {
             origRemove.call(this)
             this.drop()
         }
+    }
+
+    initObject(obj, kwargs) {
+        super.initObject(obj, kwargs)
+        obj.ownerId = kwargs?.ownerId ?? null
     }
 
     updateObject(obj) {
@@ -3152,6 +3179,11 @@ class Pop extends GameObject {
 @Category.append("npc/enemy")
 export class Enemy extends GameObject {
 
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = "enemy"
+    }
+
     // in case Enemy if added HitMixin
     canHitCategory(cat) {
         return cat.startsWith("hero/")
@@ -3189,6 +3221,82 @@ export class Extra extends GameObject {
     onDrop() {
         const owner = this.getOwner()
         if(owner) owner.dropExtra(this)
+    }
+}
+
+
+@AttackMixin.add({
+    canAttack: true,
+    canGetAttacked: false,
+})
+export class Weapon extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = null
+    }
+
+    onGetCollected(owner) {
+        super.onGetCollected(owner)
+        this.team = owner.team
+    }
+
+    onDrop() {
+        super.onDrop()
+        this.team = null
+    }
+
+    canAttackObject(obj) {
+        const owner = this.getOwner()
+        return owner ? (obj != owner && owner.canAttackObject(obj)) : true
+    }
+
+    getAttackProps() {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+        props.attacker = this.getOwner() ?? this
+        return props
+    }
+}
+
+
+@Category.append("projectile")
+@AttackMixin.add({
+    canAttack: true,
+    canGetAttacked: false,
+})
+@PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@OwnerableMixin.add()
+export class Projectile extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.syncTeam()
+    }
+
+    update() {
+        super.update()
+        this.syncTeam()
+    }
+
+    syncTeam() {
+        this.team = this.owner?.team ?? null
+    }
+
+    canAttackObject(obj) {
+        const { owner } = this
+        return owner ? (obj != owner && owner.canAttackObject(obj)) : true
+    }
+
+    getAttackProps() {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+        props.attacker = this.owner ?? this
+        return props
+    }
+
+    onAttack(obj, props) {
+        this.remove()
     }
 }
 

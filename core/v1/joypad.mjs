@@ -212,7 +212,6 @@ class JoypadButton extends GameObject {
     }
 
     draw(drawer) {
-        console.log("TMP JoypadButton.draw")
         if(this.disabled) return
         super.draw(drawer)
         if(this.icon) {
@@ -222,7 +221,6 @@ class JoypadButton extends GameObject {
             iconProps.y = this.y
             iconProps.width = this.width*.5
             iconProps.height = this.height*.5
-            console.log("TMP iconProps", iconProps)
             iconProps.draw(drawer)
         }
         if(this.text) {

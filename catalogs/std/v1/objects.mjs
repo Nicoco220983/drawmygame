@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, Weapon, Projectile,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -68,7 +68,7 @@ export class Nico extends Hero {
     updateHand() {
         if(this.handRemIt == this.handDur) {
             this.hand ||= this.scene.addObject(NicoHand, {
-                owner: this
+                ownerId: this.id
             })
         } else if(this.hand) {
             this.hand.remove()
@@ -181,22 +181,18 @@ export class Nico extends Hero {
     }
 }
 
-@AttackMixin.add({
-    canAttack: true,
-    canGetAttacked: false,
-    attackDamages: 0,
-})
+
 @BodyMixin.add({
-    shape: "box",
     width: 25,
     height: 25,
 })
-class NicoHand extends GameObject {
+class NicoHand extends Weapon {
     static STATEFUL = false
 
     init(kwargs) {
-        this.owner = kwargs.owner
+        super.init(kwargs)
         this.syncPos()
+        this.attackKnockback = 200
         this.game.audio.playSound(SlashAud)
     }
 
@@ -206,17 +202,13 @@ class NicoHand extends GameObject {
     }
 
     syncPos() {
-        const { owner } = this
+        const owner = this.getOwner()
         this.x = owner.x + owner.dirX * 28
         this.y = owner.y
         this.dirX = owner.dirX
     }
 
-    canAttackObject(obj) {
-        return obj != this.owner && this.owner.canAttackObject(obj)
-    }
-
-    onAttack(obj) {
+    onAttack(obj, props) {
         this.game.audio.playSound(HandHitAud)
     }
 
@@ -240,23 +232,17 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/sword_
     icon: SwordImg,
 })
 @StateInt.define("lastAttackAge", { default: Infinity })
-@AttackMixin.add({
-    canAttack: true,
-    canGetAttacked: false,
-    attackDamages: 100,
-    oneAttackByObject: true,
-})
 @BodyMixin.add({
-    shape: "box",
     width: 40,
     height: 40,
 })
-export class Sword extends Extra {
+export class Sword extends Weapon {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = this.height = 40
         this.isActionExtra = true
+        this.attackDamages = 100
+        this.oneAttackByObject = true
     }
 
     update() {
@@ -283,22 +269,16 @@ export class Sword extends Extra {
     }
 
     canAttackObject(obj) {
-        const { ownerId } = this
-        if(!ownerId || !this.isAttacking() || obj.id == ownerId) return false
-        const owner = this.getOwner()
-        return owner ? owner.canAttackObject(obj) : false
+        if(!this.isAttacking()) return false
+        return super.canAttackObject(obj)
     }
 
-    onAttack(obj) {
+    onAttack(obj, props) {
         this.game.audio.playSound(SwordHitAud)
     }
 
     isAttacking() {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
-    }
-
-    getAttackOwner() {
-        return this.getOwner()
     }
 
     act() {
@@ -323,11 +303,7 @@ const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/shurik
     label: "ShurikenPack",
     icon: ShurikenImg,
 })
-@PhysicsMixin.add({
-    affectedByGravity: false,
-})
 @BodyMixin.add({
-    shape: "box",
     width: 30,
     height: 30,
 })
@@ -337,12 +313,12 @@ export class ShurikenPack extends Extra {
     init(kwargs) {
         super.init(kwargs)
         this.isActionExtra = true
-        this.width = this.height = 30
         this.actLastTryIt = -Infinity
         this.actRemIt = 0
         if(kwargs?.nb !== undefined) this.nb = kwargs.nb
         this.throwPeriod = .3
     }
+
     act() {
         const prevActLastTryIt = this.actLastTryIt
         this.actLastTryIt = this.scene.iteration
@@ -352,14 +328,16 @@ export class ShurikenPack extends Extra {
         this.nb -= 1
         if(this.nb <= 0) this.remove()
     }
+
     throwOneShuriken() {
         const owner = this.getOwner()
         if(!owner) return
         this.scene.addObject(Shuriken, {
             x: this.x, y: this.y,
-            ownerId: this.ownerId,
+            owner: this.getOwner(),
         })
     }
+
     update() {
         super.update()
         const owner = this.getOwner()
@@ -369,6 +347,7 @@ export class ShurikenPack extends Extra {
         }
         if(this.actRemIt > 0) this.actRemIt -= 1
     }
+
     getBaseImg() {
         return ShurikenImg
     }
@@ -379,55 +358,28 @@ export class ShurikenPack extends Extra {
     icon: ShurikenImg,
     showInBuilder: false,
 })
-@AttackMixin.add({
-    canAttack: true,
-    canGetAttacked: false,
-    attackDamages: 35,
-})
-@PhysicsMixin.add({
-    affectedByGravity: false,
-})
 @BodyMixin.add({
-    shape: "box",
     width: 30,
     height: 30,
 })
-@StateProperty.define("ownerId")
 @StateInt.define("itToLive", { default: null })
-@Category.append("projectile")
-export class Shuriken extends GameObject {
+export class Shuriken extends Projectile {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = this.height = 30
-        this.ownerId = kwargs.ownerId
-        const owner = this.getOwner()
-        if(owner) this.dirX = owner.dirX
+        if(this.owner) this.dirX = this.owner.dirX
         this.speedX = this.dirX * 500
         this.itToLive = 2 * this.game.fps
+        this.attackDamages = 35
         this.game.audio.playSound(SlashAud)
     }
-    getOwner() {
-        const { ownerId } = this
-        return this.scene.objects.get(ownerId)
-    }
-    canAttackObject(obj) {
-        const { ownerId } = this
-        if(obj.id == ownerId) return false
-        const owner = this.getOwner()
-        return owner ? owner.canAttackObject(obj) : true
-    }
-    onAttack(obj) {
-        this.remove()
-    }
-    getAttackOwner() {
-        return this.getOwner()
-    }
+
     update() {
         this.itToLive -= 1
         if(this.itToLive <= 0) this.remove()
         if(this.speedResX || this.speedResY) this.remove()
     }
+
     getBaseImg() {
         return ShurikenImg
     }
@@ -445,7 +397,6 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     affectedByGravity: false,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 40,
     height: 40,
 })
@@ -506,7 +457,6 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     oneAttackByObject: true,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 300,
     height: 300,
 })
@@ -525,8 +475,10 @@ export class Explosion extends GameObject {
         if(ownerId === null) return null
         return this.scene.objects.get(ownerId)
     }
-    getAttackOwner() {
-        return this.getOwner() || this
+    getAttackProps() {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+        props.attacker = this.getOwner() || this
+        return props
     }
     update() {
         super.update()
@@ -556,18 +508,13 @@ const SpikyImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/spiky.png
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
+    attackKnockback: 200,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 45,
     height: 45,
 })
 export class Spiky extends Enemy {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 45
-    }
 
     canAttackObject(obj) {
         return obj instanceof Hero
@@ -601,10 +548,10 @@ const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blob.png")
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
+    attackKnockback: 200,
 })
 @PhysicsMixin.add()
 @BodyMixin.add({
-    shape: "box",
     width: 40,
     height: 36,
 })
@@ -612,8 +559,6 @@ export class BlobEnemy extends Enemy {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = 50
-        this.height = 36
         this.blockChecker = this.scene.addObject(BlobEnemyBlockChecker, {
             owner: this,
         })
@@ -714,22 +659,16 @@ const GhostImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/ghost.png
     canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
+    attackKnockback: 200,
 })
 @PhysicsMixin.add({
     affectedByGravity: false,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 45,
     height: 45,
 })
 export class Ghost extends Enemy {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = 45
-        this.height = 45
-    }
 
     update() {
         super.update()
@@ -960,7 +899,6 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1
     maxHealth: Infinity,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 30,
     height: 30,
 })
@@ -1044,7 +982,6 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     checkBlockAnyway: true,
 })
 @BodyMixin.add({
-    shape: "box",
     width: 50,
     height: 50,
 })
