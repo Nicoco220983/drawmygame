@@ -3745,19 +3745,19 @@ export class HeroSpawnPoint extends GameObject {
     icon: PopImg,
 })
 @ObjectRefs.StateProperty.define("spawnedObjects")
-@StateInt.define("lastSpawnIt", { default: -Infinity })
+@StateInt.define("lastSpawnAge", { default: Infinity })
 @StateInt.define("nbSpawn")
+@StateInt.define("prevFuther", { showInBuilder: true })
 @StateInt.define("maxLiving", { default: 10, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("max", { default:Infinity, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("period", { default:1, showInBuilder: true })
+@StateInt.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("period", { default: 1, showInBuilder: true })
 @GameObject.StateProperty.define("model", { showInBuilder: true })
 @ActivableMixin.add()
+@BodyMixin.add({
+    width: 50,
+    height: 50,
+})
 export class ObjectSpawner extends GameObject {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 50
-    }
 
     update() {
         super.update()
@@ -3769,8 +3769,17 @@ export class ObjectSpawner extends GameObject {
     maySpawnObject() {
         if(!this.activated) return
         if(this.nbSpawn >= this.max) return
-        if(this.scene.iteration < this.lastSpawnIt + ceil(this.period * this.game.fps)) return
         if(this.spawnedObjects.size >= this.maxLiving) return
+        const { x, y, prevFuther } = this
+        if(prevFuther > 0) {
+            let allFar = true
+            this.spawnedObjects.forEach(obj => {
+                if(hypot(x-obj.x, y-obj.y) <= prevFuther) allFar = false
+            })
+            if(!allFar) return
+        }
+        this.lastSpawnAge += 1
+        if(this.lastSpawnAge < ceil(this.period * this.game.fps)) return
         this.spawnObject()
     }
 
@@ -3786,7 +3795,7 @@ export class ObjectSpawner extends GameObject {
         obj.setState(state)
         this.nbSpawn += 1
         this.spawnedObjects.add(obj.id)
-        this.lastSpawnIt = scene.iteration
+        this.lastSpawnAge = 0
         scene.addVisual(Pop, { x:this.x, y:this.y })
         return obj
     }
