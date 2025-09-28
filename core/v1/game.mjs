@@ -1061,6 +1061,15 @@ export class GameObjectGroup {
         // return res
     }
 
+    checkAutoId(id) {
+        id = parseInt(id)
+        if(id >= 0) {
+            this._nextAutoStatefulId = max(this._nextAutoStatefulId, id+1)
+        } else {
+            this._nextAutoStatelessId = min(this._nextAutoStatelessId, id-1)
+        }
+    }
+
     // resetIds() {
     //     const { statefulObjArr, statelessObjArr, objMap } = this
     //     objMap.clear()
@@ -1087,6 +1096,7 @@ export class GameObjectGroup {
             obj = new cls(this.scene, kwargs)
         }
         if(obj.id === undefined) obj.id = this.nextAutoId(obj.constructor)
+        else this.checkAutoId(obj.id)
         this.objMap.set(obj.id, obj)
         if(obj.constructor.STATEFUL) this.statefulObjArr.push(obj)
         else this.statelessObjArr.push(obj)
