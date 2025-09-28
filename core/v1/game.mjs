@@ -3110,6 +3110,12 @@ export class Hero extends GameObject {
         this.lastSpawnIt = this.scene.iteration
     }
 
+    die(killer) {
+        this.remove()
+        const { x, y } = this
+        this.scene.addVisual(SmokeExplosion, { x, y })
+    }
+
     remove() {
         super.remove()
         this.scene.syncHero(this)
@@ -3131,6 +3137,7 @@ export class SmokeExplosion extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 100
+        this.game.audio.playSound(PuffAud)
     }
 
     update() {
@@ -3185,7 +3192,6 @@ export class Enemy extends GameObject {
         this.remove()
         const { x, y } = this
         this.scene.addVisual(SmokeExplosion, { x, y })
-        this.game.audio.playSound(PuffAud)
     }
 }
 
