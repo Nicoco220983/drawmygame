@@ -3072,7 +3072,7 @@ export class Hero extends GameObject {
     initJoypadButtons(joypadScn) {}
 
     spawn(x, y) {
-        this.x = x + floor((random()-.5) * 50)
+        this.x = x + floor((this.scene.rand("spawn")-.5) * 50)
         this.y = y
         this.speedX = 0
         this.speedY = -200
