@@ -413,17 +413,18 @@ export class StateProperty {
         this.setObjectPropFromState(cls.prototype, this.defaultStateValue)
     }
     initObject(obj, kwargs) {}
+    // state
     getObjectPropState(obj) {
         const val = obj[this.key]
-        if(val === this.nullableWith ?? null) return null
+        if(val === (this.nullableWith ?? null)) return null
         else return val
     }
     setObjectPropFromState(obj, valState) {
         const { key } = this
         if(valState === undefined) return delete obj[key]
         if(valState === null) valState = this.nullableWith ?? null
-        const protoVal = getPrototypeOf(this)[key]
-        if(valState === protoVal) return delete obj[key]
+        // const protoVal = getPrototypeOf(this)[key]
+        // if(valState === protoVal) return delete obj[key]
         obj[key] = valState
     }
     syncStateFromObject(obj, state) {
@@ -431,11 +432,14 @@ export class StateProperty {
         if(!obj.hasOwnProperty(key)) return
         let val = obj[key], protoVal = getPrototypeOf(obj)[key]
         if(val === undefined || val === protoVal) return
-        state[key] = this.getObjectPropState(obj)
+        const valState = this.getObjectPropState(obj)
+        if(valState === undefined) return
+        state[key] = valState
     }
     syncObjectFromState(state, obj) {
         this.setObjectPropFromState(obj, state[this.key])
     }
+    // inputs
     createObjectInput(obj) {
         if(this.nullableWith !== undefined) return this.createNullableInput(obj)
         else return this.createInput(obj)
@@ -559,16 +563,17 @@ export class StateIntEnum extends StateEnum {
 
 
 export class StateObjectRef extends StateProperty {
-    initObjectClassProp(cls) {}
+    initObjectClassProp(cls) {
+        cls.prototype[this.key] = this.nullableWith ?? null
+    }
     getObjectPropState(obj) {
         const val = obj[this.key]
         if(val === (this.nullableWith ?? null)) return null
-        else return val.id
+        return val.id
     }
     setObjectPropFromState(obj, valState) {
         const { key } = this
-        if(valState === undefined) return delete obj[key]
-        if(valState === null) obj[key] = this.nullableWith ?? null
+        if(!valState) obj[key] = this.nullableWith ?? null
         else obj[key] = obj.scene.objects.get(valState)
     }
 }
@@ -764,7 +769,8 @@ export class GameObject {
     getState(isInitState=false) {
         const state = {}
         state.key = this.getKey()
-        state.id = this.id
+        const id = this.id
+        if(id !== undefined) state.id = this.id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
         return state
@@ -902,7 +908,7 @@ GameObject.prototype.trigger = trigger
 
 GameObject.StateProperty = class extends StateProperty {
     initObjectClassProp(cls) {
-        cls.prototype[this.key] = this.nullableWith
+        cls.prototype[this.key] = this.nullableWith ?? null
     }
     init(kwargs) {
         super.init(kwargs)
@@ -910,14 +916,12 @@ GameObject.StateProperty = class extends StateProperty {
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
-        if(!val || val === this.nullableWith) return null
-        else return val.getState()
+        if(val === (this.nullableWith ?? null)) return null
+        return val.getState()
     }
     setObjectPropFromState(obj, valState) {
         const { key } = this
-        if(valState === undefined) return delete obj[key]
-        if(valState === null) valState = this.nullableWith
-        if(!valState) return obj[key] = valState
+        if(!valState) return valState = this.nullableWith ?? null
         let objVal = obj[key]
         if(!objVal || objVal.getKey() != valState.key) {
             const catalog = obj.game.catalog
@@ -927,10 +931,6 @@ GameObject.StateProperty = class extends StateProperty {
             obj[key] = objVal
         }
         objVal.setState(valState)
-    }
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
-        cls.prototype[this.key] = this.nullableWith
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
@@ -1242,16 +1242,16 @@ export class ObjectRefs extends Set {
 
 
 ObjectRefs.StateProperty = class extends StateProperty {
-    initObjectClassProp(cls) {
-        cls.prototype[this.key] = this.nullableWith
-    }
+    // nullableWith is not implemented here
+    initObjectClassProp(cls) {}
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
         obj[this.key] = new ObjectRefs(obj.scene)
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
-        return val.getState()
+        if(val.size == 0) return undefined
+        else return val.getState()
     }
     setObjectPropFromState(obj, valState) {
         const val = obj[this.key]
