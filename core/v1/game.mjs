@@ -1018,7 +1018,7 @@ class CenteredText extends Text {
 
     getGraphicsProps() {
         const { viewWidth, viewHeight } = this.scene
-        const props = this.getGraphicsProps()
+        const props = super.getGraphicsProps()
         props.x = viewWidth / 2
         props.y = viewHeight / 2
         return props
@@ -2304,7 +2304,7 @@ export class GameScene extends SceneCommon {
     }
 
     onHeroOut(hero) {
-        hero.takeDamage(1)
+        hero.takeDamage(10)
         if(hero.getHealth() > 0) this.spawnHero(hero)
     }
 
