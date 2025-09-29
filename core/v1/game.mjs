@@ -1054,11 +1054,6 @@ export class GameObjectGroup {
             this._nextAutoStatelessId -= 1
             return res
         }
-        // this._lastAutoId += 1
-        // let res = this._lastAutoId.toString()
-        // // be sure that client & leader generate different ids
-        // if(this.game.mode == MODE_CLIENT) res += 'C'
-        // return res
     }
 
     checkAutoId(id) {
@@ -1069,23 +1064,6 @@ export class GameObjectGroup {
             this._nextAutoStatelessId = min(this._nextAutoStatelessId, id-1)
         }
     }
-
-    // resetIds() {
-    //     const { statefulObjArr, statelessObjArr, objMap } = this
-    //     objMap.clear()
-    //     for(let idx in statefulObjArr) {
-    //         const obj = statefulObjArr[idx]
-    //         obj.id = idx.toString()
-    //         this.objMap.set(obj.id, obj)
-    //     }
-    //     this._nextAutoStatefulId = statefulObjArr.length
-    //     for(let idx in statelessObjArr) {
-    //         const obj = statelessObjArr[idx]
-    //         obj.id = (-1-idx).toString()
-    //         this.objMap.set(obj.id, obj)
-    //     }
-    //     this._nextAutoStatelessId = statelessObjArr.length
-    // }
 
     add(cls, kwargs) {
         kwargs ||= {}
@@ -1167,13 +1145,6 @@ export class GameObjectGroup {
             props.y += this.y
             propss.push(props)
         }
-        // const addProps = obj => {
-        //     const props = obj.getGraphicsProps()
-        //     if(!props) return
-        //     props.x += this.x
-        //     props.y += this.y
-        //     propss.push(props)
-        // }
         this.statefulObjArr.forEach(obj => obj.draw(objDrawer))
         this.statelessObjArr.forEach(obj => obj.draw(objDrawer))
         drawer.draw(...propss)
@@ -1214,8 +1185,6 @@ export class GameObjectGroup {
                     obj.setState(objState, isInitState)
                 }
             }
-            //if(isInitState) this._lastAutoId = state.length - 1
-            if(isInitState) this._nextAutoStatefulId = state.length
             if(objMap.size != statefulObjArr.length + statelessObjArr.length) {
                 objMap.clear()
                 for(let obj of statefulObjArr) objMap.set(obj.id, obj)
