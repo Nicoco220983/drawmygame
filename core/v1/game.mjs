@@ -1177,7 +1177,7 @@ export class GameObjectGroup {
                     this.scene.addObject(`A#${idx}`, { id })
                 } else {
                     let obj = objMap.get(id)
-                    if(!obj || obj.key != key) {
+                    if(!obj || obj.getKey() != key) {
                         if(obj) obj.remove()
                         obj = this.add(key, { id })
                     }
