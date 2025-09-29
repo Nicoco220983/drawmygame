@@ -42,6 +42,41 @@ export class GrassBlock extends Block {
 }
 
 
+
+const PlatformImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/platform.png")
+
+@CATALOG.registerObject("platform", {
+    label: "Platform",
+    icon: PlatformImg,
+})
+export class PlatformBlock extends Block {
+
+    getHitProps(dt) {
+        const props = super.getHitProps(dt)
+        props.uniDirX = 0
+        props.uniDirY = -1
+        return props
+    }
+
+    getBodyPolygon() {
+        const pol = this._bodyPolygons ||= []
+        pol.length = 0
+        const { x, y, width, height } = this
+        const hWidth = width/2, hHeight = height/2
+        const xMin = x-hWidth, yMin = y-hHeight, xMax = x+hWidth
+        pol.push(
+            xMin, yMin,
+            xMax, yMin,
+        )
+        return pol
+    }
+    
+    getBaseImg() {
+        return PlatformImg
+    }
+}
+
+
 const DoorImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door.png")
 const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door_spritesheet.png"), 2, 1)
 

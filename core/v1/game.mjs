@@ -3342,8 +3342,8 @@ export class Wall extends GameObject {
 }
 
 
-@CATALOG.registerObject("platform")
-export class Platform extends Wall {
+@CATALOG.registerObject("platformw")
+export class PlatformWall extends Wall {
 
     init(kwargs) {
         super.init(kwargs)
@@ -3358,7 +3358,6 @@ export class Platform extends Wall {
         props.uniDirY = -dx/dd
         return props
     }
-
 }
 
 
