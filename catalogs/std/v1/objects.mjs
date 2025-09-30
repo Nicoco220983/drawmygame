@@ -960,3 +960,190 @@ export class Clock extends Trigger {
         return ClockImg
     }
 }
+
+
+const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/watcher.png")
+
+@CATALOG.registerObject("watcher", {
+    label: "Watcher",
+    icon: WatcherImg,
+    showInBuilder: true,
+})
+@StateBool.define("watchHeros", { default: true, showInBuilder: true })
+@StateInt.define("watchDistance", { default: 100, showInBuilder: true })
+export class Viewer extends Trigger {
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+    }
+
+    update() {
+        super.update()
+        this.triggered = false
+        if(this.watchHeros) {
+            for(let hero of this.scene.filterObjects("heros", obj => obj instanceof Hero)) {
+                if(hypot(this.x-hero.x, this.y-hero.y) <= this.watchDistance) {
+                    this.triggered = true
+                }
+            }
+        }
+    }
+
+    getBaseImg() {
+        return WatcherImg
+    }
+}
+
+
+@LinkReaction.add("reactAggregate", { label:"aggregate", isDefault: true })
+export class AggregatorTrigger extends Trigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.triggerValues = {}
+    }
+
+    getInitValue() {
+        return 0
+    }
+
+    aggregate(vals) {
+        // to be defined in child class
+    }
+
+    addObjectLink(trigObj, trigKey, reactKey, threshold) {
+        super.addObjectLink(trigObj, trigKey, reactKey, threshold)
+        const trigVals = this.triggerValues
+        if(reactKey == "reactAggregate") {
+            trigVals[trigObj.id] = this.getInitValue()
+        }
+    }
+
+    reactAggregate(msg) {
+        this.triggerValues[msg.triggerObject.id] = msg.value
+    }
+
+    update() {
+        super.update()
+        this.updateTriggered()
+    }
+
+    updateTriggered() {
+        const aggVal = this.aggregate(Object.values(this.triggerValues))
+        this.triggered = aggVal >= .5
+    }
+}
+
+
+const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/min_trigger.png")
+
+@CATALOG.registerObject("min", {
+    label: "Min",
+    icon: MinTriggerImg,
+    showInBuilder: true,
+})
+export class MinTrigger extends AggregatorTrigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+    }
+
+    aggregate(vals) {
+        return min(...vals)
+    }
+
+    getBaseImg() {
+        return MinTriggerImg
+    }
+}
+
+
+const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/max_trigger.png")
+
+@CATALOG.registerObject("max", {
+    label: "Max",
+    icon: MaxTriggerImg,
+    showInBuilder: true,
+})
+export class MaxTrigger extends AggregatorTrigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+    }
+
+    aggregate(vals) {
+        return max(...vals)
+    }
+
+    getBaseImg() {
+        return MaxTriggerImg
+    }
+}
+
+
+
+const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/delay_trigger.png")
+
+@CATALOG.registerObject("delay", {
+    label: "Delay",
+    icon: DelayTriggerImg,
+    showInBuilder: true,
+})
+@LinkReaction.add("reactDelay", { label:"delay", isDefault: true })
+@StateProperty.define()
+@StateInt.define("delay", { default: 0, showInBuilder: true })
+@StateInt.define("preserve", { default: 0, nullableWith: Infinity, showInBuilder: true })
+export class DelayTrigger extends Trigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+        this.history = []
+    }
+
+    reactDelay(msg) {
+        const { history } = this, histLen = history.length
+        const { value } = msg
+        const { iteration } = this.scene
+        const prevValue = histLen > 0 ? history[histLen-1].value : null
+        if(value != prevValue) {
+            history.push({
+                value,
+                firstIteration: iteration,
+                lastIteration: iteration,
+            })
+        } else {
+            history[histLen-1].lastIteration = iteration
+        }
+    }
+
+    update() {
+        super.update()
+        this.updateTriggered()
+    }
+
+    updateTriggered() {
+        const { delay, preserve, history } = this
+        const { iteration } = this.scene
+        const { fps } = this.game
+        const delayIt = delay * fps, preserveIt = preserve * fps
+        let idxToClean = -1, value = 0
+        for(let idx in history) {
+            const { value: histVal, firstIteration: histFirstIt, lastIteration: histLastIt } = history[idx]
+            if(histLastIt + delayIt + preserveIt < iteration) {
+                idxToClean = idx
+                continue
+            }
+            if(histFirstIt + delayIt > iteration) break
+            value = max(value, histVal)
+        }
+        if(idxToClean > -1) history.splice(0, idxToClean+1)
+        this.triggered = value >= .5
+    }
+
+    getBaseImg() {
+        return DelayTriggerImg
+    }
+}

@@ -751,13 +751,15 @@ export class GameObject {
         const objLinks = this.objectLinks
         if(!objLinks) return
         for(let objLink of objLinks) {
-            let msg = objLink.triggerObject[objLink.triggerKey]()
+            const trigObj = objLink.triggerObject
+            let msg = trigObj[objLink.triggerKey]()
             if(typeof msg == "boolean") msg = msg ? 1 : 0
             if(typeof msg == "number") {
                 const _msg = this._linkResp ||= new LinkMessage()
                 _msg.value = msg
                 msg = _msg
             }
+            msg.triggerObject = trigObj
             this[objLink.reactionKey](msg)
         }
     }
