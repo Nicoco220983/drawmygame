@@ -125,15 +125,15 @@ const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/cl
     showInBuilder: true,
 })
 @StateInt.define("blockAge", { default: null, nullableWith: null })
-@StateInt.define("timeToDisappear", { default: 2, showInBuilder: true })
-@StateInt.define("timeToReappear", { default: 2, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("timeToDisappear", { default: 1, showInBuilder: true })
+@StateInt.define("timeToReappear", { default: 3, nullableWith: Infinity, showInBuilder: true })
 export class Cloud extends Block {
 
     init(kwargs) {
         super.init(kwargs)
-        this.checkBlockAnyway = true
         this.step = 0
         this.lastBlockIt = -Infinity
+        this.checker = this.scene.addObject(CloudChecker, { owner: this })
     }
 
     onBlock(obj) {
@@ -168,5 +168,31 @@ export class Cloud extends Block {
 
     getBaseImg() {
         return CloudImg
+    }
+
+    remove() {
+        super.remove()
+        this.checker.remove()
+    }
+}
+
+@PhysicsMixin.add({
+    canMove: false,
+    checkBlockAnyway: true,
+})
+class CloudChecker extends GameObject {
+    static STATEFUL = false
+    
+    init(kwargs) {
+        super.init(kwargs)
+        this.owner = kwargs.owner
+        this.x = this.owner.x
+        this.y = this.owner.y
+        this.width = this.owner.width + 2
+        this.height = this.owner.height + 2
+    }
+
+    onBlock(obj) {
+        this.owner.onBlock(obj)
     }
 }
