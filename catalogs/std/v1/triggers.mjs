@@ -73,7 +73,7 @@ export class Button extends Trigger {
 }
 
 
-const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/clock.png")
+const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/clock.png")
 
 @CATALOG.registerObject("clock", {
     label: "Clock",
@@ -105,7 +105,7 @@ export class Clock extends Trigger {
 }
 
 
-const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/watcher.png")
+const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/watcher.png")
 
 @CATALOG.registerObject("watcher", {
     label: "Watcher",
@@ -139,7 +139,7 @@ export class Viewer extends Trigger {
 }
 
 
-const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/invert_trigger.png")
+const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/invert_trigger.png")
 
 @CATALOG.registerObject("invert", {
     label: "Invert (NOT)",
@@ -209,7 +209,7 @@ export class AggregatorTrigger extends Trigger {
 }
 
 
-const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/min_trigger.png")
+const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/min_trigger.png")
 
 @CATALOG.registerObject("min", {
     label: "Min (AND)",
@@ -233,7 +233,7 @@ export class MinTrigger extends AggregatorTrigger {
 }
 
 
-const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/max_trigger.png")
+const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/max_trigger.png")
 
 @CATALOG.registerObject("max", {
     label: "Max (OR)",
@@ -257,7 +257,7 @@ export class MaxTrigger extends AggregatorTrigger {
 }
 
 
-const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/xor_trigger.png")
+const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/xor_trigger.png")
 
 @CATALOG.registerObject("xor", {
     label: "Xor",
@@ -284,7 +284,7 @@ export class XorTrigger extends AggregatorTrigger {
 
 
 
-const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/delay_trigger.png")
+const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/delay_trigger.png")
 
 @CATALOG.registerObject("delay", {
     label: "Delay",
