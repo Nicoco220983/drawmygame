@@ -86,17 +86,13 @@ const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     showInBuilder: true,
 })
 @LinkReaction.add("reactToggle", { label:"toggle", isDefault: true })
-@PhysicsMixin.add({
-    canMove: false,
-    canBlock: true,
-    checkBlockAnyway: true,
-})
 @StateBool.define("closed", { default: true, showInBuilder: true })
 @Category.append("engine")
 export class Door extends Block {
 
     init(kwargs) {
         super.init(kwargs)
+        this.checkBlockAnyway = true
         this.origClosed = this.closed
         this.lastBlockIt = -Infinity
     }
@@ -117,5 +113,60 @@ export class Door extends Block {
 
     getBaseImg() {
         return DoorSpriteSheet.get(this.closed ? 0 : 1)
+    }
+}
+
+
+const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/cloud.png")
+
+@CATALOG.registerObject("cloud", {
+    label: "Cloud",
+    icon: CloudImg,
+    showInBuilder: true,
+})
+@StateInt.define("blockAge", { default: null, nullableWith: null })
+@StateInt.define("timeToDisappear", { default: 2, showInBuilder: true })
+@StateInt.define("timeToReappear", { default: 2, nullableWith: Infinity, showInBuilder: true })
+export class Cloud extends Block {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.checkBlockAnyway = true
+        this.step = 0
+        this.lastBlockIt = -Infinity
+    }
+
+    onBlock(obj) {
+        super.onBlock(obj)
+        if(this.blockAge === null) this.blockAge = 0
+        this.lastBlockIt = this.scene.iteration
+    }
+
+    update() {
+        const { blockAge, timeToDisappear, timeToReappear } = this
+        const { fps } = this.game
+        if(blockAge === null) this.step = 0
+        else if(blockAge < (timeToDisappear * fps)) this.step = 1
+        else if(blockAge < ((timeToDisappear + timeToReappear) * fps)) {
+            this.step = 2
+        } else if(this.lastBlockIt < this.scene.iteration) {
+            this.step = 0
+            this.blockAge = null
+        }
+        this.canBlock = (this.step < 2)
+        if(this.blockAge !== null) this.blockAge += 1
+    }
+
+    getGraphicsProps() {
+        const { step } = this
+        const props = super.getGraphicsProps()
+        if(step == 0) props.visibility = 1
+        else if(step == 1) props.visibility = .75
+        else props.visibility = .5
+        return props
+    }
+
+    getBaseImg() {
+        return CloudImg
     }
 }
