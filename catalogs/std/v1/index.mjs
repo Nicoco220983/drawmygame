@@ -5,6 +5,7 @@ export async function loadCatalog(catalog) {
     loader ||= catalog.addModuleCatalogs([
         HERE + "scenes.mjs",
         HERE + "objects.mjs",
+        HERE + "triggers.mjs",
         HERE + "blocks.mjs",
     ])
     await loader
