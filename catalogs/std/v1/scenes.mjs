@@ -241,7 +241,7 @@ class BarNotif extends GameObject {
 
     init(args) {
         super.init(args)
-        this.color = "white"
+        this.barColor = "white"
         this.value = 1  // from 0 to 1
         this.width = 100
         this.height = 10
@@ -255,7 +255,7 @@ class BarNotif extends GameObject {
         const valWidth = ~~(width * this.value)
         ctx.fillStyle = "grey"
         ctx.fillRect(0, 0, width, height)
-        ctx.fillStyle = this.color
+        ctx.fillStyle = this.barColor
         ctx.fillRect(0, 0, valWidth, height)
         ctx.strokeStyle = "black"
         ctx.lineWidth = 1
@@ -268,7 +268,7 @@ class BarNotif extends GameObject {
 class HealthBar extends BarNotif {
     init(args) {
         super.init(args)
-        this.color = "red"
+        this.barColor = "red"
         this.playerId = args.playerId
     }
     update() {

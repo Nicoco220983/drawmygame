@@ -668,8 +668,7 @@ export class GameObject {
         assign(this.prototype, {
             width: 10,
             height: 10,
-            spriteDx: 0,
-            spriteDy: 0,
+            color: null,
             removed: false,
         })
     }
@@ -809,9 +808,11 @@ export class GameObject {
     }
 
     getGraphicsProps() {
+        const { color } = this
         const img = this.getBaseImg()
-        if(!img) return null
+        if(!color && !img) return null
         const props = this._graphicsProps ||= new GraphicsProps()
+        props.color = color
         props.img = img
         props.x = this.x
         props.y = this.y
@@ -1710,10 +1711,12 @@ export class SceneCommon {
         ctx.reset()
         const drawer = this.graphicsEngine
         this.drawBackground(drawer)
-        ctx.translate(~~-this.viewX, ~~-this.viewY)
+        this.objects.x = -this.viewX
+        this.objects.y = -this.viewY
         this.objects.draw(drawer)
+        this.visuals.x = -this.viewX
+        this.visuals.y = -this.viewY
         this.visuals.draw(drawer)
-        ctx.translate(~~this.viewX, ~~this.viewY)
         this.notifs.draw(drawer)
         return can
     }
@@ -1725,34 +1728,13 @@ export class SceneCommon {
     getBackgroundGraphicsProps() {
         const props = this._backgroundGraphicsProps ||= new GraphicsProps()
         props.color = this.backgroundColor
+        props.x = this.viewWidth/2
+        props.y = this.viewHeight/2
         props.width = this.viewWidth
         props.height = this.viewHeight
         props.visibility = this.backgroundAlpha
         return props
     }
-
-    // initBackground() {
-    //     if(this.game.isServerEnv) return
-    //     let { backgroundCanvas: can, viewWidth, viewHeight } = this
-    //     if(!viewWidth || !viewHeight) return
-    //     if(!can || can.width != viewWidth || can.height != viewHeight) {
-    //         can = this.backgroundCanvas = this.buildBackground()
-    //     }
-    //     return can
-    // }
-
-    // buildBackground() {
-    //     const { viewWidth, viewHeight } = this
-    //     const can = document.createElement("canvas")
-    //     assign(can, { width: viewWidth, height: viewHeight })
-    //     const ctx = can.getContext("2d")
-    //     if(this.backgroundColor) {
-    //         ctx.fillStyle = this.backgroundColor
-    //         ctx.globalAlpha = this.backgroundAlpha
-    //         ctx.fillRect(0, 0, viewWidth, viewHeight)
-    //     }
-    //     return can
-    // }
 
     async loadJoypadScene() {
         return null
@@ -3620,15 +3602,6 @@ export class ScoresBoard extends GameObject {
         this.drawBackground(baseImg)
         this.drawScores(baseImg)
         return baseImg
-    }
-
-    buildCanvas() {
-        const can = document.createElement("canvas")
-        can.width = this.width
-        can.height = this.height
-        this.drawBackground(can)
-        this.drawScores(can)
-        return can
     }
 
     drawBackground(can) {

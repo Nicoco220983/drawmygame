@@ -31,10 +31,11 @@ export class GraphicsEngine {
         const ctx = can.getContext("2d")
         for(let props of propss) {
             if(props.color) {
+                ctx.save()
                 ctx.fillStyle = props.color
                 ctx.globalAlpha = props.visibility
-                ctx.fillRect(0, 0, can.width, can.height)
-                ctx.globalAlpha = 1  // TODO: should not be necessary
+                ctx.fillRect(~~(props.x - props.width/2), ~~(props.y - props.height/2), props.width, props.height)
+                ctx.restore()
             }
             if(props.img) {
                 const img = this.transformImg(props.img, props.width, props.height, props.dirX, props.dirY, props.visibility)
