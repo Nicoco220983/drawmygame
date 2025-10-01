@@ -995,6 +995,37 @@ export class Viewer extends Trigger {
 }
 
 
+const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/invert_trigger.png")
+
+@CATALOG.registerObject("invert", {
+    label: "Invert (NOT)",
+    icon: InvertTriggerImg,
+    showInBuilder: true,
+})
+@LinkReaction.add("reactInvert", { label:"Invert", isDefault: true })
+export class InverterTrigger extends Trigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+        this.lastMsg = { value: 0 }
+    }
+
+    reactInvert(msg) {
+        this.lastMsg.value = msg.value
+    }
+
+    update() {
+        super.update()
+        this.triggered = this.lastMsg.value < .5
+    }
+
+    getBaseImg() {
+        return InvertTriggerImg
+    }
+}
+
+
 @LinkReaction.add("reactAggregate", { label:"aggregate", isDefault: true })
 export class AggregatorTrigger extends Trigger {
 
