@@ -338,7 +338,6 @@ class DraftScene extends SceneCommon {
                 let cls = Wall
                 if(modeKey == "platform") cls = PlatformWall
                 this.draftObject = this.addObject(cls, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
-                //this.draftObject.visibility = .5
             } else {
                 this.draftObject.x1 = pos.x
                 this.draftObject.y1 = pos.y
@@ -392,11 +391,7 @@ class DraftScene extends SceneCommon {
         ctx.reset()
         const drawer = this.graphicsEngine
         const gridImg = this.initGridImg()
-        if(gridImg) {
-            ctx.translate(~~-viewX, ~~-viewY)
-            ctx.drawImage(gridImg, 0, 0)
-            ctx.translate(~~viewX, ~~viewY)
-        }
+        if(gridImg) ctx.drawImage(gridImg, ~~-viewX, ~~-viewY)
         if(this.draftObject) {
             const props = this.draftObject.getGraphicsProps()
             if(props) {
@@ -404,11 +399,9 @@ class DraftScene extends SceneCommon {
                 drawer.draw(props)
             }
         }
-        ctx.translate(~~-viewX, ~~-viewY)
         this.drawSelections(ctx)
         this.drawLinkedObject(ctx)
         this.drawObjectLinks(ctx)
-        ctx.translate(~~viewX, ~~viewY)
         return can
     }
 
@@ -433,6 +426,10 @@ class DraftScene extends SceneCommon {
     }
 
     drawSelections(ctx) {
+        const { viewX, viewY } = this.game.scenes.game
+        ctx.save()
+        ctx.lineWidth = 1
+        ctx.strokeStyle = "grey"
         for(let sel of this.selections) {
             let left, top, width, height
             if(sel instanceof Wall) {
@@ -454,27 +451,31 @@ class DraftScene extends SceneCommon {
                 width = x2 - x1
                 height = y2 - y1
             }
-            ctx.lineWidth = 1
-            ctx.strokeStyle = "grey"
             ctx.beginPath()
             ctx.setLineDash([5, 5])
-            ctx.rect(left, top, width, height)
+            ctx.rect(~~(left-viewX), ~~(top-viewY), width, height)
             ctx.stroke()
         }
+        ctx.restore()
     }
 
     drawLinkedObject(ctx) {
+        const { viewX, viewY } = this.game.scenes.game
         if(!this.linkedObject) return
         const { left, top, width, height } = this.linkedObject.getHitBox()
+        ctx.save()
         ctx.lineWidth = 2
         ctx.strokeStyle = "red"
         ctx.beginPath()
-        ctx.rect(left, top, width, height)
+        ctx.rect(~~(left-viewX), ~~(top-viewY), width, height)
         ctx.stroke()
+        ctx.restore()
     }
 
     drawObjectLinks(ctx) {
         const gameScn = this.game.scenes.game
+        const { viewX, viewY } = gameScn
+        ctx.save()
         ctx.lineWidth = 1
         ctx.strokeStyle = "red"
         ctx.beginPath()
@@ -483,11 +484,12 @@ class DraftScene extends SceneCommon {
             const objLinks = obj.objectLinks
             if(objLinks) objLinks.forEach(objLink => {
                 const trigObj = objLink.triggerObject
-                ctx.moveTo(obj.x, obj.y)
-                ctx.lineTo(trigObj.x, trigObj.y)
+                ctx.moveTo(~~(obj.x-viewX), ~~(obj.y-viewY))
+                ctx.lineTo(~~(trigObj.x-viewX), ~~(trigObj.y-viewY))
             })
         })
         ctx.stroke()
+        ctx.restore()
     }
 }
 

@@ -233,6 +233,7 @@ function newTextCanvas(text, kwargs) {
     if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
+    ctx.save()
     ctx.fillStyle = "black"
     ctx.font = "30px serif"
     assign(ctx, kwargs)
@@ -243,6 +244,7 @@ function newTextCanvas(text, kwargs) {
     ctx.font = "30px serif"
     assign(ctx, kwargs)
     ctx.fillText(text, 0, metrics.actualBoundingBoxAscent)
+    ctx.restore()
     return canvas
 }
 
