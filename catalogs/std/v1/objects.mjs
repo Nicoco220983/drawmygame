@@ -1069,7 +1069,7 @@ export class AggregatorTrigger extends Trigger {
 const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/min_trigger.png")
 
 @CATALOG.registerObject("min", {
-    label: "Min",
+    label: "Min (AND)",
     icon: MinTriggerImg,
     showInBuilder: true,
 })
@@ -1093,7 +1093,7 @@ export class MinTrigger extends AggregatorTrigger {
 const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/max_trigger.png")
 
 @CATALOG.registerObject("max", {
-    label: "Max",
+    label: "Max (OR)",
     icon: MaxTriggerImg,
     showInBuilder: true,
 })
@@ -1110,6 +1110,32 @@ export class MaxTrigger extends AggregatorTrigger {
 
     getBaseImg() {
         return MaxTriggerImg
+    }
+}
+
+
+const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/xor_trigger.png")
+
+@CATALOG.registerObject("xor", {
+    label: "Xor",
+    icon: XorTriggerImg,
+    showInBuilder: true,
+})
+export class XorTrigger extends AggregatorTrigger {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 30
+    }
+
+    aggregate(vals) {
+        let aggVal = 0
+        for(let val of vals) aggVal = abs(aggVal - val)
+        return aggVal
+    }
+
+    getBaseImg() {
+        return XorTriggerImg
     }
 }
 
