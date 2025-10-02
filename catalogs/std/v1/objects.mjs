@@ -70,7 +70,7 @@ export class Nico extends Hero {
             this.hand ||= this.scene.addObject(NicoHand, {
                 owner: this
             })
-        } else if(this.hand) {
+        } else if(this.hand && !this.handRemIt) {
             this.hand.remove()
             this.hand = null
         }
@@ -268,6 +268,11 @@ export class Sword extends Weapon {
         }
     }
 
+    act() {
+        if(this.isAttacking()) return
+        this.lastAttackAge = 0
+    }
+
     canAttackObject(obj) {
         if(!this.isAttacking()) return false
         return super.canAttackObject(obj)
@@ -281,11 +286,6 @@ export class Sword extends Weapon {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
 
-    act() {
-        if(this.isAttacking()) return
-        this.lastAttackAge = 0
-    }
-
     getBaseImg() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if(ratioSinceLastAttack <= 1) {
@@ -293,6 +293,77 @@ export class Sword extends Weapon {
         } else {
             return SwordImg
         }
+    }
+}
+
+
+const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
+
+@CATALOG.registerObject("boxglove", {
+    label: "Boxing Glove",
+    icon: BoxingGloveImg,
+})
+@BodyMixin.add({
+    width: 25,
+    height: 20,
+})
+@StateInt.define("lastAttackAge", { default: Infinity })
+export class BoxingGlove extends Weapon {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.isActionExtra = true
+        this.attackDamages = 0
+        this.attackKnockback = 500
+        this.oneAttackByObject = true
+        this.attackDurationIt = .1 * this.game.fps
+    }
+
+    update() {
+        super.update()
+        this.syncPos()
+        if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
+        if(!this.isAttacking()) this.resetOneAttackByObject()
+        this.lastAttackAge += 1
+        if(this.lastAttackAge > this.attackDurationIt) this.lastAttackAge = Infinity
+    }
+
+    syncPos() {
+        const { owner } = this
+        if(!owner) return
+        this.dirX = owner.dirX
+        this.y = owner.y
+        if(this.isAttacking()) {
+            this.x = owner.x + 40 * owner.dirX
+            this.width = 40
+            this.height = 32
+        } else {
+            this.x = owner.x + 25 * owner.dirX
+            this.width = 25
+            this.height = 20
+        }
+    }
+
+    act() {
+        if(this.isAttacking()) return
+        this.lastAttackAge = 0
+    }
+
+    canAttackObject(obj) {
+        if(!this.isAttacking()) return false
+        return super.canAttackObject(obj)
+    }
+
+    onAttack(obj, props) {
+        this.game.audio.playSound(HandHitAud)
+    }
+
+    isAttacking() {
+        return this.lastAttackAge <= this.attackDurationIt
+    }
+
+    getBaseImg() {
+        return BoxingGloveImg
     }
 }
 
