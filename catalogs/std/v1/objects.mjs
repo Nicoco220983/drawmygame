@@ -625,6 +625,8 @@ export class BlobEnemy extends Enemy {
 
     init(kwargs) {
         super.init(kwargs)
+        this.maxSpeed = 30
+        this.acc = 1000
         this.blockChecker = this.scene.addObject(BlobEnemyBlockChecker, {
             owner: this,
         })
@@ -632,17 +634,19 @@ export class BlobEnemy extends Enemy {
 
     update() {
         super.update()
-        const { fps } = this.game
+        const { dt } = this.game
         // move
         if(abs(this.speedX) < 10) this.mayChangeDir()
-        if(this.speedResY < 0) this.speedX = this.dirX * 30
+        if(this.speedResY < 0) this.speedX = sumTo(this.speedX, this.acc * dt, this.dirX * this.maxSpeed)
         this.lastChangeDirAge += 1
     }
 
     mayChangeDir() {
+        if(this.speedResY >= 0) return
         if(this.lastChangeDirAge < this.game.fps) return
-        this.dirX *= -1
         this.lastChangeDirAge = 0
+        this.dirX *= -1
+        this.speedX *= -1
     }
 
     canAttackObject(obj) {
