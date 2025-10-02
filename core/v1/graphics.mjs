@@ -1,3 +1,4 @@
+const { round, PI } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
 
@@ -12,6 +13,7 @@ export class GraphicsProps {
         this.height = kwargs?.height ?? 50
         this.dirX = kwargs?.dirX ?? 1
         this.dirY = kwargs?.dirY ?? 1
+        this.angle = kwargs?.angle ?? 0
         this.visibility = kwargs?.visibility ?? 1
     }
 
@@ -38,7 +40,7 @@ export class GraphicsEngine {
                 ctx.restore()
             }
             if(props.img) {
-                const img = this.transformImg(props.img, props.width, props.height, props.dirX, props.dirY, props.visibility)
+                const img = this.transformImg(props.img, props.width, props.height, props.dirX, props.dirY, props.angle, props.visibility)
                 if(img && img.width>0 && img.height>0) {
                     ctx.drawImage(img, ~~(props.x - img.width/2), ~~(props.y - img.height/2))
                 }
@@ -46,8 +48,11 @@ export class GraphicsEngine {
         }
     }
 
-    transformImg(baseImg, width, height, dirX, dirY, visibility) {
-        const key = `${width}:${height}:${dirX}:${dirY}:${visibility}`
+    transformImg(baseImg, width, height, dirX, dirY, angle, visibility) {
+        width = round(width)
+        height = round(height)
+        angle = round(angle)
+        const key = `${width}:${height}:${dirX}:${dirY}:${angle}:${visibility}`
         const transImgs = baseImg._transImgs ||= {}
         let resImg = transImgs[key]
         if(resImg) return resImg
@@ -55,10 +60,11 @@ export class GraphicsEngine {
         const { width: baseWidth, height: baseHeight } = baseImg
         resImg = transImgs[key] = newCanvas(width, height)
         const ctx = resImg.getContext("2d")
-        ctx.translate(dirX >= 0 ? 0 : width, dirY >= 0 ? 0 : height)
         ctx.scale(width/baseWidth * dirX, height/baseHeight * dirY)
+        ctx.translate(baseWidth/2 * dirX, baseHeight/2 * dirY)
+        ctx.rotate(angle * PI / 180)
         ctx.globalAlpha = visibility
-        ctx.drawImage(baseImg, 0, 0)
+        ctx.drawImage(baseImg, -baseWidth/2, -baseHeight/2)
         return resImg
     }
 }

@@ -651,6 +651,7 @@ export class ObjectLink {
 
 @LinkTrigger.add("isRemoved", { isDefault: true })
 @LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
+@StateInt.define("angle", { default: 0 })
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
 @StateInt.define("y", { showInBuilder: true })
@@ -820,6 +821,7 @@ export class GameObject {
         props.height = this.height ?? 50
         props.dirX = this.dirX
         props.dirY = this.dirY
+        props.angle = this.angle
         return props
     }
 

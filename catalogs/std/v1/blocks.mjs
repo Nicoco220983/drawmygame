@@ -182,7 +182,7 @@ export class Cloud extends Block {
 })
 class CloudChecker extends GameObject {
     static STATEFUL = false
-    
+
     init(kwargs) {
         super.init(kwargs)
         this.owner = kwargs.owner
