@@ -1,5 +1,5 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -194,5 +194,73 @@ class CloudChecker extends GameObject {
 
     onBlock(obj) {
         this.owner.onBlock(obj)
+    }
+}
+
+
+@AttackMixin.add()
+@StateInt.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
+@StateInt.define("duration", { default: 3, showInBuilder: true })
+@StateInt.define("countdown", { default: 1, showInBuilder: true })
+@StateEnum.define("dir", { default: "right", options: { "up": "Up", "down": "Down", "left": "Left", "right": "Right"}, showInBuilder: true })
+export class Trap extends Block {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.canBlock = false
+        this.checkBlockAnyway = true
+        this.team = "engine"
+        this.oneAttackByObject = true
+    }
+
+    getAngle() {
+        const { dir } = this
+        if(dir == "right") return 0
+        if(dir == "down") return 90
+        if(dir == "left") return 180
+        if(dir == "up") return 270
+    }
+
+    onBlock() {
+        super.onBlock()
+        if(this.lastDetectAge == Infinity) this.lastDetectAge = 0
+    }
+
+    update() {
+        const { countdown, duration } = this
+        const { fps } = this.game
+        super.update()
+        this.canAttack = this.lastDetectAge > countdown * fps && this.lastDetectAge < (countdown + duration) * fps
+        this.lastDetectAge += 1
+        if(this.lastDetectAge > (countdown + duration) * fps) this.lastDetectAge = Infinity
+        if(this.lastDetectAge == Infinity) this.resetOneAttackByObject()
+    }
+
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        props.angle = this.getAngle()
+        props.visibility = this.canAttack ? 1 : 0
+        return props
+    }
+}
+
+
+const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
+
+@CATALOG.registerObject("boxblk", {
+    label: "Cloud",
+    icon: BoxingGloveImg,
+    showInBuilder: true,
+})
+export class BoxingTrap extends Trap {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.attackDamages = 0
+        this.attackKnockback = 1000
+    }
+
+    getBaseImg() {
+        return BoxingGloveImg
     }
 }

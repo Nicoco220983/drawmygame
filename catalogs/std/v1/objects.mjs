@@ -445,7 +445,7 @@ export class Shuriken extends Projectile {
     }
 
     update() {
-        this.angle += 2
+        this.angle += 30
         this.itToLive -= 1
         if(this.itToLive <= 0) this.remove()
         if(this.speedResX || this.speedResY) this.remove()
