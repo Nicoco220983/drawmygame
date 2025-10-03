@@ -1695,8 +1695,8 @@ export class SceneCommon {
     }
 
     syncPosSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.game
-        assign(this, { x, y, viewWidth, viewHeight })
+        const { visible, x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.game
+        assign(this, { visible, x, y, viewWidth, viewHeight })
     }
 
     updateWorld() {

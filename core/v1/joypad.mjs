@@ -17,9 +17,7 @@ export class JoypadScene {
         this.y = 0
         this.width = 800
         this.height = floor(this.width * 9 / 16)
-        this.visible = true
-        this.viewWidth = this.width
-        this.viewHeight = this.height
+        this.syncPosSize()
         this.backgroundColor = "black"
         this.backgroundAlpha = 1
         if(!this.game.isServerEnv) {
@@ -47,8 +45,8 @@ export class JoypadScene {
     }
 
     syncPosSize() {
-        const { x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.joypad
-        assign(this, { x, y, viewWidth, viewHeight })
+        const { visible, x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.joypad
+        assign(this, { visible, x, y, viewWidth, viewHeight })
     }
 
     onTouch() {
@@ -83,6 +81,8 @@ export class JoypadScene {
     getBackgroundGraphicsProps() {
         const props = this._backgroundGraphicsProps ||= new GraphicsProps()
         props.color = this.backgroundColor
+        props.x = this.viewWidth/2
+        props.y = this.viewHeight/2
         props.width = this.viewWidth
         props.height = this.viewHeight
         props.visibility = this.backgroundAlpha
