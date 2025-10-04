@@ -57,6 +57,10 @@
     </flexrow>
     <flexrow id="section_game" style="display: none">
         <flexcol>
+            <flexrow>
+                <input id="map_id" value="0">
+                <button id="load_map">Load map</button>
+            </flexrow>
             <button id="fullscreen">Fullscreen</button>
             <button id="start">Start</button>
             <button id="restart">Restart</button>
@@ -182,6 +186,14 @@ try {
         syncJoypadLink()
     }
 
+    document.getElementById("load_map").onclick = async () => {
+        const mapId = document.getElementById("map_id").value
+        if(!mapId) return
+        await fetch(`/room/${roomId}/map/${mapId}`, {
+            method: "POST"
+        })
+    }
+
     const fullscrenEl = document.getElementById("fullscreen")
     gameParentEl.ontouchstart = evt => {
         if(!IS_MOBILE) return 
@@ -199,8 +211,8 @@ try {
 
     async function main() {
         catalog = await loadCatalog()
-        await getMap()
         await connectToRoom()
+        await getMap()
         await initGame()
         requestState()
     }
@@ -220,6 +232,7 @@ try {
                 const data = evt.data.substring(MSG_KEY_LENGTH)
                 if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
                 else if(key === MSG_KEYS.STATE) handleState(ws, data)
+                else if(key === MSG_KEYS.GAME_REINIT) handleGameReinit(ws)
                 else if(key === MSG_KEYS.PING) handlePing(ws, data)
             })
             ws.addEventListener('close', () => {
@@ -236,24 +249,24 @@ try {
         await map.importFromBinary(mapBin)
     }
 
-    let gameLoader = null
-    async function initGame() {
+    let catalogLoader = null
+    async function initGame(force) {
         if(!isGameVisible() && !isJoypadVisible()) return
-        gameLoader ||= loadGame()
-        await gameLoader
-        syncGameShow()
-    }
-
-    async function loadGame() {
-        await catalog.preloadAll()
-        game = new Game(gameParentEl, catalog, map, ws.id, {
-            mode: MODE_CLIENT,
-            sendPing: () => ws.send(MSG_KEYS.PING),
-            sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
-            sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
-            debug: isDebugMode,
-        })
-        game.run()
+        catalogLoader ||= catalog.preloadAll()
+        await catalogLoader
+        if(!game || force) {
+            if(game) game.stop()
+            gameParentEl.innerHTML = ""
+            game = new Game(gameParentEl, catalog, map, ws.id, {
+                mode: MODE_CLIENT,
+                sendPing: () => ws.send(MSG_KEYS.PING),
+                sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
+                sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
+                debug: isDebugMode,
+            })
+            game.run()
+            syncGameShow()
+        }
     }
 
     function requestState() {
@@ -288,6 +301,11 @@ try {
 
     function handleState(ws, data) {
         if(game) game.receiveStatesFromLeader(data)
+    }
+
+    async function handleGameReinit(ws) {
+        await getMap()
+        await initGame(true)
     }
 
     function handlePing(ws, data) {

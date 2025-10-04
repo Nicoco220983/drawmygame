@@ -49,8 +49,14 @@
         <flexcol id="menu" style="padding:1em">
             <flexrow>
                 <button id="game_draw">[D]RAW</button>
-                <button id="game_start">[P]LAY !</button>
+            </flexrow>
+            <flexrow>
+                <button id="game_save">SAVE</button>
+                <input id="game_map_id" value="0">
                 <button id="game_share">SHARE</button>
+            </flexrow>
+            <flexrow>
+                <button id="game_start">[P]LAY !</button>
                 <button id="game_multi">PLAY MULTI !</button>
             </flexrow>
             <flexrow>
@@ -151,7 +157,18 @@ function setBuilderMode(builderMode, builderModeKey) {
 
 
 document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
-document.getElementById("game_start").onclick = Keys["p"] = () => startAndShowGame(false)
+
+async function saveMap() {
+    const mapId = document.getElementById("game_map_id").value
+    if(!mapId) return
+    if(mode == "builder") gameBuilder.syncMap()
+    const mapBin = await map.exportAsBinary()
+    await fetch(`/map/${mapId}`, {
+        method: "POST",
+        body: new Blob([mapBin], {type: 'application/octet-stream'}),
+    })
+}
+document.getElementById("game_save").onclick = saveMap
 document.getElementById("game_share").onclick = async () => {
     if(mode == "builder") gameBuilder.syncMap()
     console.log("Map: ", map)
@@ -167,14 +184,22 @@ document.getElementById("game_share").onclick = async () => {
         document.getElementById("game_url_copied").style.display = ""
     }
 }
+
+document.getElementById("game_start").onclick = Keys["p"] = () => startAndShowGame(false)
 document.getElementById("game_multi").onclick = async () => {
+    const mapId = document.getElementById("game_map_id").value
+    if(!mapId) return
+    await saveMap()
     const res = await fetch("/newroom", { method: "POST" })
     const { roomId } = await res.json()
-    if(mode == "builder") syncMap()
-    const mapBin = await map.exportAsBinary()
-    await fetch(`/room/${roomId}/map`, {
-        method: "POST",
-        body: new Blob([mapBin], {type: 'application/octet-stream'}),
+    // if(mode == "builder") syncMap()
+    // const mapBin = await map.exportAsBinary()
+    // await fetch(`/room/${roomId}/map`, {
+    //     method: "POST",
+    //     body: new Blob([mapBin], {type: 'application/octet-stream'}),
+    // })
+    await fetch(`/room/${roomId}/map/${mapId}`, {
+        method: "POST"
     })
     let url = `${window.location.origin}/r/${roomId}`
     if(isDebugMode) url += '?debug=1'

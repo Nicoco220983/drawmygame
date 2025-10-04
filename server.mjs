@@ -41,6 +41,7 @@ class GameServer {
 
   constructor() {
     this.port = PORT
+    this.maps = {}
     this.rooms = {}
     this.initApp()
   }
@@ -77,20 +78,45 @@ class GameServer {
     this.app.get('/ping', (req, res) => {
       res.end('pong')
     })
+    
+    this.app.post("/map/:mapId", (req, res) => {
+      const { mapId } = req.params
+      const mapBuf = new Buffer(req.body.toString('binary'),'binary')
+      this.maps[mapId] = mapBuf
+      res.end()
+    })
+
+    // this.app.get("/map/:mapId", (req, res) => {
+    //   const mapBuf = this.maps[mapId]
+    //   if(!mapBuf) return res.sendStatus(404)
+    //   res.writeHead(200, {
+    //     "Content-Type": "application/octet-stream"
+    //   }).end(mapBuf)
+    // })
 
     this.app.post("/newroom", (req, res) => {
       const roomId = this.newRoom()
       res.json({ roomId })
     })
 
-    this.app.post("/room/:roomId/map", async (req, res) => {
-      const { roomId } = req.params
+    this.app.post("/room/:roomId/map/:mapId", async (req, res) => {
+      const { roomId, mapId } = req.params
       const room = this.rooms[roomId]
-      if(!room) return res.sendStatus(404)
-      room.mapBuf = new Buffer(req.body.toString('binary'),'binary')
+      const mapBuf = this.maps[mapId]
+      if(!room || !mapBuf) return res.sendStatus(404)
+      room.mapBuf = mapBuf
       this.startGame(room)
       res.end()
     })
+
+    // this.app.post("/room/:roomId/map", async (req, res) => {
+    //   const { roomId } = req.params
+    //   const room = this.rooms[roomId]
+    //   if(!room) return res.sendStatus(404)
+    //   room.mapBuf = new Buffer(req.body.toString('binary'),'binary')
+    //   this.startGame(room)
+    //   res.end()
+    // })
 
     this.app.get("/room/:roomId/map", (req, res) => {
       const { roomId } = req.params
@@ -213,6 +239,7 @@ class GameServer {
     const map = new GameMap()
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
+    if(room.game) room.game.stop()
     const game = room.game = new Game(null, catalog, map, null, {
       mode: MODE_SERVER,
       sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
@@ -220,6 +247,14 @@ class GameServer {
     })
     await game.loadWaitingScenes()
     game.run()
+    for(let clientId in room.clients) {
+      const client = room.clients[clientId]
+      const name = client.playerName
+      const color = client.playerColor
+      if(name) game.addPlayer(clientId, { num: client.num, name, color })
+    }
+    room.sendAll(MSG_KEYS.GAME_REINIT)
+    //game.getAndSendFullState()
   }
 
   handlePing(ws) {

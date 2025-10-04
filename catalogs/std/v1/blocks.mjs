@@ -251,7 +251,6 @@ export class Trap extends Block {
     }
 
     reactTrigger(msg) {
-        console.log("TMP msg", msg)
         if(msg.value >= .5 && this.lastDetectAge == Infinity) this.lastDetectAge = this.countdown * this.game.fps
     }
 

@@ -554,8 +554,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 @StateInt.define("iteration")
 export class Explosion extends GameObject {
 
-    getAttackProps() {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
         props.attacker = this.owner || this
         return props
     }

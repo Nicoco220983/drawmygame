@@ -19,6 +19,7 @@ export const MSG_KEYS = {
     JOIN_GAME: 'JOI',
     STATE: 'STT',
     GAME_INSTRUCTION: 'GMI',
+    GAME_REINIT: 'GMR',
 }
 
 const STATE_TYPE_FULL = "F"
