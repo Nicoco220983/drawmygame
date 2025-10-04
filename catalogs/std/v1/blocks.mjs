@@ -198,6 +198,10 @@ class CloudChecker extends GameObject {
 }
 
 
+const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/detect.wav")
+
+
+
 @AttackMixin.add()
 @StateInt.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
 @StateInt.define("duration", { default: 3, showInBuilder: true })
@@ -223,7 +227,10 @@ export class Trap extends Block {
 
     onBlock() {
         super.onBlock()
-        if(this.lastDetectAge == Infinity) this.lastDetectAge = 0
+        if(this.lastDetectAge == Infinity) {
+            this.lastDetectAge = 0
+            this.game.audio.playSound(DetectAud)
+        }
     }
 
     update() {
@@ -234,6 +241,12 @@ export class Trap extends Block {
         this.lastDetectAge += 1
         if(this.lastDetectAge > (countdown + duration) * fps) this.lastDetectAge = Infinity
         if(this.lastDetectAge == Infinity) this.resetOneAttackByObject()
+    }
+
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        props.knockbackAngle = this.getAngle()
+        return props
     }
 
     getGraphicsProps() {

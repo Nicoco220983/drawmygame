@@ -2718,6 +2718,7 @@ class AttackProps {
         this.attacker = attacker
         this.damages = kwargs?.damages ?? 0
         this.knockback = kwargs?.knockback ?? 0
+        this.knockbackAngle = kwargs.knockbackAngle ?? 0
     }
 }
 
@@ -2784,7 +2785,7 @@ export class AttackMixin extends Mixin {
             origHit.call(this, obj)
             if(this.canReallyAttackObject(obj)) this.attack(obj)
         }
-        proto.getAttackProps = this.objGetAttackProps
+        proto.getAttackProps ||= this.objGetAttackProps
         proto.attack = this.objAttack
         proto.onAttack ||= function(obj, props) {}
         proto.getAttacked ||= this.objGetAttacked
@@ -2816,6 +2817,7 @@ export class AttackMixin extends Mixin {
         const props = this._attackProps ||= new AttackProps(this, {
             damages: this.attackDamages,
             knockback: this.attackKnockback,
+            knockbackAngle : atan2(obj.y-this.y, obj.x-this.x) * 180 / PI
         })
         return props
     }
@@ -2836,9 +2838,9 @@ export class AttackMixin extends Mixin {
         }
         const knockback = props?.knockback
         if(knockback) {
-            const dirX = (props.attacker.x - this.x) > 0 ? -1 : 1
-            this.speedX = knockback * dirX
-            this.speedY = -knockback
+            const knockbackAngle = props.knockbackAngle * PI / 180
+            this.speedX = knockback * cos(knockbackAngle)
+            this.speedY = knockback * sin(knockbackAngle)
         }
         this.onGetAttacked(props)
     }
@@ -3204,8 +3206,8 @@ export class Weapon extends Extra {
         return owner ? (obj != owner && owner.canAttackObject(obj)) : true
     }
 
-    getAttackProps() {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }
@@ -3242,8 +3244,8 @@ export class Projectile extends GameObject {
         return owner ? (obj != owner && owner.canAttackObject(obj)) : true
     }
 
-    getAttackProps() {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this)
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }

@@ -193,12 +193,14 @@ class NicoHand extends Weapon {
         super.init(kwargs)
         this.syncPos()
         this.attackKnockback = 200
+        this.initIt = this.scene.iteration
         this.game.audio.playSound(SlashAud)
     }
 
     update() {
         super.update()
         this.syncPos()
+        this.canAttack = this.scene.iteration == this.initIt
     }
 
     syncPos() {
