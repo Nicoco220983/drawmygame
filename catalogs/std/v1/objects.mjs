@@ -210,6 +210,12 @@ class NicoHand extends Weapon {
         this.dirX = owner.dirX
     }
 
+    getAttackProps(obj) {
+        const props = super.getAttackProps(obj)
+        props.knockbackAngle = this.dirX > 0 ? -45 : -135
+        return props
+    }
+
     onAttack(obj, props) {
         this.game.audio.playSound(HandHitAud)
     }
@@ -354,6 +360,12 @@ export class BoxingGlove extends Weapon {
     canAttackObject(obj) {
         if(!this.isAttacking()) return false
         return super.canAttackObject(obj)
+    }
+
+    getAttackProps(obj) {
+        const props = super.getAttackProps(obj)
+        props.knockbackAngle = this.dirX > 0 ? -45 : -135
+        return props
     }
 
     onAttack(obj, props) {
