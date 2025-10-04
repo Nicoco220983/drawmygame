@@ -378,7 +378,8 @@ export class TagScene extends GameScene {
     hackHero(hero) {
         hero.maxHealth = Infinity
         hackMethod(hero, "onGetAttacked", 0, evt => {
-            const attacker = evt.inputArgs[0]
+            const attackProps = evt.inputArgs[0]
+            const { attacker } = attackProps
             const tag = this.tag
             if(!tag || !attacker || tag.owner != attacker) return
             tag.owner = hero
