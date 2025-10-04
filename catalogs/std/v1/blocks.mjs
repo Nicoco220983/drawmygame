@@ -203,6 +203,7 @@ const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/detect.w
 
 
 @AttackMixin.add()
+@LinkReaction.add("reactTrigger", { label:"trigger", isDefault: true })
 @StateInt.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
 @StateInt.define("duration", { default: 3, showInBuilder: true })
 @StateInt.define("countdown", { default: 1, showInBuilder: true })
@@ -247,6 +248,11 @@ export class Trap extends Block {
         const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
         props.knockbackAngle = this.getAngle()
         return props
+    }
+
+    reactTrigger(msg) {
+        console.log("TMP msg", msg)
+        if(msg.value >= .5 && this.lastDetectAge == Infinity) this.lastDetectAge = this.countdown * this.game.fps
     }
 
     getGraphicsProps() {
