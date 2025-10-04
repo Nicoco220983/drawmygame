@@ -1370,7 +1370,7 @@ export class GameCommon {
         await this.loadScenesFromMap(scnMap.key, scnMapId)
     }
 
-    async loadScenesFromMap(scnKey, scnMapId=undefined) {
+    async loadScenesFromMap(scnKey, scnMapId=undefined, scnId=undefined) {
         const { catalog } = this, scnCat = catalog.scenes[scnKey]
         const  { map } = this.game
         const paths = new Set([scnCat.path])
@@ -1380,11 +1380,11 @@ export class GameCommon {
             scnMap.objects.forEach(objMap => paths.add(catalog.objects[objMap.key].path))
         }
         const mods = await catalog.preload(Array.from(paths))
-        await this.loadScenes(mods[0][scnCat.name], scnMapId)
+        await this.loadScenes(mods[0][scnCat.name], scnMapId, scnId)
     }
 
-    async loadScenes(cls, scnMapId=undefined) {
-        const scn = this.createScene(cls)
+    async loadScenes(cls, scnMapId=undefined, scnId=undefined) {
+        const scn = this.createScene(cls, { id: scnId })
         if(scnMapId !== undefined) scn.loadMap(scnMapId)
         this.scenes.game = scn
         if(this.joypadVisible) await this.loadJoypadScene()
@@ -1400,7 +1400,15 @@ export class GameCommon {
     }
 
     createScene(cls, kwargs) {
-        return new cls(this, kwargs)
+        this._nextSceneId ||= 0
+        if(kwargs?.id !== undefined) this._nextSceneId = kwargs.id
+        else {
+            kwargs ||= {}
+            kwargs.id = this._nextSceneId
+        }
+        const scn = new cls(this, kwargs)
+        this._nextSceneId += 1
+        return scn
     }
 
     updateGameLoop() {
@@ -1560,6 +1568,7 @@ export class SceneCommon {
     }
 
     init(kwargs) {
+        this.id = kwargs?.id
         this.x = 0
         this.y = 0
         this.viewX = 0
@@ -1749,6 +1758,7 @@ export class SceneCommon {
     getState(isInitState=false) {
         const state = {}
         state.key = this.constructor.KEY
+        state.id = this.id
         if(!isInitState) {
             if(this.mapId) state.map = this.mapId
             if(this.paused) state.paused = true
@@ -2049,9 +2059,9 @@ export class Game extends GameCommon {
         this.step = state.step
         this.players = state.players
         let gameScn = this.scenes.game, gameState = state.game
-        const { map: scnMapId, key: scnMapKey } = gameState
-        if(gameScn.mapId != scnMapId || gameScn.constructor.KEY != scnMapKey) {
-            await this.loadScenesFromMap(scnMapKey, scnMapId)
+        const { id: scnId, map: scnMapId, key: scnMapKey } = gameState
+        if(gameScn.id != scnId || gameScn.mapId != scnMapId || gameScn.constructor.KEY != scnMapKey) {
+            await this.loadScenesFromMap(scnMapKey, scnMapId, scnId)
             gameScn = this.scenes.game
         }
         gameScn.setState(gameState)
