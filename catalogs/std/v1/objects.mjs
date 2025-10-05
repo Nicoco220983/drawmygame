@@ -853,24 +853,47 @@ const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
     label: "Star",
     icon: StarImg,
 })
-@CollectMixin.add({
-    canCollect: false,
-    canGetCollected: true,
+@PhysicsMixin.add({
+    affectedByGravity: false,
+    canGetBlocked: true,
+    bouncingFactor: 1,
 })
-export class Star extends GameObject {
+@BodyMixin.add({
+    width: 30,
+    height: 30,
+})
+@StateInt.define("speed", { showInBuilder: true })
+export class Star extends Extra {
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.width = this.height = 30
-    }
-
-    onGetCollected(collector) {
-        this.remove()
+    update() {
+        super.update()
+        const { speed, owner, speedX, speedY, scene } = this
+        if(owner) {
+            this.speedX = this.speedY = 0
+        } else if(speed > 0) {
+            if(this.speedX == 0 && this.speedY == 0) {
+                // first speed
+                const angle = floor(this.scene.rand("starangle") * 4) * 90 + 45
+                this.speedX = this.baseSpeedX = this.speed * cos(angle * PI / 180)
+                this.speedY = this.baseSpeedY = this.speed * sin(angle * PI / 180)
+            } else {
+                // maintain constant speed
+                const curSpd = hypot(this.speedX, this.speedY)
+                this.speedX *= speed / curSpd
+                this.speedY *= speed / curSpd
+            }
+        }
+        // scene border
+        if(speedX > 0 && this.x > scene.width) this.speedX *= -1
+        else if(speedX < 0 && this.x < 0) this.speedX *= -1
+        if(speedY > 0 && this.y > scene.height) this.speedY *= -1
+        else if(speedY < 0 && this.y < 0) this.speedY *= -1
     }
 
     getGraphicsProps() {
         const { fps } = this.game, { iteration } = this.scene
         const props = super.getGraphicsProps()
+        if(!props) return null
         const rand = this._graphicsRand ||= floor(random() * fps)
         const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
         props.y += props.height * .05 * cosAngle
@@ -878,7 +901,7 @@ export class Star extends GameObject {
     }
 
     getBaseImg() {
-        return StarImg
+        return this.owner ? null : StarImg
     }
 }
 

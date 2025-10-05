@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, PlatformWall, ObjectLink, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, PlatformWall, BouncingWall, ObjectLink, Hero, now, FPS, nbKeys } from './game.mjs'
 import { GraphicsProps } from './graphics.mjs'
 
 
@@ -332,11 +332,13 @@ class DraftScene extends SceneCommon {
             if(this.prevPos !== null) {
                 let cls = Wall
                 if(modeKey == "platform") cls = PlatformWall
+                else if(modeKey == "bouncing") cls = BouncingWall
                 gameScn.addObject(cls, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
             if(!this.draftObject) {
                 let cls = Wall
                 if(modeKey == "platform") cls = PlatformWall
+                else if(modeKey == "bouncing") cls = BouncingWall
                 this.draftObject = this.addObject(cls, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
             } else {
                 this.draftObject.x1 = pos.x

@@ -1715,6 +1715,20 @@ export class SceneCommon {
         this.visuals.update()
     }
 
+    rand(key) {
+        let seed = 0
+        for(let i=0; i<key.length; ++i) {
+            seed = ((seed << 5) - seed) + key.charCodeAt(i)
+        }
+        seed = (seed + this.iteration + this.seed) & 0x7FFFFFFF
+        if(seed === 0) seed = 1
+        const a = 1103515245
+        const c = 12345
+        const m = 2147483647
+        seed = (a * seed + c) % m
+        return seed / m
+    }
+
     draw() {
         const can = this.canvas
         can.width = this.viewWidth
@@ -2431,20 +2445,6 @@ export class GameScene extends SceneCommon {
         }
     }
 
-    rand(key) {
-        let seed = 0
-        for(let i=0; i<key.length; ++i) {
-            seed = ((seed << 5) - seed) + key.charCodeAt(i)
-        }
-        seed = (seed + this.iteration + this.seed) & 0x7FFFFFFF
-        if(seed === 0) seed = 1
-        const a = 1103515245
-        const c = 12345
-        const m = 2147483647
-        seed = (a * seed + c) % m
-        return seed / m
-    }
-
     createPauseScene() {
         return new PauseScene(this.game)
     }
@@ -2634,6 +2634,7 @@ export class PhysicsMixin extends Mixin {
         this.canGetBlocked = kwargs?.canGetBlocked ?? this.canMove
         this.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
         this.checkGetBlockedAnyway = kwargs?.checkGetBlockedAnyway ?? false
+        this.bouncingFactor = kwargs?.bouncingFactor ?? 0
     }
 
     initObjectClass(cls) {
@@ -2645,6 +2646,7 @@ export class PhysicsMixin extends Mixin {
         proto.canGetBlocked = this.canGetBlocked
         proto.checkBlockAnyway = this.checkBlockAnyway
         proto.checkGetBlockedAnyway = this.checkGetBlockedAnyway
+        proto.bouncingFactor = this.bouncingFactor
         proto.speedResX = 0
         proto.speedResY = 0
         proto.onBlock ||= function(obj) {}
@@ -2887,7 +2889,6 @@ export class CollectMixin extends Mixin {
         super.init(kwargs)
         this.canCollect = kwargs?.canCollect ?? true
         this.canGetCollected = kwargs?.canGetCollected ?? true
-        this.origCanGetCollected = this.canGetCollected
     }
 
     initObjectClass(cls) {
@@ -2907,8 +2908,9 @@ export class CollectMixin extends Mixin {
             return origCanBeHitAsGroup.call(this, group)
         }
         
-        proto.canReallyCollectObject = function(obj) {
+        const canReallyCollectObject = function(obj) {
             if(!this.canCollect) return false
+            if(obj.owner) return false
             if(!(obj.canGetCollected && obj.canGetCollectedByObject(this))) return false
             return this.canCollectObject(obj)
         }
@@ -2916,29 +2918,25 @@ export class CollectMixin extends Mixin {
         proto.canCollectObject ||= function(obj) { return true }
         const origCanHitObject = proto.canHitObject
         proto.canHitObject = function(obj) {
-            return this.canReallyCollectObject(obj) || origCanHitObject.call(this, obj)
+            return canReallyCollectObject.call(this, obj) || origCanHitObject.call(this, obj)
         }
 
         const origHit = proto.hit
         proto.hit = function(obj) {
             origHit.call(this, obj)
-            if(this.canReallyCollectObject(obj)) this.collect(obj)
+            if(canReallyCollectObject.call(this, obj)) this.collect(obj)
         }
         proto.collect = this.objCollect
         proto.onCollect ||= function(obj) {}
         proto.getCollected ||= this.objGetCollected
         proto.onGetCollected ||= function(collector) {}
         proto.drop = this.objDrop
-        proto.onDrop ||= function() {}
+        proto.onDrop ||= function(owner) {}
         const origRemove = proto.remove
         proto.remove = function() {
             origRemove.call(this)
             this.drop()
         }
-    }
-
-    updateObject(obj) {
-        if(this.origCanGetCollected) obj.canGetCollected = (!obj.owner)
     }
 
     objCollect(obj) {
@@ -2952,9 +2950,10 @@ export class CollectMixin extends Mixin {
     }
 
     objDrop() {
-        if(!this.owner) return
+        const { owner } = this
+        if(!owner) return
         this.owner = null
-        this.onDrop()
+        this.onDrop(owner)
     }
 }
 
@@ -3001,7 +3000,7 @@ export class Hero extends GameObject {
         extras.add(extra.id)
     }
 
-    dropExtra(extra) {
+    onExtraDrop(extra) {
         const extras = this.extras
         if(extras) extras.delete(extra.id)
     }
@@ -3167,11 +3166,12 @@ export class Enemy extends GameObject {
 export const ItemAud = CATALOG.registerAudio("/static/core/v1/assets/item.opus")
 
 
+@Category.append("extra")
 @CollectMixin.add({
     canCollect: false,
     canGetCollected: true,
 })
-@Category.append("extra")
+@StateInt.define("dropAge", { default: Infinity, nullableWith: Infinity })
 export class Extra extends GameObject {
 
     getPriority() {
@@ -3180,13 +3180,28 @@ export class Extra extends GameObject {
         else super.getPriority()
     }
 
+    update() {
+        super.update()
+        const { owner } = this
+        if(owner) {
+            this.x = owner.x
+            this.y = owner.y
+        }
+        this.dropAge += 1
+        if(this.dropAge > this.game.fps) this.dropAge = Infinity
+    }
+
+    canGetCollectedByObject(obj) {
+        return this.dropAge == Infinity
+    }
+
     onGetCollected(owner) {
         owner.addExtra(this)
     }
 
-    onDrop() {
-        const { owner } = this
-        if(owner) owner.dropExtra(this)
+    onDrop(owner) {
+        this.dropAge = 0
+        owner.onExtraDrop(this)
     }
 }
 
@@ -3207,8 +3222,8 @@ export class Weapon extends Extra {
         this.team = owner.team
     }
 
-    onDrop() {
-        super.onDrop()
+    onDrop(owner) {
+        super.onDrop(owner)
         this.team = null
     }
 
@@ -3356,6 +3371,17 @@ export class PlatformWall extends Wall {
         props.uniDirX = dy/dd
         props.uniDirY = -dx/dd
         return props
+    }
+}
+
+
+@CATALOG.registerObject("bouncingw")
+export class BouncingWall extends Wall {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.color = "green"
+        this.bouncingFactor = 1
     }
 }
 

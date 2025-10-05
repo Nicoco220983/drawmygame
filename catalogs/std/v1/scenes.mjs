@@ -1,5 +1,6 @@
 const { assign } = Object
 const { floor, round } = Math
+import { GraphicsProps } from '../../../core/v1/graphics.mjs'
 import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
 import { Star } from './objects.mjs'
 import * as utils from '../../../core/v1/utils.mjs'
@@ -522,4 +523,138 @@ export class Tag extends GameObject {
     getBaseImg() {
         return this.owner ? TagImg : null
     }
+}
+
+
+@CATALOG.registerScene("starscompet")
+@StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
+@GameObject.StateProperty.define("attackManager", {
+    filter: { category: "manager/attack" },
+    default: { key: "attackmng" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "physicsmng" },
+    showInBuilder: true,
+})
+export class StarsCompetScene extends GameScene {
+    
+    init(args) {
+        super.init(args)
+        this.hud = new HeadsUpDisplay(this, {
+            showHerosHealths: false
+        })
+    }
+
+    onAddObject(obj) {
+        super.onAddObject(obj)
+        if(obj instanceof Hero) this.hackHero(obj)
+    }
+
+    hackHero(hero) {
+        hero.maxHealth = Infinity
+        hackMethod(hero, "onGetAttacked", 0, evt => {
+            let oneDropped = false
+            if(hero.extras) hero.extras.forEach(extra => {
+                if(oneDropped) return
+                if(extra instanceof Star) {
+                    extra.drop()
+                    oneDropped = true
+                }
+            })
+        })
+        this.addObject(StarsBar, {
+            owner: hero,
+        })
+    }
+
+    update() {
+        super.update()
+        this.hud.update()
+        this.attackManager.update()
+        this.physicsManager.update()
+    }
+
+    updateStepGame() {
+        super.updateStepGame()
+        this.updatePlayersScore()
+        if(this.iteration > this.duration * this.game.fps) this.step = "GAMEOVER"
+    }
+
+    updatePlayersScore() {
+        if(this.iteration % this.game.fps) return
+        for(let playerId in this.game.players) {
+            const hero = this.getHero(playerId)
+            if(!hero) continue
+            const nbStars = countStarExtras(hero)
+            this.incrScore(playerId, nbStars)
+        }
+    }
+
+    handleHerosOut() {
+        const { heros } = this
+        for(let playerId in heros) {
+            const hero = heros[playerId]
+            if(hero.y > this.map.height) hero.y -= this.map.height
+            if(hero.x > this.map.width) hero.x -= this.map.width
+            if(hero.x < 0) hero.x += this.map.width
+        }
+    }
+
+    updateStepGameOver() {
+        const { scores } = this
+        if(!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
+            x: this.width/2,
+            y: this.height/2,
+            scores,
+        })
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
+    }
+}
+
+
+const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
+
+@OwnerableMixin.add()
+class StarsBar extends GameObject {
+
+    update() {
+        super.update()
+        const { owner } = this
+        this.x = owner.x
+        this.y = owner.y - owner.height/2 - 10
+    }
+
+    draw(drawer) {
+        const { owner } = this
+        const nbStars = countStarExtras(owner)
+        const props = this._starsProps ||= []
+        for(let i=0; i<nbStars; ++i) {
+            if(i >= props.length) props.push(new GraphicsProps({
+                img: StarImg,
+                width: 10,
+                height: 10,
+            }))
+            const prop = props[i]
+            prop.x = this.x + i*5 - (nbStars-1)*5/2
+            prop.y = this.y
+            prop.draw(drawer)
+        }
+    }
+}
+
+
+function countStarExtras(hero) {
+    let nbStars = 0
+    if(hero.extras) hero.extras.forEach(extra => {
+        if(extra instanceof Star) nbStars += 1
+    })
+    return nbStars
 }

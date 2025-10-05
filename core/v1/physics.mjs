@@ -111,12 +111,18 @@ export default class PhysicsEngine {
                             // compute remaining speed
                             projection(objSpdX, objSpdY, colNormalY, -colNormalX, projRes)
                             obj.speedX = projRes.x; obj.speedY = projRes.y
+                            const bouncingFactor = max(obj.bouncingFactor, colRes.obj.bouncingFactor)
+                            if(bouncingFactor > 0) {
+                                const rmSpdX = objSpdX - projRes.x,  rmSpdY = objSpdY - projRes.y
+                                obj.speedX -= rmSpdX * bouncingFactor
+                                obj.speedY -= rmSpdY * bouncingFactor
+                            }
                             // stop collisions detection condition
                             const objD = hypot(objDx, objDy), colD = objD * colTime
                             remD -= colD / objOrigD
                             if(hypot(obj.speedX, obj.speedY) * remD < 1) remD = 0
                             // callbacks
-                            obj.onGetBlocked(colRes.obj)
+                            obj.onGetBlocked(colRes.obj, colRes)
                             colRes.obj.onBlock(obj)
                         } else {
                             // static collision : fix position
