@@ -3729,7 +3729,7 @@ export class HeroSpawnPoint extends GameObject {
     }
 
     getBaseImg() {
-        return PopImg
+        return this.game.isBuilder ? PopImg : null
     }
 }
 
@@ -3792,6 +3792,23 @@ export class ObjectSpawner extends GameObject {
         this.lastSpawnAge = 0
         scene.addVisual(Pop, { x:this.x, y:this.y })
         return obj
+    }
+
+    draw(drawer) {
+        if(!this.game.isBuilder) return
+        super.draw(drawer)
+        const { model } = this
+        if(!model) return
+        const modelProps = model.getGraphicsProps()
+        const modelProps2 = this._modelGraphicsProps ||= new GraphicsProps({
+            visibility: .5
+        })
+        modelProps2.img = modelProps.img
+        modelProps2.x = this.x
+        modelProps2.y = this.y
+        modelProps2.width = modelProps.width
+        modelProps2.height = modelProps.height
+        modelProps2.draw(drawer)
     }
 
     getBaseImg() {

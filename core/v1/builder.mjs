@@ -12,6 +12,7 @@ export class GameBuilder extends GameCommon {
 
     constructor(canvasParentEl, selectionMenuEl, catalog, map, kwargs) {
         super(canvasParentEl, catalog, map, kwargs)
+        this.isBuilder = true
         this.selectionMenuEl = selectionMenuEl
         this.scenes.game = new DefaultScene(this)
         this.scenes.draft = new DraftScene(this)

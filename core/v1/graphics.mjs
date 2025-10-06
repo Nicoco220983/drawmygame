@@ -5,10 +5,10 @@ const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorize
 
 export class GraphicsProps {
     constructor(kwargs) {
-        this.x = kwargs?.x ?? 0
-        this.y = kwargs?.y ?? 0
         this.color = kwargs?.color
         this.img = kwargs?.img
+        this.x = kwargs?.x ?? 0
+        this.y = kwargs?.y ?? 0
         this.width = kwargs?.width ?? 50
         this.height = kwargs?.height ?? 50
         this.dirX = kwargs?.dirX ?? 1

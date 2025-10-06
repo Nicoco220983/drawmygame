@@ -100,7 +100,7 @@ export class Clock extends Trigger {
     }
 
     getBaseImg() {
-        return ClockImg
+        return this.game.isBuilder ? ClockImg : null
     }
 }
 
@@ -134,7 +134,7 @@ export class Viewer extends Trigger {
     }
 
     getBaseImg() {
-        return WatcherImg
+        return this.game.isBuilder ? WatcherImg : null
     }
 }
 
@@ -165,7 +165,7 @@ export class InverterTrigger extends Trigger {
     }
 
     getBaseImg() {
-        return InvertTriggerImg
+        return this.game.isBuilder ? InvertTriggerImg : null
     }
 }
 
@@ -228,7 +228,7 @@ export class MinTrigger extends AggregatorTrigger {
     }
 
     getBaseImg() {
-        return MinTriggerImg
+        return this.game.isBuilder ? MinTriggerImg : null
     }
 }
 
@@ -252,7 +252,7 @@ export class MaxTrigger extends AggregatorTrigger {
     }
 
     getBaseImg() {
-        return MaxTriggerImg
+        return this.game.isBuilder ? MaxTriggerImg : null
     }
 }
 
@@ -278,7 +278,7 @@ export class XorTrigger extends AggregatorTrigger {
     }
 
     getBaseImg() {
-        return XorTriggerImg
+        return this.game.isBuilder ? XorTriggerImg : null
     }
 }
 
@@ -344,6 +344,6 @@ export class DelayTrigger extends Trigger {
     }
 
     getBaseImg() {
-        return DelayTriggerImg
+        return this.game.isBuilder ? DelayTriggerImg : null
     }
 }
