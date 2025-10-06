@@ -15,13 +15,67 @@ export const CATALOG = new ModuleCatalog("std")
 export class Manager extends GameObject {}
 
 
+@Category.append("border")
+export class BorderManager extends Manager {}
+
+
+@CATALOG.registerObject("damagebordermng", {
+    showInBuilder: true,
+})
+@StateInt.define("heroOutDamages", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("limit", { default: 100, showInBuilder: true })
+export class DamageBorderManager extends BorderManager {
+
+    update() {
+        super.update()
+        const { scene, limit } = this
+        const { width, height } = scene
+        scene.objects.forEach(obj => {
+            const { x, y } = obj
+            if(x < -limit || x > width + limit || y < -limit || y > height + limit) {
+                this.handleObjectOut(obj)
+            }
+        })
+    }
+
+    handleObjectOut(obj) {
+        if(obj instanceof Hero) {
+            obj.takeDamage(this.heroOutDamages)
+            if(obj.getHealth() > 0) this.scene.spawnHero(obj)
+        } else {
+            obj.remove()
+        }
+    }
+}
+
+
+@CATALOG.registerObject("loopbordermng", {
+    showInBuilder: true,
+})
+export class LoopBorderManager extends BorderManager {
+
+    update() {
+        super.update()
+        const { scene } = this
+        const { width, height } = scene
+        scene.objects.forEach(obj => {
+            const { x, y } = obj
+            if(x > width) obj.x -= width
+            else if(x < 0) obj.x += width
+            if(y > height) obj.y -= height
+            else if(y < 0) obj.y += height
+        })
+    }
+}
+
+
 @CATALOG.registerObject("heroslivesmng", {
     showInBuilder: true,
 })
+@Category.append("heroslives")
 @StateProperty.define("deathsIts")
 @StateInt.define("delay", { default: 1, showInBuilder: true })
 @StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
-@Category.append("heroslives")
 export class HerosLivesManager extends Manager {
 
     init(kwargs) {
@@ -326,16 +380,6 @@ class PlayerScoreText extends Text {
 @CATALOG.registerScene("std")
 @StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
-@GameObject.StateProperty.define("herosLivesManager", {
-    filter: { category: "manager/heroslives" },
-    default: { key: "heroslivesmng" },
-    showInBuilder: true,
-})
-@GameObject.StateProperty.define("viewManager", {
-    filter: { category: "manager/view" },
-    default: { key: "viewheroscentermng" },
-    showInBuilder: true,
-})
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
     default: { key: "attackmng" },
@@ -344,6 +388,21 @@ class PlayerScoreText extends Text {
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
     default: { key: "physicsmng" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("viewManager", {
+    filter: { category: "manager/view" },
+    default: { key: "viewheroscentermng" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("herosLivesManager", {
+    filter: { category: "manager/heroslives" },
+    default: { key: "heroslivesmng" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "damagebordermng" },
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {
@@ -356,10 +415,11 @@ export class StandardScene extends GameScene {
     update() {
         super.update()
         this.hud.update()
+        this.borderManager.update()
         this.viewManager.update()
         this.herosLivesManager.update()
-        this.attackManager.update()
         this.physicsManager.update()
+        this.attackManager.update()
         if(this.step == "GAME") {
             let allOk = null
             if(allOk!==false && this.catchAllStars) {
@@ -395,6 +455,11 @@ export class StandardScene extends GameScene {
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
     default: { key: "physicsmng" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "loopbordermng" },
     showInBuilder: true,
 })
 export class TagScene extends GameScene {
@@ -513,16 +578,6 @@ export class TagScene extends GameScene {
         })
     }
 
-    handleHerosOut() {
-        const { heros } = this
-        for(let playerId in heros) {
-            const hero = heros[playerId]
-            if(hero.y > this.map.height) hero.y -= this.map.height
-            if(hero.x > this.map.width) hero.x -= this.map.width
-            if(hero.x < 0) hero.x += this.map.width
-        }
-    }
-
     draw() {
         const res = super.draw()
         const drawer = this.graphicsEngine
@@ -580,6 +635,11 @@ export class Tag extends GameObject {
     default: { key: "physicsmng" },
     showInBuilder: true,
 })
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "loopbordermng" },
+    showInBuilder: true,
+})
 export class StealTreasures extends GameScene {
     
     init(args) {
@@ -634,16 +694,6 @@ export class StealTreasures extends GameScene {
             if(!hero) continue
             const nbStars = countStarExtras(hero)
             this.incrScore(playerId, nbStars / this.game.fps)
-        }
-    }
-
-    handleHerosOut() {
-        const { heros } = this
-        for(let playerId in heros) {
-            const hero = heros[playerId]
-            if(hero.y > this.map.height) hero.y -= this.map.height
-            if(hero.x > this.map.width) hero.x -= this.map.width
-            if(hero.x < 0) hero.x += this.map.width
         }
     }
 

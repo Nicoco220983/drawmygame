@@ -182,10 +182,11 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
             walls: [],
+            borderManager: { key : "damagebordermng" },
+            herosLivesManager: { key : "heroslivesmng" },
+            viewManager: { key: "viewheroscentermng" },
             physicsManager: { key: "physicsmng" },
             attackManager: { key: "attackmng" },
-            viewManager: { key: "viewheroscentermng" },
-            herosLivesManager: { key : "heroslivesmng" },
         }}
     }
 
@@ -2285,7 +2286,6 @@ export class GameScene extends SceneCommon {
         const { dt } = this.game
         this.physics.apply(dt, this.objects)
         super.updateWorld()
-        this.handleHerosOut()
     }
 
     updateStepGame() {
@@ -2299,22 +2299,6 @@ export class GameScene extends SceneCommon {
 
     updateStepVictory() {
         this.initVictoryNotifs()
-    }
-
-    handleHerosOut() {
-        if(!this.onHeroOut) return
-        const { heros } = this
-        for(let playerId in heros) {
-            const hero = heros[playerId]
-            if(hero.y > this.height + 100) {
-                this.onHeroOut(hero)
-            }
-        }
-    }
-
-    onHeroOut(hero) {
-        hero.takeDamage(10)
-        if(hero.getHealth() > 0) this.spawnHero(hero)
     }
 
     draw() {
