@@ -519,6 +519,7 @@ export class Bomb extends Extra {
         if(!owner) return
         this.drop()
         this.owner = owner
+        this.stuckToOwner = false
         this.speedX = owner.dirX * 200
         this.speedY = -500
         this.itToLive = this.countdown * this.game.fps
@@ -532,7 +533,7 @@ export class Bomb extends Extra {
 }
 
 
-const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/explosion.png"), 8, 6)
+const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/explosion.png"), 4, 2)
 
 @CATALOG.registerObject("explos", {
     showInBuilder: false
@@ -567,9 +568,17 @@ export class Explosion extends GameObject {
         this.iteration += 1
     }
 
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        if(!props) return null
+        props.width = 500
+        props.height = 500
+        return props
+    }
+
     getBaseImg() {
         return ExplosionSpriteSheet.get(floor(
-            this.iteration / this.game.fps * 8 * 6
+            this.iteration / this.game.fps * 15
         ))
     }
 }

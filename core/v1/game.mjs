@@ -3175,6 +3175,11 @@ export const ItemAud = CATALOG.registerAudio("/static/core/v1/assets/item.opus")
 @StateInt.define("dropAge", { default: Infinity, nullableWith: Infinity })
 export class Extra extends GameObject {
 
+    init(kwargs) {
+        super.init(kwargs)
+        this.stuckToOwner = true
+    }
+
     getPriority() {
         const { owner } = this
         if(owner) return owner.getPriority() - 1
@@ -3184,7 +3189,7 @@ export class Extra extends GameObject {
     update() {
         super.update()
         const { owner } = this
-        if(owner) {
+        if(owner && this.stuckToOwner) {
             this.x = owner.x
             this.y = owner.y
         }
