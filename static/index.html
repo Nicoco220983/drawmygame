@@ -127,10 +127,15 @@ async function initInputEls(catalog) {
     })
 }
 async function updScene() {
+    const prevGameScn = gameBuilder.scenes.game
     const scnCat = catalog.scenes[scnKeyEl.value]
     const mods = await catalog.preload([scnCat.path])
     await gameBuilder.loadScenes(mods[0][scnCat.name])
     scnStateEl.initObject(gameBuilder.scenes.game)
+    // copy prev scene content
+    const gameScn = gameBuilder.scenes.game
+    gameScn.objects.setState(prevGameScn.objects.getState(true))
+    gameScn.setObjectLinksFromState(prevGameScn.getObjectLinksState())
 }
 scnKeyEl.onchange = updScene
 

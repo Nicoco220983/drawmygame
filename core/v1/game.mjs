@@ -130,6 +130,7 @@ export class ModuleCatalog {
     registerObject(key, kwargs) {
         return target => {
             target.KEY = key
+            target.STATEFUL = kwargs?.stateful ?? true
             const objCat = this.objects[key] = {}
             objCat.name = target.name
             objCat.category = target.CATEGORY
@@ -659,8 +660,6 @@ export class ObjectLink {
 @StateInt.define("x", { showInBuilder: true })
 export class GameObject {
 
-    static STATEFUL = true
-
     // static STATE_PROPS = new Map()  // already done by x/y state props
     // static LINK_TRIGGERS = new Map()  // already done by isRemoved/reactRemove links
     // static LINK_REACTIONS = new Map()  // same...
@@ -773,7 +772,7 @@ export class GameObject {
         const state = {}
         state.key = this.getKey()
         const id = this.id
-        if(id !== undefined) state.id = this.id
+        if(id !== undefined) state.id = id
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
         return state
@@ -996,7 +995,6 @@ export function filterObject(filterDesc, obj) {
 
 
 export class Text extends GameObject {
-    static STATEFUL = false
 
     init(kwargs) {
         super.init(kwargs)
@@ -1167,6 +1165,7 @@ export class GameObjectGroup {
             })
         }
         this.statefulObjArr.forEach(obj => {
+            if(obj.getKey() === undefined) throw Error(`missing key for ${obj.constructor.name}`)
             state.push(obj.getState(isInitState))
         })
         return state
@@ -3288,14 +3287,15 @@ export class Projectile extends GameObject {
 }
 
 
-@CATALOG.registerObject("wall")
+@CATALOG.registerObject("wall", {
+    stateful: false,
+})
 @Category.append("wall")
 @PhysicsMixin.add({
     canMove: false,
     canBlock: true,
 })
 export class Wall extends GameObject {
-    static STATEFUL = false
 
     init(kwargs) {
         if(kwargs?.x1 !== undefined) this.x1 = kwargs.x1
@@ -3362,7 +3362,9 @@ export class Wall extends GameObject {
 }
 
 
-@CATALOG.registerObject("platformw")
+@CATALOG.registerObject("platformw", {
+    stateful: false,
+})
 export class PlatformWall extends Wall {
 
     init(kwargs) {
@@ -3381,7 +3383,9 @@ export class PlatformWall extends Wall {
 }
 
 
-@CATALOG.registerObject("bouncingw")
+@CATALOG.registerObject("bouncingw", {
+    stateful: false,
+})
 export class BouncingWall extends Wall {
 
     init(kwargs) {
@@ -3682,7 +3686,7 @@ export class ScoresBoard extends GameObject {
         for(let i in sortedPlayerScores) {
             const [playerId, score] = sortedPlayerScores[i]
             const playerName = players[playerId].name
-            const lineCan = newTextCanvas(`${playerName}: ${score}`, fontArgs)
+            const lineCan = newTextCanvas(`${playerName}: ${floor(score)}`, fontArgs)
             ctx.drawImage(lineCan, (width-lineCan.width)/2, headerHeight + i * lineHeight)
         }
     }

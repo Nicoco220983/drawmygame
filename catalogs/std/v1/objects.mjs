@@ -104,7 +104,7 @@ export class Nico extends Hero {
         const { dt } = this.game
         if(this.getHealth() == 0) return
         const { inputState } = this
-        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 2000 * dt, 0)
+        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 500 * dt, 0)
         else if(inputState.walkX > 0) {
             this.dirX = 1
             this.speedX = sumTo(this.speedX, 1000 * dt, 300)
@@ -113,7 +113,7 @@ export class Nico extends Hero {
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
         }
         if(inputState && inputState.jump && this.speedResY < 0) {
-            this.speedY = -500
+            this.speedY = min(-500, this.speedY-100)
             this.game.audio.playSound(JumpAud)
         }
         if(this.handRemIt) this.handRemIt -= 1
@@ -187,7 +187,6 @@ export class Nico extends Hero {
     height: 25,
 })
 class NicoHand extends Weapon {
-    static STATEFUL = false
 
     init(kwargs) {
         super.init(kwargs)
@@ -677,6 +676,12 @@ export class BlobEnemy extends Enemy {
         return obj instanceof Hero
     }
 
+    getAttackProps(obj) {
+        const props = super.getAttackProps(obj)
+        props.knockbackAngle = this.x<obj.x ? -45 : -135
+        return props
+    }
+
     getGraphicsProps() {
         const { fps } = this.game, { iteration } = this.scene
         const props = super.getGraphicsProps()
@@ -717,7 +722,6 @@ export class BlobEnemy extends Enemy {
     height: 50,
 })
 class BlobEnemyBlockChecker extends GameObject {
-    static STATEFUL = false
 
     init(kwargs) {
         super.init(kwargs)

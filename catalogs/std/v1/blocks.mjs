@@ -266,7 +266,7 @@ export class Trap extends Block {
 const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
 
 @CATALOG.registerObject("boxblk", {
-    label: "Cloud",
+    label: "Boxing Trap",
     icon: BoxingGloveImg,
     showInBuilder: true,
 })
@@ -280,5 +280,25 @@ export class BoxingTrap extends Trap {
 
     getBaseImg() {
         return BoxingGloveImg
+    }
+}
+
+
+const BouncingBlockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/bouncing_block.png")
+
+@CATALOG.registerObject("bouncingb", {
+    label: "Bouncing Block",
+    icon: BouncingBlockImg,
+    showInBuilder: true,
+})
+export class BouncingBlock extends Block {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.bouncingFactor = 1
+    }
+
+    getBaseImg() {
+        return BouncingBlockImg
     }
 }
