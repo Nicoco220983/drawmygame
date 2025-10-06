@@ -198,23 +198,24 @@ export class HeadsUpDisplay extends GameObject {
             fillStyle: "black",
         }
         this.globalElems = new GameObjectGroup(this.scene)
-        this.herosElems = new Map()
+        this.playersElems = new Map()
         this.showHerosHealths = kwargs?.showHerosHealths ?? true
-        this.showHerosScores = kwargs?.showHerosScores ?? true
+        this.showPlayersScores = kwargs?.showPlayersScores ?? true
+        this.playersLinesSorter = kwargs?.playersLinesSorter ?? null
     }
     addGlobalHudElem(cls, args) {
         this.globalElems.add(cls, args)
     }
-    initHeroElements(hero) {
-        const { game, herosElems, textArgs, margin, barWidth, barHeight, heroLineMinHeight } = this
+    initPlayerElements(hero) {
+        const { game, playersElems, textArgs, margin, barWidth, barHeight, heroLineMinHeight } = this
         for(let playerId in game.players) {
-            if(herosElems.has(playerId)) continue
+            if(playersElems.has(playerId)) continue
             const grp = new GameObjectGroup(this.scene)
-            herosElems.set(playerId, grp)
+            playersElems.set(playerId, grp)
             //grp.nbBarElems = 0
             grp.add(PlayerIcon, { x: heroLineMinHeight/2, y: heroLineMinHeight/2, width: heroLineMinHeight, height: heroLineMinHeight, playerId })
             if(this.showHerosHealths) grp.add(HealthBar, { playerId, width:barWidth, height:barHeight })
-            if(this.showHerosScores) grp.add(PlayerScoreText, { playerId, ...textArgs })
+            if(this.showPlayersScores) grp.add(PlayerScoreText, { playerId, ...textArgs })
             grp.sync = () => {
                 let hasBars = false, elemsX = heroLineMinHeight + margin, barsY = 0
                 grp.forEach(elem => { if(elem instanceof BarNotif) {
@@ -234,27 +235,30 @@ export class HeadsUpDisplay extends GameObject {
             grp.sync()
             hackMethod(grp, "update", 0, evt => grp.sync())
         }
-        return herosElems
+        return playersElems
     }
     update() {
-        this.initHeroElements()
+        this.initPlayerElements()
         this.globalElems.update()
-        this.herosElems.forEach(elems => elems.update())
-        this.syncHerosElems()
+        this.playersElems.forEach(elems => elems.update())
+        this.syncPlayersElems()
     }
-    syncHerosElems() {
+    syncPlayersElems() {
         const { margin } = this
         let prevGrp = null
-        this.herosElems.forEach(grp => {
+        let playerIds = Array.from(this.playersElems.keys())
+        if(this.playersLinesSorter) playerIds.sort(this.playersLinesSorter)
+        for(let playerId of playerIds) {
+            const grp = this.playersElems.get(playerId)
             grp.x = margin
             grp.y = (prevGrp ? (prevGrp.y + prevGrp.height) : 0) + margin
             prevGrp = grp
-        })
+        }
     }
     draw(drawer) {
         super.draw(drawer)
         this.globalElems.draw(drawer)
-        this.herosElems.forEach(elems => elems.draw(drawer))
+        this.playersElems.forEach(elems => elems.draw(drawer))
     }
 }
 
@@ -312,7 +316,7 @@ class PlayerScoreText extends Text {
     update() {
         super.update()
         const { scores } = this.scene
-        this.updateText(scores[this.playerId] ?? 0)
+        this.updateText(floor(scores.get(this.playerId) ?? 0))
     }
 }
 
@@ -564,7 +568,7 @@ export class Tag extends GameObject {
 }
 
 
-@CATALOG.registerScene("starscompet")
+@CATALOG.registerScene("stealtreasures")
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
@@ -576,12 +580,16 @@ export class Tag extends GameObject {
     default: { key: "physicsmng" },
     showInBuilder: true,
 })
-export class StarsCompetScene extends GameScene {
+export class StealTreasures extends GameScene {
     
     init(args) {
         super.init(args)
+        const { scores } = this
         this.hud = new HeadsUpDisplay(this, {
-            showHerosHealths: false
+            showHerosHealths: false,
+            playersLinesSorter: (pid1, pid2) => {
+                return (scores.get(pid2) ?? 0) - (scores.get(pid1) ?? 0)
+            }
         })
     }
 
@@ -621,12 +629,11 @@ export class StarsCompetScene extends GameScene {
     }
 
     updatePlayersScore() {
-        if(this.iteration % this.game.fps) return
         for(let playerId in this.game.players) {
             const hero = this.getHero(playerId)
             if(!hero) continue
             const nbStars = countStarExtras(hero)
-            this.incrScore(playerId, nbStars)
+            this.incrScore(playerId, nbStars / this.game.fps)
         }
     }
 

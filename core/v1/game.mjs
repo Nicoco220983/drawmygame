@@ -2216,7 +2216,7 @@ export class GameScene extends SceneCommon {
         this.step = "GAME"
         this.herosSpawnX = 50
         this.herosSpawnY = 50
-        this.scores = {}
+        this.scores = new Map()
         this.seed = floor(random()*1000)
     }
 
@@ -2269,8 +2269,7 @@ export class GameScene extends SceneCommon {
 
     incrScore(playerId, val) {
         const { scores } = this
-        if(scores[playerId] === undefined) scores[playerId] = 0
-        scores[playerId] = scores[playerId] + val
+        scores.set(playerId, (scores.get(playerId) ?? 0) + val)
    }
 
     update() {
@@ -2396,7 +2395,8 @@ export class GameScene extends SceneCommon {
             state.step = this.step
             state.hsx = this.herosSpawnX
             state.hsy = this.herosSpawnY
-            state.sco = this.scores
+            state.sco = {}
+            this.scores.forEach((val, pid) => state.sco[pid] = floor(val))
             state.seed = this.seed
         }
         state.objects = this.objects.getState(isInitState)
@@ -2429,7 +2429,8 @@ export class GameScene extends SceneCommon {
             this.iteration = state.it
             this.step = state.step
             this.setHerosSpawnPos(state.hsx, state.hsy)
-            this.scores = state.sco
+            this.scores.clear()
+            for(let pid in state.sco) this.scores.set(pid, state.sco[pid])
             this.seed = state.seed
         }
         this.objects.setState(state.objects, isInitState)
@@ -3672,7 +3673,7 @@ export class ScoresBoard extends GameObject {
             font: `bold ${fontHeight}px arial`,
         })
         ctx.drawImage(titleCan, (width-titleCan.width)/2, lineHeight/4)
-        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores[pid] || 0]).sort((a, b) => b[1] - a[1])
+        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores.get(pid) ?? 0]).sort((a, b) => b[1] - a[1])
         for(let i in sortedPlayerScores) {
             const [playerId, score] = sortedPlayerScores[i]
             const playerName = players[playerId].name
