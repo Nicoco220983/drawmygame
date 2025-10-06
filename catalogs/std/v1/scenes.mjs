@@ -1,7 +1,7 @@
 const { assign } = Object
-const { floor, round } = Math
+const { floor, round, max } = Math
 import { GraphicsProps } from '../../../core/v1/graphics.mjs'
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
 import { Star } from './objects.mjs'
 import * as utils from '../../../core/v1/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
@@ -189,46 +189,67 @@ export class AttackManager extends Manager {
 export class HeadsUpDisplay extends GameObject {
     init(kwargs) {
         super.init(kwargs)
-        this.heroLineHeight = 20
+        this.margin = 5
         this.barWidth = 100
+        this.barHeight = 20
+        this.heroLineMinHeight = 20
+        this.textArgs = {
+            font: "bold 20px arial",
+            fillStyle: "black",
+        }
         this.globalElems = new GameObjectGroup(this.scene)
         this.herosElems = new Map()
         this.showHerosHealths = kwargs?.showHerosHealths ?? true
+        this.showHerosScores = kwargs?.showHerosScores ?? true
     }
     addGlobalHudElem(cls, args) {
         this.globalElems.add(cls, args)
     }
     initHeroElements(hero) {
-        const { game, herosElems, heroLineHeight: lineHeight } = this
+        const { game, herosElems, textArgs, margin, barWidth, barHeight, heroLineMinHeight } = this
         for(let playerId in game.players) {
             if(herosElems.has(playerId)) continue
-            const grp = new GameObjectGroup(this.scene, { x: 5, y: 5 + herosElems.size * lineHeight })
+            const grp = new GameObjectGroup(this.scene)
             herosElems.set(playerId, grp)
-            grp.nbBarElems = 0
-            grp.add(PlayerIcon, { x: lineHeight/2, y: lineHeight/2, width: lineHeight, height: lineHeight, playerId })
-            if(this.showHerosHealths) this.addHeroElement(grp, HealthBar, { playerId })
+            //grp.nbBarElems = 0
+            grp.add(PlayerIcon, { x: heroLineMinHeight/2, y: heroLineMinHeight/2, width: heroLineMinHeight, height: heroLineMinHeight, playerId })
+            if(this.showHerosHealths) grp.add(HealthBar, { playerId, width:barWidth, height:barHeight })
+            if(this.showHerosScores) grp.add(PlayerScoreText, { playerId, ...textArgs })
+            grp.sync = () => {
+                let hasBars = false, elemsX = heroLineMinHeight + margin, barsY = 0
+                grp.forEach(elem => { if(elem instanceof BarNotif) {
+                    elem.x = elemsX + elem.width/2,
+                    elem.y = barsY + elem.height/2
+                    hasBars = true
+                    barsY = elem.y + elem.height/2 + margin
+                }})
+                if(hasBars) elemsX += barWidth + margin
+                grp.forEach(elem => { if(!(elem instanceof BarNotif || elem instanceof PlayerIcon)) {
+                    elem.x = elemsX + elem.width/2
+                    elem.y = elem.height/2
+                    elemsX = elem.x + elem.width + margin
+                }})
+                grp.height = max(heroLineMinHeight, barsY)
+            }
+            grp.sync()
+            hackMethod(grp, "update", 0, evt => grp.sync())
         }
         return herosElems
-    }
-    addHeroElement(grp, cls, args) {
-        const { heroLineHeight: lineHeight } = this
-        const elem = grp.add(cls, args)
-        if(elem instanceof BarNotif) {
-            elem.barElemNum = grp.nbBarElems
-            assign(elem, {
-                width: 100,
-                height: 10,
-                x: lineHeight + 5 + 100 / 2,
-                y: lineHeight / 2, // TODO: adapt if several bars
-            })
-            grp.nbBarElems += 1
-        }
-        return elem
     }
     update() {
         this.initHeroElements()
         this.globalElems.update()
         this.herosElems.forEach(elems => elems.update())
+        this.syncHerosElems()
+    }
+    syncHerosElems() {
+        const { margin } = this
+        let prevGrp = null
+        this.herosElems.forEach(grp => {
+            grp.x = margin
+            grp.y = (prevGrp ? (prevGrp.y + prevGrp.height) : 0) + margin
+            prevGrp = grp
+        })
     }
     draw(drawer) {
         super.draw(drawer)
@@ -267,14 +288,31 @@ class BarNotif extends GameObject {
 
 
 class HealthBar extends BarNotif {
+
     init(args) {
         super.init(args)
         this.barColor = "red"
         this.playerId = args.playerId
     }
+
     update() {
         const hero = this.scene.getHero(this.playerId)
         this.value = hero ? (hero.getHealth() / hero.maxHealth) : 0
+    }
+}
+
+
+class PlayerScoreText extends Text {
+
+    init(args) {
+        super.init(args)
+        this.playerId = args.playerId
+    }
+
+    update() {
+        super.update()
+        const { scores } = this.scene
+        this.updateText(scores[this.playerId] ?? 0)
     }
 }
 
@@ -628,12 +666,15 @@ class StarsBar extends GameObject {
     update() {
         super.update()
         const { owner } = this
-        this.x = owner.x
-        this.y = owner.y - owner.height/2 - 10
+        if(owner) {
+            this.x = owner.x
+            this.y = owner.y - owner.height/2 - 10
+        }
     }
 
     draw(drawer) {
         const { owner } = this
+        if(!owner) return
         const nbStars = countStarExtras(owner)
         const props = this._starsProps ||= []
         for(let i=0; i<nbStars; ++i) {
