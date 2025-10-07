@@ -12,17 +12,17 @@ export const CATALOG = new ModuleCatalog("std")
 })
 export class Block extends GameObject {
     static STATEFUL = false
-    static STICK_TO_GRID = true
+    static STUCK_TO_GRID = true
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = this.height = floor(this.scene.gridSize *.9)
+        this.width = this.height = floor(this.scene.gridSize)
     }
 
     getGraphicsProps() {
         const props = super.getGraphicsProps()
-        props.width = this.width * 1.1
-        props.height = this.height * 1.1
+        props.width = this.width
+        props.height = this.height
         return props
     }
 }

@@ -290,7 +290,7 @@ class DraftScene extends SceneCommon {
                 y: touch.y,
             }
             if(mode == "object") {
-                if(this.draftObject.constructor.STICK_TO_GRID) this.applyAnchor(draftPos, true)
+                if(this.draftObject.constructor.STUCK_TO_GRID) this.applyAnchor(draftPos, true)
                 this.draftObject.x = draftPos.x
                 this.draftObject.y = draftPos.y
             } else if(mode == "wall") {
@@ -312,7 +312,7 @@ class DraftScene extends SceneCommon {
                 x: touch.x + gameScn.viewX,
                 y: touch.y + gameScn.viewY,
             }
-            if(draftObject && draftObject.constructor.STICK_TO_GRID) this.applyAnchor(pos, true)
+            if(draftObject && draftObject.constructor.STUCK_TO_GRID) this.applyAnchor(pos, true)
             const x = floor(pos.x)
             const y = floor(pos.y)
             gameScn.addObject(modeKey, { x, y })

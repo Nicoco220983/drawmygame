@@ -376,8 +376,8 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/jump.opus"
 })
 @PhysicsMixin.add()
 @BodyMixin.add({
-    width: 50,
-    height: 50,
+    width: 40,
+    height: 45,
 })
 export class Nico extends Hero {
 
@@ -402,6 +402,13 @@ export class Nico extends Hero {
             this.hand.remove()
             this.hand = null
         }
+    }
+
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        props.width = 50
+        props.height = 50
+        return props
     }
 
     getBaseImg() {
