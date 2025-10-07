@@ -1,12 +1,15 @@
 const { assign } = Object
-const { floor, round, max } = Math
+const { floor, round, ceil, max } = Math
 import { GraphicsProps } from '../../../core/v1/graphics.mjs'
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, Wall, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
-import { Star } from './objects.mjs'
+import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../core/v1/game.mjs'
+import { Hero, Wall, Star, HeroSpawnPoint } from './objects.mjs'
 import * as utils from '../../../core/v1/utils.mjs'
-const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
+const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys } = utils
 
 export const CATALOG = new ModuleCatalog("std")
+
+
+const IS_SERVER_ENV = (typeof window === 'undefined')
 
 
 @StateInt.modify("y", { showInBuilder: false })
@@ -429,6 +432,13 @@ export class StandardScene extends GameScene {
         this.hud = new HeadsUpDisplay(this)
     }
 
+    initHerosSpawnPos() {
+        const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        if(points.length == 0) return
+        const firstPoint = points[0]
+        this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
+    }
+
     update() {
         super.update()
         this.hud.update()
@@ -449,6 +459,11 @@ export class StandardScene extends GameScene {
             }
             if(allOk) this.step = "VICTORY"
         }
+    }
+
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        return new JoypadGameScene(this.game)
     }
 
     draw() {
@@ -488,6 +503,13 @@ export class TagScene extends GameScene {
         this.hud = new HeadsUpDisplay(this, {
             showHerosHealths: false
         })
+    }
+
+    initHerosSpawnPos() {
+        const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        if(points.length == 0) return
+        const firstPoint = points[0]
+        this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
     }
 
     loadMap(map) {
@@ -595,6 +617,11 @@ export class TagScene extends GameScene {
         })
     }
 
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        return new JoypadGameScene(this.game)
+    }
+
     draw() {
         const res = super.draw()
         const drawer = this.graphicsEngine
@@ -670,6 +697,13 @@ export class StealTreasures extends GameScene {
         })
     }
 
+    initHerosSpawnPos() {
+        const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        if(points.length == 0) return
+        const firstPoint = points[0]
+        this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
+    }
+
     onAddObject(obj) {
         super.onAddObject(obj)
         if(obj instanceof Hero) this.hackHero(obj)
@@ -723,6 +757,11 @@ export class StealTreasures extends GameScene {
         })
     }
 
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        return new JoypadGameScene(this.game)
+    }
+
     draw() {
         const res = super.draw()
         const drawer = this.graphicsEngine
@@ -772,4 +811,208 @@ function countStarExtras(hero) {
         if(extra instanceof Star) nbStars += 1
     })
     return nbStars
+}
+
+
+// WAIGTING
+
+@CATALOG.registerScene({
+    showInBuilder: false,
+})
+export class WaitingScene extends SceneCommon {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.backgroundColor = "black"
+        this.playerObjs = new Map()
+        this.initTitleText()
+        this.initQrcodeImg()
+    }
+
+    initTitleText() {
+        const titleTxt = this.addNotif(Text, {
+            text: "WAITING PLAYERS",
+            font: "bold 50px arial",
+            fillStyle: "white",
+        })
+        titleTxt.syncPos = () => {
+            titleTxt.x = this.viewWidth/2
+            titleTxt.y = this.viewHeight/6
+        }
+        hackMethod(titleTxt, "update", 0, evt => titleTxt.syncPos())
+        titleTxt.syncPos()
+    }
+
+    update() {
+        this.notifs.update()
+        this.syncPlayerObjs()
+        this.playerObjs.forEach(objs => objs.update())
+    }
+
+    syncPlayerObjs() {
+        const { playerObjs, viewWidth, viewHeight } = this
+        const { players } = this.game
+        // add & place players
+        let numPlayer = 0
+        for(let playerId in players) {
+            const grp = this.initPlayerObjGroup(playerId)
+            grp.x = viewWidth/2
+            grp.y = viewHeight/3 + (numPlayer * 40)
+            numPlayer += 1
+        }
+        // rm removed players
+        for(let playerId in playerObjs)
+            if(!(playerId in players))
+                playerObjs.remove(playerId)
+    }
+
+    initPlayerObjGroup(playerId) {
+        const { game, playerObjs } = this
+        let grp = playerObjs.get(playerId)
+        if(!grp) {
+            grp = new GameObjectGroup(this)
+            playerObjs.set(playerId, grp)
+            grp.add(PlayerIcon, { x: 15, y: 15, playerId, width: 30, height: 30, strokeColor: "white" })
+            const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
+            txt.sync = () => {
+                txt.x = 35 + txt.width/2
+                txt.updateText(game.players[playerId]?.name ?? "")
+            }
+            txt.sync()
+            hackMethod(txt, "update", 0, evt => txt.sync())
+        }
+        return grp
+    }
+
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        this.notifs.draw(drawer)
+        this.playerObjs.forEach(objs => objs.draw(drawer))
+        const qrcodeProps = this.getQrcodeGraphicsProps()
+        if(qrcodeProps) drawer.draw(qrcodeProps)
+        return can
+    }
+
+    getQrcodeGraphicsProps() {
+        const qrcodeImg = this._qrcodeImg
+        if(!qrcodeImg) return null
+        const qrcodeProps = this._qrcodeGraphicsProps ||= new GraphicsProps({
+            img: qrcodeImg,
+            width: 200,
+            height: 200,
+            x: 150,
+            y: this.viewHeight/2,
+        })
+        return qrcodeProps
+    }
+
+    async initQrcodeImg() {
+        if(IS_SERVER_ENV) return
+        let res = this._qrcodeImg
+        if(!res) {
+            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
+            const can = newCanvas(ceil(qrcodeImg.width*1.2), ceil(qrcodeImg.height*1.2))
+            const ctx = can.getContext("2d")
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, can.width, can.height)
+            ctx.drawImage(qrcodeImg, floor((can.width-qrcodeImg.width)/2), floor((can.height-qrcodeImg.height)/2))
+            res = this._qrcodeImg = can
+        }
+        return res
+    }
+
+    async loadJoypadScene() {
+        const { JoypadWaitingScene } = await importAndPreload("./joypad.mjs")
+        return new JoypadWaitingScene(this.game)
+    }
+}
+
+
+// UTILS
+
+export class ScoresBoard extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.scores = kwargs.scores
+        this.width = 300
+        this.headerHeight = 80
+        this.lineHeight = 40
+        this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
+    }
+
+    getBaseImg() {
+        const baseImg = this._baseImg ||= document.createElement("canvas")
+        baseImg.width = this.width
+        baseImg.height = this.height
+        this.drawBackground(baseImg)
+        this.drawScores(baseImg)
+        return baseImg
+    }
+
+    drawBackground(can) {
+        const { width, height } = can
+        const ctx = can.getContext("2d")
+        ctx.fillStyle = "lightgrey"
+        ctx.globalAlpha = .8
+        ctx.fillRect(0, 0, width, height)
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 1
+        ctx.strokeRect(0, 0, width, height)
+    }
+
+    drawScores(can) {
+        const { headerHeight, lineHeight, scores } = this
+        const { width } = can
+        const { players } = this.game
+        const ctx = can.getContext("2d")
+        const fontHeight = floor(lineHeight *.7)
+        const fontArgs = {
+            font: `${fontHeight}px arial`,
+            fillStyle: "black"
+        }
+        const titleCan = newTextCanvas("Scores:", {
+            ...fontArgs,
+            font: `bold ${fontHeight}px arial`,
+        })
+        ctx.drawImage(titleCan, (width-titleCan.width)/2, lineHeight/4)
+        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores.get(pid) ?? 0]).sort((a, b) => b[1] - a[1])
+        for(let i in sortedPlayerScores) {
+            const [playerId, score] = sortedPlayerScores[i]
+            const playerName = players[playerId].name
+            const lineCan = newTextCanvas(`${playerName}: ${floor(score)}`, fontArgs)
+            ctx.drawImage(lineCan, (width-lineCan.width)/2, headerHeight + i * lineHeight)
+        }
+    }
+}
+
+
+export class CountDown extends Text {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.duration = kwargs && kwargs.duration || 3
+        this.startIt = this.scene.iteration
+        this.syncText()
+    }
+
+    update() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        if((iteration - this.startIt)/fps > this.duration) this.remove()
+        this.syncText()
+    }
+
+    syncText() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        this.text = ceil((this.duration - (iteration - this.startIt)/fps))
+    }
 }

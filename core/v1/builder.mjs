@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, Wall, PlatformWall, BouncingWall, ObjectLink, Hero, now, FPS, nbKeys } from './game.mjs'
+import { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, now, FPS } from './game.mjs'
 import { GraphicsProps } from './graphics.mjs'
 
 
@@ -172,7 +172,7 @@ class DraftScene extends SceneCommon {
         // objects
         gameScn.objects.forEach(obj  => {
             if(obj == ignore) return
-            if(obj instanceof Wall) {
+            if(obj.x1 !== undefined) {
                 if(distancePointSegment(x, y, obj.x1, obj.y1, obj.x2, obj.y2) <= 5) {
                     res = obj
                 }
@@ -220,7 +220,7 @@ class DraftScene extends SceneCommon {
     }
 
     canMove(obj) {
-        return obj instanceof GameObject || obj instanceof Wall
+        return obj instanceof GameObject
     }
 
     updateMove(touch) {
@@ -331,16 +331,10 @@ class DraftScene extends SceneCommon {
             }
             if(this.anchor) this.applyAnchor(pos)
             if(this.prevPos !== null) {
-                let cls = Wall
-                if(modeKey == "platform") cls = PlatformWall
-                else if(modeKey == "bouncing") cls = BouncingWall
-                gameScn.addObject(cls, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
+                gameScn.addObject(modeKey, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
             if(!this.draftObject) {
-                let cls = Wall
-                if(modeKey == "platform") cls = PlatformWall
-                else if(modeKey == "bouncing") cls = BouncingWall
-                this.draftObject = this.addObject(cls, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
+                this.draftObject = this.addObject(modeKey, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
             } else {
                 this.draftObject.x1 = pos.x
                 this.draftObject.y1 = pos.y
@@ -435,17 +429,19 @@ class DraftScene extends SceneCommon {
         ctx.strokeStyle = "grey"
         for(let sel of this.selections) {
             let left, top, width, height
-            if(sel instanceof Wall) {
-                left = min(sel.x1, sel.x2)
-                top = min(sel.y1, sel.y2)
-                width = abs(sel.x1 - sel.x2)
-                height = abs(sel.y1 - sel.y2)
-            } else if(sel instanceof GameObject) {
-                const hitBox = sel.getHitBox()
-                left = hitBox.left
-                top = hitBox.top
-                width = hitBox.width
-                height = hitBox.height
+            if(sel instanceof GameObject) {
+                if(sel.x1 !== undefined) {
+                    left = min(sel.x1, sel.x2)
+                    top = min(sel.y1, sel.y2)
+                    width = abs(sel.x1 - sel.x2)
+                    height = abs(sel.y1 - sel.y2)
+                } else {
+                    const hitBox = sel.getHitBox()
+                    left = hitBox.left
+                    top = hitBox.top
+                    width = hitBox.width
+                    height = hitBox.height
+                }
             } else if(sel instanceof ObjectLink) {
                 const { x:x1, y:y1 } = sel.triggerObject
                 const { x:x2, y:y2 } = sel.reactionObject

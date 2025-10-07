@@ -10,7 +10,6 @@ async function importAndLoadCatalog(path) {
 let loader = null
 export async function loadCatalog() {
     loader ||= Promise.all([
-        CATALOG.addModuleCatalogs(["./game.mjs"]),
         importAndLoadCatalog("../../catalogs/std/v1/index.mjs"),
     ])
     await loader

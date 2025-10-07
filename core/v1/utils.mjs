@@ -313,6 +313,18 @@ function importJs(src) {
 }
 
 
+function hasKeys(obj) {
+    for(let _ in obj) return true
+    return false
+}
+
+function nbKeys(obj) {
+    let res = 0
+    for(let _ in obj) res += 1
+    return res
+}
+
+
 export {
     // Group,
     // GameAudio,
@@ -335,4 +347,6 @@ export {
     newDomEl,
     addNewDomEl,
     importJs,
+    hasKeys,
+    nbKeys,
 }

@@ -1,11 +1,339 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../../core/v1/utils.mjs'
-const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, Hero, Enemy, Extra, Weapon, Projectile,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { GraphicsProps } from '../../../core/v1/graphics.mjs'
+const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys } = utils
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
+
+
+@StateInt.define("lastSpawnIt", { default: -Infinity })
+@CollectMixin.add({
+    canCollect: true,
+    canGetCollected: false,
+})
+@AttackMixin.add({
+    canAttack: false,
+    canGetAttacked: true,
+    graceDuration: 2,
+})
+@Category.append("hero")
+export class Hero extends GameObject {
+    static IS_HERO = true
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = "hero"
+        if(kwargs && kwargs.playerId !== undefined) this.setPlayerId(kwargs.playerId)
+    }
+
+    setPlayerId(playerId) {
+        if(playerId === this.playerId) return
+        this.playerId = playerId
+        this.scene.syncHero(this)
+    }
+
+    isLocalHero() {
+        return this === this.scene.localHero
+    }
+
+    initExtras() {
+        const extras = this.extras ||= new ObjectRefs(this.scene)
+        return extras
+    }
+
+    addExtra(extra) {
+        const extras = this.initExtras()
+        extras.add(extra.id)
+    }
+
+    onExtraDrop(extra) {
+        const extras = this.extras
+        if(extras) extras.delete(extra.id)
+    }
+
+    update() {
+        super.update()
+        this.updateSpawnEffect()
+    }
+
+    updateSpawnEffect() {
+        const { lastSpawnIt } = this
+        const { iteration } = this.scene
+        const { fps } = this.game
+        if(lastSpawnIt + fps > iteration) {
+            if(!this._spawnEnt) this._spawnEnt = this.addSpawnEffect()
+        } else {
+            delete this._spawnEnt
+            this.lastSpawnIt = -Infinity
+        }
+    }
+
+    addSpawnEffect() {
+        return this.scene.addVisual(Pop, {
+            x: this.x,
+            y: this.y,
+        })
+    }
+
+    getState() {
+        const state = super.getState()
+        state.pid = this.playerId
+        state.liv = this.lives
+        const inputState = this.inputState
+        if(inputState && hasKeys(inputState)) state.ist = inputState
+        else delete state.ist
+        const extras = this.extras
+        if(extras && extras.size > 0) {
+            const stExtras = state.extras ||= []
+            stExtras.length = 0
+            for(let exId of extras) stExtras.push(exId)
+        } else if(state.extras) state.extras.length = 0
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        this.setPlayerId(state.pid)
+        this.inputState = state.ist
+        if(this.extras || state.extras) {
+            const extras = this.initExtras()
+            extras.clear()
+            if(state.extras) for(let exId of state.extras) extras.add(exId)
+        }
+    }
+
+    getInputState() {
+        const inputState = this._inputState ||= {}
+        return inputState
+    }
+
+    setInputState(inputState) {
+        this.inputState = inputState
+        this.inputStateTime = now()
+        this._isStateToSend = true
+    }
+
+    initJoypadButtons(joypadScn) {}
+
+    spawn(x, y) {
+        this.x = x + floor((this.scene.rand("spawn")-.5) * 50)
+        this.y = y
+        this.speedX = 0
+        this.speedY = -200
+        this.lastSpawnIt = this.scene.iteration
+    }
+
+    die(killer) {
+        this.remove()
+        const { x, y } = this
+        this.scene.addVisual(SmokeExplosion, { x, y })
+    }
+
+    remove() {
+        super.remove()
+        this.scene.syncHero(this)
+    }
+}
+
+
+export const PuffAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/puff.opus")
+
+
+const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/smoke_explosion.png"), 4, 1)
+
+@CATALOG.registerObject({
+    showInBuilder: false
+})
+@StateInt.define("iteration")
+export class SmokeExplosion extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 100
+        this.game.audio.playSound(PuffAud)
+    }
+
+    update() {
+        this.iteration += 1
+        const time = this.iteration * this.game.dt
+        if(time > .5) { this.remove(); return }
+    }
+
+    getBaseImg() {
+        const time = this.iteration * this.game.dt
+        return SmokeExplosionSpriteSheet.get(floor(time/.5*4))
+    }
+}
+
+
+const PopImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/pop.png")
+const PopAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/pop.opus")
+
+class Pop extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 10
+        this.duration = floor(this.game.fps * .25)
+        this.remIt = this.duration
+    }
+    update() {
+        if(!this._soundPlayed) {
+            this.game.audio.playSound(PopAud)
+            this._soundPlayed = true
+        }
+        this.width = this.height = 10 + 100 * (1 - this.remIt/this.duration)
+        this.remIt -= 1
+        if(this.remIt <= 0) this.remove()
+    }
+    getBaseImg() {
+        return PopImg
+    }
+}
+
+
+@AttackMixin.add()
+@Category.append("npc/enemy")
+export class Enemy extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = "enemy"
+    }
+
+    die(killer) {
+        this.remove()
+        const { x, y } = this
+        this.scene.addVisual(SmokeExplosion, { x, y })
+    }
+}
+
+
+export const ItemAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/item.opus")
+
+
+@Category.append("extra")
+@CollectMixin.add({
+    canCollect: false,
+    canGetCollected: true,
+})
+@StateInt.define("dropAge", { default: Infinity, nullableWith: Infinity })
+export class Extra extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.stuckToOwner = true
+    }
+
+    getPriority() {
+        const { owner } = this
+        if(owner) return owner.getPriority() - 1
+        else super.getPriority()
+    }
+
+    update() {
+        super.update()
+        const { owner } = this
+        if(owner && this.stuckToOwner) {
+            this.x = owner.x
+            this.y = owner.y
+        }
+        this.dropAge += 1
+        if(this.dropAge > this.game.fps) this.dropAge = Infinity
+    }
+
+    canGetCollectedByObject(obj) {
+        return this.dropAge == Infinity
+    }
+
+    onGetCollected(owner) {
+        owner.addExtra(this)
+    }
+
+    onDrop(owner) {
+        this.dropAge = 0
+        owner.onExtraDrop(this)
+    }
+}
+
+
+@AttackMixin.add({
+    canAttack: true,
+    canGetAttacked: false,
+})
+export class Weapon extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = null
+    }
+
+    onGetCollected(owner) {
+        super.onGetCollected(owner)
+        this.team = owner.team
+    }
+
+    onDrop(owner) {
+        super.onDrop(owner)
+        this.team = null
+    }
+
+    canAttackObject(obj) {
+        const { owner } = this
+        return owner ? (obj != owner && owner.canAttackObject(obj)) : true
+    }
+
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        props.attacker = this.owner ?? this
+        return props
+    }
+}
+
+
+@Category.append("projectile")
+@AttackMixin.add({
+    canAttack: true,
+    canGetAttacked: false,
+})
+@PhysicsMixin.add({
+    affectedByGravity: false,
+})
+@OwnerableMixin.add()
+export class Projectile extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.syncTeam()
+    }
+
+    update() {
+        super.update()
+        this.syncTeam()
+    }
+
+    syncTeam() {
+        this.team = this.owner?.team ?? null
+    }
+
+    canAttackObject(obj) {
+        const { owner } = this
+        return owner ? (obj != owner && owner.canAttackObject(obj)) : true
+    }
+
+    getAttackProps(obj) {
+        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        props.attacker = this.owner ?? this
+        return props
+    }
+
+    onAttack(obj, props) {
+        this.remove()
+    }
+}
 
 
 // HEROES
@@ -25,7 +353,7 @@ const NicoSpriteSheets = {
 }
 
 const HandImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/hand.png")
-const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/arrows.png"), 4, 1)
+const ArrowsSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/arrows.png"), 4, 1)
 
 const OuchAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/ouch.opus")
 const SlashAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/slash.opus")
@@ -990,5 +1318,218 @@ export class Portal extends GameObject {
 
     getBaseImg() {
         return PortalImg
+    }
+}
+
+
+// SPAWNER
+
+@CATALOG.registerObject({
+    label: "Hero",
+    icon: PopImg,
+})
+export class HeroSpawnPoint extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = this.height = 50
+    }
+
+    getBaseImg() {
+        return this.game.isBuilder ? PopImg : null
+    }
+}
+
+
+@CATALOG.registerObject({
+    label: "ObjectSpawner",
+    icon: PopImg,
+})
+@ObjectRefs.StateProperty.define("spawnedObjects")
+@StateInt.define("lastSpawnAge", { default: Infinity })
+@StateInt.define("nbSpawn")
+@StateInt.define("prevFuther", { showInBuilder: true })
+@StateInt.define("maxLiving", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateInt.define("period", { default: 1, showInBuilder: true })
+@GameObject.StateProperty.define("model", { showInBuilder: true })
+@ActivableMixin.add()
+@BodyMixin.add({
+    width: 50,
+    height: 50,
+})
+export class ObjectSpawner extends GameObject {
+
+    update() {
+        super.update()
+        this.spawnedObjects.update()
+        if(this.nbSpawn >= this.max && this.spawnedObjects.size == 0) this.remove()
+        this.maySpawnObject()
+    }
+
+    maySpawnObject() {
+        if(!this.activated) return
+        if(this.nbSpawn >= this.max) return
+        if(this.spawnedObjects.size >= this.maxLiving) return
+        const { x, y, prevFuther } = this
+        if(prevFuther > 0) {
+            let allFar = true
+            this.spawnedObjects.forEach(obj => {
+                if(hypot(x-obj.x, y-obj.y) <= prevFuther) allFar = false
+            })
+            if(!allFar) return
+        }
+        this.lastSpawnAge += 1
+        if(this.lastSpawnAge < ceil(this.period * this.game.fps)) return
+        this.spawnObject()
+    }
+
+    spawnObject() {
+        const { scene, model } = this
+        if(!model) return
+        const obj = scene.addObject(model.getKey())
+        const state = {
+            ...model.getState(),
+            x: this.x,
+            y: this.y,
+        }
+        obj.setState(state)
+        this.nbSpawn += 1
+        this.spawnedObjects.add(obj.id)
+        this.lastSpawnAge = 0
+        scene.addVisual(Pop, { x:this.x, y:this.y })
+        return obj
+    }
+
+    draw(drawer) {
+        if(!this.game.isBuilder) return
+        super.draw(drawer)
+        const { model } = this
+        if(!model) return
+        const modelProps = model.getGraphicsProps()
+        const modelProps2 = this._modelGraphicsProps ||= new GraphicsProps({
+            visibility: .5
+        })
+        modelProps2.img = modelProps.img
+        modelProps2.x = this.x
+        modelProps2.y = this.y
+        modelProps2.width = modelProps.width
+        modelProps2.height = modelProps.height
+        modelProps2.draw(drawer)
+    }
+
+    getBaseImg() {
+        return PopImg
+    }
+}
+
+
+// WALL
+
+@CATALOG.registerObject({
+    stateful: false,
+})
+@Category.append("wall")
+@PhysicsMixin.add({
+    canMove: false,
+    canBlock: true,
+})
+export class Wall extends GameObject {
+
+    init(kwargs) {
+        if(kwargs?.x1 !== undefined) this.x1 = kwargs.x1
+        if(kwargs?.y1 !== undefined) this.y1 = kwargs.y1
+        if(kwargs?.x2 !== undefined) this.x2 = kwargs.x2
+        if(kwargs?.y2 !== undefined) this.y2 = kwargs.y2
+        this.color = "black"
+    }
+
+    getBodyPolygon() {
+        const pol = this.bodyPolygons ||= []
+        pol.length = 0
+        const { x1, x2, y1, y2 } = this
+        pol.push(
+            x1, y1,
+            x2, y2,
+        )
+        return pol
+    }
+
+    getGraphicsProps() {
+        const { x1, y1, x2, y2 } = this
+        const img = this.getBaseImg()
+        const props = this._graphicsProps ||= new GraphicsProps()
+        const lineWidth = 5
+        props.img = img
+        props.x = (x1 + x2) / 2
+        props.y = (y1 + y2) / 2
+        props.width = abs(x1 - x2) + 2*lineWidth
+        props.height = abs(y1 - y2) + 2*lineWidth
+        return props
+    }
+
+    getBaseImg() {
+        const { x1, y1, x2, y2 } = this
+        let baseImg = this._baseImg
+        if(baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return baseImg
+        const lineWidth = 5
+        baseImg = this._baseImg = newCanvas(abs(x1-x2)+2*lineWidth, abs(y1-y2)+2*lineWidth)
+        assign(baseImg, { x1, y1, x2, y2 })
+        const ctx = baseImg.getContext("2d")
+        ctx.lineWidth = lineWidth
+        ctx.strokeStyle = this.color
+        ctx.beginPath()
+        const minX = min(x1, x2), minY = min(y1, y2)
+        ctx.moveTo(lineWidth+x1-minX, lineWidth+y1-minY)
+        ctx.lineTo(lineWidth+x2-minX, lineWidth+y2-minY)
+        ctx.stroke()
+        return baseImg
+    }
+
+    getState(isInitState=false) {
+        const state = super.getState(isInitState)
+        const { x1, y1, x2, y2 } = this
+        assign(state, { x1, y1, x2, y2 })
+        return state
+    }
+
+    setState(state) {
+        super.setState(state)
+        const { x1, y1, x2, y2 } = state
+        assign(this, { x1, y1, x2, y2 })
+    }
+}
+
+
+@CATALOG.registerObject({
+    stateful: false,
+})
+export class PlatformWall extends Wall {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.color = "grey"
+    }
+
+    getHitProps(dt) {
+        const props = super.getHitProps(dt)
+        const { x1, x2, y1, y2 } = this
+        const dx = x2-x1, dy = y2-y1, dd = hypot(dx, dy)
+        props.uniDirX = dy/dd
+        props.uniDirY = -dx/dd
+        return props
+    }
+}
+
+
+@CATALOG.registerObject({
+    stateful: false,
+})
+export class BouncingWall extends Wall {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.color = "green"
+        this.bouncingFactor = 1
     }
 }
