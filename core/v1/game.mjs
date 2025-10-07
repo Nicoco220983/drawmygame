@@ -182,7 +182,7 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
             walls: [],
-            borderManager: { key : "damagebordermng" },
+            borderManager: { key : "blockbordermng" },
             herosLivesManager: { key : "heroslivesmng" },
             viewManager: { key: "viewheroscentermng" },
             physicsManager: { key: "physicsmng" },

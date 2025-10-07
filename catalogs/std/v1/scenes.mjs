@@ -1,7 +1,7 @@
 const { assign } = Object
 const { floor, round, max } = Math
 import { GraphicsProps } from '../../../core/v1/graphics.mjs'
-import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
+import { GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, Wall, Hero, Enemy, ScoresBoard, ModuleCatalog, CountDown, hackMethod, hasKeys, GameObjectGroup, PlayerIcon } from '../../../core/v1/game.mjs'
 import { Star } from './objects.mjs'
 import * as utils from '../../../core/v1/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
@@ -17,6 +17,23 @@ export class Manager extends GameObject {}
 
 @Category.append("border")
 export class BorderManager extends Manager {}
+
+
+@CATALOG.registerObject("blockbordermng", {
+    showInBuilder: true,
+})
+export class BlockBorderManager extends BorderManager {
+
+    init(kwargs) {
+        super.init(kwargs)
+        const { scene } = this
+        const { width, height } = scene
+        scene.addObject(Wall, { x1:0, y1:0, x2:width, y2:0})
+        scene.addObject(Wall, { x1:width, y1:0, x2:width, y2:height})
+        scene.addObject(Wall, { x1:width, y1:height, x2:0, y2:height})
+        scene.addObject(Wall, { x1:0, y1:height, x2:0, y2:0})
+    }
+}
 
 
 @CATALOG.registerObject("damagebordermng", {
@@ -402,7 +419,7 @@ class PlayerScoreText extends Text {
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "damagebordermng" },
+    default: { key: "blockbordermng" },
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {
