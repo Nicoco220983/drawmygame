@@ -394,7 +394,7 @@ class PlayerScoreText extends Text {
 
 // Standard
 
-@CATALOG.registerScene("std")
+@CATALOG.registerScene()
 @StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
@@ -462,7 +462,7 @@ export class StandardScene extends GameScene {
 
 // TAG
 
-@CATALOG.registerScene("tag")
+@CATALOG.registerScene()
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
@@ -640,7 +640,7 @@ export class Tag extends GameObject {
 }
 
 
-@CATALOG.registerScene("stealtreasures")
+@CATALOG.registerScene()
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },

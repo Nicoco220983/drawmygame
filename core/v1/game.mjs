@@ -141,10 +141,10 @@ export class ModuleCatalog {
             return target
         }
     }
-    registerScene(key, kwargs) {
+    registerScene(kwargs) {
         return target => {
-            target.KEY = key
-            const scnCat = this.scenes[key] = {}
+            target.KEY = target.name
+            const scnCat = this.scenes[target.KEY] = {}
             scnCat.name = target.name
             scnCat.showInBuilder = kwargs?.showInBuilder ?? true
             return target
@@ -177,7 +177,7 @@ export class GameMap {
             key: "Nico"
         }]
         this.scenes = { "0": {
-            key: "std",
+            key: "StandardScene",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
@@ -2193,7 +2193,7 @@ export class Game extends GameCommon {
 }
 
 
-@CATALOG.registerScene("default", {
+@CATALOG.registerScene({
     showInBuilder: false,
 })
 export class DefaultScene extends SceneCommon {
@@ -3460,7 +3460,7 @@ export class PlayerText extends Text {
 }
 
 
-@CATALOG.registerScene("waiting", {
+@CATALOG.registerScene({
     showInBuilder: false,
 })
 export class WaitingScene extends SceneCommon {
