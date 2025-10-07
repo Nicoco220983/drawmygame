@@ -19,7 +19,7 @@ export class Manager extends GameObject {}
 export class BorderManager extends Manager {}
 
 
-@CATALOG.registerObject("blockbordermng", {
+@CATALOG.registerObject({
     showInBuilder: true,
 })
 export class BlockBorderManager extends BorderManager {
@@ -36,7 +36,7 @@ export class BlockBorderManager extends BorderManager {
 }
 
 
-@CATALOG.registerObject("damagebordermng", {
+@CATALOG.registerObject({
     showInBuilder: true,
 })
 @StateInt.define("heroOutDamages", { default: 10, nullableWith: Infinity, showInBuilder: true })
@@ -66,7 +66,7 @@ export class DamageBorderManager extends BorderManager {
 }
 
 
-@CATALOG.registerObject("loopbordermng", {
+@CATALOG.registerObject({
     showInBuilder: true,
 })
 export class LoopBorderManager extends BorderManager {
@@ -86,7 +86,7 @@ export class LoopBorderManager extends BorderManager {
 }
 
 
-@CATALOG.registerObject("heroslivesmng", {
+@CATALOG.registerObject({
     showInBuilder: true,
 })
 @Category.append("heroslives")
@@ -130,7 +130,7 @@ export class HerosLivesManager extends Manager {
 export class ViewManager extends Manager {}
 
 
-@CATALOG.registerObject("viewheroscentermng", {
+@CATALOG.registerObject({
     showInBuilder: true
 })
 export class ViewHerosCenterManager extends ViewManager {
@@ -166,7 +166,7 @@ export class ViewHerosCenterManager extends ViewManager {
 }
 
 
-@CATALOG.registerObject("viewfirstheromng", {
+@CATALOG.registerObject({
     showInBuilder: true
 })
 export class ViewFirstHeroManager extends ViewManager {
@@ -237,14 +237,14 @@ export class ViewFirstHeroManager extends ViewManager {
 }
 
 
-@CATALOG.registerObject("physicsmng")
+@CATALOG.registerObject()
 @StateInt.define("gravityAcc", { default: 1000 })
 @StateInt.define("gravityMaxSpeed", { default: 1000 })
 @Category.append("physics")
 export class PhysicsManager extends Manager {}
 
 
-@CATALOG.registerObject("attackmng")
+@CATALOG.registerObject()
 @Category.append("attack")
 export class AttackManager extends Manager {
 
@@ -399,27 +399,27 @@ class PlayerScoreText extends Text {
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "attackmng" },
+    default: { key: "AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "physicsmng" },
+    default: { key: "PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("viewManager", {
     filter: { category: "manager/view" },
-    default: { key: "viewheroscentermng" },
+    default: { key: "ViewHerosCenterManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
-    default: { key: "heroslivesmng" },
+    default: { key: "HerosLivesManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "blockbordermng" },
+    default: { key: "BlockBorderManager" },
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {
@@ -466,17 +466,17 @@ export class StandardScene extends GameScene {
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "attackmng" },
+    default: { key: "AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "physicsmng" },
+    default: { key: "PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "loopbordermng" },
+    default: { key: "LoopBorderManager" },
     showInBuilder: true,
 })
 export class TagScene extends GameScene {
@@ -606,7 +606,7 @@ export class TagScene extends GameScene {
 
 const TagImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/tag.png")
 
-@CATALOG.registerObject("tag", {
+@CATALOG.registerObject({
     showInBuilder: false
 })
 @OwnerableMixin.add({
@@ -644,17 +644,17 @@ export class Tag extends GameObject {
 @StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "attackmng" },
+    default: { key: "AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "physicsmng" },
+    default: { key: "PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "loopbordermng" },
+    default: { key: "LoopBorderManager" },
     showInBuilder: true,
 })
 export class StealTreasures extends GameScene {

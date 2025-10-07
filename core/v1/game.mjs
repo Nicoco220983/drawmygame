@@ -127,14 +127,14 @@ export class ModuleCatalog {
         this.scenes = {}
         this.assets = []
     }
-    registerObject(key, kwargs) {
+    registerObject(kwargs) {
         return target => {
-            target.KEY = key
+            target.KEY = target.name
             target.STATEFUL = kwargs?.stateful ?? true
-            const objCat = this.objects[key] = {}
+            const objCat = this.objects[target.KEY] = {}
             objCat.name = target.name
             objCat.category = target.CATEGORY
-            objCat.label = kwargs?.label ?? key
+            objCat.label = kwargs?.label ?? target.KEY
             objCat.icon = kwargs?.icon ?? null
             objCat.showInBuilder = kwargs?.showInBuilder ?? true
             objCat.isHero = Hero.isPrototypeOf(target)
@@ -174,7 +174,7 @@ export const CATALOG = new ModuleCatalog()
 export class GameMap {
     constructor() {
         this.heros = [{
-            key: "nico"
+            key: "Nico"
         }]
         this.scenes = { "0": {
             key: "std",
@@ -182,11 +182,11 @@ export class GameMap {
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
             walls: [],
-            borderManager: { key : "blockbordermng" },
-            herosLivesManager: { key : "heroslivesmng" },
-            viewManager: { key: "viewheroscentermng" },
-            physicsManager: { key: "physicsmng" },
-            attackManager: { key: "attackmng" },
+            borderManager: { key : "BlockBorderManager" },
+            herosLivesManager: { key : "HerosLivesManager" },
+            viewManager: { key: "ViewHerosCenterManager" },
+            physicsManager: { key: "PhysicsManager" },
+            attackManager: { key: "AttackManager" },
         }}
     }
 
@@ -1378,7 +1378,9 @@ export class GameCommon {
         map.heros.forEach(heroMap => paths.add(catalog.objects[heroMap.key].path))
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         if(scnMap) {
-            scnMap.objects.forEach(objMap => paths.add(catalog.objects[objMap.key].path))
+            scnMap.objects.forEach(objMap => {
+                paths.add(catalog.objects[objMap.key].path)
+            })
         }
         const mods = await catalog.preload(Array.from(paths))
         await this.loadScenes(mods[0][scnCat.name], scnMapId, scnId)
@@ -3079,7 +3081,7 @@ export const PuffAud = CATALOG.registerAudio("/static/core/v1/assets/puff.opus")
 
 const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/smoke_explosion.png"), 4, 1)
 
-@CATALOG.registerObject("smokee", {
+@CATALOG.registerObject({
     showInBuilder: false
 })
 @StateInt.define("iteration")
@@ -3271,7 +3273,7 @@ export class Projectile extends GameObject {
 }
 
 
-@CATALOG.registerObject("wall", {
+@CATALOG.registerObject({
     stateful: false,
 })
 @Category.append("wall")
@@ -3346,7 +3348,7 @@ export class Wall extends GameObject {
 }
 
 
-@CATALOG.registerObject("platformw", {
+@CATALOG.registerObject({
     stateful: false,
 })
 export class PlatformWall extends Wall {
@@ -3367,7 +3369,7 @@ export class PlatformWall extends Wall {
 }
 
 
-@CATALOG.registerObject("bouncingw", {
+@CATALOG.registerObject({
     stateful: false,
 })
 export class BouncingWall extends Wall {
@@ -3701,7 +3703,7 @@ export class CountDown extends Text {
 }
 
 
-@CATALOG.registerObject("hero", {
+@CATALOG.registerObject({
     label: "Hero",
     icon: PopImg,
 })
@@ -3718,7 +3720,7 @@ export class HeroSpawnPoint extends GameObject {
 }
 
 
-@CATALOG.registerObject("spawn", {
+@CATALOG.registerObject({
     label: "ObjectSpawner",
     icon: PopImg,
 })

@@ -31,7 +31,7 @@ export class Block extends GameObject {
 
 const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/grass.png")
 
-@CATALOG.registerObject("grass", {
+@CATALOG.registerObject({
     label: "Grass",
     icon: GrassImg,
 })
@@ -45,7 +45,7 @@ export class GrassBlock extends Block {
 
 const PlatformImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/platform.png")
 
-@CATALOG.registerObject("platform", {
+@CATALOG.registerObject({
     label: "Platform",
     icon: PlatformImg,
 })
@@ -80,7 +80,7 @@ export class PlatformBlock extends Block {
 const DoorImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door.png")
 const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door_spritesheet.png"), 2, 1)
 
-@CATALOG.registerObject("door", {
+@CATALOG.registerObject({
     label: "Door",
     icon: DoorImg,
     showInBuilder: true,
@@ -119,7 +119,7 @@ export class Door extends Block {
 
 const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/cloud.png")
 
-@CATALOG.registerObject("cloud", {
+@CATALOG.registerObject({
     label: "Cloud",
     icon: CloudImg,
     showInBuilder: true,
@@ -265,7 +265,7 @@ export class Trap extends Block {
 
 const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
 
-@CATALOG.registerObject("boxblk", {
+@CATALOG.registerObject({
     label: "Boxing Trap",
     icon: BoxingGloveImg,
     showInBuilder: true,
@@ -286,7 +286,7 @@ export class BoxingTrap extends Trap {
 
 const BouncingBlockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/bouncing_block.png")
 
-@CATALOG.registerObject("bouncingb", {
+@CATALOG.registerObject({
     label: "Bouncing Block",
     icon: BouncingBlockImg,
     showInBuilder: true,

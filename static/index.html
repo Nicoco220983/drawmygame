@@ -121,7 +121,7 @@ async function initInputEls(catalog) {
     const scnMap = map.scenes["0"]
     scnKeyEl.value = scnMap.key
     herosEl.initCatalog(catalog, objCat => objCat.isHero)
-    herosEl.setSelectedObject("nico")
+    herosEl.setSelectedObject("Nico")
     objectsEl.initCatalog(catalog, objCat => {
         return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("manager") || objCat.category.startsWith("wall")))
     })

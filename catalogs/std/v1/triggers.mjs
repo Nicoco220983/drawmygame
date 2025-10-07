@@ -25,7 +25,7 @@ export class Trigger extends GameObject {
 const BurronImg = CATALOG.registerImage("/static/core/v1/assets/button.png")
 const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/core/v1/assets/button_spritesheet.png"), 2, 1)
 
-@CATALOG.registerObject("button", {
+@CATALOG.registerObject({
     label: "Button",
     icon: BurronImg,
 })
@@ -75,7 +75,7 @@ export class Button extends Trigger {
 
 const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/clock.png")
 
-@CATALOG.registerObject("clock", {
+@CATALOG.registerObject({
     label: "Clock",
     icon: ClockImg,
     showInBuilder: true,
@@ -107,7 +107,7 @@ export class Clock extends Trigger {
 
 const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/watcher.png")
 
-@CATALOG.registerObject("watcher", {
+@CATALOG.registerObject({
     label: "Watcher",
     icon: WatcherImg,
     showInBuilder: true,
@@ -141,7 +141,7 @@ export class Viewer extends Trigger {
 
 const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/invert_trigger.png")
 
-@CATALOG.registerObject("invert", {
+@CATALOG.registerObject({
     label: "Invert (NOT)",
     icon: InvertTriggerImg,
     showInBuilder: true,
@@ -211,7 +211,7 @@ export class AggregatorTrigger extends Trigger {
 
 const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/min_trigger.png")
 
-@CATALOG.registerObject("min", {
+@CATALOG.registerObject({
     label: "Min (AND)",
     icon: MinTriggerImg,
     showInBuilder: true,
@@ -235,7 +235,7 @@ export class MinTrigger extends AggregatorTrigger {
 
 const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/max_trigger.png")
 
-@CATALOG.registerObject("max", {
+@CATALOG.registerObject({
     label: "Max (OR)",
     icon: MaxTriggerImg,
     showInBuilder: true,
@@ -259,7 +259,7 @@ export class MaxTrigger extends AggregatorTrigger {
 
 const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/xor_trigger.png")
 
-@CATALOG.registerObject("xor", {
+@CATALOG.registerObject({
     label: "Xor",
     icon: XorTriggerImg,
     showInBuilder: true,
@@ -286,7 +286,7 @@ export class XorTrigger extends AggregatorTrigger {
 
 const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/delay_trigger.png")
 
-@CATALOG.registerObject("delay", {
+@CATALOG.registerObject({
     label: "Delay",
     icon: DelayTriggerImg,
     showInBuilder: true,

@@ -34,7 +34,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/jump.opus"
 
 
 
-@CATALOG.registerObject("nico", {
+@CATALOG.registerObject({
     label: "Nico",
     icon: NicoImg,
 })
@@ -234,7 +234,7 @@ const SwordSlashSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cat
 
 const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/sword_hit.opus")
 
-@CATALOG.registerObject("sword", {
+@CATALOG.registerObject({
     label: "Sword",
     icon: SwordImg,
 })
@@ -306,7 +306,7 @@ export class Sword extends Weapon {
 
 const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
 
-@CATALOG.registerObject("boxglove", {
+@CATALOG.registerObject({
     label: "Boxing Glove",
     icon: BoxingGloveImg,
 })
@@ -383,7 +383,7 @@ export class BoxingGlove extends Weapon {
 
 const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/shuriken.png")
 
-@CATALOG.registerObject("shurikp", {
+@CATALOG.registerObject({
     label: "ShurikenPack",
     icon: ShurikenImg,
 })
@@ -436,7 +436,7 @@ export class ShurikenPack extends Extra {
     }
 }
 
-@CATALOG.registerObject("shurik", {
+@CATALOG.registerObject({
     label: "Shuriken",
     icon: ShurikenImg,
     showInBuilder: false,
@@ -473,7 +473,7 @@ export class Shuriken extends Projectile {
 const BombImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/bomb.png")
 const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/bomb_spritesheet.png"), 2, 1)
 
-@CATALOG.registerObject("bomb", {
+@CATALOG.registerObject({
     label: "Bomb",
     icon: BombImg
 })
@@ -534,7 +534,7 @@ export class Bomb extends Extra {
 
 const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/explosion.png"), 4, 2)
 
-@CATALOG.registerObject("explos", {
+@CATALOG.registerObject({
     showInBuilder: false
 })
 @AttackMixin.add({
@@ -588,7 +588,7 @@ export class Explosion extends GameObject {
 
 const SpikyImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/spiky.png")
 
-@CATALOG.registerObject("spiky", {
+@CATALOG.registerObject({
     label: "Spiky",
     icon: SpikyImg,
 })
@@ -626,7 +626,7 @@ export class Spiky extends Enemy {
 
 const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blob.png")
 
-@CATALOG.registerObject("blob", {
+@CATALOG.registerObject({
     label: "Blob",
     icon: BlobImg,
 })
@@ -747,7 +747,7 @@ class BlobEnemyBlockChecker extends GameObject {
 
 const GhostImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/ghost.png")
 
-@CATALOG.registerObject("ghost", {
+@CATALOG.registerObject({
     label: "Ghost",
     icon: GhostImg,
 })
@@ -821,7 +821,7 @@ export const HeartSpriteSheets = {
     },
 }
 
-@CATALOG.registerObject("heart", {
+@CATALOG.registerObject({
     label: "Heart",
     icon: HeartImg,
 })
@@ -862,7 +862,7 @@ export class Heart extends GameObject {
 
 const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
 
-@CATALOG.registerObject("star", {
+@CATALOG.registerObject({
     label: "Star",
     icon: StarImg,
 })
@@ -921,7 +921,7 @@ export class Star extends Extra {
 
 const CheckpointImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/checkpoint.png")
 
-@CATALOG.registerObject("checkpt", {
+@CATALOG.registerObject({
     label: "CheckPoint",
     icon: CheckpointImg,
 })
@@ -949,7 +949,7 @@ export class Checkpoint extends GameObject {
 const PortalImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/portal.png")
 const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/portal_jump.opus")
 
-@CATALOG.registerObject("portal", {
+@CATALOG.registerObject({
     label: "Portal",
     icon: PortalImg,
 })
