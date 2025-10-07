@@ -1289,6 +1289,8 @@ const PortalJumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/port
     icon: PortalImg,
 })
 @ActivableMixin.add()
+@StateBool.define("isOutput", { default: true, showInBuilder: true })
+@StateBool.define("isInput", { default: true, showInBuilder: true })
 export class Portal extends GameObject {
 
     init(kwargs) {
@@ -1298,7 +1300,7 @@ export class Portal extends GameObject {
 
     update() {
         super.update()
-        if(this.activated) {
+        if(this.activated && this.isInput) {
             this.scene.objects.forEach(obj => {
                 if(hypot(obj.x-this.x, obj.y-this.y)<30 && (obj.speedX * (this.x-obj.x) + obj.speedY * (this.y-obj.y))>0) {
                     this.teleport(obj)
@@ -1308,10 +1310,14 @@ export class Portal extends GameObject {
     }
 
     teleport(obj) {
-        const portals = this.scene.filterObjects("portals", obj => (obj instanceof Portal && obj.activated))
-        if(portals.length < 2) return
-        let targetPortal = portals[floor(this.scene.rand("portals") * (portals.length - 1))]
-        if(targetPortal === this) targetPortal = portals[portals.length - 1]
+        const { scene } = this
+        const candidates = this._candidates ||= []
+        candidates.length = 0
+        scene.objects.forEach(port => {
+            if(port instanceof Portal && port != this && port.activated && port.isOutput) candidates.push(port)
+        })
+        if(candidates.length == 0) return
+        let targetPortal = candidates[floor(scene.rand("teleport") * candidates.length)]
         obj.x = targetPortal.x + (this.x - obj.x)
         obj.y = targetPortal.y + (this.y - obj.y)
         this.game.audio.playSound(PortalJumpAud)
