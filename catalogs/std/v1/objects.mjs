@@ -3,13 +3,13 @@ const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypo
 import * as utils from '../../../core/v1/utils.mjs'
 import { GraphicsProps } from '../../../core/v1/graphics.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
 
 
-@StateInt.define("lastSpawnIt", { default: -Infinity })
+@StateNumber.define("lastSpawnIt", { default: -Infinity })
 @CollectMixin.add({
     canCollect: true,
     canGetCollected: false,
@@ -147,7 +147,7 @@ const SmokeExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static
 @CATALOG.registerObject({
     showInBuilder: false
 })
-@StateInt.define("iteration")
+@StateNumber.define("iteration")
 export class SmokeExplosion extends GameObject {
 
     init(kwargs) {
@@ -220,7 +220,7 @@ export const ItemAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/ite
     canCollect: false,
     canGetCollected: true,
 })
-@StateInt.define("dropAge", { default: Infinity, nullableWith: Infinity })
+@StateNumber.define("dropAge", { default: Infinity, nullableWith: Infinity })
 export class Extra extends GameObject {
 
     init(kwargs) {
@@ -366,7 +366,7 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/jump.opus"
     label: "Nico",
     icon: NicoImg,
 })
-@StateInt.define("handRemIt", { nullableWith: null, default: null })
+@StateNumber.define("handRemIt", { nullableWith: null, default: null })
 @StateProperty.modify("dirX", { showInBuilder: true })
 @AttackMixin.add({
     canAttack: false,
@@ -566,7 +566,7 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/sword_
     label: "Sword",
     icon: SwordImg,
 })
-@StateInt.define("lastAttackAge", { default: Infinity })
+@StateNumber.define("lastAttackAge", { default: Infinity })
 @BodyMixin.add({
     width: 40,
     height: 40,
@@ -642,7 +642,7 @@ const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/box
     width: 25,
     height: 20,
 })
-@StateInt.define("lastAttackAge", { default: Infinity })
+@StateNumber.define("lastAttackAge", { default: Infinity })
 export class BoxingGlove extends Weapon {
 
     init(kwargs) {
@@ -719,7 +719,7 @@ const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/shurik
     width: 30,
     height: 30,
 })
-@StateInt.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
 export class ShurikenPack extends Extra {
 
     init(kwargs) {
@@ -773,7 +773,7 @@ export class ShurikenPack extends Extra {
     width: 30,
     height: 30,
 })
-@StateInt.define("itToLive", { default: null })
+@StateNumber.define("itToLive", { default: null })
 export class Shuriken extends Projectile {
 
     init(kwargs) {
@@ -812,8 +812,8 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
     width: 40,
     height: 40,
 })
-@StateInt.define("countdown", { default: 2, showInBuilder: true })
-@StateInt.define("itToLive", { default: null })
+@StateNumber.define("countdown", { default: 2, precision:.5, showInBuilder: true })
+@StateNumber.define("itToLive", { default: null })
 export class Bomb extends Extra {
 
     init(kwargs) {
@@ -878,8 +878,8 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     width: 300,
     height: 300,
 })
-@StateInt.define("lastAttackAge", { default: Infinity })
-@StateInt.define("iteration")
+@StateNumber.define("lastAttackAge", { default: Infinity })
+@StateNumber.define("iteration")
 export class Explosion extends GameObject {
 
     getAttackProps(obj) {
@@ -958,7 +958,7 @@ const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blob.png")
     label: "Blob",
     icon: BlobImg,
 })
-@StateInt.define("lastChangeDirAge")
+@StateNumber.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
 @AttackMixin.add({
     canAttack: true,
@@ -1203,7 +1203,7 @@ const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
     width: 30,
     height: 30,
 })
-@StateInt.define("speed", { step:100, showInBuilder: true })
+@StateNumber.define("speed", { precision:100, showInBuilder: true })
 export class Star extends Extra {
 
     update() {
@@ -1346,12 +1346,12 @@ export class HeroSpawnPoint extends GameObject {
     icon: PopImg,
 })
 @ObjectRefs.StateProperty.define("spawnedObjects")
-@StateInt.define("lastSpawnAge", { default: Infinity })
-@StateInt.define("nbSpawn")
-@StateInt.define("prevFuther", { showInBuilder: true })
-@StateInt.define("maxLiving", { default: 10, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("period", { default: 1, showInBuilder: true })
+@StateNumber.define("lastSpawnAge", { default: Infinity })
+@StateNumber.define("nbSpawn")
+@StateNumber.define("prevFuther", { precision: 50, showInBuilder: true })
+@StateNumber.define("maxLiving", { default: 5, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("period", { default: 1, precision: .1, showInBuilder: true })
 @GameObject.StateProperty.define("model", { showInBuilder: true })
 @ActivableMixin.add()
 @BodyMixin.add({
@@ -1388,12 +1388,9 @@ export class ObjectSpawner extends GameObject {
         const { scene, model } = this
         if(!model) return
         const obj = scene.addObject(model.getKey())
-        const state = {
-            ...model.getState(),
-            x: this.x,
-            y: this.y,
-        }
-        obj.setState(state)
+        obj.setState(obj.getState())
+        obj.x = this.x
+        obj.y = this.y
         this.nbSpawn += 1
         this.spawnedObjects.add(obj.id)
         this.lastSpawnAge = 0

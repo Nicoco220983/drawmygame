@@ -1,5 +1,5 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateFloat, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -124,9 +124,9 @@ const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/cl
     icon: CloudImg,
     showInBuilder: true,
 })
-@StateInt.define("blockAge", { default: null, nullableWith: null })
-@StateInt.define("timeToDisappear", { default: 1, showInBuilder: true })
-@StateInt.define("timeToReappear", { default: 3, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("blockAge", { default: null, nullableWith: null })
+@StateNumber.define("timeToDisappear", { default: 1, precision: .5, showInBuilder: true })
+@StateNumber.define("timeToReappear", { default: 3, precision: .5, nullableWith: Infinity, showInBuilder: true })
 export class Cloud extends Block {
 
     init(kwargs) {
@@ -204,9 +204,9 @@ const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/detect.w
 
 @AttackMixin.add()
 @LinkReaction.add("reactTrigger", { label:"trigger", isDefault: true })
-@StateInt.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
-@StateFloat.define("duration", { default: 3, precision:.1, showInBuilder: true })
-@StateFloat.define("countdown", { default: 1, precision:.1, showInBuilder: true })
+@StateNumber.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
+@StateNumber.define("duration", { default: 2, precision:.1, showInBuilder: true })
+@StateNumber.define("countdown", { default: .5, precision:.1, showInBuilder: true })
 @StateEnum.define("dir", { default: "right", options: { "up": "Up", "down": "Down", "left": "Left", "right": "Right"}, showInBuilder: true })
 export class Trap extends Block {
 

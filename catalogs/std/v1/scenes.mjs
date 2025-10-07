@@ -1,7 +1,7 @@
 const { assign } = Object
 const { floor, round, ceil, max } = Math
 import { GraphicsProps } from '../../../core/v1/graphics.mjs'
-import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateInt, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../core/v1/game.mjs'
+import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateNumber, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../core/v1/game.mjs'
 import { Hero, Wall, Star, HeroSpawnPoint } from './objects.mjs'
 import * as utils from '../../../core/v1/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys } = utils
@@ -12,8 +12,8 @@ export const CATALOG = new ModuleCatalog("std")
 const IS_SERVER_ENV = (typeof window === 'undefined')
 
 
-@StateInt.modify("y", { showInBuilder: false })
-@StateInt.modify("x", { showInBuilder: false })
+@StateNumber.modify("y", { showInBuilder: false })
+@StateNumber.modify("x", { showInBuilder: false })
 @Category.append("manager")
 export class Manager extends GameObject {}
 
@@ -42,8 +42,8 @@ export class BlockBorderManager extends BorderManager {
 @CATALOG.registerObject({
     showInBuilder: true,
 })
-@StateInt.define("heroOutDamages", { default: 10, nullableWith: Infinity, showInBuilder: true })
-@StateInt.define("limit", { default: 100, showInBuilder: true })
+@StateNumber.define("heroOutDamages", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("limit", { default: 100, precision: 50, showInBuilder: true })
 export class DamageBorderManager extends BorderManager {
 
     update() {
@@ -94,8 +94,8 @@ export class LoopBorderManager extends BorderManager {
 })
 @Category.append("heroslives")
 @StateProperty.define("deathsIts")
-@StateInt.define("delay", { default: 1, showInBuilder: true })
-@StateInt.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("delay", { default: 1, precision: .5, showInBuilder: true })
+@StateNumber.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
 export class HerosLivesManager extends Manager {
 
     init(kwargs) {
@@ -241,8 +241,8 @@ export class ViewFirstHeroManager extends ViewManager {
 
 
 @CATALOG.registerObject()
-@StateInt.define("gravityAcc", { default: 1000 })
-@StateInt.define("gravityMaxSpeed", { default: 1000 })
+@StateNumber.define("gravityAcc", { default: 1000, precision: 100 })
+@StateNumber.define("gravityMaxSpeed", { default: 1000, precision: 100 })
 @Category.append("physics")
 export class PhysicsManager extends Manager {}
 
@@ -478,7 +478,7 @@ export class StandardScene extends GameScene {
 // TAG
 
 @CATALOG.registerScene()
-@StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
+@StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
     default: { key: "AttackManager" },
@@ -668,7 +668,7 @@ export class Tag extends GameObject {
 
 
 @CATALOG.registerScene()
-@StateInt.define("duration", { default: 3 * 60, showInBuilder: true })
+@StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
     default: { key: "AttackManager" },

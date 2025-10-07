@@ -492,46 +492,20 @@ export class StateBool extends StateProperty {
         return inputEl
     }
     syncObjectFromInput(inputEl, obj) {
-        obj[this.key] = inputEl.checked
+        this.setObjectPropFromState(obj, inputEl.checked)
     }
 }
 
-export class StateInt extends StateProperty {
+
+export class StateNumber extends StateProperty {
     static DEFAULT_STATE_VALUE = 0
 
-    constructor(key, kwargs) {
-        super(key, kwargs)
-        this.step = kwargs?.step ?? 1
+    init(kwargs) {
+        super.init(kwargs)
+        this.precision = kwargs?.precision ?? 1
         this.min = kwargs?.min ?? 0
         this.max = kwargs?.max ?? null
-    }
-    createInput(obj) {
-        const val = this.getObjectPropState(obj)
-        const inputEl = newDomEl("input", {
-            type: "number",
-            value: (typeof val === "number") ? val : ""
-        })
-        inputEl.setAttribute("min", this.min)
-        if(this.max !== null) inputEl.setAttribute("max", this.max)
-        inputEl.setAttribute("step", this.step)
-        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
-        return inputEl
-    }
-    syncObjectFromInput(inputEl, obj) {
-        obj[this.key] = parseInt(inputEl.value)
-    }
-}
-
-
-export class StateFloat extends StateProperty {
-    static DEFAULT_STATE_VALUE = .0
-
-    constructor(key, kwargs) {
-        super(key, kwargs)
-        this.precision = kwargs?.precision ?? .001
-        this.step = kwargs?.step ?? this.precision
-        this.min = kwargs?.min ?? 0
-        this.max = kwargs?.max ?? null
+        if(kwargs?.default !== undefined) this.defaultStateValue = kwargs.default / this.precision
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
@@ -552,12 +526,15 @@ export class StateFloat extends StateProperty {
         })
         inputEl.setAttribute("min", this.min)
         if(this.max !== null) inputEl.setAttribute("max", this.max)
-        inputEl.setAttribute("step", this.step)
+        inputEl.setAttribute("step", this.precision)
         inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
         return inputEl
     }
     syncObjectFromInput(inputEl, obj) {
-        obj[this.key] = inputEl.value
+        let val = inputEl.value
+        val = (val == "") ? this.defaultStateValue : parseFloat(val)
+        val = round(val / this.precision)
+        this.setObjectPropFromState(obj, val)
     }
 }
 
@@ -681,11 +658,11 @@ export class ObjectLink {
 
 @LinkTrigger.add("isRemoved", { isDefault: true })
 @LinkReaction.add("reactRemove", { label:"remove", isDefault: true })
-@StateInt.define("angle", { default: 0 })
+@StateNumber.define("angle")
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
-@StateInt.define("y", { showInBuilder: true })
-@StateInt.define("x", { showInBuilder: true })
+@StateNumber.define("y", { precision: .1, showInBuilder: true })
+@StateNumber.define("x", { precision: .1, showInBuilder: true })
 export class GameObject {
 
     // static STATE_PROPS = new Map()  // already done by x/y state props
@@ -1585,9 +1562,9 @@ export class GameCommon {
 }
 
 
-@StateInt.define("gridSize", { default:50, showInBuilder:true })
-@StateInt.define("height", { default:600, showInBuilder:true })
-@StateInt.define("width", { default:800, showInBuilder:true })
+@StateNumber.define("gridSize", { default:50, showInBuilder:true })
+@StateNumber.define("height", { default:600, showInBuilder:true })
+@StateNumber.define("width", { default:800, showInBuilder:true })
 export class SceneCommon {
 
     // static STATE_PROPS = new Map()  // already done by width & height state props
@@ -2620,8 +2597,8 @@ export class HitMixin extends Mixin {
 }
 
 
-@StateInt.define("speedY")
-@StateInt.define("speedX")
+@StateNumber.define("speedY")
+@StateNumber.define("speedX")
 @HitMixin.addIfAbsent()
 @BodyMixin.addIfAbsent()
 export class PhysicsMixin extends Mixin {
@@ -2737,8 +2714,8 @@ class AttackProps {
 }
 
 
-@StateInt.define("damages")
-@StateInt.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
+@StateNumber.define("damages")
+@StateNumber.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @ObjectRefs.StateProperty.define("attackedObjects")
 @HitMixin.addIfAbsent()
 export class AttackMixin extends Mixin {
@@ -2811,8 +2788,8 @@ export class AttackMixin extends Mixin {
     }
 
     updateObject(obj) {
-        const { iteration, step } = obj.scene
-        const { dt } = obj.game
+        // const { iteration, step } = obj.scene
+        // const { dt } = obj.game
         // if(step != "GAME" || (obj.getHealth() <= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
         // else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
         obj.lastDamageAge += 1

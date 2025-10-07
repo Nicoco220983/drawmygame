@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateFloat, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -30,8 +30,8 @@ const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalog
     icon: BurronImg,
 })
 @Category.append("engine/trigger")
-@StateInt.define("pushAge", { default: null, nullableWith: null })
-@StateInt.define("duration", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("pushAge", { default: null, nullableWith: null })
+@StateNumber.define("duration", { default: Infinity, precision: .1, nullableWith: Infinity, showInBuilder: true })
 @StateBool.define("pushed", { showInBuilder: true })
 @AttackMixin.add({
     canAttack: false,
@@ -80,9 +80,9 @@ const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/
     icon: ClockImg,
     showInBuilder: true,
 })
-@StateInt.define("iteration")
-@StateFloat.define("triggered_period", { default:1, precision:.1, showInBuilder: true })
-@StateFloat.define("untriggered_period", { default:1, showInBuilder: true })
+@StateNumber.define("iteration")
+@StateNumber.define("triggered_period", { default:1, precision:.1, showInBuilder: true })
+@StateNumber.define("untriggered_period", { default:1, precision:.1, showInBuilder: true })
 export class Clock extends Trigger {
     init(kwargs) {
         super.init(kwargs)
@@ -113,7 +113,7 @@ const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/trigger
     showInBuilder: true,
 })
 @StateBool.define("watchHeros", { default: true, showInBuilder: true })
-@StateInt.define("watchDistance", { default: 100, showInBuilder: true })
+@StateNumber.define("watchDistance", { default: 100, precision: 50, showInBuilder: true })
 export class Viewer extends Trigger {
 
     init(kwargs) {
@@ -293,8 +293,8 @@ const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/tr
 })
 @LinkReaction.add("reactDelay", { label:"delay", isDefault: true })
 @StateProperty.define()
-@StateInt.define("delay", { default: 0, showInBuilder: true })
-@StateInt.define("preserve", { default: 0, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("delay", { default: 0, precision: .1, showInBuilder: true })
+@StateNumber.define("preserve", { default: 0, precision: .1, nullableWith: Infinity, showInBuilder: true })
 export class DelayTrigger extends Trigger {
 
     init(kwargs) {
