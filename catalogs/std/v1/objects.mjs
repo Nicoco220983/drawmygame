@@ -1203,7 +1203,7 @@ const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
     width: 30,
     height: 30,
 })
-@StateInt.define("speed", { showInBuilder: true })
+@StateInt.define("speed", { step:100, showInBuilder: true })
 export class Star extends Extra {
 
     update() {

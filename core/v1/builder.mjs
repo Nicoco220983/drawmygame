@@ -31,7 +31,7 @@ export class GameBuilder extends GameCommon {
                 if(this.mode != "cursor") this.setMode("cursor")
                 else this.clearSelection()
             }
-            if(key == "Delete" || key == "Backspace") {
+            if(key == "Delete") {
                 this.removeSelectedObject()
             }
         })

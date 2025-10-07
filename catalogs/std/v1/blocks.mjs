@@ -1,5 +1,5 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateFloat, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -205,8 +205,8 @@ const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/detect.w
 @AttackMixin.add()
 @LinkReaction.add("reactTrigger", { label:"trigger", isDefault: true })
 @StateInt.define("lastDetectAge", { default: Infinity, nulableWith: Infinity })
-@StateInt.define("duration", { default: 3, showInBuilder: true })
-@StateInt.define("countdown", { default: 1, showInBuilder: true })
+@StateFloat.define("duration", { default: 3, precision:.1, showInBuilder: true })
+@StateFloat.define("countdown", { default: 1, precision:.1, showInBuilder: true })
 @StateEnum.define("dir", { default: "right", options: { "up": "Up", "down": "Down", "left": "Left", "right": "Right"}, showInBuilder: true })
 export class Trap extends Block {
 

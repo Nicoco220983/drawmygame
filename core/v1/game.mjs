@@ -413,8 +413,6 @@ export class StateProperty {
         const { key } = this
         if(valState === undefined) return delete obj[key]
         if(valState === null) valState = this.nullableWith ?? null
-        // const protoVal = getPrototypeOf(this)[key]
-        // if(valState === protoVal) return delete obj[key]
         obj[key] = valState
     }
     syncStateFromObject(obj, state) {
@@ -494,7 +492,7 @@ export class StateBool extends StateProperty {
         return inputEl
     }
     syncObjectFromInput(inputEl, obj) {
-        this.setObjectPropFromState(obj, inputEl.checked)
+        obj[this.key] = inputEl.checked
     }
 }
 
@@ -503,7 +501,8 @@ export class StateInt extends StateProperty {
 
     constructor(key, kwargs) {
         super(key, kwargs)
-        this.min = kwargs?.min ?? null
+        this.step = kwargs?.step ?? 1
+        this.min = kwargs?.min ?? 0
         this.max = kwargs?.max ?? null
     }
     createInput(obj) {
@@ -512,12 +511,53 @@ export class StateInt extends StateProperty {
             type: "number",
             value: (typeof val === "number") ? val : ""
         })
+        inputEl.setAttribute("min", this.min)
+        if(this.max !== null) inputEl.setAttribute("max", this.max)
+        inputEl.setAttribute("step", this.step)
         inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
         return inputEl
     }
     syncObjectFromInput(inputEl, obj) {
-        let val = inputEl.value
-        this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : parseInt(val))
+        obj[this.key] = parseInt(inputEl.value)
+    }
+}
+
+
+export class StateFloat extends StateProperty {
+    static DEFAULT_STATE_VALUE = .0
+
+    constructor(key, kwargs) {
+        super(key, kwargs)
+        this.precision = kwargs?.precision ?? .001
+        this.step = kwargs?.step ?? this.precision
+        this.min = kwargs?.min ?? 0
+        this.max = kwargs?.max ?? null
+    }
+    getObjectPropState(obj) {
+        const val = obj[this.key]
+        if(val === (this.nullableWith ?? null)) return null
+        else return round(val / this.precision)
+    }
+    setObjectPropFromState(obj, valState) {
+        const { key } = this
+        if(valState === undefined) return delete obj[key]
+        if(valState === null) valState = this.nullableWith ?? null
+        obj[key] = valState * this.precision
+    }
+    createInput(obj) {
+        const val = this.getObjectPropState(obj)
+        const inputEl = newDomEl("input", {
+            type: "number",
+            value: (typeof val === "number") ? val : ""
+        })
+        inputEl.setAttribute("min", this.min)
+        if(this.max !== null) inputEl.setAttribute("max", this.max)
+        inputEl.setAttribute("step", this.step)
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
+        return inputEl
+    }
+    syncObjectFromInput(inputEl, obj) {
+        obj[this.key] = inputEl.value
     }
 }
 

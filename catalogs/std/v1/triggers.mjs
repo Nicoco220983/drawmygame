@@ -2,7 +2,7 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateInt, StateFloat, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
 
 export const CATALOG = new ModuleCatalog("std")
@@ -81,8 +81,8 @@ const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/
     showInBuilder: true,
 })
 @StateInt.define("iteration")
-@StateInt.define("triggered_period", { default:1, showInBuilder: true })
-@StateInt.define("untriggered_period", { default:1, showInBuilder: true })
+@StateFloat.define("triggered_period", { default:1, precision:.1, showInBuilder: true })
+@StateFloat.define("untriggered_period", { default:1, showInBuilder: true })
 export class Clock extends Trigger {
     init(kwargs) {
         super.init(kwargs)
