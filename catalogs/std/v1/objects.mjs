@@ -1311,11 +1311,8 @@ export class Portal extends GameObject {
 
     teleport(obj) {
         const { scene } = this
-        const candidates = this._candidates ||= []
-        candidates.length = 0
-        scene.objects.forEach(port => {
-            if(port instanceof Portal && port != this && port.activated && port.isOutput) candidates.push(port)
-        })
+        const portals = scene.filterObjects("portals", obj => obj instanceof Portal)
+        const candidates = portals.filter(port => port != this && port.activated && port.isOutput)
         if(candidates.length == 0) return
         let targetPortal = candidates[floor(scene.rand("teleport") * candidates.length)]
         obj.x = targetPortal.x + (this.x - obj.x)
@@ -1326,6 +1323,7 @@ export class Portal extends GameObject {
     getGraphicsProps() {
         const props = super.getGraphicsProps()
         props.visibility = this.activated ? 1 : .5
+        props.angle = this.scene.iteration
         return props
     }
 
