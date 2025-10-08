@@ -541,23 +541,25 @@ class ObjectSelectorElement extends HTMLElement {
         this.selectEl.onclick = () => this.setOptionsVisibility(true)
         selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
-    initCatalog(catalog, filter) {
+    initCatalog(perspective, versions, catalog, filter) {
+        this.perspective = perspective
+        this.versions = versions
         this.catalog = catalog
         this.optionsEl.innerHTML = ""
-        for(let objKey in catalog.objects) {
-            const objCat = catalog.objects[objKey]
+        for(let objFullKey in catalog.objects) {
+            const objCat = catalog.objects[objFullKey]
             if(!objCat.showInBuilder) continue
             if(filter && !filter(objCat)) continue
             const optionEl = addNewDomEl(this.optionsEl, "cs-option")
-            this.setOptionKey(optionEl, objKey)
+            this.setOptionKey(optionEl, objCat.key)
             optionEl.onclick = () => {
-                this.setSelectedObject(objKey)
+                this.setSelectedObject(objCat.key)
                 this.setOptionsVisibility(false)
             }
         }
     }
     setOptionKey(optionEl, objKey) {
-        const objCat = this.catalog.objects[objKey]
+        const objCat = this.catalog.getObject(this.perspective, this.versions, objKey)
         const label = objCat.label
         const icon = objCat.icon
         optionEl.innerHTML = ""

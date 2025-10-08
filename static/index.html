@@ -108,21 +108,26 @@ const builderParentEl = document.getElementById("builder")
 const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
 let mode = null, catalog = null, map = null, gameBuilder = null, game = null
+const perspective = "2Dside"
+const versions = {
+    "core": "v1",
+    "std": "v1",
+}
 
 const herosEl = document.getElementById("heros")
 const scnKeyEl = document.getElementById("scene_key")
 const scnStateEl = document.getElementById("scene")
 async function initInputEls(catalog) {
-    for(let key in catalog.scenes) {
-        const scnCat = catalog.scenes[key]
+    for(let fullKey in catalog.scenes) {
+        const scnCat = catalog.scenes[fullKey]
         if(!scnCat.showInBuilder) continue
-        scnKeyEl.appendChild(newDomEl("option", { value: key, text: scnCat.name }))
+        scnKeyEl.appendChild(newDomEl("option", { value: scnCat.key, text: scnCat.name }))
     }
     const scnMap = map.scenes["0"]
     scnKeyEl.value = scnMap.key
-    herosEl.initCatalog(catalog, objCat => objCat.isHero)
+    herosEl.initCatalog(perspective, versions, catalog, objCat => objCat.isHero)
     herosEl.setSelectedObject("std:Nico")
-    objectsEl.initCatalog(catalog, objCat => {
+    objectsEl.initCatalog(perspective, versions, catalog, objCat => {
         return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("manager") || objCat.category.startsWith("wall")))
     })
 }

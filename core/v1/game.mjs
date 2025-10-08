@@ -112,13 +112,26 @@ export class Catalog {
     async preloadAll() {
         return await this.preload(Object.keys(this.mods))
     }
-    getSceneClass(key) {
-        const scnCat = this.scenes[key]
+    getFullKey(perspective, versions, key) {
+        const modName = key.split(':')[0]
+        const modVersion = versions[modName]
+        return `${modVersion}/${perspective}/${key}`
+    }
+    getScene(perspective, versions, key) {
+        const fullKey = this.getFullKey(perspective, versions, key)
+        return this.scenes[fullKey]
+    }
+    getSceneClass(perspective, versions, key) {
+        const scnCat = this.getScene(perspective, versions, key)
         const mod = this.mods[scnCat.path]
         return mod[scnCat.name]
     }
-    getObjectClass(key) {
-        const objCat = this.objects[key]
+    getObject(perspective, versions, key) {
+        const fullKey = this.getFullKey(perspective, versions, key)
+        return this.objects[fullKey]
+    }
+    getObjectClass(perspective, versions, key) {
+        const objCat = this.getObject(perspective, versions, key)
         const mod = this.mods[objCat.path]
         return mod[objCat.name]
     }
@@ -137,7 +150,9 @@ export class ModuleCatalog {
     registerObject(kwargs) {
         return target => {
             const key = `${this.name}:${target.name}`
-            const objCat = this.objects[key] = {}
+            const fullKey = `${this.version}/${this.perspective}/${key}`
+            const objCat = this.objects[fullKey] = {}
+            objCat.key = key
             objCat.path = this.path
             objCat.name = target.name
             objCat.category = target.CATEGORY
@@ -153,7 +168,9 @@ export class ModuleCatalog {
     registerScene(kwargs) {
         return target => {
             const key = `${this.name}:${target.name}`
-            const scnCat = this.scenes[key] = {}
+            const fullKey = `${this.version}/${this.perspective}/${key}`
+            const scnCat = this.scenes[fullKey] = {}
+            scnCat.key = key
             scnCat.path = this.path
             scnCat.name = target.name
             scnCat.label = kwargs?.label ?? key
@@ -183,6 +200,10 @@ export class ModuleCatalog {
 
 export class GameMap {
     constructor() {
+        this.perspective = "2Dside"
+        this.versions = {
+            "std": "v1",
+        }
         this.heros = [{
             key: "std:Nico"
         }]
@@ -190,13 +211,12 @@ export class GameMap {
             key: "std:StandardScene",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
-            objects: [],
-            walls: [],
             borderManager: { key : "std:BlockBorderManager" },
             herosLivesManager: { key : "std:HerosLivesManager" },
             viewManager: { key: "std:ViewHerosCenterManager" },
             physicsManager: { key: "std:PhysicsManager" },
             attackManager: { key: "std:AttackManager" },
+            objects: [],
         }}
     }
 
@@ -946,8 +966,8 @@ GameObject.StateProperty = class extends StateProperty {
         if(!valState) return valState = this.nullableWith ?? null
         let objVal = obj[key]
         if(!objVal || objVal.getKey() != valState.key) {
-            const catalog = obj.game.catalog
-            const cls = catalog.getObjectClass(valState.key)
+            const { catalog, map } = obj.game
+            const cls = catalog.getObjectClass(map.perspective, map.versions, valState.key)
             const scn = (obj instanceof SceneCommon) ? obj : obj.scene
             objVal = new cls(scn)
             obj[key] = objVal
@@ -962,12 +982,12 @@ GameObject.StateProperty = class extends StateProperty {
     }
     createInput(obj) {
         const objVal = obj[this.key]
-        const { catalog } = obj.game
+        const { catalog, map } = obj.game
         const inputEl = newDomEl("div")
         const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-object-selector")
         let filterFun = null
         if(this.filter) filterFun = obj => filterObject(this.filter, obj)
-        selectEl.initCatalog(catalog, filterFun)
+        selectEl.initCatalog(map.perspective, map.versions, catalog, filterFun)
         const statesEl = addNewDomEl(inputEl, "dmg-object-state", {
             style: { display: "none" }
         })
@@ -1388,16 +1408,16 @@ export class GameCommon {
     }
 
     async loadScenesFromMap(scnKey, scnMapId=undefined, scnId=undefined) {
-        const { catalog } = this, scnCat = catalog.scenes[scnKey]
-        const  { map } = this.game
+        const { catalog, map } = this
+        const scnCat = catalog.getScene(map.perspective, map.versions, scnKey)
         const paths = new Set([scnCat.path])
         map.heros.forEach(heroMap => {
-            paths.add(catalog.objects[heroMap.key].path)
+            paths.add(catalog.getObject(map.perspective, map.versions, heroMap.key).path)
         })
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         if(scnMap) {
             scnMap.objects.forEach(objMap => {
-                paths.add(catalog.objects[objMap.key].path)
+                paths.add(catalog.getObject(map.perspective, map.versions, objMap.key).path)
             })
         }
         const mods = await catalog.preload(Array.from(paths))
@@ -1421,13 +1441,14 @@ export class GameCommon {
     }
 
     createScene(cls, kwargs) {
+        const { map } = this.game
         this._nextSceneId ||= 0
         if(kwargs?.id !== undefined) this._nextSceneId = kwargs.id
         else {
             kwargs ||= {}
             kwargs.id = this._nextSceneId
         }
-        if(typeof cls === 'string') cls = this.catalog.getSceneClass(cls)
+        if(typeof cls === 'string') cls = this.catalog.getSceneClass(map.perspective, map.versions, cls)
         const scn = new cls(this, kwargs)
         this._nextSceneId += 1
         return scn
@@ -1651,13 +1672,14 @@ export class SceneCommon {
     onAddObject(obj) {}
 
     createObjectFromKey(key, kwargs) {
+        const { map } = this.game
         const mapState = this.getObjectMapState(key)
         let origKey
         if(mapState) {
             origKey = key
             key = mapState.key
         }
-        const cls = this.game.catalog.getObjectClass(key)
+        const cls = this.game.catalog.getObjectClass(map.perspective, map.versions, key)
         let obj
         if(mapState) {
             if(this.doCreateObjectMapProto) {
@@ -2380,7 +2402,6 @@ export class GameScene extends SceneCommon {
         if(isInitState) {
             state.width = this.width
             state.height = this.height
-            //state.walls = this.getWallsState()
         } else {
             state.it = this.iteration
             state.step = this.step
@@ -2394,16 +2415,6 @@ export class GameScene extends SceneCommon {
         if(isInitState) state.links = this.getObjectLinksState()
         return state
     }
-
-    // getWallsState() {
-    //     const res = []
-    //     this.walls.forEach(wall => {
-    //         if(wall.removed) return
-    //         const { x1, y1, x2, y2, key } = wall
-    //         res.push({ x1, y1, x2, y2, key })
-    //     })
-    //     return res
-    // }
 
     getObjectLinksState() {
         const res = []
