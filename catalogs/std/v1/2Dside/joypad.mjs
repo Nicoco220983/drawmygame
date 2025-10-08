@@ -1,9 +1,9 @@
 
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
-import { GraphicsEngine, GraphicsProps } from "../../../core/v1/graphics.mjs"
-import { GameObject, Text, GameObjectGroup, ModuleCatalog } from "../../../core/v1/game.mjs"
-import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas } from "../../../core/v1/utils.mjs"
+import { GraphicsEngine, GraphicsProps } from "../../../../core/v1/graphics.mjs"
+import { GameObject, Text, GameObjectGroup, ModuleCatalog } from "../../../../core/v1/game.mjs"
+import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas } from "../../../../core/v1/utils.mjs"
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",
@@ -183,7 +183,7 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/button_colorable.png")
+const BurronImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button_colorable.png")
 
 class JoypadButton extends GameObject {
 

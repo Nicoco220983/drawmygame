@@ -1,9 +1,9 @@
 const { assign } = Object
 const { floor, round, ceil, max } = Math
-import { GraphicsProps } from '../../../core/v1/graphics.mjs'
-import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateNumber, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../core/v1/game.mjs'
+import { GraphicsProps } from '../../../../core/v1/graphics.mjs'
+import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateNumber, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../../core/v1/game.mjs'
 import { Hero, Wall, Star, HeroSpawnPoint } from './objects.mjs'
-import * as utils from '../../../core/v1/utils.mjs'
+import * as utils from '../../../../core/v1/utils.mjs'
 const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys } = utils
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
@@ -475,7 +475,7 @@ export class StandardScene extends GameScene {
     }
 
     async loadJoypadScene() {
-        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/2Dside/joypad.mjs")
         return new JoypadGameScene(this.game)
     }
 
@@ -631,7 +631,7 @@ export class TagScene extends GameScene {
     }
 
     async loadJoypadScene() {
-        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/2Dside/joypad.mjs")
         return new JoypadGameScene(this.game)
     }
 
@@ -644,7 +644,7 @@ export class TagScene extends GameScene {
 }
 
 
-const TagImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/tag.png")
+const TagImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/tag.png")
 
 @CATALOG.registerObject({
     showInBuilder: false
@@ -771,7 +771,7 @@ export class StealTreasures extends GameScene {
     }
 
     async loadJoypadScene() {
-        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/joypad.mjs")
+        const { JoypadGameScene } = await importAndPreload("/static/catalogs/std/v1/2Dside/joypad.mjs")
         return new JoypadGameScene(this.game)
     }
 
@@ -784,7 +784,7 @@ export class StealTreasures extends GameScene {
 }
 
 
-const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/star.png")
+const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/star.png")
 
 @OwnerableMixin.add()
 class StarsBar extends GameObject {

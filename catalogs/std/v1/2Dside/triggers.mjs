@@ -1,8 +1,8 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import * as utils from '../../../core/v1/utils.mjs'
+import * as utils from '../../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../../core/v1/game.mjs'
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",
@@ -24,8 +24,8 @@ export class Trigger extends GameObject {
 }
 
 
-const BurronImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/button.png")
-const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/button_spritesheet.png"), 2, 1)
+const BurronImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button.png")
+const ButtonSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button_spritesheet.png"), 2, 1)
 
 @CATALOG.registerObject({
     label: "Button",
@@ -75,7 +75,7 @@ export class Button extends Trigger {
 }
 
 
-const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/clock.png")
+const ClockImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/clock.png")
 
 @CATALOG.registerObject({
     label: "Clock",
@@ -107,7 +107,7 @@ export class Clock extends Trigger {
 }
 
 
-const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/watcher.png")
+const WatcherImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/watcher.png")
 
 @CATALOG.registerObject({
     label: "Watcher",
@@ -141,7 +141,7 @@ export class Viewer extends Trigger {
 }
 
 
-const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/invert_trigger.png")
+const InvertTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/invert_trigger.png")
 
 @CATALOG.registerObject({
     label: "Invert (NOT)",
@@ -211,7 +211,7 @@ export class AggregatorTrigger extends Trigger {
 }
 
 
-const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/min_trigger.png")
+const MinTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/min_trigger.png")
 
 @CATALOG.registerObject({
     label: "Min (AND)",
@@ -235,7 +235,7 @@ export class MinTrigger extends AggregatorTrigger {
 }
 
 
-const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/max_trigger.png")
+const MaxTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/max_trigger.png")
 
 @CATALOG.registerObject({
     label: "Max (OR)",
@@ -259,7 +259,7 @@ export class MaxTrigger extends AggregatorTrigger {
 }
 
 
-const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/xor_trigger.png")
+const XorTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/xor_trigger.png")
 
 @CATALOG.registerObject({
     label: "Xor",
@@ -286,7 +286,7 @@ export class XorTrigger extends AggregatorTrigger {
 
 
 
-const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/triggers/delay_trigger.png")
+const DelayTriggerImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/triggers/delay_trigger.png")
 
 @CATALOG.registerObject({
     label: "Delay",

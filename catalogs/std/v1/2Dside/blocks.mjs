@@ -1,5 +1,5 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../../core/v1/game.mjs'
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",
@@ -31,7 +31,7 @@ export class Block extends GameObject {
 
 
 
-const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/grass.png")
+const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/grass.png")
 
 @CATALOG.registerObject({
     label: "Grass",
@@ -45,7 +45,7 @@ export class GrassBlock extends Block {
 
 
 
-const PlatformImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/platform.png")
+const PlatformImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/platform.png")
 
 @CATALOG.registerObject({
     label: "Platform",
@@ -79,8 +79,8 @@ export class PlatformBlock extends Block {
 }
 
 
-const DoorImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door.png")
-const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/door_spritesheet.png"), 2, 1)
+const DoorImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/door.png")
+const DoorSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/door_spritesheet.png"), 2, 1)
 
 @CATALOG.registerObject({
     label: "Door",
@@ -119,7 +119,7 @@ export class Door extends Block {
 }
 
 
-const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/cloud.png")
+const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/cloud.png")
 
 @CATALOG.registerObject({
     label: "Cloud",
@@ -200,7 +200,7 @@ class CloudChecker extends GameObject {
 }
 
 
-const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/assets/detect.wav")
+const DetectAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/detect.wav")
 
 
 
@@ -265,7 +265,7 @@ export class Trap extends Block {
 }
 
 
-const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/boxing_glove.png")
+const BoxingGloveImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/boxing_glove.png")
 
 @CATALOG.registerObject({
     label: "Boxing Trap",
@@ -286,7 +286,7 @@ export class BoxingTrap extends Trap {
 }
 
 
-const BouncingBlockImg = CATALOG.registerImage("/static/catalogs/std/v1/assets/blocks/bouncing_block.png")
+const BouncingBlockImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/bouncing_block.png")
 
 @CATALOG.registerObject({
     label: "Bouncing Block",
