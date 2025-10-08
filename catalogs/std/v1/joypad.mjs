@@ -5,7 +5,10 @@ import { GraphicsEngine, GraphicsProps } from "../../../core/v1/graphics.mjs"
 import { GameObject, Text, GameObjectGroup, ModuleCatalog } from "../../../core/v1/game.mjs"
 import { cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas } from "../../../core/v1/utils.mjs"
 
-export const CATALOG = new ModuleCatalog()
+export const CATALOG = new ModuleCatalog(import.meta.url, {
+    version: "v1",
+    perspective: "2Dside",
+})
 
 
 export class JoypadScene {

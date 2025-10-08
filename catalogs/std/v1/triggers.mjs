@@ -4,8 +4,10 @@ import * as utils from '../../../core/v1/utils.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform } = utils
 import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs,ActivableMixin, CollectMixin, OwnerableMixin } from '../../../core/v1/game.mjs'
 
-
-export const CATALOG = new ModuleCatalog("std")
+export const CATALOG = new ModuleCatalog(import.meta.url, {
+    version: "v1",
+    perspective: "2Dside",
+})
 
 
 @LinkTrigger.add("isTriggered", { isDefault: true })

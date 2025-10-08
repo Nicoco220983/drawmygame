@@ -5,8 +5,10 @@ import { GraphicsProps } from '../../../core/v1/graphics.mjs'
 const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys } = utils
 import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now } from '../../../core/v1/game.mjs'
 
-
-export const CATALOG = new ModuleCatalog("std")
+export const CATALOG = new ModuleCatalog(import.meta.url, {
+    version: "v1",
+    perspective: "2Dside",
+})
 
 
 @StateNumber.define("lastSpawnIt", { default: -Infinity })

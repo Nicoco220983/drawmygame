@@ -26,6 +26,7 @@ const STATE_TYPE_FULL = "F"
 const STATE_TYPE_INPUT = "I"
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
+const CATALOGS_BASE_URL = import.meta.resolve("../../catalogs")
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
@@ -122,31 +123,44 @@ export class Catalog {
 }
 
 export class ModuleCatalog {
-    constructor() {
+    constructor(url, kwargs) {
+        this.path = url.substring(CATALOGS_BASE_URL.length+1)
+        this.version = kwargs?.version
+        this.perspective = kwargs?.perspective
         this.objects = {}
         this.scenes = {}
         this.assets = []
     }
     registerObject(kwargs) {
         return target => {
-            target.KEY = target.name
-            target.STATEFUL = kwargs?.stateful ?? true
-            const objCat = this.objects[target.KEY] = {}
+            const pathWoExt = this.path.split('.')[0]
+            const key = `${pathWoExt}:${target.name}`
+            const objCat = this.objects[key] = {}
+            objCat.path = this.path
+            objCat.version = kwargs?.version ?? this.version
+            objCat.perspective = kwargs?.perspective ?? this.perspective
             objCat.name = target.name
             objCat.category = target.CATEGORY
-            objCat.label = kwargs?.label ?? target.KEY
+            objCat.label = kwargs?.label ?? key
             objCat.icon = kwargs?.icon ?? null
             objCat.showInBuilder = kwargs?.showInBuilder ?? true
             objCat.isHero = target.IS_HERO == true
+            target.KEY = key
+            target.STATEFUL = kwargs?.stateful ?? true
             return target
         }
     }
     registerScene(kwargs) {
         return target => {
-            target.KEY = target.name
-            const scnCat = this.scenes[target.KEY] = {}
+            const pathWoExt = this.path.split('.')[0]
+            const key = `${pathWoExt}:${target.name}`
+            const scnCat = this.scenes[key] = {}
+            scnCat.path = this.path
+            scnCat.version = kwargs?.version ?? this.version
+            scnCat.perspective = kwargs?.perspective ?? this.perspective
             scnCat.name = target.name
             scnCat.showInBuilder = kwargs?.showInBuilder ?? true
+            target.KEY = key
             return target
         }
     }
@@ -172,19 +186,19 @@ export class ModuleCatalog {
 export class GameMap {
     constructor() {
         this.heros = [{
-            key: "Nico"
+            key: "std/v1/objects:Nico"
         }]
         this.scenes = { "0": {
-            key: "StandardScene",
+            key: "std/v1/scenes:StandardScene",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
             walls: [],
-            borderManager: { key : "BlockBorderManager" },
-            herosLivesManager: { key : "HerosLivesManager" },
-            viewManager: { key: "ViewHerosCenterManager" },
-            physicsManager: { key: "PhysicsManager" },
-            attackManager: { key: "AttackManager" },
+            borderManager: { key : "std/v1/scenes:BlockBorderManager" },
+            herosLivesManager: { key : "std/v1/scenes:HerosLivesManager" },
+            viewManager: { key: "std/v1/scenes:ViewHerosCenterManager" },
+            physicsManager: { key: "std/v1/scenes:PhysicsManager" },
+            attackManager: { key: "std/v1/scenes:AttackManager" },
         }}
     }
 
@@ -1379,7 +1393,9 @@ export class GameCommon {
         const { catalog } = this, scnCat = catalog.scenes[scnKey]
         const  { map } = this.game
         const paths = new Set([scnCat.path])
-        map.heros.forEach(heroMap => paths.add(catalog.objects[heroMap.key].path))
+        map.heros.forEach(heroMap => {
+            paths.add(catalog.objects[heroMap.key].path)
+        })
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         if(scnMap) {
             scnMap.objects.forEach(objMap => {
@@ -1868,7 +1884,7 @@ export class Game extends GameCommon {
     }
 
     async loadWaitingScenes() {
-        await this.loadScenes("WaitingScene")
+        await this.loadScenes("std/v1/scenes:WaitingScene")
     }
 
     setDebugSceneVisibility(val) {
