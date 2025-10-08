@@ -2652,8 +2652,8 @@ export class PhysicsMixin extends Mixin {
         proto.bouncingFactor = this.bouncingFactor
         proto.speedResX = 0
         proto.speedResY = 0
-        proto.onBlock ||= function(obj) {}
-        proto.onGetBlocked ||= function(obj) {}
+        proto.onBlock ||= function(obj, details) {}
+        proto.onGetBlocked ||= function(obj, details) {}
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2679,10 +2679,10 @@ export class PhysicsMixin extends Mixin {
         }
 
         const origHit = proto.hit
-        proto.hit = function(obj) {
-            origHit.call(this, obj)
-            if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj)
-            if(obj.canGetBlocked || obj.checkGetBlockedAnyway) obj.onGetBlocked(this)
+        proto.hit = function(obj, details) {
+            origHit.call(this, obj, details)
+            if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj, details)
+            if(obj.canGetBlocked || obj.checkGetBlockedAnyway) obj.onGetBlocked(this, details)
         }
     }
 

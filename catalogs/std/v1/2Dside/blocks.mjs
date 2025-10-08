@@ -109,7 +109,8 @@ export class Door extends Block {
         this.canBlock = this.closed
     }
 
-    onBlock(obj) {
+    onBlock(obj, details) {
+        super.onBlock(obj, details)
         this.lastBlockIt = this.scene.iteration
     }
 
@@ -138,8 +139,8 @@ export class Cloud extends Block {
         this.checker = this.scene.addObject(CloudChecker, { owner: this })
     }
 
-    onBlock(obj) {
-        super.onBlock(obj)
+    onBlock(obj, details) {
+        super.onBlock(obj, details)
         if(this.blockAge === null) this.blockAge = 0
         this.lastBlockIt = this.scene.iteration
     }
@@ -194,8 +195,8 @@ class CloudChecker extends GameObject {
         this.height = this.owner.height + 2
     }
 
-    onBlock(obj) {
-        this.owner.onBlock(obj)
+    onBlock(obj, details) {
+        this.owner.onBlock(obj, details)
     }
 }
 
@@ -228,8 +229,8 @@ export class Trap extends Block {
         if(dir == "up") return 270
     }
 
-    onBlock() {
-        super.onBlock()
+    onBlock(obj, details) {
+        super.onBlock(obj, details)
         if(this.lastDetectAge == Infinity) {
             this.lastDetectAge = 0
             this.game.audio.playSound(DetectAud)

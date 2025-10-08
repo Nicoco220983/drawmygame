@@ -1076,7 +1076,7 @@ class BlobEnemyBlockChecker extends GameObject {
         }
     }
 
-    onGetBlocked(obj) {
+    onGetBlocked(obj, details) {
         this.lastGetBlockedIteration = this.scene.iteration
     }
 }

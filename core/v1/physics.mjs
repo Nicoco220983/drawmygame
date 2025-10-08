@@ -121,9 +121,6 @@ export default class PhysicsEngine {
                             const objD = hypot(objDx, objDy), colD = objD * colTime
                             remD -= colD / objOrigD
                             if(hypot(obj.speedX, obj.speedY) * remD < 1) remD = 0
-                            // callbacks
-                            obj.onGetBlocked(colRes.obj, colRes)
-                            colRes.obj.onBlock(obj)
                         } else {
                             // static collision : fix position
                             obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
@@ -133,7 +130,10 @@ export default class PhysicsEngine {
                     } else {
                         remD = 0
                     }
-                    obj.onGetBlocked(null, colRes)
+                    // callbacks
+                    const colDetails = getCollisionDetails(colRes)
+                    obj.onGetBlocked(colRes.obj, colDetails)
+                    colRes.obj.onBlock(obj, colDetails)
                 }
             }
             // last move
@@ -180,7 +180,7 @@ export default class PhysicsEngine {
                 if(!obj1.canHitObject(obj2)) continue
                 const obj2Props = this.getObjectHitProps(obj2, 0)
                 detectCollisionTime(obj1Props, obj2Props, blockerColRes)
-                if(blockerColRes.time == 0) obj1.hit(obj2)
+                if(blockerColRes.time == 0) obj1.hit(obj2, getCollisionDetails(blockerColRes))
             }
         }
     }
@@ -257,11 +257,10 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
     const dist12 = proj1.min - proj2.max, dist21 = proj2.min - proj1.max
     const colDist = max(dist12, dist21)
     res.dist = colDist
-    res.distFixSign = 0
+    res.distFixSign = (dist12 < dist21) ? 1 : -1
     if(colDist <= 0) {
         // static collision detected
         res.time = 0
-        res.distFixSign = (dist12 < dist21) ? 1 : -1
         return
     }
 
@@ -276,6 +275,12 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
     const tEnter = min(t1, t2), tExit = max(t1, t2)
     if(tExit < 0 || tEnter > 1) res.time = Infinity
     else res.time = tEnter
+}
+
+function getCollisionDetails(colRes) {
+    const { normalX, normalY, distFixSign } = colRes
+    const colAngle = atan2(-normalY*distFixSign, -normalX*distFixSign)
+    return { angle: colAngle }
 }
 
 // Fonction pour projeter un polygone sur un axe
