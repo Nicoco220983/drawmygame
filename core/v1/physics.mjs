@@ -126,8 +126,6 @@ export default class PhysicsEngine {
                             colRes.obj.onBlock(obj)
                         } else {
                             // static collision : fix position
-                            // TODO: fix one bug here with doors
-                            // console.log("TODO fix col:", colNormalX, colNormalY, colDistFixSign, colDist)
                             obj.x += colNormalX * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                             obj.y += colNormalY * colDistFixSign * (colDist - FLOAT_PRECISION_CORRECTION)
                         }
@@ -246,7 +244,7 @@ function _detectCollisionTime(hitProps1, hitProps2, num, res) {
         res.obj = hitProps2.obj
         res.time = colTime
         res.dist = colDist
-        res.distFixSign = colDistFixSign
+        res.distFixSign = colDistFixSign * (num==0 ? 1 : -1)
         res.normalX = ax
         res.normalY = ay
         if(colTime == Infinity) break
@@ -259,10 +257,11 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
     const dist12 = proj1.min - proj2.max, dist21 = proj2.min - proj1.max
     const colDist = max(dist12, dist21)
     res.dist = colDist
-    res.distFixSign = (dist12 > dist21) ? 1 : -1
+    res.distFixSign = 0
     if(colDist <= 0) {
         // static collision detected
         res.time = 0
+        res.distFixSign = (dist12 < dist21) ? 1 : -1
         return
     }
 

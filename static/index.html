@@ -157,9 +157,9 @@ function syncBuilderAnchor() {
 anchorEl.onchange = syncBuilderAnchor
 
 const Keys = {}
-document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'Wall')
-document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'PlatformWall')
-document.getElementById("mode_wall_bouncing").onclick = Keys["wb"] = () => setBuilderMode('wall', 'BouncingWall')
+document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'std:Wall')
+document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'std:PlatformWall')
+document.getElementById("mode_wall_bouncing").onclick = Keys["wb"] = () => setBuilderMode('wall', 'std:BouncingWall')
 const objectsEl = document.getElementById("objects")
 objectsEl.addEventListener("change", evt => setBuilderMode('object', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
