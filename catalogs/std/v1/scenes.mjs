@@ -415,27 +415,27 @@ class PlayerScoreText extends Text {
 @StateBool.define("catchAllStars", { default: false, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "std/v1/scenes:AttackManager" },
+    default: { key: "std:AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "std/v1/scenes:PhysicsManager" },
+    default: { key: "std:PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("viewManager", {
     filter: { category: "manager/view" },
-    default: { key: "std/v1/scenes:ViewHerosCenterManager" },
+    default: { key: "std:ViewHerosCenterManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("herosLivesManager", {
     filter: { category: "manager/heroslives" },
-    default: { key: "std/v1/scenes:HerosLivesManager" },
+    default: { key: "std:HerosLivesManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "std/v1/scenes:BlockBorderManager" },
+    default: { key: "std:BlockBorderManager" },
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {
@@ -494,17 +494,17 @@ export class StandardScene extends GameScene {
 @StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "std/v1/scenes:AttackManager" },
+    default: { key: "std:AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "std/v1/scenes:PhysicsManager" },
+    default: { key: "std:PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "std/v1/scenes:LoopBorderManager" },
+    default: { key: "std:LoopBorderManager" },
     showInBuilder: true,
 })
 export class TagScene extends GameScene {
@@ -684,17 +684,17 @@ export class Tag extends GameObject {
 @StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
 @GameObject.StateProperty.define("attackManager", {
     filter: { category: "manager/attack" },
-    default: { key: "std/v1/scenes:AttackManager" },
+    default: { key: "std:AttackManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("physicsManager", {
     filter: { category: "manager/physics" },
-    default: { key: "std/v1/scenes:PhysicsManager" },
+    default: { key: "std:PhysicsManager" },
     showInBuilder: true,
 })
 @GameObject.StateProperty.define("borderManager", {
     filter: { category: "manager/border" },
-    default: { key: "std/v1/scenes:LoopBorderManager" },
+    default: { key: "std:LoopBorderManager" },
     showInBuilder: true,
 })
 export class StealTreasures extends GameScene {

@@ -26,7 +26,9 @@ const STATE_TYPE_FULL = "F"
 const STATE_TYPE_INPUT = "I"
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
-const CATALOGS_BASE_URL = import.meta.resolve("../../catalogs")
+const BASE_URL = import.meta.resolve("../../..")
+const CATALOGS_PATH = "/static/catalogs"
+//const CATALOGS_BASE_URL = import.meta.resolve("../../catalogs")
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
@@ -124,7 +126,8 @@ export class Catalog {
 
 export class ModuleCatalog {
     constructor(url, kwargs) {
-        this.path = url.substring(CATALOGS_BASE_URL.length+1)
+        this.path = '/' + url.substring(BASE_URL.length)
+        this.name = kwargs?.name ?? this.path.substring(CATALOGS_PATH.length+1).split('/')[0]
         this.version = kwargs?.version
         this.perspective = kwargs?.perspective
         this.objects = {}
@@ -133,12 +136,9 @@ export class ModuleCatalog {
     }
     registerObject(kwargs) {
         return target => {
-            const pathWoExt = this.path.split('.')[0]
-            const key = `${pathWoExt}:${target.name}`
+            const key = `${this.name}:${target.name}`
             const objCat = this.objects[key] = {}
             objCat.path = this.path
-            objCat.version = kwargs?.version ?? this.version
-            objCat.perspective = kwargs?.perspective ?? this.perspective
             objCat.name = target.name
             objCat.category = target.CATEGORY
             objCat.label = kwargs?.label ?? key
@@ -152,13 +152,11 @@ export class ModuleCatalog {
     }
     registerScene(kwargs) {
         return target => {
-            const pathWoExt = this.path.split('.')[0]
-            const key = `${pathWoExt}:${target.name}`
+            const key = `${this.name}:${target.name}`
             const scnCat = this.scenes[key] = {}
             scnCat.path = this.path
-            scnCat.version = kwargs?.version ?? this.version
-            scnCat.perspective = kwargs?.perspective ?? this.perspective
             scnCat.name = target.name
+            scnCat.label = kwargs?.label ?? key
             scnCat.showInBuilder = kwargs?.showInBuilder ?? true
             target.KEY = key
             return target
@@ -186,19 +184,19 @@ export class ModuleCatalog {
 export class GameMap {
     constructor() {
         this.heros = [{
-            key: "std/v1/objects:Nico"
+            key: "std:Nico"
         }]
         this.scenes = { "0": {
-            key: "std/v1/scenes:StandardScene",
+            key: "std:StandardScene",
             width: MAP_DEFAULT_WIDTH,
             height: MAP_DEFAULT_HEIGHT,
             objects: [],
             walls: [],
-            borderManager: { key : "std/v1/scenes:BlockBorderManager" },
-            herosLivesManager: { key : "std/v1/scenes:HerosLivesManager" },
-            viewManager: { key: "std/v1/scenes:ViewHerosCenterManager" },
-            physicsManager: { key: "std/v1/scenes:PhysicsManager" },
-            attackManager: { key: "std/v1/scenes:AttackManager" },
+            borderManager: { key : "std:BlockBorderManager" },
+            herosLivesManager: { key : "std:HerosLivesManager" },
+            viewManager: { key: "std:ViewHerosCenterManager" },
+            physicsManager: { key: "std:PhysicsManager" },
+            attackManager: { key: "std:AttackManager" },
         }}
     }
 
@@ -1884,7 +1882,7 @@ export class Game extends GameCommon {
     }
 
     async loadWaitingScenes() {
-        await this.loadScenes("std/v1/scenes:WaitingScene")
+        await this.loadScenes("std:WaitingScene")
     }
 
     setDebugSceneVisibility(val) {
