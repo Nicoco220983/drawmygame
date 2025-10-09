@@ -180,7 +180,9 @@ export default class PhysicsEngine {
                 if(!obj1.canHitObject(obj2)) continue
                 const obj2Props = this.getObjectHitProps(obj2, 0)
                 detectCollisionTime(obj1Props, obj2Props, blockerColRes)
-                if(blockerColRes.time == 0) obj1.hit(obj2, getCollisionDetails(blockerColRes))
+                if(blockerColRes.time == 0) {
+                    obj1.hit(obj2, getCollisionDetails(blockerColRes))
+                }
             }
         }
     }

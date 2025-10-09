@@ -994,7 +994,6 @@ const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blo
     label: "Blob",
     icon: BlobImg,
 })
-@StateNumber.define("lastChangeDirAge")
 @StateProperty.modify("dirX", { showInBuilder: true })
 @AttackMixin.add({
     canAttack: true,
@@ -1008,15 +1007,13 @@ const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blo
     width: 40,
     height: 36,
 })
+@StateNumber.define("lastChangeDirAge")
 export class BlobEnemy extends Enemy {
 
     init(kwargs) {
         super.init(kwargs)
         this.maxSpeed = 30
         this.acc = 1000
-        this.blockChecker = this.scene.addObject(BlobEnemyBlockChecker, {
-            owner: this,
-        })
         this.onFloorLastIt = -Infinity
     }
 
@@ -1028,10 +1025,17 @@ export class BlobEnemy extends Enemy {
     update() {
         super.update()
         const { dt } = this.game
+        this.initGetBlockedChecker()
         // move
         if(abs(this.speedX) < 10) this.mayChangeDir()
         if(this.onFloorLastIt == this.scene.iteration) this.speedX = sumTo(this.speedX, this.acc * dt, this.dirX * this.maxSpeed)
         this.lastChangeDirAge += 1
+    }
+
+    initGetBlockedChecker() {
+        this._blockChecker ||= this.scene.addObject(BlobEnemyBlockChecker, {
+            owner: this,
+        })
     }
 
     mayChangeDir() {
@@ -1075,11 +1079,6 @@ export class BlobEnemy extends Enemy {
             height: 60,
         }
     }
-
-    remove() {
-        super.remove()
-        this.blockChecker.remove()
-    }
 }
 
 
@@ -1107,6 +1106,7 @@ class BlobEnemyBlockChecker extends GameObject {
         if(this.lastGetBlockedIteration < this.scene.iteration) {
             owner.mayChangeDir()
         }
+        if(this.owner.removed) this.remove()
     }
 
     onGetBlocked(obj, details) {
@@ -1136,6 +1136,7 @@ const GhostImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/gh
     width: 45,
     height: 45,
 })
+@StateNumber.define("lastChangeDirAge")
 export class Ghost extends Enemy {
 
     update() {
@@ -1143,9 +1144,17 @@ export class Ghost extends Enemy {
         const { dt } = this.game
         const { width } = this.scene.map
         // move
-        if((this.speedResX * this.dirX < 0) || (this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0)) this.dirX *= -1
+        if((this.x < 0 && this.dirX < 0) || (this.x > width && this.dirX > 0) || abs(this.speedX) < 10) this.mayChangeDir()
         this.speedX = sumTo(this.speedX, 1000 * dt, this.dirX * 2000 * dt)
         this.speedY = sumTo(this.speedY, 1000 * dt, 0)
+        this.lastChangeDirAge += 1
+    }
+
+    mayChangeDir() {
+        if(this.lastChangeDirAge < this.game.fps) return
+        this.lastChangeDirAge = 0
+        this.dirX *= -1
+        this.speedX *= -1
     }
 
     canAttackObject(obj) {

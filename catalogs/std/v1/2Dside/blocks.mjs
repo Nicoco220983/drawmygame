@@ -127,7 +127,7 @@ const CloudImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/bl
     icon: CloudImg,
     showInBuilder: true,
 })
-@StateNumber.define("blockAge", { default: null, nullableWith: null })
+@StateNumber.define("blockAge", { default: Infinity, nullableWith: Infinity })
 @StateNumber.define("timeToDisappear", { default: 1, precision: .5, showInBuilder: true })
 @StateNumber.define("timeToReappear", { default: 3, precision: .5, nullableWith: Infinity, showInBuilder: true })
 export class Cloud extends Block {
@@ -136,28 +136,32 @@ export class Cloud extends Block {
         super.init(kwargs)
         this.step = 0
         this.lastBlockIt = -Infinity
-        this.checker = this.scene.addObject(CloudChecker, { owner: this })
     }
 
     onBlock(obj, details) {
         super.onBlock(obj, details)
-        if(this.blockAge === null) this.blockAge = 0
+        if(this.blockAge === Infinity) this.blockAge = 0
         this.lastBlockIt = this.scene.iteration
     }
 
     update() {
         const { blockAge, timeToDisappear, timeToReappear } = this
         const { fps } = this.game
-        if(blockAge === null) this.step = 0
+        this.initBlockChecker()
+        if(blockAge === Infinity) this.step = 0
         else if(blockAge < (timeToDisappear * fps)) this.step = 1
         else if(blockAge < ((timeToDisappear + timeToReappear) * fps)) {
             this.step = 2
         } else if(this.lastBlockIt < this.scene.iteration) {
             this.step = 0
-            this.blockAge = null
+            this.blockAge = Infinity
         }
         this.canBlock = (this.step < 2)
-        if(this.blockAge !== null) this.blockAge += 1
+        this.blockAge += 1
+    }
+
+    initBlockChecker() {
+        this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
     }
 
     getGraphicsProps() {
@@ -172,19 +176,13 @@ export class Cloud extends Block {
     getBaseImg() {
         return CloudImg
     }
-
-    remove() {
-        super.remove()
-        this.checker.remove()
-    }
 }
 
 @PhysicsMixin.add({
     canMove: false,
     checkBlockAnyway: true,
 })
-class CloudChecker extends GameObject {
-    static STATEFUL = false
+class CloudBlockChecker extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -197,6 +195,11 @@ class CloudChecker extends GameObject {
 
     onBlock(obj, details) {
         this.owner.onBlock(obj, details)
+    }
+
+    update() {
+        super.update()
+        if(this.owner.removed) this.remove()
     }
 }
 

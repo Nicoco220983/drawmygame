@@ -2610,7 +2610,7 @@ export class HitMixin extends Mixin {
         proto.canHitGroup ||= function(group) { return false }
         proto.canBeHitAsGroup ||= function(group) { return false }
         proto.canHitObject ||= function(obj) { return false }
-        proto.hit ||= function(obj) {}
+        proto.hit ||= function(obj, details) {}
 
         proto.getHitProps ||= this.objGetHitProps
     }
@@ -2685,8 +2685,8 @@ export class PhysicsMixin extends Mixin {
         const origHit = proto.hit
         proto.hit = function(obj, details) {
             origHit.call(this, obj, details)
-            if(this.canBlock || this.checkBlockAnyway) this.onBlock(obj, details)
-            if(obj.canGetBlocked || obj.checkGetBlockedAnyway) obj.onGetBlocked(this, details)
+            if((this.canBlock || this.checkBlockAnyway) && obj.canGetBlocked) this.onBlock(obj, details)
+            if((obj.canGetBlocked || obj.checkGetBlockedAnyway) && this.canBlock) obj.onGetBlocked(this, details)
         }
     }
 
@@ -2801,8 +2801,8 @@ export class AttackMixin extends Mixin {
         }
 
         const origHit = proto.hit
-        proto.hit = function(obj) {
-            origHit.call(this, obj)
+        proto.hit = function(obj, details) {
+            origHit.call(this, obj, details)
             if(this.canReallyAttackObject(obj)) this.attack(obj)
         }
         proto.getAttackProps ||= this.objGetAttackProps
@@ -2929,8 +2929,8 @@ export class CollectMixin extends Mixin {
         }
 
         const origHit = proto.hit
-        proto.hit = function(obj) {
-            origHit.call(this, obj)
+        proto.hit = function(obj, details) {
+            origHit.call(this, obj, details)
             if(canReallyCollectObject.call(this, obj)) this.collect(obj)
         }
         proto.collect = this.objCollect
