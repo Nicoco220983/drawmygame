@@ -442,7 +442,12 @@ export class Nico extends Hero {
     }
 
     tryJump() {
-        if(this.jumpableLastIt == this.scene.iteration) this.jump()
+        if(this.jumpableLastIt == this.scene.iteration) {
+            this.jump()
+            return true
+        } else {
+            return false
+        }
     }
 
     jump() {
@@ -518,7 +523,7 @@ export class Nico extends Hero {
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if(iteration > 0 && (this.handRemIt || this.speedResY == 0)) return spriteSheet.get(1)
+        if(iteration > 0 && (this.handRemIt || this.jumpableLastIt != this.scene.iteration)) return spriteSheet.get(1)
         else if(this.speedX == 0) return spriteSheet.get(0)
         else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
     }
