@@ -818,11 +818,14 @@ export class Shuriken extends Projectile {
         this.game.audio.playSound(SlashAud)
     }
 
+    onGetBlocked() {
+        this.remove()
+    }
+
     update() {
         this.angle += 30
         this.itToLive -= 1
         if(this.itToLive <= 0) this.remove()
-        if(this.speedResX || this.speedResY) this.remove()
     }
 
     getBaseImg() {
@@ -1014,6 +1017,12 @@ export class BlobEnemy extends Enemy {
         this.blockChecker = this.scene.addObject(BlobEnemyBlockChecker, {
             owner: this,
         })
+        this.onFloorLastIt = -Infinity
+    }
+
+    onGetBlocked(obj, details) {
+        const { angle } = details
+        if(angle<0) this.onFloorLastIt = this.scene.iteration
     }
 
     update() {
@@ -1021,12 +1030,12 @@ export class BlobEnemy extends Enemy {
         const { dt } = this.game
         // move
         if(abs(this.speedX) < 10) this.mayChangeDir()
-        if(this.speedResY < 0) this.speedX = sumTo(this.speedX, this.acc * dt, this.dirX * this.maxSpeed)
+        if(this.onFloorLastIt == this.scene.iteration) this.speedX = sumTo(this.speedX, this.acc * dt, this.dirX * this.maxSpeed)
         this.lastChangeDirAge += 1
     }
 
     mayChangeDir() {
-        if(this.speedResY >= 0) return
+        if(this.onFloorLastIt != this.scene.iteration) return
         if(this.lastChangeDirAge < this.game.fps) return
         this.lastChangeDirAge = 0
         this.dirX *= -1
