@@ -327,9 +327,3 @@ function dist(x, y) {
 function dist2(x, y) {
     return x ** 2 + y ** 2
 }
-
-function sign(val) {
-    if(val == 0) return 0
-    else if(val > 0) return 1
-    else return -1
-}

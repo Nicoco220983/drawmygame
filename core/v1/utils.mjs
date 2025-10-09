@@ -274,6 +274,13 @@ function checkHit(obj1, obj2) {
 }
 
 
+function sign(val) {
+    if(val == 0) return 0
+    else if(val > 0) return 1
+    else return -1
+}
+
+
 function sumTo(val, dv, target) {
     // dv should always be > 0
     if(val == target) return target
@@ -343,6 +350,7 @@ export {
     checkAllLoadsDone,
     checkHit,
     getHitBox,
+    sign,
     sumTo,
     newDomEl,
     addNewDomEl,

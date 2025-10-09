@@ -2,8 +2,8 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from '../../../../core/v1/utils.mjs'
 import { GraphicsProps } from '../../../../core/v1/graphics.mjs'
-const { checkHit, urlAbsPath, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys } = utils
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now } from '../../../../core/v1/game.mjs'
+const { checkHit, urlAbsPath, sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys } = utils
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, LinkTrigger, LinkReaction, Mixin, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin, now, hackMethod } from '../../../../core/v1/game.mjs'
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",
@@ -338,7 +338,63 @@ export class Projectile extends GameObject {
 }
 
 
-// HEROES
+// NICO
+
+@PhysicsMixin.addIfAbsent()
+export class JumpMixin extends Mixin {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.jumpSpeed = kwargs?.jumpSpeed ?? 500
+        this.nullJumpSpeed = kwargs?.nullJumpSpeed ?? 800
+        this.maxJumpBlockAngle = kwargs?.maxJumpBlockAngle ?? 70
+    }
+
+    initObjectClass(cls) {
+        const proto = cls.prototype
+        proto.jumpSpeed = this.jumpSpeed
+        proto.nullJumpSpeed = this.nullJumpSpeed
+        proto.maxJumpBlockAngle = this.maxJumpBlockAngle
+        proto.jumpBlockLastIt = -Infinity
+        proto.jumpBlockLastAngle = -90
+        proto.onGetBlocked = this.onGetBlocked
+        proto.mayJump = this.mayJump
+        proto.jump = this.jump
+    }
+
+    onGetBlocked(obj, details) {
+        const { maxJumpBlockAngle } = this
+        const { angle } = details
+        if(angle<=-90+maxJumpBlockAngle && angle>=-90-maxJumpBlockAngle) {
+            this.jumpBlockLastIt = this.scene.iteration
+            this.jumpBlockLastAngle = angle
+        }
+    }
+
+    mayJump() {
+        if(this.jumpBlockLastIt == this.scene.iteration) {
+            this.jump()
+            return true
+        } else {
+            return false
+        }
+    }
+
+    jump() {
+        const { jumpSpeed, nullJumpSpeed, jumpBlockLastAngle } = this
+        const jumpAngle = -90 - (-90 - jumpBlockLastAngle)/2
+        //const angleJumpSpeed = jumpSpeed*sin(jumpBlockLastAngle * PI / 180)  // < 0
+        if(jumpAngle != -90) {
+            const jumpSpeedX = jumpSpeed * cos(jumpAngle * PI / 180)
+            this.speedX += jumpSpeedX
+            this.dirX = sign(jumpSpeedX)
+        }
+        const jumpSpeedY = jumpSpeed * sin(jumpAngle * PI / 180) // < 0
+        this.speedY += max(jumpSpeedY, min(0, jumpSpeedY * (1 + this.speedY/nullJumpSpeed)))
+        this.game.audio.playSound(JumpAud)
+    }
+}
+
 
 const NicoImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/nico.png")
 const NicoBaseSpriteSheet = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/nico_full.png")
@@ -368,6 +424,11 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/jum
     label: "Nico",
     icon: NicoImg,
 })
+@JumpMixin.add({
+    jumpSpeed: 500,
+    nullJumpSpeed: 800,
+    maxJumpBlockAngle: 90,
+})
 @AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
@@ -387,16 +448,6 @@ export class Nico extends Hero {
         super.init(kwargs)
         this.handDur = ceil(.1 * this.game.fps)
         this.hand = null
-        this.jumpableLastIt = -Infinity
-        this.jumpableAngle = null
-    }
-
-    onGetBlocked(obj, details) {
-        const { angle } = details
-        if(angle<0 && angle>-180) {
-            this.jumpableLastIt = this.scene.iteration
-            this.jumpableAngle = angle
-        }
     }
 
     update() {
@@ -439,27 +490,10 @@ export class Nico extends Hero {
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
             this.physicsStaticFriction = this.physicsDynamicFriction = 0
         }
-        if(inputState && inputState.jump) this.tryJump()
+        if(inputState && inputState.jump) this.mayJump()
         if(this.handRemIt) this.handRemIt -= 1
         if(inputState && inputState.obj) this.act()
         else if(this.handRemIt === 0) this.handRemIt = null
-    }
-
-    tryJump() {
-        if(this.jumpableLastIt == this.scene.iteration) {
-            this.jump()
-            return true
-        } else {
-            return false
-        }
-    }
-
-    jump() {
-        const jumpMaxPow = 500 // max delta of speed jump can provoke
-        const jumpPow = jumpMaxPow*sin(this.jumpableAngle * PI / 180)  // < 0
-        const nullPowSpeed = 800 // base speed on which there is no jump effect
-        this.speedY += max(jumpPow, min(0, jumpPow * (1 + this.speedY/nullPowSpeed)))
-        this.game.audio.playSound(JumpAud)
     }
 
     act() {
@@ -527,7 +561,7 @@ export class Nico extends Hero {
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if(iteration > 0 && (this.handRemIt || this.jumpableLastIt != this.scene.iteration)) return spriteSheet.get(1)
+        if(iteration > 0 && (this.handRemIt || this.jumpBlockLastIt != this.scene.iteration)) return spriteSheet.get(1)
         else if(this.speedX == 0) return spriteSheet.get(0)
         else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
     }
@@ -947,6 +981,68 @@ export class Explosion extends GameObject {
         return ExplosionSpriteSheet.get(floor(
             this.iteration / this.game.fps * 15
         ))
+    }
+}
+
+
+const JetPackImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/jetpack.png")
+const JetPackSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/jetpack_spritesheet.png"), 2, 1)
+const JetPackAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/jetpack.opus")
+
+@CATALOG.registerObject({
+    label: "JetPack",
+    icon: JetPackImg,
+})
+@BodyMixin.add({
+    width: 20,
+    height: 50,
+})
+export class JetPack extends Extra {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.acc = 1200
+        this.dec = 3000
+        this.flyLastIt = -Infinity
+    }
+
+    onGetCollected(owner) {
+        const { dt } = this.game
+        super.onGetCollected(owner)
+        hackMethod(owner, "mayJump", -1, evt => {
+            if(this.owner != owner) return
+            const jumped = evt.returnValue
+            if(jumped) return
+            if(owner.speedY > 0) owner.speedY -= this.dec * dt
+            else owner.speedY -= this.acc * dt
+            this.audPrm ||= this.game.audio.playSound(JetPackAud, 1.0, true)
+            this.flyLastIt = this.scene.iteration
+        })
+    }
+
+    isFlying() {
+        return this.flyLastIt == this.scene.iteration
+    }
+
+    update() {
+        super.update()
+        this.syncWithOwner()
+        if(this.audPrm && !this.isFlying()) {
+            this.audPrm.then(aud => aud.stop())
+            this.audPrm = null
+        }
+    }
+
+    syncWithOwner() {
+        const { owner } = this
+        if(!owner) return
+        this.dirX = owner.dirX
+        this.x = owner.x - owner.dirX * 15
+        this.y = owner.y + 10
+    }
+
+    getBaseImg() {
+        return JetPackSpriteSheet.get(this.isFlying() ? 1 : 0)
     }
 }
 
