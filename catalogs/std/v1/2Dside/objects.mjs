@@ -1591,3 +1591,17 @@ export class BouncingWall extends Wall {
         this.physicsBounciness = 1
     }
 }
+
+
+@CATALOG.registerObject({
+    stateful: false,
+})
+export class GlidingWall extends Wall {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.color = "lightblue"
+        this.physicsStaticFriction = 0
+        this.physicsDynamicFriction = 0
+    }
+}

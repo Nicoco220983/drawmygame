@@ -308,3 +308,24 @@ export class BouncingBlock extends Block {
         return BouncingBlockImg
     }
 }
+
+
+const IceBlockImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/ice.png")
+
+@CATALOG.registerObject({
+    label: "Ice Block",
+    icon: IceBlockImg,
+    showInBuilder: true,
+})
+export class IceBlock extends Block {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.physicsStaticFriction = 0
+        this.physicsDynamicFriction = 0
+    }
+
+    getBaseImg() {
+        return IceBlockImg
+    }
+}

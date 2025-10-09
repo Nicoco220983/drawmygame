@@ -88,6 +88,7 @@
                 <button id="mode_wall">[W]all</button>
                 <button id="mode_platform">[P]latform</button>
                 <button id="mode_wall_bouncing">[B]ouncing</button>
+                <button id="mode_wall_gliding">[G]liding</button>
             </flexrow>
             <flexcol id="selection_menu"></flexcol>
         </flexcol>
@@ -160,6 +161,7 @@ const Keys = {}
 document.getElementById("mode_wall").onclick = Keys["ww"] = () => setBuilderMode('wall', 'std:Wall')
 document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilderMode('wall', 'std:PlatformWall')
 document.getElementById("mode_wall_bouncing").onclick = Keys["wb"] = () => setBuilderMode('wall', 'std:BouncingWall')
+document.getElementById("mode_wall_gliding").onclick = Keys["wg"] = () => setBuilderMode('wall', 'std:GlidingWall')
 const objectsEl = document.getElementById("objects")
 objectsEl.addEventListener("change", evt => setBuilderMode('object', evt.detail.key))
 function setBuilderMode(builderMode, builderModeKey) {
