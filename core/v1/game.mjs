@@ -444,7 +444,7 @@ export class StateProperty {
     setObjectPropFromState(obj, valState) {
         const { key } = this
         if(valState === undefined) return delete obj[key]
-        if(valState === null) valState = this.nullableWith ?? null
+        if(valState === null) return obj[key] = this.nullableWith ?? null
         obj[key] = valState
     }
     syncStateFromObject(obj, state) {
@@ -537,7 +537,8 @@ export class StateNumber extends StateProperty {
         this.precision = kwargs?.precision ?? 1
         this.min = kwargs?.min ?? 0
         this.max = kwargs?.max ?? null
-        if(kwargs?.default !== undefined) this.defaultStateValue = kwargs.default / this.precision
+        const kwargsDefault = kwargs?.default
+        if(typeof kwargsDefault == 'number') this.defaultStateValue = kwargsDefault / this.precision
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
@@ -547,7 +548,7 @@ export class StateNumber extends StateProperty {
     setObjectPropFromState(obj, valState) {
         const { key } = this
         if(valState === undefined) return delete obj[key]
-        if(valState === null) valState = this.nullableWith ?? null
+        if(valState === null) return obj[key] = this.nullableWith ?? null
         obj[key] = valState * this.precision
     }
     createInput(obj) {

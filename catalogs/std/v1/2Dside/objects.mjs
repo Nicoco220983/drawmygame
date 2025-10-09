@@ -368,8 +368,6 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/jum
     label: "Nico",
     icon: NicoImg,
 })
-@StateNumber.define("handRemIt", { nullableWith: null, default: null })
-@StateProperty.modify("dirX", { showInBuilder: true })
 @AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
@@ -381,6 +379,8 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/jum
     width: 40,
     height: 45,
 })
+@StateNumber.define("handRemIt", { nullableWith: null, default: null })
+@StateProperty.modify("dirX", { showInBuilder: true })
 export class Nico extends Hero {
 
     init(kwargs) {
