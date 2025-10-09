@@ -110,12 +110,22 @@ export default class PhysicsEngine {
                             obj.y += dy
                             // compute remaining speed
                             projection(objSpdX, objSpdY, colNormalY, -colNormalX, projRes)
-                            obj.speedX = projRes.x; obj.speedY = projRes.y
-                            const bouncingFactor = max(obj.bouncingFactor, colRes.obj.bouncingFactor)
-                            if(bouncingFactor > 0) {
+                            const projVal = hypot(projRes.x, projRes.y)
+                            if (projVal == 0) {
+                                obj.speedX = obj.speedY = 0
+                            } else {
+                                const staticFriction = min(obj.physicsStaticFriction, colRes.obj.physicsStaticFriction)
+                                const dynamicFriction = min(obj.physicsDynamicFriction, colRes.obj.physicsDynamicFriction)
+                                const friction = (dynamicFriction*projVal + staticFriction) * remD*dt
+                                const glideFactor = max(0, 1-friction/projVal)
+                                obj.speedX = projRes.x * glideFactor
+                                obj.speedY = projRes.y * glideFactor
+                            }
+                            const bounciness = max(obj.physicsBounciness, colRes.obj.physicsBounciness)
+                            if(bounciness > 0) {
                                 const rmSpdX = objSpdX - projRes.x,  rmSpdY = objSpdY - projRes.y
-                                obj.speedX -= rmSpdX * bouncingFactor
-                                obj.speedY -= rmSpdY * bouncingFactor
+                                obj.speedX -= rmSpdX * bounciness
+                                obj.speedY -= rmSpdY * bounciness
                             }
                             // stop collisions detection condition
                             const objD = hypot(objDx, objDy), colD = objD * colTime
@@ -316,4 +326,10 @@ function dist(x, y) {
 
 function dist2(x, y) {
     return x ** 2 + y ** 2
+}
+
+function sign(val) {
+    if(val == 0) return 0
+    else if(val > 0) return 1
+    else return -1
 }

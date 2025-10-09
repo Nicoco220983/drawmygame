@@ -427,13 +427,17 @@ export class Nico extends Hero {
         const { dt } = this.game
         if(this.getHealth() == 0) return
         const { inputState } = this
-        if(!inputState || !inputState.walkX) this.speedX = sumTo(this.speedX, 500 * dt, 0)
-        else if(inputState.walkX > 0) {
+        if(!inputState || !inputState.walkX) {
+            this.physicsStaticFriction = 500
+            this.physicsDynamicFriction = 2
+        } else if(inputState.walkX > 0) {
             this.dirX = 1
             this.speedX = sumTo(this.speedX, 1000 * dt, 300)
+            this.physicsStaticFriction = this.physicsDynamicFriction = 0
         } else if(inputState.walkX < 0) {
             this.dirX = -1
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
+            this.physicsStaticFriction = this.physicsDynamicFriction = 0
         }
         if(inputState && inputState.jump) this.tryJump()
         if(this.handRemIt) this.handRemIt -= 1
@@ -1248,7 +1252,7 @@ const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/sta
 @PhysicsMixin.add({
     affectedByGravity: false,
     canGetBlocked: true,
-    bouncingFactor: 1,
+    physicsBounciness: 1,
 })
 @BodyMixin.add({
     width: 30,
@@ -1584,6 +1588,6 @@ export class BouncingWall extends Wall {
     init(kwargs) {
         super.init(kwargs)
         this.color = "green"
-        this.bouncingFactor = 1
+        this.physicsBounciness = 1
     }
 }

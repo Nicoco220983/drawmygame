@@ -2642,7 +2642,9 @@ export class PhysicsMixin extends Mixin {
         this.canGetBlocked = kwargs?.canGetBlocked ?? this.canMove
         this.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
         this.checkGetBlockedAnyway = kwargs?.checkGetBlockedAnyway ?? false
-        this.bouncingFactor = kwargs?.bouncingFactor ?? 0
+        this.physicsBounciness = kwargs?.physicsBounciness ?? 0
+        this.physicsStaticFriction = kwargs?.physicsStaticFriction ?? Infinity
+        this.physicsDynamicFriction = kwargs?.physicsDynamicFriction ?? Infinity
     }
 
     initObjectClass(cls) {
@@ -2654,7 +2656,9 @@ export class PhysicsMixin extends Mixin {
         proto.canGetBlocked = this.canGetBlocked
         proto.checkBlockAnyway = this.checkBlockAnyway
         proto.checkGetBlockedAnyway = this.checkGetBlockedAnyway
-        proto.bouncingFactor = this.bouncingFactor
+        proto.physicsBounciness = this.physicsBounciness
+        proto.physicsStaticFriction = this.physicsStaticFriction
+        proto.physicsDynamicFriction = this.physicsDynamicFriction
         proto.speedResX = 0
         proto.speedResY = 0
         proto.onBlock ||= function(obj, details) {}

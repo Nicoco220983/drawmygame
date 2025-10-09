@@ -301,7 +301,7 @@ export class BouncingBlock extends Block {
 
     init(kwargs) {
         super.init(kwargs)
-        this.bouncingFactor = 1
+        this.physicsBounciness = 1
     }
 
     getBaseImg() {
