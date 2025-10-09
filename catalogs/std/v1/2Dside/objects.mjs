@@ -387,6 +387,16 @@ export class Nico extends Hero {
         super.init(kwargs)
         this.handDur = ceil(.1 * this.game.fps)
         this.hand = null
+        this.jumpableLastIt = -Infinity
+        this.jumpableAngle = null
+    }
+
+    onGetBlocked(obj, details) {
+        const { angle } = details
+        if(angle<0 && angle>-180) {
+            this.jumpableLastIt = this.scene.iteration
+            this.jumpableAngle = angle
+        }
     }
 
     update() {
@@ -413,30 +423,6 @@ export class Nico extends Hero {
         return props
     }
 
-    getBaseImg() {
-        const { iteration } = this.scene
-        const { dt, players } = this.game
-        const player = players && players[this.playerId]
-        const color = player && player.color
-        const spriteSheet = NicoSpriteSheets.get(color)
-        if(iteration > 0 && (this.handRemIt || this.speedResY == 0)) return spriteSheet.get(1)
-        else if(this.speedX == 0) return spriteSheet.get(0)
-        else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
-    }
-
-    getInputState() {
-        const { game } = this
-        const inputState = super.getInputState()
-        if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
-        else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
-        else delete inputState.walkX
-        if(game.isKeyPressed("ArrowUp")) inputState.jump = true
-        else delete inputState.jump
-        if(game.isKeyPressed(" ")) inputState.obj = true
-        else delete inputState.obj
-        return inputState
-    }
-
     applyInputState() {
         const { dt } = this.game
         if(this.getHealth() == 0) return
@@ -449,13 +435,22 @@ export class Nico extends Hero {
             this.dirX = -1
             this.speedX = sumTo(this.speedX, 1000 * dt, -300)
         }
-        if(inputState && inputState.jump && this.speedResY < 0) {
-            this.speedY = min(-500, this.speedY-100)
-            this.game.audio.playSound(JumpAud)
-        }
+        if(inputState && inputState.jump) this.tryJump()
         if(this.handRemIt) this.handRemIt -= 1
         if(inputState && inputState.obj) this.act()
         else if(this.handRemIt === 0) this.handRemIt = null
+    }
+
+    tryJump() {
+        if(this.jumpableLastIt == this.scene.iteration) this.jump()
+    }
+
+    jump() {
+        const jumpMaxPow = 500 // max delta of speed jump can provoke
+        const jumpPow = jumpMaxPow*sin(this.jumpableAngle * PI / 180)  // < 0
+        const nullPowSpeed = 800 // base speed on which there is no jump effect
+        this.speedY += max(jumpPow, min(0, jumpPow * (1 + this.speedY/nullPowSpeed)))
+        this.game.audio.playSound(JumpAud)
     }
 
     act() {
@@ -515,6 +510,30 @@ export class Nico extends Hero {
             if(extra.isActionExtra) actionExtra = extra
         })
         return actionExtra
+    }
+
+    getBaseImg() {
+        const { iteration } = this.scene
+        const { dt, players } = this.game
+        const player = players && players[this.playerId]
+        const color = player && player.color
+        const spriteSheet = NicoSpriteSheets.get(color)
+        if(iteration > 0 && (this.handRemIt || this.speedResY == 0)) return spriteSheet.get(1)
+        else if(this.speedX == 0) return spriteSheet.get(0)
+        else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
+    }
+
+    getInputState() {
+        const { game } = this
+        const inputState = super.getInputState()
+        if(game.isKeyPressed("ArrowRight")) inputState.walkX = 1
+        else if(game.isKeyPressed("ArrowLeft")) inputState.walkX = -1
+        else delete inputState.walkX
+        if(game.isKeyPressed("ArrowUp")) inputState.jump = true
+        else delete inputState.jump
+        if(game.isKeyPressed(" ")) inputState.obj = true
+        else delete inputState.obj
+        return inputState
     }
 }
 
@@ -1451,6 +1470,7 @@ export class Wall extends GameObject {
         if(kwargs?.y1 !== undefined) this.y1 = kwargs.y1
         if(kwargs?.x2 !== undefined) this.x2 = kwargs.x2
         if(kwargs?.y2 !== undefined) this.y2 = kwargs.y2
+        if(kwargs?.visibility !== undefined) this.visibility = kwargs.visibility
         this.color = "black"
     }
 
@@ -1475,6 +1495,7 @@ export class Wall extends GameObject {
         props.y = (y1 + y2) / 2
         props.width = abs(x1 - x2) + 2*lineWidth
         props.height = abs(y1 - y2) + 2*lineWidth
+        props.visibility = this.visibility
         return props
     }
 

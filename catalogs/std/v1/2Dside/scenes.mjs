@@ -1,5 +1,5 @@
 const { assign } = Object
-const { floor, round, ceil, max } = Math
+const { floor, round, ceil, min, max } = Math
 import { GraphicsProps } from '../../../../core/v1/graphics.mjs'
 import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateNumber, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../../core/v1/game.mjs'
 import { Hero, Wall, Star, HeroSpawnPoint } from './objects.mjs'
@@ -31,14 +31,19 @@ export class BorderManager extends Manager {}
 })
 export class BlockBorderManager extends BorderManager {
 
-    init(kwargs) {
-        super.init(kwargs)
-        const { scene } = this
-        const { width, height } = scene
-        scene.addObject(Wall, { x1:0, y1:0, x2:width, y2:0})
-        scene.addObject(Wall, { x1:width, y1:0, x2:width, y2:height})
-        scene.addObject(Wall, { x1:width, y1:height, x2:0, y2:height})
-        scene.addObject(Wall, { x1:0, y1:height, x2:0, y2:0})
+    update() {
+        super.update()
+        this.initWalls()
+    }
+
+    initWalls() {
+        if(this._initWallsDone) return
+        this._initWallsDone = true
+        const { scene } = this, { width, height } = scene
+        scene.addObject(Wall, { x1:0, y1:0, x2:width, y2:0, visibility:0 })
+        scene.addObject(Wall, { x1:width, y1:0, x2:width, y2:height, visibility:0 })
+        scene.addObject(Wall, { x1:width, y1:height, x2:0, y2:height, visibility:0 })
+        scene.addObject(Wall, { x1:0, y1:height, x2:0, y2:0, visibility:0 })
     }
 }
 

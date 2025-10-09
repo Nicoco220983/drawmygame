@@ -280,7 +280,7 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
 function getCollisionDetails(colRes) {
     const { normalX, normalY, distFixSign } = colRes
     const colAngle = atan2(-normalY*distFixSign, -normalX*distFixSign)
-    return { angle: colAngle }
+    return { angle: colAngle*180/PI }
 }
 
 // Fonction pour projeter un polygone sur un axe

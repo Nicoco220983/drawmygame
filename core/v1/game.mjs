@@ -707,6 +707,7 @@ export class GameObject {
             width: 10,
             height: 10,
             color: null,
+            visibility: 1,
             removed: false,
         })
     }
@@ -728,6 +729,8 @@ export class GameObject {
             if(kwargs.height !== undefined) this.height = kwargs.height
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
+            if(kwargs.color !== undefined) this.color = kwargs.color
+            if(kwargs.visibility !== undefined) this.visibility = kwargs.visibility
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
@@ -859,6 +862,7 @@ export class GameObject {
         props.dirX = this.dirX
         props.dirY = this.dirY
         props.angle = this.angle
+        props.visibility = this.visibility
         return props
     }
 

@@ -245,6 +245,7 @@ async function main() {
     if(urlParams.has("map")) {
         await map.importFromSafeBase64(urlParams.get("map"))
     }
+    console.log("map", map)
     initInputEls(catalog)
     if(urlParams.has("map")) {
         await startAndShowGame(true)
