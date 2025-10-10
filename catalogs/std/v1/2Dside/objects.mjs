@@ -997,6 +997,8 @@ const JetPackAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/
     width: 20,
     height: 50,
 })
+@StateNumber.define("duration", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("useIt")
 export class JetPack extends Extra {
 
     init(kwargs) {
@@ -1013,6 +1015,10 @@ export class JetPack extends Extra {
             if(this.owner != owner) return
             const jumped = evt.returnValue
             if(jumped) return
+            if(this.duration != Infinity) {
+                if(this.useIt >= this.duration * this.game.fps) return
+                this.useIt += 1
+            }
             if(owner.speedY > 0) owner.speedY -= this.dec * dt
             else owner.speedY -= this.acc * dt
             this.audPrm ||= this.game.audio.playSound(JetPackAud, 1.0, true)
@@ -1027,10 +1033,13 @@ export class JetPack extends Extra {
     update() {
         super.update()
         this.syncWithOwner()
-        if(this.audPrm && !this.isFlying()) {
-            this.audPrm.then(aud => aud.stop())
-            this.audPrm = null
-        }
+        if(!this.isFlying()) this.stopAud()
+    }
+
+    stopAud() {
+        if(!this.audPrm) return
+        this.audPrm.then(aud => aud.stop())
+        this.audPrm = null
     }
 
     syncWithOwner() {
@@ -1043,6 +1052,11 @@ export class JetPack extends Extra {
 
     getBaseImg() {
         return JetPackSpriteSheet.get(this.isFlying() ? 1 : 0)
+    }
+
+    remove() {
+        super.remove()
+        this.stopAud()
     }
 }
 
