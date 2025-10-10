@@ -637,18 +637,18 @@ const SwordHitAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets
     label: "Sword",
     icon: SwordImg,
 })
-@StateNumber.define("lastAttackAge", { default: Infinity })
 @BodyMixin.add({
     width: 40,
     height: 40,
 })
+@StateNumber.define("lastAttackAge", { default: Infinity })
 export class Sword extends Weapon {
 
     init(kwargs) {
         super.init(kwargs)
         this.isActionExtra = true
         this.attackDamages = 100
-        this.oneAttackByObject = true
+        this.attackPeriod = SWORD_ATTACK_PERIOD
     }
 
     update() {
@@ -657,7 +657,6 @@ export class Sword extends Weapon {
         if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
         this.lastAttackAge += 1
         if(this.lastAttackAge > (SWORD_ATTACK_PERIOD * this.game.fps)) this.lastAttackAge = Infinity
-        if(!this.isAttacking()) this.resetOneAttackByObject()
     }
 
     syncPos() {
@@ -721,17 +720,15 @@ export class BoxingGlove extends Weapon {
         this.isActionExtra = true
         this.attackDamages = 0
         this.attackKnockback = 500
-        this.oneAttackByObject = true
-        this.attackDurationIt = .1 * this.game.fps
+        this.attackPeriod = .1
     }
 
     update() {
         super.update()
         this.syncPos()
         if(this.lastAttackAge == 0) this.game.audio.playSound(SlashAud)
-        if(!this.isAttacking()) this.resetOneAttackByObject()
         this.lastAttackAge += 1
-        if(this.lastAttackAge > this.attackDurationIt) this.lastAttackAge = Infinity
+        if(this.lastAttackAge > this.attackPeriod * this.game.fps) this.lastAttackAge = Infinity
     }
 
     syncPos() {
@@ -748,6 +745,10 @@ export class BoxingGlove extends Weapon {
             this.width = 25
             this.height = 20
         }
+    }
+
+    isAttacking() {
+        return this.lastAttackAge <= this.attackPeriod * this.game.fps
     }
 
     act() {
@@ -768,10 +769,6 @@ export class BoxingGlove extends Weapon {
 
     onAttack(obj, props) {
         this.game.audio.playSound(HandHitAud)
-    }
-
-    isAttacking() {
-        return this.lastAttackAge <= this.attackDurationIt
     }
 
     getBaseImg() {
@@ -943,7 +940,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     canAttack: true,
     canGetAttacked: false,
     attackDamages: 100,
-    oneAttackByObject: true,
+    attackPeriod: Infinity,
 })
 @OwnerableMixin.add({
     removedWithOwner: false,
@@ -952,7 +949,6 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
     width: 300,
     height: 300,
 })
-@StateNumber.define("lastAttackAge", { default: Infinity })
 @StateNumber.define("iteration")
 export class Explosion extends GameObject {
 
@@ -1128,6 +1124,8 @@ export class BlobEnemy extends Enemy {
         super.init(kwargs)
         this.maxSpeed = 30
         this.acc = 1000
+        this.physicsStaticFriction = 100
+        this.physicsDynamicFriction = 1
         this.onFloorLastIt = -Infinity
     }
 

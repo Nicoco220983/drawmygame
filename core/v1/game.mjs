@@ -2749,8 +2749,8 @@ class AttackProps {
 
 
 @StateNumber.define("damages")
-@StateNumber.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
-@ObjectRefs.StateProperty.define("attackedObjects")
+//@StateNumber.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
+@StateProperty.define("attackAges")
 @HitMixin.addIfAbsent()
 export class AttackMixin extends Mixin {
     static KEY = "health"
@@ -2762,8 +2762,7 @@ export class AttackMixin extends Mixin {
         this.maxHealth = kwargs?.maxHealth ?? 100
         this.attackDamages = kwargs?.attackDamages ?? 0
         this.attackKnockback = kwargs?.attackKnockback ?? 0
-        this.oneAttackByObject = kwargs?.oneAttackByObject ?? false
-        this.graceDuration = kwargs?.graceDuration ?? 0
+        this.attackPeriod = kwargs?.attackPeriod ?? 1
     }
 
     initObjectClass(cls) {
@@ -2772,14 +2771,14 @@ export class AttackMixin extends Mixin {
 
         proto.canAttack = this.canAttack
         proto.canGetAttacked = this.canGetAttacked
-        proto.graceDuration = this.graceDuration
         proto.maxHealth = this.maxHealth
         proto.attackDamages = this.attackDamages
         proto.attackKnockback = this.attackKnockback
+        proto.attackPeriod = this.attackPeriod
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
-            if(group == "health" && this.canAttack && !this.isInGracePeriod()) return true
+            if(group == "health" && this.canAttack) return true
             return origCanHitGroup.call(this, group)
         }
         const origCanBeHitAsGroup = proto.canBeHitAsGroup
@@ -2789,12 +2788,14 @@ export class AttackMixin extends Mixin {
         }
         
         proto.getHealth ||= this.objGetHealth
-        proto.isInGracePeriod ||= this.objIsInGracePeriod
-        proto.oneAttackByObject = this.oneAttackByObject
-        proto.canReallyAttackObject = function(obj) {
+        const canReallyAttackObject = function(obj) {
             if(!this.canAttack) return false
             if(!this.scene.attackManager.canTeamAttack(this.team, obj.team)) return false
-            if(this.oneAttackByObject && this.attackedObjects.has(obj.id)) return false
+            const { attackPeriod, attackAges } = this
+            if(attackPeriod != 0 && attackAges) {
+                const attackAge = attackAges[obj.id]
+                if(attackAge !== undefined && attackAge <= attackPeriod * this.game.fps) return false
+            }
             if(!(obj.canGetAttacked && obj.canGetAttackedByObject(this))) return false
             return this.canAttackObject(obj)
         }
@@ -2802,13 +2803,13 @@ export class AttackMixin extends Mixin {
         proto.canAttackObject ||= function(obj) { return true }
         const origCanHitObject = proto.canHitObject
         proto.canHitObject = function(obj) {
-            return this.canReallyAttackObject(obj) || origCanHitObject.call(this, obj)
+            return canReallyAttackObject.call(this, obj) || origCanHitObject.call(this, obj)
         }
 
         const origHit = proto.hit
         proto.hit = function(obj, details) {
             origHit.call(this, obj, details)
-            if(this.canReallyAttackObject(obj)) this.attack(obj)
+            if(canReallyAttackObject.call(this, obj)) this.attack(obj)
         }
         proto.getAttackProps ||= this.objGetAttackProps
         proto.attack = this.objAttack
@@ -2818,24 +2819,27 @@ export class AttackMixin extends Mixin {
 
         proto.takeDamage ||= this.objTakeDamage
         proto.die ||= this.objDie
-        proto.resetOneAttackByObject = this.objResetOneAttackByObject
     }
 
     updateObject(obj) {
-        // const { iteration, step } = obj.scene
-        // const { dt } = obj.game
-        // if(step != "GAME" || (obj.getHealth() <= 0) || !obj.isInGracePeriod()) obj.spriteVisibility = 1
-        // else obj.spriteVisibility = (floor(iteration * dt * 100) % 2 == 0) ? 1 : 0
-        obj.lastDamageAge += 1
-        if(!obj.isInGracePeriod()) obj.lastDamageAge = Infinity
+        const { attackPeriod, attackAges } = obj
+        if(attackPeriod != 0 && attackAges) {
+            const attackPeriodIt = attackPeriod * obj.game.fps
+            let atLeastOneId = false
+            for(let id in attackAges) {
+                const age = attackAges[id]
+                if(age > attackPeriodIt) delete attackAges[id]
+                else {
+                    attackAges[id] = age + 1
+                    atLeastOneId = true
+                }
+            }
+            if(!atLeastOneId) obj.attackAges = null
+        }
     }
 
     objGetHealth() {
         return this.maxHealth - this.damages
-    }
-
-    objIsInGracePeriod() {
-        return this.lastDamageAge < this.graceDuration * this.game.fps
     }
 
     objGetAttackProps(obj) {
@@ -2848,7 +2852,10 @@ export class AttackMixin extends Mixin {
     }
 
     objAttack(obj) {
-        if(this.oneAttackByObject) this.attackedObjects.add(obj.id)
+        if(this.attackPeriod != 0) {
+            const attackAges = this.attackAges ||= {}
+            attackAges[obj.id] = 0
+        }
         const props = this.getAttackProps(obj)
         obj.getAttacked(props)
         this.onAttack(obj, props)
@@ -2856,7 +2863,6 @@ export class AttackMixin extends Mixin {
 
     objGetAttacked(props) {
         if(this.getHealth() <= 0) return
-        if(!props?.force && this.isInGracePeriod()) return
         const { attacker, damages } = props
         if(this.scene.attackManager.canTeamDamage(attacker.team, this.team)) {
             this.takeDamage(damages, props)
@@ -2871,7 +2877,6 @@ export class AttackMixin extends Mixin {
     }
 
     objTakeDamage(damages, props) {
-        if(damages > 0) this.lastDamageAge = 0
         this.damages += damages
         const attacker = props?.attacker
         if(this.getHealth() <= 0) {
@@ -2884,10 +2889,6 @@ export class AttackMixin extends Mixin {
 
     objDie(killer) {
         this.remove()
-    }
-
-    objResetOneAttackByObject() {
-        this.attackedObjects.clear()
     }
 }
 

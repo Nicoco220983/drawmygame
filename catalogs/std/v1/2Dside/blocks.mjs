@@ -221,7 +221,7 @@ export class Trap extends Block {
         this.canBlock = false
         this.checkBlockAnyway = true
         this.team = "engine"
-        this.oneAttackByObject = true
+        this.attackPeriod = this.duration
     }
 
     getAngle() {
@@ -247,7 +247,6 @@ export class Trap extends Block {
         this.canAttack = this.lastDetectAge > countdown * fps && this.lastDetectAge < (countdown + duration) * fps
         this.lastDetectAge += 1
         if(this.lastDetectAge > (countdown + duration) * fps) this.lastDetectAge = Infinity
-        if(this.lastDetectAge == Infinity) this.resetOneAttackByObject()
     }
 
     getAttackProps(obj) {
