@@ -216,7 +216,7 @@ export class GameMap {
             viewManager: { key: "std:ViewHerosCenterManager" },
             physicsManager: { key: "std:PhysicsManager" },
             attackManager: { key: "std:AttackManager" },
-            objects: [],
+            objects: {},
         }}
     }
 
@@ -1080,14 +1080,42 @@ export class GameObjectGroup {
     }
 
     init(kwargs) {
-        this.statelessObjArr = []
-        this.statefulObjArr = []
+        const { scene } = this, { chunkSize } = scene
+        this.nbChunksX = ceil(scene.width / chunkSize)
+        this.nbChunksY = ceil(scene.height / chunkSize)
+        this.chunks = new Map()
+        // this.statelessObjArr = []
+        // this.statefulObjArr = []
         this.objMap = new Map()
         this._nextAutoStatefulId = 0
         this._nextAutoStatelessId = -1
         this.x = kwargs?.x ?? 0
         this.y = kwargs?.y ?? 0
         if(kwargs?.onAdd) this.onAdd = kwargs.onAdd
+    }
+
+    getChunkId(obj) {
+        const { x, y } = obj
+        const { nbChunksX } = this, { chunkSize } = this.scene
+        return floor(x / chunkSize) + nbChunksX * floor(y / chunkSize)
+    }
+
+    getChunk(chunkId) {
+        const { chunks } = this
+        let res = chunks.get(chunkId)
+        if(res === undefined) {
+            res = this.newChunk(chunkId)
+            chunks.set(chunkId, res)
+        }
+        return res
+    }
+
+    newChunk(id) {
+        return {
+            id,
+            statelessObjArr: [],
+            statefulObjArr: [],
+        }
     }
 
     nextAutoId(cls) {
@@ -1102,7 +1130,7 @@ export class GameObjectGroup {
         }
     }
 
-    checkAutoId(id) {
+    syncAutoId(id) {
         id = parseInt(id)
         if(id >= 0) {
             this._nextAutoStatefulId = max(this._nextAutoStatefulId, id+1)
@@ -1120,10 +1148,11 @@ export class GameObjectGroup {
             obj = new cls(this.scene, kwargs)
         }
         if(obj.id === undefined) obj.id = this.nextAutoId(obj.constructor)
-        else this.checkAutoId(obj.id)
+        else this.syncAutoId(obj.id)
         this.objMap.set(obj.id, obj)
-        if(obj.constructor.STATEFUL) this.statefulObjArr.push(obj)
-        else this.statelessObjArr.push(obj)
+        const chunk = this.getChunk(this.getChunkId(obj))
+        if(obj.constructor.STATEFUL) chunk.statefulObjArr.push(obj)
+        else chunk.statelessObjArr.push(obj)
         this.onAdd(obj)
         return obj
     }
@@ -1135,15 +1164,18 @@ export class GameObjectGroup {
     }
 
     forEach(next) {
-        this.statefulObjArr.forEach(obj => {
-            if(!obj.removed) next(obj)
-        })
-        this.statelessObjArr.forEach(obj => {
+        // this.statefulObjArr.forEach(obj => {
+        //     if(!obj.removed) next(obj)
+        // })
+        // this.statelessObjArr.forEach(obj => {
+        //     if(!obj.removed) next(obj)
+        // })
+        this.objMap.forEach(obj => {
             if(!obj.removed) next(obj)
         })
     }
 
-    clearRemoved() {
+    clearRemoved(chunk) {
         const { objMap } = this
         const _clearRemoved = arr => {
             let idx = 0, nbEnts = arr.length
@@ -1158,31 +1190,32 @@ export class GameObjectGroup {
                 }
             }
         }
-        _clearRemoved(this.statefulObjArr)
-        _clearRemoved(this.statelessObjArr)
+        _clearRemoved(chunk.statefulObjArr)
+        _clearRemoved(chunk.statelessObjArr)
     }
 
     clear() {
         this.forEach(item => item.remove())
-        this.statefulObjArr.length = 0
-        this.statelessObjArr.length = 0
+        this.chunks.clear()
         this.objMap.clear()
     }
 
     update() {
-        this.clearRemoved()
-        this.sortItems()
         this.forEach(obj => obj.update())
+        this.chunks.forEach(chunk => {
+            this.clearRemoved(chunk)
+            this.sortItems(chunk)
+        })
     }
 
-    sortItems() {
+    sortItems(chunk) {
         const _sort = arr => arr.sort((a, b) => (b.getPriority() - a.getPriority()))
-        _sort(this.statefulObjArr)
-        _sort(this.statelessObjArr)
+        _sort(chunk.statefulObjArr)
+        _sort(chunk.statelessObjArr)
     }
 
     draw(drawer) {
-        this.clearRemoved()
+        this.chunks.forEach(chunk => this.clearRemoved(chunk))
         const propss = []
         const objDrawer = this._objDrawer ||= {}
         objDrawer.draw = props => {
@@ -1191,34 +1224,43 @@ export class GameObjectGroup {
             props.y += this.y
             propss.push(props)
         }
-        this.statefulObjArr.forEach(obj => obj.draw(objDrawer))
-        this.statelessObjArr.forEach(obj => obj.draw(objDrawer))
+        // this.statefulObjArr.forEach(obj => obj.draw(objDrawer))
+        // this.statelessObjArr.forEach(obj => obj.draw(objDrawer))
+        this.forEach(obj => obj.draw(objDrawer))
         drawer.draw(...propss)
     }
 
     getState(isInitState=false) {
-        const state = this._state ||= []
-        state.length = 0
-        if(isInitState) {
-            //this.resetIds()
-            this.statelessObjArr.forEach(obj => {
-                if(obj.getKey() === undefined) return
-                state.push(obj.getState(isInitState))
+        const state = {}
+        this.chunks.forEach(chunk => {
+            const chunkState = state[chunk.id] = []
+            if(isInitState) {
+                chunk.statelessObjArr.forEach(obj => {
+                    if(obj.getKey() === undefined) return
+                    chunkState.push(obj.getState(isInitState))
+                })
+            }
+            chunk.statefulObjArr.forEach(obj => {
+                if(obj.getKey() === undefined) throw Error(`missing key for ${obj.constructor.name}`)
+                chunkState.push(obj.getState(isInitState))
             })
-        }
-        this.statefulObjArr.forEach(obj => {
-            if(obj.getKey() === undefined) throw Error(`missing key for ${obj.constructor.name}`)
-            state.push(obj.getState(isInitState))
         })
         return state
     }
 
     setState(state, isInitState=false) {
-        const { statefulObjArr, statelessObjArr, objMap } = this
-        statefulObjArr.length = 0
-        if(state) {
-            for(let idx in state) {
-                const objState = state[idx]
+        const { objMap } = this
+        let prevInStatefulArr = new Set()
+        for(let chunkId  in state) {
+            const { statefulObjArr } = this.getChunk(chunkId)
+            for(let obj of statefulObjArr) prevInStatefulArr.add(obj.id)
+            statefulObjArr.length = 0
+        }
+        for(let chunkId in state) {
+            const { statefulObjArr } = this.getChunk(chunkId)
+            const chunkState = state[chunkId]
+            for(let idx in chunkState) {
+                const objState = chunkState[idx]
                 const { id, key } = objState
                 if(isInitState) {
                     this.scene.addObject(`A#${idx}`, { id })
@@ -1230,14 +1272,14 @@ export class GameObjectGroup {
                     }
                     else statefulObjArr.push(obj)
                     obj.setState(objState, isInitState)
+                    prevInStatefulArr.delete(id)
                 }
             }
-            if(objMap.size != statefulObjArr.length + statelessObjArr.length) {
-                objMap.clear()
-                for(let obj of statefulObjArr) objMap.set(obj.id, obj)
-                for(let obj of statelessObjArr) objMap.set(obj.id, obj)
+            for(let id of prevInStatefulArr) {
+                const obj = objMap.get(id)
+                obj.remove()
             }
-        } else this.clear()
+        }
     }
 }
 
@@ -1420,10 +1462,12 @@ export class GameCommon {
             paths.add(catalog.getObject(map.perspective, map.versions, heroMap.key).path)
         })
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
-        if(scnMap) {
-            scnMap.objects.forEach(objMap => {
+        const objsMaps = scnMap?.objects
+        if(objsMaps) for(let objsChunkId in objsMaps) {
+            const objsChunkMap = objsMaps[objsChunkId]
+            for(let objMap of objsChunkMap) {
                 paths.add(catalog.getObject(map.perspective, map.versions, objMap.key).path)
-            })
+            }
         }
         const mods = await catalog.preload(Array.from(paths))
         await this.loadScenes(mods[0][scnCat.name], scnMapId, scnId)
@@ -1617,12 +1661,13 @@ export class SceneCommon {
 
     init(kwargs) {
         this.id = kwargs?.id
+        this.visible = true
+        this.chunkSize = 1000
         this.x = 0
         this.y = 0
         this.viewX = 0
         this.viewY = 0
         this.viewSpeed = 100
-        this.visible = true
         this.viewWidth = this.width
         this.viewHeight = this.height
         this.backgroundColor = "white"
@@ -1713,7 +1758,7 @@ export class SceneCommon {
         let res = null
         if(key.startsWith('A#')) {
             const mapNum = parseInt(key.substring(2))
-            res = this.map.objects[mapNum]
+            res = this.map.objects[0][mapNum]
         } else if(key.startsWith('H#')) {
             const mapNum = parseInt(key.substring(2))
             res = this.game.map.heros[mapNum]
