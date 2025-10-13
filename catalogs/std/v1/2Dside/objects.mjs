@@ -351,12 +351,14 @@ export class JumpMixin extends Mixin {
     }
 
     initObjectClass(cls) {
+        super.initObjectClass(cls)
         const proto = cls.prototype
         proto.jumpSpeed = this.jumpSpeed
         proto.nullJumpSpeed = this.nullJumpSpeed
         proto.maxJumpBlockAngle = this.maxJumpBlockAngle
         proto.jumpBlockLastIt = -Infinity
         proto.jumpBlockLastAngle = -90
+        proto.canJump = false
         proto.onGetBlocked = this.onGetBlocked
         proto.mayJump = this.mayJump
         proto.jump = this.jump
@@ -371,8 +373,13 @@ export class JumpMixin extends Mixin {
         }
     }
 
+    updateObject(obj) {
+        super.updateObject(obj)
+        obj.canJump = (obj.jumpBlockLastIt == obj.scene.iteration)
+    }
+
     mayJump() {
-        if(this.jumpBlockLastIt == this.scene.iteration) {
+        if(this.canJump) {
             this.jump()
             return true
         } else {
@@ -561,7 +568,7 @@ export class Nico extends Hero {
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if(iteration > 0 && (this.handRemIt || this.jumpBlockLastIt != this.scene.iteration)) return spriteSheet.get(1)
+        if(iteration > 0 && (this.handRemIt || !this.canJump)) return spriteSheet.get(1)
         else if(this.speedX == 0) return spriteSheet.get(0)
         else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
     }
