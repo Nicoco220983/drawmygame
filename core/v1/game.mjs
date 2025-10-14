@@ -3108,11 +3108,11 @@ class DebugScene extends SceneCommon {
         const { metrics } = this.game
         if(metrics) {
             const updDurMts = metrics["updateDur"]
-            if(updDurMts) this.updDurTxt.text = `Upd: ${arrAvg(updDurMts).toFixed(3)} / ${arrMax(updDurMts).toFixed(3)}`
+            if(updDurMts) this.updDurTxt.updateText(`Upd: ${arrAvg(updDurMts).toFixed(3)} / ${arrMax(updDurMts).toFixed(3)}`)
             const drawDurMts = metrics["drawDur"]
-            if(drawDurMts) this.drawDurTxt.text = `Draw: ${arrAvg(drawDurMts).toFixed(3)} / ${arrMax(drawDurMts).toFixed(3)}`
+            if(drawDurMts) this.drawDurTxt.updateText(`Draw: ${arrAvg(drawDurMts).toFixed(3)} / ${arrMax(drawDurMts).toFixed(3)}`)
             const lagMts = metrics["lag"]
-            if(lagMts) this.lagTxt.text = `Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`
+            if(lagMts) this.lagTxt.updateText(`Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`)
         }
     }
     
