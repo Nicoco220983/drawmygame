@@ -41,6 +41,8 @@ export class GameBuilder extends GameCommon {
     }
 
     createScene(cls, kwargs) {
+        kwargs ||= {}
+        kwargs.chunkSize = Infinity
         const scn = new cls(this, kwargs)
         scn.doCreateObjectMapProto = false
         return scn

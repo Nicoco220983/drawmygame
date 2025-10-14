@@ -1081,8 +1081,8 @@ export class GameObjectGroup {
 
     init(kwargs) {
         const { scene } = this, { chunkSize } = scene
-        this.nbChunksX = ceil(scene.width / chunkSize)
-        this.nbChunksY = ceil(scene.height / chunkSize)
+        this.nbChunksX = (chunkSize == Infinity) ? 1 : ceil(scene.width / chunkSize)
+        this.nbChunksY = (chunkSize == Infinity) ? 1 : ceil(scene.height / chunkSize)
         this.chunks = new Map()
         this.objMap = new Map()
         this._nextAutoStatefulObjId = 0
@@ -1222,32 +1222,38 @@ export class GameObjectGroup {
     }
 
     setState(state, isInitState=false) {
-        const { objMap } = this
-        // store stateful objs ids, and remove them from chunks
-        let prevStatefullObjIds = new Set()
-        for(let chunkId in state) {
-            const chunk = this.getChunk(chunkId)
-            let idx = 0, nbEnts = chunk.length
-            while(idx < nbEnts) {
-                const obj = chunk[idx]
-                if(obj.constructor.STATEFUL) {
-                    chunk.splice(idx, 1); nbEnts -= 1
-                    prevStatefullObjIds.add(obj.id)
-                } else {
-                    idx += 1
-                }
-            }
-        }
-        // update/create statefull objs in chunks
-        for(let chunkId in state) {
-            const chunkState = state[chunkId]
-            const chunk = this.getChunk(chunkId)
+        if(isInitState) {
+            // initState has only 1 chunk
+            const chunkState = state["0"]
             for(let idx in chunkState) {
                 const objState = chunkState[idx]
-                const { id: objId, key } = objState
-                if(isInitState) {
-                    this.scene.addObject(`A#${idx}`, { id: objId })
-                } else {
+                const { id: objId } = objState
+                this.scene.addObject(`A#${idx}`, { id: objId })
+            }
+        } else {
+            const { objMap } = this
+            // store stateful objs ids, and remove them from chunks
+            let prevStatefullObjIds = new Set()
+            for(let chunkId in state) {
+                const chunk = this.getChunk(chunkId)
+                let idx = 0, nbEnts = chunk.length
+                while(idx < nbEnts) {
+                    const obj = chunk[idx]
+                    if(obj.constructor.STATEFUL) {
+                        chunk.splice(idx, 1); nbEnts -= 1
+                        prevStatefullObjIds.add(obj.id)
+                    } else {
+                        idx += 1
+                    }
+                }
+            }
+            // update/create statefull objs in chunks
+            for(let chunkId in state) {
+                const chunkState = state[chunkId]
+                const chunk = this.getChunk(chunkId)
+                for(let idx in chunkState) {
+                    const objState = chunkState[idx]
+                    const { id: objId, key } = objState
                     let obj = objMap.get(objId)
                     // case (re-)create obj
                     if(!obj || obj.getKey() != key) {
@@ -1260,11 +1266,11 @@ export class GameObjectGroup {
                     prevStatefullObjIds.delete(objId)
                 }
             }
-        }
-        // remove remaining objs in prevStatefullObjIds
-        for(let objId of prevStatefullObjIds) {
-            const obj = objMap.get(objId)
-            obj.remove()
+            // remove remaining objs in prevStatefullObjIds
+            for(let objId of prevStatefullObjIds) {
+                const obj = objMap.get(objId)
+                obj.remove()
+            }
         }
     }
 
@@ -1654,7 +1660,7 @@ export class SceneCommon {
     init(kwargs) {
         this.id = kwargs?.id
         this.visible = true
-        this.chunkSize = 100
+        this.chunkSize = kwargs?.chunkSize ?? 1000
         this.x = 0
         this.y = 0
         this.viewX = 0
@@ -1750,7 +1756,8 @@ export class SceneCommon {
         let res = null
         if(key.startsWith('A#')) {
             const mapNum = parseInt(key.substring(2))
-            res = this.map.objects[0][mapNum]
+            // initState has only 1 chunk
+            res = this.map.objects["0"][mapNum]
         } else if(key.startsWith('H#')) {
             const mapNum = parseInt(key.substring(2))
             res = this.game.map.heros[mapNum]
