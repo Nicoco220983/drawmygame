@@ -1084,8 +1084,6 @@ export class GameObjectGroup {
         this.nbChunksX = ceil(scene.width / chunkSize)
         this.nbChunksY = ceil(scene.height / chunkSize)
         this.chunks = new Map()
-        // this.statelessObjArr = []
-        // this.statefulObjArr = []
         this.objMap = new Map()
         this._nextAutoStatefulId = 0
         this._nextAutoStatelessId = -1
@@ -1104,18 +1102,10 @@ export class GameObjectGroup {
         const { chunks } = this
         let res = chunks.get(chunkId)
         if(res === undefined) {
-            res = this.newChunk(chunkId)
+            res = []
             chunks.set(chunkId, res)
         }
         return res
-    }
-
-    newChunk(id) {
-        return {
-            id,
-            statelessObjArr: [],
-            statefulObjArr: [],
-        }
     }
 
     nextAutoId(cls) {
@@ -1130,12 +1120,12 @@ export class GameObjectGroup {
         }
     }
 
-    syncAutoId(id) {
-        id = parseInt(id)
-        if(id >= 0) {
-            this._nextAutoStatefulId = max(this._nextAutoStatefulId, id+1)
+    syncAutoId(objId) {
+        objId = parseInt(objId)
+        if(objId >= 0) {
+            this._nextAutoStatefulId = max(this._nextAutoStatefulId, objId+1)
         } else {
-            this._nextAutoStatelessId = min(this._nextAutoStatelessId, id-1)
+            this._nextAutoStatelessId = min(this._nextAutoStatelessId, objId-1)
         }
     }
 
@@ -1151,25 +1141,18 @@ export class GameObjectGroup {
         else this.syncAutoId(obj.id)
         this.objMap.set(obj.id, obj)
         const chunk = this.getChunk(this.getChunkId(obj))
-        if(obj.constructor.STATEFUL) chunk.statefulObjArr.push(obj)
-        else chunk.statelessObjArr.push(obj)
+        chunk.push(obj)
         this.onAdd(obj)
         return obj
     }
 
     onAdd(obj) {}
 
-    get(id) {
-        return this.objMap.get(id)
+    get(objId) {
+        return this.objMap.get(objId)
     }
 
     forEach(next) {
-        // this.statefulObjArr.forEach(obj => {
-        //     if(!obj.removed) next(obj)
-        // })
-        // this.statelessObjArr.forEach(obj => {
-        //     if(!obj.removed) next(obj)
-        // })
         this.objMap.forEach(obj => {
             if(!obj.removed) next(obj)
         })
@@ -1177,21 +1160,16 @@ export class GameObjectGroup {
 
     clearRemoved(chunk) {
         const { objMap } = this
-        const _clearRemoved = arr => {
-            let idx = 0, nbEnts = arr.length
-            while(idx < nbEnts) {
-                const obj = arr[idx]
-                if(obj.removed) {
-                    arr.splice(idx, 1)
-                    objMap.delete(obj.id)
-                    nbEnts -= 1
-                } else {
-                    idx += 1
-                }
+        let idx = 0, nbEnts = chunk.length
+        while(idx < nbEnts) {
+            const obj = chunk[idx]
+            if(chunk.removed) {
+                arr.splice(idx, 1); nbEnts -= 1
+                objMap.delete(obj.id)
+            } else {
+                idx += 1
             }
         }
-        _clearRemoved(chunk.statefulObjArr)
-        _clearRemoved(chunk.statelessObjArr)
     }
 
     clear() {
@@ -1209,9 +1187,7 @@ export class GameObjectGroup {
     }
 
     sortItems(chunk) {
-        const _sort = arr => arr.sort((a, b) => (b.getPriority() - a.getPriority()))
-        _sort(chunk.statefulObjArr)
-        _sort(chunk.statelessObjArr)
+        chunk.sort((a, b) => (b.getPriority() - a.getPriority()))
     }
 
     draw(drawer) {
@@ -1224,25 +1200,18 @@ export class GameObjectGroup {
             props.y += this.y
             propss.push(props)
         }
-        // this.statefulObjArr.forEach(obj => obj.draw(objDrawer))
-        // this.statelessObjArr.forEach(obj => obj.draw(objDrawer))
         this.forEach(obj => obj.draw(objDrawer))
         drawer.draw(...propss)
     }
 
     getState(isInitState=false) {
         const state = {}
-        this.chunks.forEach(chunk => {
-            const chunkState = state[chunk.id] = []
-            if(isInitState) {
-                chunk.statelessObjArr.forEach(obj => {
-                    if(obj.getKey() === undefined) return
+        this.chunks.forEach((chunk, chunkId) => {
+            const chunkState = state[chunkId] = []
+            chunk.forEach(obj => {
+                if(obj.getKey() && (isInitState || obj.constructor.STATEFUL)) {
                     chunkState.push(obj.getState(isInitState))
-                })
-            }
-            chunk.statefulObjArr.forEach(obj => {
-                if(obj.getKey() === undefined) throw Error(`missing key for ${obj.constructor.name}`)
-                chunkState.push(obj.getState(isInitState))
+                }
             })
         })
         return state
@@ -1250,35 +1219,46 @@ export class GameObjectGroup {
 
     setState(state, isInitState=false) {
         const { objMap } = this
-        let prevInStatefulArr = new Set()
+        // store stateful objs ids, and remove them from chunks
+        let prevStatefullObjIds = new Set()
         for(let chunkId  in state) {
-            const { statefulObjArr } = this.getChunk(chunkId)
-            for(let obj of statefulObjArr) prevInStatefulArr.add(obj.id)
-            statefulObjArr.length = 0
-        }
-        for(let chunkId in state) {
-            const { statefulObjArr } = this.getChunk(chunkId)
-            const chunkState = state[chunkId]
-            for(let idx in chunkState) {
-                const objState = chunkState[idx]
-                const { id, key } = objState
-                if(isInitState) {
-                    this.scene.addObject(`A#${idx}`, { id })
-                } else {
-                    let obj = objMap.get(id)
-                    if(!obj || obj.getKey() != key) {
-                        if(obj) obj.remove()
-                        obj = this.add(key, { id })
-                    }
-                    else statefulObjArr.push(obj)
-                    obj.setState(objState, isInitState)
-                    prevInStatefulArr.delete(id)
+            const chunk = this.getChunk(chunkId)
+            let idx = 0, nbEnts = chunk.length
+            while(idx < nbEnts) {
+                const obj = chunk[idx]
+                if(obj.constructor.STATEFUL) {
+                    chunk.splice(idx, 1); nbEnts -= 1
+                    prevStatefullObjIds.add(obj.id)
                 }
             }
-            for(let id of prevInStatefulArr) {
-                const obj = objMap.get(id)
-                obj.remove()
+        }
+        // update/create statefull objs in chunks
+        for(let chunkId in state) {
+            const chunkState = state[chunkId]
+            const chunk = this.getChunk(chunkId)
+            for(let idx in chunkState) {
+                const objState = chunkState[idx]
+                const { id: objId, key } = objState
+                if(isInitState) {
+                    this.scene.addObject(`A#${idx}`, { id: objId })
+                } else {
+                    let obj = objMap.get(objId)
+                    // case (re-)create obj
+                    if(!obj || obj.getKey() != key) {
+                        if(obj) obj.remove()
+                        obj = this.add(key, { id: objId })
+                    }
+                    // case update obj
+                    else chunk.push(obj)
+                    obj.setState(objState, isInitState)
+                    prevStatefullObjIds.delete(objId)
+                }
             }
+        }
+        // remove remaining objs in prevStatefullObjIds
+        for(let objId of prevStatefullObjIds) {
+            const obj = objMap.get(objId)
+            obj.remove()
         }
     }
 }
