@@ -610,6 +610,7 @@ class NicoHand extends Weapon {
 
     syncPos() {
         const { owner } = this
+        if(!owner) return
         this.x = owner.x + owner.dirX * 28
         this.y = owner.y
         this.dirX = owner.dirX
