@@ -255,40 +255,12 @@ export class GameMap {
 }
 
 async function compress(str) {
-  const stream = new Blob([str]).stream()
-  const compressedStream = stream.pipeThrough(new CompressionStream("gzip"))
-  const chunks = []
-  for await (const chunk of compressedStream) chunks.push(chunk)
-  return await concatUint8Arrays(chunks)
+    const { gzip } = await import('../../deps/pako.mjs')
+    const bytes = new TextEncoder().encode(str)
+    return gzip(new Uint8Array(bytes))
 }
-
 
 async function decompress(compressedBytes) {
-    if (IS_SERVER_ENV) { // || 'DecompressionStream' in window) {
-        return decompressUsingDecompressionStream(compressedBytes)
-    } else {
-        // Safari does not support DecompressionStream yet
-        return decompressUsingPako(compressedBytes)
-    }
-}
-
-async function decompressUsingDecompressionStream(compressedBytes) {
-  const stream = new Blob([compressedBytes]).stream()
-  const decompressedStream = stream.pipeThrough(new DecompressionStream("gzip"))
-  const chunks = []
-  for await (const chunk of decompressedStream)
-    chunks.push(chunk)
-  const stringBytes = await concatUint8Arrays(chunks)
-  return new TextDecoder().decode(stringBytes)
-}
-
-async function concatUint8Arrays(uint8arrays) {
-  const blob = new Blob(uint8arrays)
-  const buffer = await blob.arrayBuffer()
-  return new Uint8Array(buffer)
-}
-
-async function decompressUsingPako(compressedBytes) {
     const { ungzip } = await import('../../deps/pako.mjs')
     const decompressedBytes = ungzip(new Uint8Array(compressedBytes))
     return new TextDecoder().decode(decompressedBytes)
