@@ -1359,6 +1359,8 @@ const StarImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/sta
     affectedByGravity: false,
     canGetBlocked: true,
     physicsBounciness: 1,
+    physicsStaticFriction: 0,
+    physicsDynamicFriction: 0,
 })
 @BodyMixin.add({
     width: 30,
@@ -1376,8 +1378,8 @@ export class Star extends Extra {
             if(this.speedX == 0 && this.speedY == 0) {
                 // first speed
                 const angle = floor(this.scene.rand("starangle") * 4) * 90 + 45
-                this.speedX = this.baseSpeedX = this.speed * cos(angle * PI / 180)
-                this.speedY = this.baseSpeedY = this.speed * sin(angle * PI / 180)
+                this.speedX = this.speed * cos(angle * PI / 180)
+                this.speedY = this.speed * sin(angle * PI / 180)
             } else {
                 // maintain constant speed
                 const curSpd = hypot(this.speedX, this.speedY)
@@ -1553,7 +1555,7 @@ export class ObjectSpawner extends GameObject {
         const { scene, model } = this
         if(!model) return
         const obj = scene.addObject(model.getKey())
-        obj.setState(obj.getState())
+        obj.setState(model.getState())
         obj.x = this.x
         obj.y = this.y
         this.nbSpawn += 1

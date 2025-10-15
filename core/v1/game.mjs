@@ -555,7 +555,7 @@ export class StateNumber extends StateProperty {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "number",
-            value: (typeof val === "number") ? val : ""
+            value: (typeof val === "number") ? (val * this.precision) : ""
         })
         inputEl.setAttribute("min", this.min)
         if(this.max !== null) inputEl.setAttribute("max", this.max)
