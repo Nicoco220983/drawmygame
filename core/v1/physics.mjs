@@ -66,6 +66,7 @@ export default class PhysicsEngine {
                 blockersProps.push(this.getObjectHitProps(obj, 0))
             }
         })
+        let nbBlockCheck = 0
         objects.forEach(obj => {
             if(!(obj.canMove || obj.checkBlocksAnyway)) return
             let remD = 1, nbCollisions = 0
@@ -83,6 +84,7 @@ export default class PhysicsEngine {
                         sMinX: objSMinX, sMinY: objSMinY, sMaxX: objSMaxX, sMaxY: objSMaxY,
                     } = objProps
                     for(let blockerProps of blockersProps) {
+                        nbBlockCheck += 1
                         if(obj == blockerProps.obj) continue
                         // quick filteringgs
                         if(objSMinX > blockerProps.sMaxX || objSMaxX < blockerProps.sMinX || objSMinY > blockerProps.sMaxY || objSMaxY < blockerProps.sMinY) continue
@@ -150,13 +152,6 @@ export default class PhysicsEngine {
             if(remD > 0 && obj.canMove) {
                 obj.x += obj.speedX * dt * remD
                 obj.y += obj.speedY * dt * remD
-            }
-            // determine speed resistance
-            if(nbCollisions == 0) {
-                obj.speedResX = obj.speedResY = 0
-            } else {
-                obj.speedResX = ((obj.x - objOrigX) - objOrigDx) / dt
-                obj.speedResY = ((obj.y - objOrigY) - objOrigDy) / dt
             }
         })
 

@@ -2697,8 +2697,6 @@ export class PhysicsMixin extends Mixin {
         proto.physicsBounciness = kwargs?.physicsBounciness ?? 0
         proto.physicsStaticFriction = kwargs?.physicsStaticFriction ?? Infinity
         proto.physicsDynamicFriction = kwargs?.physicsDynamicFriction ?? Infinity
-        proto.speedResX = 0  // TODO: deprecate it
-        proto.speedResY = 0
 
         proto.onBlock ||= function(obj, details) {}
         proto.onGetBlocked ||= function(obj, details) {}

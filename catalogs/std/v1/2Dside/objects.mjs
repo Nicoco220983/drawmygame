@@ -859,6 +859,9 @@ const BombSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/catalogs/
 })
 @PhysicsMixin.add({
     affectedByGravity: false,
+    physicsBounciness: .5,
+    physicsStaticFriction: 100,
+    physicsDynamicFriction: 2,
 })
 @BodyMixin.add({
     width: 40,
@@ -881,7 +884,6 @@ export class Bomb extends Extra {
         const { x, y, owner } = this
         this.affectedByGravity = this.canGetBlocked = (this.itToLive !== null)
         if(this.itToLive !== null) {
-            if(this.speedResY < 0) this.speedX = sumTo(this.speedX, 500 * dt, 0)
             if(this.itToLive <= 0) {
                 this.scene.addObject(Explosion, { x, y, owner })
                 this.remove()
