@@ -5,6 +5,10 @@ const { urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorize
 import { AudioEngine } from './audio.mjs'
 import PhysicsEngine from './physics.mjs'
 import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
+// TODO import only if necessary
+import { gzip, ungzip } from '../../deps/pako.mjs'
+import { pack } from '../../deps/pack.mjs'
+import { unpack } from '../../deps/unpack.mjs'
 
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
@@ -220,7 +224,7 @@ export class GameMap {
         }}
     }
 
-    async exportAsBinary() {
+    exportAsBinary() {
         const outScns = {}
         for(let scnId in this.scenes) {
             outScns[scnId] = this.scenes[scnId]
@@ -229,23 +233,23 @@ export class GameMap {
             hs: this.heros,
             ss: outScns,
         }
-        const outStr = JSON.stringify(outObj)
-        const outBin = await compress(outStr)
-        return outBin
+        const outPack = pack(outObj)
+        const outZip = compress(outPack)
+        return outZip
     }
     async exportAsSafeBase64() {
-        const outBin = await this.exportAsBinary()
+        const outBin = this.exportAsBinary()
         const outSB64 = await binToSafeB64(outBin)
         return outSB64
     }
 
     async importFromSafeBase64(inSB64) {
         const inBin = await safeB64ToBin(inSB64)
-        await this.importFromBinary(inBin)
+        this.importFromBinary(inBin)
     }
-    async importFromBinary(inBin) {
-        const inStr = await decompress(inBin)
-        const inObj = JSON.parse(inStr)
+    importFromBinary(inZip) {
+        const inPack = decompress(inZip)
+        const inObj = unpack(inPack)
         this.heros = inObj.hs
         const scns = this.scenes = {}
         for(let scnId in inObj.ss) {
@@ -254,16 +258,12 @@ export class GameMap {
     }
 }
 
-async function compress(str) {
-    const { gzip } = await import('../../deps/pako.mjs')
-    const bytes = new TextEncoder().encode(str)
+function compress(bytes) {
     return gzip(new Uint8Array(bytes))
 }
 
-async function decompress(compressedBytes) {
-    const { ungzip } = await import('../../deps/pako.mjs')
-    const decompressedBytes = ungzip(new Uint8Array(compressedBytes))
-    return new TextDecoder().decode(decompressedBytes)
+function decompress(compressedBytes) {
+    return ungzip(new Uint8Array(compressedBytes))
 }
 
 const BIN_AS_B64_DATA_URL_PREFIX = "data:application/octet-stream;base64,"
@@ -2163,8 +2163,8 @@ export class Game extends GameCommon {
             }
         }
         if(statesToSend.length > 0) {
+            if(this.isDebugMode) this.log("sendStates", statesToSend)
             const statesToSendStr = JSON.stringify(statesToSend)
-            if(this.isDebugMode) this.log("sendStates", statesToSendStr)
             this.sendStates(statesToSendStr)
             statesToSend.length = 0
         }
