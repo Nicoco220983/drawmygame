@@ -11,7 +11,7 @@ export const CATALOG = new ModuleCatalog(import.meta.url, {
 })
 
 
-@StateNumber.define("lastSpawnIt", { default: -Infinity })
+@Category.append("hero")
 @CollectMixin.add({
     canCollect: true,
     canGetCollected: false,
@@ -19,9 +19,8 @@ export const CATALOG = new ModuleCatalog(import.meta.url, {
 @AttackMixin.add({
     canAttack: false,
     canGetAttacked: true,
-    graceDuration: 2,
 })
-@Category.append("hero")
+@StateNumber.define("lastSpawnIt", { default: -Infinity, nullableWith: -Infinity })
 export class Hero extends GameObject {
     static IS_HERO = true
 
@@ -197,23 +196,6 @@ class Pop extends GameObject {
 }
 
 
-@AttackMixin.add()
-@Category.append("npc/enemy")
-export class Enemy extends GameObject {
-
-    init(kwargs) {
-        super.init(kwargs)
-        this.team = "enemy"
-    }
-
-    die(killer) {
-        this.remove()
-        const { x, y } = this
-        this.scene.addVisual(SmokeExplosion, { x, y })
-    }
-}
-
-
 export const ItemAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/item.opus")
 
 
@@ -289,7 +271,7 @@ export class Weapon extends Extra {
     }
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }
@@ -327,7 +309,7 @@ export class Projectile extends GameObject {
     }
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }
@@ -343,19 +325,14 @@ export class Projectile extends GameObject {
 @PhysicsMixin.addIfAbsent()
 export class JumpMixin extends Mixin {
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.jumpSpeed = kwargs?.jumpSpeed ?? 500
-        this.nullJumpSpeed = kwargs?.nullJumpSpeed ?? 800
-        this.maxJumpBlockAngle = kwargs?.maxJumpBlockAngle ?? 70
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
-        proto.jumpSpeed = this.jumpSpeed
-        proto.nullJumpSpeed = this.nullJumpSpeed
-        proto.maxJumpBlockAngle = this.maxJumpBlockAngle
+
+        proto.jumpSpeed = kwargs?.jumpSpeed ?? 500
+        proto.nullJumpSpeed = kwargs?.nullJumpSpeed ?? 800
+        proto.maxJumpBlockAngle = kwargs?.maxJumpBlockAngle ?? 70
+
         proto.jumpBlockLastIt = -Infinity
         proto.jumpBlockLastAngle = -90
         proto.canJump = false
@@ -373,9 +350,8 @@ export class JumpMixin extends Mixin {
         }
     }
 
-    updateObject(obj) {
-        super.updateObject(obj)
-        obj.canJump = (obj.jumpBlockLastIt == obj.scene.iteration)
+    update() {
+        this.canJump = (this.jumpBlockLastIt == this.scene.iteration)
     }
 
     mayJump() {
@@ -436,11 +412,8 @@ const JumpAud = CATALOG.registerAudio("/static/catalogs/std/v1/2Dside/assets/jum
     nullJumpSpeed: 800,
     maxJumpBlockAngle: 90,
 })
-@AttackMixin.add({
-    canAttack: false,
-    canGetAttacked: true,
+@AttackMixin.modify({
     maxHealth: 100,
-    graceDuration: 2,
 })
 @PhysicsMixin.add()
 @BodyMixin.add({
@@ -961,7 +934,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 export class Explosion extends GameObject {
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.objGetAttackProps.call(this, obj)
+        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
         props.attacker = this.owner || this
         return props
     }
@@ -1042,7 +1015,7 @@ export class JetPack extends Extra {
 
     stopAud() {
         if(!this.audPrm) return
-        this.audPrm.then(aud => aud.stop())
+        this.audPrm.then(aud => aud && aud.stop())
         this.audPrm = null
     }
 
@@ -1068,15 +1041,34 @@ export class JetPack extends Extra {
 // ENEMIES
 
 
+@AttackMixin.add({
+    canAttack: false,
+    canGetAttacked: true,
+})
+@Category.append("npc/enemy")
+export class Enemy extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.team = "enemy"
+    }
+
+    die(killer) {
+        this.remove()
+        const { x, y } = this
+        this.scene.addVisual(SmokeExplosion, { x, y })
+    }
+}
+
+
 const SpikyImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/spiky.png")
 
 @CATALOG.registerObject({
     label: "Spiky",
     icon: SpikyImg,
 })
-@AttackMixin.add({
+@AttackMixin.modify({
     canAttack: true,
-    canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
     attackKnockback: 200,
@@ -1113,9 +1105,8 @@ const BlobImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blo
     icon: BlobImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@AttackMixin.add({
+@AttackMixin.modify({
     canAttack: true,
-    canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
     attackKnockback: 200,
@@ -1242,9 +1233,8 @@ const GhostImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/gh
     icon: GhostImg,
 })
 @StateProperty.modify("dirX", { showInBuilder: true })
-@AttackMixin.add({
+@AttackMixin.modify({
     canAttack: true,
-    canGetAttacked: true,
     maxHealth: 100,
     attackDamages: 10,
     attackKnockback: 200,
@@ -1520,6 +1510,11 @@ export class HeroSpawnPoint extends GameObject {
     label: "ObjectSpawner",
     icon: PopImg,
 })
+@ActivableMixin.add()
+@BodyMixin.add({
+    width: 50,
+    height: 50,
+})
 @ObjectRefs.StateProperty.define("spawnedObjects")
 @StateNumber.define("lastSpawnAge", { default: Infinity })
 @StateNumber.define("nbSpawn")
@@ -1528,11 +1523,6 @@ export class HeroSpawnPoint extends GameObject {
 @StateNumber.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateNumber.define("period", { default: 1, precision: .1, showInBuilder: true })
 @GameObject.StateProperty.define("model", { showInBuilder: true })
-@ActivableMixin.add()
-@BodyMixin.add({
-    width: 50,
-    height: 50,
-})
 export class ObjectSpawner extends GameObject {
 
     update() {

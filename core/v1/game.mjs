@@ -395,12 +395,12 @@ export class StateProperty {
                 target.addTargetDecorator(this, "define", key, kwargs)
                 return target
             }
-            //if(target.STATE_PROPS && target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" already exists in ${target.name}`)
-            const stateProp = new this(key, kwargs)
-            stateProp.initObjectClass(target)
+            const prop = new this(key, kwargs)
+            prop.initObjectClass(target)
             return target
         }
     }
+
     static modify(key, kwargs) {
         return target => {
             if(target.IS_MIXIN) {
@@ -408,23 +408,23 @@ export class StateProperty {
                 return target
             }
             if(!target.STATE_PROPS || !target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
-            const stateProp = target.STATE_PROPS.get(key)
-            const prop2 = Object.create(stateProp)
-            prop2.init(kwargs)
-            prop2.initObjectClass(target)
+            const parentProp = target.STATE_PROPS.get(key)
+            const prop = new this(key, {
+                ...parentProp.initKwargs,
+                ...kwargs,
+            })
+            prop.initObjectClass(target)
             return target
         }
     }
+
     constructor(key, kwargs) {
         this.key = key
+        this.initKwargs = kwargs
         this.defaultStateValue = this.constructor.DEFAULT_STATE_VALUE
-        this.showInBuilder = false
-        this.init(kwargs)
-    }
-    init(kwargs) {
-        if(kwargs?.default !== undefined) this.defaultStateValue = kwargs.default
+        if(kwargs?.default !== undefined) this.defaultStateValue = kwargs?.default
         if(kwargs?.nullableWith !== undefined) this.nullableWith = kwargs.nullableWith
-        if(kwargs?.showInBuilder !== undefined) this.showInBuilder = kwargs.showInBuilder
+        this.showInBuilder = kwargs?.showInBuilder ?? false
     }
     initObjectClass(cls) {
         if(!cls.hasOwnProperty('STATE_PROPS')) cls.STATE_PROPS = new Map(cls.STATE_PROPS)
@@ -532,8 +532,8 @@ export class StateBool extends StateProperty {
 export class StateNumber extends StateProperty {
     static DEFAULT_STATE_VALUE = 0
 
-    init(kwargs) {
-        super.init(kwargs)
+    constructor(key, kwargs) {
+        super(key, kwargs)
         this.precision = kwargs?.precision ?? 1
         this.min = kwargs?.min ?? 0
         this.max = kwargs?.max ?? null
@@ -734,7 +734,7 @@ export class GameObject {
             if(kwargs.visibility !== undefined) this.visibility = kwargs.visibility
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
-        this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
+        this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
     }
     
     getKey() {
@@ -746,7 +746,7 @@ export class GameObject {
     }
 
     update() {
-        this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
+        this.constructor.MIXINS.forEach(mixin => mixin.update.call(this))
         this.requestLinkMessages()
     }
 
@@ -1173,7 +1173,7 @@ export class GameObjectGroup {
         let idx = 0, nbEnts = chunk.length
         while(idx < nbEnts) {
             const obj = chunk[idx]
-            if(chunk.removed) {
+            if(obj.removed) {
                 // case: removed obj
                 chunk.splice(idx, 1); nbEnts -= 1
                 objMap.delete(obj.id)
@@ -1213,6 +1213,7 @@ export class GameObjectGroup {
         this.chunks.forEach((chunk, chunkId) => {
             const chunkState = state[chunkId] = []
             chunk.forEach(obj => {
+                if(obj.removed) return
                 if(obj.getKey() && (isInitState || obj.constructor.STATEFUL)) {
                     chunkState.push(obj.getState(isInitState))
                 }
@@ -1687,7 +1688,7 @@ export class SceneCommon {
         this.map = null
         this.doCreateObjectMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
-        this.constructor.MIXINS.forEach(mixin => mixin.initObject(this, kwargs))
+        this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
     }
 
     isPausable() {
@@ -1802,7 +1803,7 @@ export class SceneCommon {
     }
 
     updateWorld() {
-        this.constructor.MIXINS.forEach(mixin => mixin.updateObject(this))
+        this.constructor.MIXINS.forEach(mixin => mixin.update.call(this))
         this.objects.update()
         this.visuals.update()
     }
@@ -2521,7 +2522,25 @@ export class Mixin {
                 return target
             }
             const mixin = new this(kwargs)
-            mixin.initObjectClass(target)
+            mixin.initClass(target, mixin.initKwargs)
+            return target
+        }
+    }
+
+    static modify(kwargs) {
+        return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "modify", kwargs)
+                return target
+            }
+            const key = this.KEY
+            if(!target.MIXINS || !target.MIXINS.has(key)) throw Error(`Mixin "${key}" does not exist in ${target.name}`)
+            const parentMixin = target.MIXINS.get(key)
+            const mixin = new this({
+                ...parentMixin.initKwargs,
+                ...kwargs,
+            })
+            mixin.initClass(target, mixin.initKwargs)
             return target
         }
     }
@@ -2532,8 +2551,10 @@ export class Mixin {
                 target.addTargetDecorator(this, "addIfAbsent", kwargs)
                 return target
             }
-            if(target.MIXINS && target.MIXINS.has(this.KEY)) return
-            this.add(kwargs)(target)
+            const key = this.KEY
+            const parentMixin = target.MIXINS && target.MIXINS.has(key)
+            if(parentMixin) this.modify(kwargs)(target)
+            else this.add(kwargs)(target)
         }
     }
 
@@ -2549,24 +2570,22 @@ export class Mixin {
     }
 
     constructor(kwargs) {
-        this.init(kwargs)
+        this.initKwargs = kwargs
     }
 
-    init(kwargs) {}
-
-    initObjectClass(cls) {
+    initClass(cls, kwargs) {
 
         if(!cls.hasOwnProperty('MIXINS')) cls.MIXINS = new Map(cls.MIXINS)
         cls.MIXINS.set(this.constructor.KEY, this)
 
         this.constructor.TARGET_DECORATORS.forEach(deco => {
             const [decoCls, funcName, args] = deco
-            decoCls[funcName](...args)(cls)
+            decoCls[funcName](...args)(cls, kwargs)
         })
     }
-    initObject(obj, kwargs) {}
-    updateObject(obj) {}
-    syncStateFromObject(obj, state) {}
+    init(kwargs) {}
+    update() {}
+    syncStateFromObject(obj, state) {}  // TODO: useful ?
     syncObjectFromState(state, obj) {}
 }
 
@@ -2577,20 +2596,22 @@ export class Mixin {
 export class ActivableMixin extends Mixin {
     static KEY = "activable"
 
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
 
         proto.origActivated = true
 
-        proto.reactToggle = function(resp) {
-            this.activated = (resp.value >= .5) ? (!this.origActivated) : this.origActivated
-        }
+        proto.reactToggle = this.reactToggle
     }
 
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        obj.origActivated = obj.activated
+    init(kwargs) {
+        super.init(kwargs)
+        this.origActivated = this.activated
+    }
+
+    reactToggle(resp) {
+        this.activated = (resp.value >= .5) ? (!this.origActivated) : this.origActivated
     }
 }
 
@@ -2598,27 +2619,19 @@ export class ActivableMixin extends Mixin {
 export class BodyMixin extends Mixin {
     static KEY = "body"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.shape = kwargs?.shape ?? "box"
-        this.width = kwargs?.width ?? 50
-        this.height = kwargs?.height ?? 50
-        this.radius = kwargs?.radius ?? 50
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
 
-        proto.shape = this.shape
-        proto.width = this.width
-        proto.height = this.height
-        proto.radius = this.radius
+        proto.shape = kwargs?.shape ?? "box"
+        proto.width = kwargs?.width ?? 50
+        proto.height = kwargs?.height ?? 50
+        proto.radius = kwargs?.radius ?? 50
 
-        proto.getBodyPolygon ||= this.objGetBodyPolygon
+        proto.getBodyPolygon ||= this.getBodyPolygon
     }
 
-    objGetBodyPolygon() {
+    getBodyPolygon() {
         const pol = this._bodyPolygons ||= []
         pol.length = 0
         if(this.shape == "box") {
@@ -2641,15 +2654,8 @@ export class BodyMixin extends Mixin {
 export class HitMixin extends Mixin {
     static KEY = "hit"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.oneHitByObject = kwargs?.oneHitByObject ?? false
-        this.canHit = kwargs?.canHit ?? true
-        this.canBeHit = kwargs?.canBeHit ?? true
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
 
         proto.canHitGroup ||= function(group) { return false }
@@ -2657,10 +2663,10 @@ export class HitMixin extends Mixin {
         proto.canHitObject ||= function(obj) { return false }
         proto.hit ||= function(obj, details) {}
 
-        proto.getHitProps ||= this.objGetHitProps
+        proto.getHitProps ||= this.getHitProps
     }
 
-    objGetHitProps(dt) {
+    getHitProps(dt) {
         const props = this._hitProps ||= {}
         props.polygon = this.getBodyPolygon()
         props.dx = (this.speedX ?? 0) * dt
@@ -2678,33 +2684,22 @@ export class HitMixin extends Mixin {
 export class PhysicsMixin extends Mixin {
     static KEY = "physics"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.canMove = kwargs?.canMove ?? true
-        this.affectedByGravity = kwargs?.affectedByGravity ?? this.canMove
-        this.canBlock = kwargs?.canBlock ?? false
-        this.canGetBlocked = kwargs?.canGetBlocked ?? this.canMove
-        this.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
-        this.checkGetBlockedAnyway = kwargs?.checkGetBlockedAnyway ?? false
-        this.physicsBounciness = kwargs?.physicsBounciness ?? 0
-        this.physicsStaticFriction = kwargs?.physicsStaticFriction ?? Infinity
-        this.physicsDynamicFriction = kwargs?.physicsDynamicFriction ?? Infinity
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
-        proto.canMove = this.canMove
-        proto.affectedByGravity = this.affectedByGravity
-        proto.canBlock = this.canBlock
-        proto.canGetBlocked = this.canGetBlocked
-        proto.checkBlockAnyway = this.checkBlockAnyway
-        proto.checkGetBlockedAnyway = this.checkGetBlockedAnyway
-        proto.physicsBounciness = this.physicsBounciness
-        proto.physicsStaticFriction = this.physicsStaticFriction
-        proto.physicsDynamicFriction = this.physicsDynamicFriction
-        proto.speedResX = 0
+
+        proto.canMove = kwargs?.canMove ?? true
+        proto.affectedByGravity = kwargs?.affectedByGravity ?? proto.canMove
+        proto.canBlock = kwargs?.canBlock ?? false
+        proto.canGetBlocked = kwargs?.canGetBlocked ?? proto.canMove
+        proto.checkBlockAnyway = kwargs?.checkBlockAnyway ?? false
+        proto.checkGetBlockedAnyway = kwargs?.checkGetBlockedAnyway ?? false
+        proto.physicsBounciness = kwargs?.physicsBounciness ?? 0
+        proto.physicsStaticFriction = kwargs?.physicsStaticFriction ?? Infinity
+        proto.physicsDynamicFriction = kwargs?.physicsDynamicFriction ?? Infinity
+        proto.speedResX = 0  // TODO: deprecate it
         proto.speedResY = 0
+
         proto.onBlock ||= function(obj, details) {}
         proto.onGetBlocked ||= function(obj, details) {}
 
@@ -2739,13 +2734,13 @@ export class PhysicsMixin extends Mixin {
         }
     }
 
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        if(kwargs?.speedX !== undefined) obj.speedX = kwargs.speedX
-        if(kwargs?.speedY !== undefined) obj.speedY = kwargs.speedY
+    init(kwargs) {
+        super.init(kwargs)
+        if(kwargs?.speedX !== undefined) this.speedX = kwargs.speedX
+        if(kwargs?.speedY !== undefined) this.speedY = kwargs.speedY
     }
 
-    updateObject(obj) {
+    update() {
         // done by physics engine
     }
 }
@@ -2755,28 +2750,24 @@ export class PhysicsMixin extends Mixin {
 export class OwnerableMixin extends Mixin {
     static KEY = "ownerable"
 
-    init(kwargs) {
-        this.removedWithOwner = kwargs?.removedWithOwner ?? true
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
 
-        proto.removedWithOwner = this.removedWithOwner
+        proto.removedWithOwner = kwargs?.removedWithOwner ?? true
     }
 
-    initObject(obj, kwargs) {
-        super.initObject(obj, kwargs)
-        obj.owner = kwargs?.owner ?? null
+    init(kwargs) {
+        super.init(kwargs)
+        this.owner = kwargs?.owner ?? null
     }
 
-    updateObject(obj) {
-        super.updateObject(obj)
-        const { owner } = obj
+    update() {
+        super.update()
+        const { owner } = this
         if(owner && owner.removed) {
-            obj.owner = null
-            if(obj.removedWithOwner) obj.remove()
+            this.owner = null
+            if(this.removedWithOwner) this.remove()
         }
     }
 }
@@ -2792,33 +2783,23 @@ class AttackProps {
 }
 
 
+@HitMixin.addIfAbsent()
 @StateNumber.define("damages")
 //@StateNumber.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @StateProperty.define("attackAges")
-@HitMixin.addIfAbsent()
 export class AttackMixin extends Mixin {
-    static KEY = "health"
+    static KEY = "attack"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.canAttack = kwargs?.canAttack ?? true
-        this.canGetAttacked = kwargs?.canGetAttacked ?? true
-        this.maxHealth = kwargs?.maxHealth ?? 100
-        this.attackDamages = kwargs?.attackDamages ?? 0
-        this.attackKnockback = kwargs?.attackKnockback ?? 0
-        this.attackPeriod = kwargs?.attackPeriod ?? 1
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
 
-        proto.canAttack = this.canAttack
-        proto.canGetAttacked = this.canGetAttacked
-        proto.maxHealth = this.maxHealth
-        proto.attackDamages = this.attackDamages
-        proto.attackKnockback = this.attackKnockback
-        proto.attackPeriod = this.attackPeriod
+        proto.canAttack = kwargs?.canAttack ?? true
+        proto.canGetAttacked = kwargs?.canGetAttacked ?? true
+        proto.maxHealth = kwargs?.maxHealth ?? 100
+        proto.attackDamages = kwargs?.attackDamages ?? 0
+        proto.attackKnockback = kwargs?.attackKnockback ?? 0
+        proto.attackPeriod = kwargs?.attackPeriod ?? 1
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2831,7 +2812,7 @@ export class AttackMixin extends Mixin {
             return origCanBeHitAsGroup.call(this, group)
         }
         
-        proto.getHealth ||= this.objGetHealth
+        proto.getHealth ||= this.getHealth
         const canReallyAttackObject = function(obj) {
             if(!this.canAttack) return false
             if(!this.scene.attackManager.canTeamAttack(this.team, obj.team)) return false
@@ -2855,20 +2836,20 @@ export class AttackMixin extends Mixin {
             origHit.call(this, obj, details)
             if(canReallyAttackObject.call(this, obj)) this.attack(obj)
         }
-        proto.getAttackProps ||= this.objGetAttackProps
-        proto.attack = this.objAttack
+        proto.getAttackProps ||= this.getAttackProps
+        proto.attack = this.attack
         proto.onAttack ||= function(obj, props) {}
-        proto.getAttacked ||= this.objGetAttacked
+        proto.getAttacked ||= this.getAttacked
         proto.onGetAttacked ||= function(props) {}
 
-        proto.takeDamage ||= this.objTakeDamage
-        proto.die ||= this.objDie
+        proto.takeDamage ||= this.takeDamage
+        proto.die ||= this.die
     }
 
-    updateObject(obj) {
-        const { attackPeriod, attackAges } = obj
+    update() {
+        const { attackPeriod, attackAges } = this
         if(attackPeriod != 0 && attackAges) {
-            const attackPeriodIt = attackPeriod * obj.game.fps
+            const attackPeriodIt = attackPeriod * this.game.fps
             let atLeastOneId = false
             for(let id in attackAges) {
                 const age = attackAges[id]
@@ -2878,15 +2859,15 @@ export class AttackMixin extends Mixin {
                     atLeastOneId = true
                 }
             }
-            if(!atLeastOneId) obj.attackAges = null
+            if(!atLeastOneId) this.attackAges = null
         }
     }
 
-    objGetHealth() {
+    getHealth() {
         return this.maxHealth - this.damages
     }
 
-    objGetAttackProps(obj) {
+    getAttackProps(obj) {
         const props = this._attackProps ||= new AttackProps(this, {
             damages: this.attackDamages,
             knockback: this.attackKnockback,
@@ -2895,7 +2876,7 @@ export class AttackMixin extends Mixin {
         return props
     }
 
-    objAttack(obj) {
+    attack(obj) {
         if(this.attackPeriod != 0) {
             const attackAges = this.attackAges ||= {}
             attackAges[obj.id] = 0
@@ -2905,7 +2886,7 @@ export class AttackMixin extends Mixin {
         this.onAttack(obj, props)
     }
 
-    objGetAttacked(props) {
+    getAttacked(props) {
         if(this.getHealth() <= 0) return
         const { attacker, damages } = props
         if(this.scene.attackManager.canTeamDamage(attacker.team, this.team)) {
@@ -2920,7 +2901,7 @@ export class AttackMixin extends Mixin {
         this.onGetAttacked(props)
     }
 
-    objTakeDamage(damages, props) {
+    takeDamage(damages, props) {
         this.damages += damages
         const attacker = props?.attacker
         if(this.getHealth() <= 0) {
@@ -2931,7 +2912,7 @@ export class AttackMixin extends Mixin {
         }
     }
 
-    objDie(killer) {
+    die(killer) {
         this.remove()
     }
 }
@@ -2942,17 +2923,12 @@ export class AttackMixin extends Mixin {
 export class CollectMixin extends Mixin {
     static KEY = "collect"
 
-    init(kwargs) {
-        super.init(kwargs)
-        this.canCollect = kwargs?.canCollect ?? true
-        this.canGetCollected = kwargs?.canGetCollected ?? true
-    }
-
-    initObjectClass(cls) {
-        super.initObjectClass(cls)
+    initClass(cls, kwargs) {
+        super.initClass(cls, kwargs)
         const proto = cls.prototype
-        proto.canCollect = this.canCollect
-        proto.canGetCollected = this.canGetCollected
+
+        proto.canCollect = kwargs?.canCollect ?? true
+        proto.canGetCollected = kwargs?.canGetCollected ?? true
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2983,11 +2959,11 @@ export class CollectMixin extends Mixin {
             origHit.call(this, obj, details)
             if(canReallyCollectObject.call(this, obj)) this.collect(obj)
         }
-        proto.collect = this.objCollect
+        proto.collect = this.collect
         proto.onCollect ||= function(obj) {}
-        proto.getCollected ||= this.objGetCollected
+        proto.getCollected ||= this.getCollected
         proto.onGetCollected ||= function(collector) {}
-        proto.drop = this.objDrop
+        proto.drop = this.drop
         proto.onDrop ||= function(owner) {}
         const origRemove = proto.remove
         proto.remove = function() {
@@ -2996,17 +2972,17 @@ export class CollectMixin extends Mixin {
         }
     }
 
-    objCollect(obj) {
+    collect(obj) {
         if(obj.getCollected) obj.getCollected(this)
         this.onCollect(obj)
     }
 
-    objGetCollected(collector) {
+    getCollected(collector) {
         this.owner = collector
         this.onGetCollected(collector)
     }
 
-    objDrop() {
+    drop() {
         const { owner } = this
         if(!owner) return
         this.owner = null
