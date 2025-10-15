@@ -17,13 +17,16 @@ const MAP_DEFAULT_WIDTH = 800
 const MAP_DEFAULT_HEIGHT = 600
 
 export const MSG_KEY_LENGTH = 3
+function msgKeyToBin(key) {
+    return new TextEncoder().encode(key.padEnd(MSG_KEY_LENGTH, '\0'))
+}
 export const MSG_KEYS = {
-    PING: "PNG",
-    IDENTIFY_CLIENT: 'IDC',
-    JOIN_GAME: 'JOI',
-    STATE: 'STT',
-    GAME_INSTRUCTION: 'GMI',
-    GAME_REINIT: 'GMR',
+    PING: msgKeyToBin("PNG"),
+    IDENTIFY_CLIENT: msgKeyToBin('IDC'),
+    JOIN_GAME: msgKeyToBin('JOI'),
+    STATE: msgKeyToBin('STT'),
+    GAME_INSTRUCTION: msgKeyToBin('GMI'),
+    GAME_REINIT: msgKeyToBin('GMR'),
 }
 
 const STATE_TYPE_FULL = "F"

@@ -129,13 +129,13 @@ class GameServer {
 
     this.app.ws('/client', (ws, req) => {
       ws.on('message', msg => {
-        const key = msg.substring(0, MSG_KEY_LENGTH)
-        const body = msg.substring(MSG_KEY_LENGTH)
-        if(key === MSG_KEYS.STATE) this.handleState(ws, body)
-        else if(key === MSG_KEYS.IDENTIFY_CLIENT) this.handleIdentifyClient(ws, JSON.parse(body))
-        else if(key === MSG_KEYS.JOIN_GAME) this.handleJoinGame(ws, JSON.parse(body))
-        else if(key === MSG_KEYS.GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
-        else if(key === MSG_KEYS.PING) this.handlePing(ws)
+        const key = msg.subarray(0, MSG_KEY_LENGTH)
+        const body = msg.subarray(MSG_KEY_LENGTH).toString()
+        if(Buffer.compare(key, MSG_KEYS.STATE) == 0) this.handleState(ws, body)
+        else if(Buffer.compare(key, MSG_KEYS.IDENTIFY_CLIENT) == 0) this.handleIdentifyClient(ws, JSON.parse(body))
+        else if(Buffer.compare(key, MSG_KEYS.JOIN_GAME) == 0) this.handleJoinGame(ws, JSON.parse(body))
+        else if(Buffer.compare(key, MSG_KEYS.GAME_INSTRUCTION) == 0) this.handleGameInstruction(ws, body)
+        else if(Buffer.compare(key, MSG_KEYS.PING) == 0) this.handlePing(ws)
         else console.warn("Unknown websocket key", key)
       })
       ws.on('close', () => {
@@ -195,7 +195,7 @@ class GameServer {
       idBody.suggestedName = room.nextPlayerName()
       idBody.suggestedColor = "black"
     }
-    ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify(idBody))
+    ws.send(concatWsMsg(MSG_KEYS.IDENTIFY_CLIENT, JSON.stringify(idBody)))
     console.log(`Client '${clientId}' connected`)
   }
 
@@ -242,7 +242,7 @@ class GameServer {
     if(room.game) room.game.stop()
     const game = room.game = new Game(null, catalog, map, null, {
       mode: MODE_SERVER,
-      sendStates: statesStr => room.sendAll(MSG_KEYS.STATE + statesStr),
+      sendStates: statesStr => room.sendAll(concatWsMsg(MSG_KEYS.STATE, statesStr)),
       debug: IS_DEBUG_MODE,
     })
     await game.loadWaitingScenes()
@@ -397,6 +397,14 @@ function closeWs(ws) {
     ws.close()
   } catch(err) {}
   ws.closed = true
+}
+
+function concatWsMsg(key, bodyStr) {
+  const bodyBin = new TextEncoder().encode(bodyStr)
+  const res = new Uint8Array(key.length + bodyBin.length);
+  res.set(key)
+  res.set(bodyBin, key.length)
+  return res
 }
 
 

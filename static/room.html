@@ -221,19 +221,21 @@ try {
         return new Promise((ok, ko) => {
             const socketProtocol = (window.location.protocol.includes('https')) ? 'wss' : 'ws'
             ws = new WebSocket(`${socketProtocol}://${window.location.host}/client`)
+            ws.binaryType = "arraybuffer"
             ws.addEventListener('open', () => {
                 console.log('Connected to server !')
-                ws.send(MSG_KEYS.IDENTIFY_CLIENT + JSON.stringify({
+                ws.send(concatWsMsg(MSG_KEYS.IDENTIFY_CLIENT, JSON.stringify({
                     id: clientId, roomId,
-                }))
+                })))
             })
             ws.addEventListener('message', evt => {
-                const key = evt.data.substring(0, MSG_KEY_LENGTH)
-                const data = evt.data.substring(MSG_KEY_LENGTH)
-                if(key === MSG_KEYS.IDENTIFY_CLIENT) handleIdentifyClient(ws, data, ok)
-                else if(key === MSG_KEYS.STATE) handleState(ws, data)
-                else if(key === MSG_KEYS.GAME_REINIT) handleGameReinit(ws)
-                else if(key === MSG_KEYS.PING) handlePing(ws, data)
+                const data = new Uint8Array(evt.data)
+                const key = data.subarray(0, MSG_KEY_LENGTH)
+                const body = new TextDecoder().decode(data.subarray(MSG_KEY_LENGTH))
+                if(compareMsgKeys(key, MSG_KEYS.IDENTIFY_CLIENT)) handleIdentifyClient(ws, body, ok)
+                else if(compareMsgKeys(key, MSG_KEYS.STATE)) handleState(ws, body)
+                else if(compareMsgKeys(key, MSG_KEYS.GAME_REINIT)) handleGameReinit(ws)
+                else if(compareMsgKeys(key, MSG_KEYS.PING)) handlePing(ws, body)
             })
             ws.addEventListener('close', () => {
                 console.log('Disconnected from server.')
@@ -260,8 +262,8 @@ try {
             game = new Game(gameParentEl, catalog, map, ws.id, {
                 mode: MODE_CLIENT,
                 sendPing: () => ws.send(MSG_KEYS.PING),
-                sendStates: statesStr => ws.send(MSG_KEYS.STATE + statesStr),
-                sendGameInstruction: instr => ws.send(MSG_KEYS.GAME_INSTRUCTION + instr),
+                sendStates: statesStr => ws.send(concatWsMsg(MSG_KEYS.STATE, statesStr)),
+                sendGameInstruction: instr => ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, instr)),
                 debug: isDebugMode,
             })
             game.run()
@@ -270,7 +272,7 @@ try {
     }
 
     function requestState() {
-        ws.send(MSG_KEYS.GAME_INSTRUCTION + "state")
+        ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "state"))
     }
 
     function handleIdentifyClient(ws, data, next) {
@@ -292,7 +294,7 @@ try {
     async function joinGame(name, color) {
         if(!ws || joined) return
         joined = true
-        ws.send(MSG_KEYS.JOIN_GAME + JSON.stringify({ name, color }))
+        ws.send(concatWsMsg(MSG_KEYS.JOIN_GAME, JSON.stringify({ name, color })))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         await initGame()
@@ -313,12 +315,12 @@ try {
     }
 
     function startGame() {
-        if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "start")
+        if(ws) ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "start"))
         if(game) game.focus()
     }
 
     function restartGame() {
-        if(ws) ws.send(MSG_KEYS.GAME_INSTRUCTION + "restart")
+        if(ws) ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "restart"))
         if(game) game.focus()
     }
 
@@ -327,6 +329,20 @@ try {
 } catch(err) {
     if(showLogs) console.log(err.toString(), err.stack)
     throw err
+}
+
+function concatWsMsg(key, bodyStr) {
+  const bodyBin = new TextEncoder().encode(bodyStr)
+  const res = new Uint8Array(key.length + bodyBin.length);
+  res.set(key)
+  res.set(bodyBin, key.length)
+  return res
+}
+
+function compareMsgKeys(a, b) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
 }
 
 </script>
