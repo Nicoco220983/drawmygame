@@ -75,8 +75,15 @@
     </flexcol>
 <script type="module">
 
+import { pack } from '../static/deps/pack.mjs'
+import { unpack } from '../static/deps/unpack.mjs'
+
 import { cloneCanvas, importJs } from '../static/core/v1/utils.mjs'
-import { HAS_TOUCH, GameMap, Game, MODE_CLIENT, MSG_KEYS, MSG_KEY_LENGTH } from '../static/core/v1/game.mjs'
+import {
+    HAS_TOUCH, GameMap, Game, MODE_CLIENT,
+    MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT,
+    GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
+} from '../static/core/v1/game.mjs'
 import { loadCatalog } from '../static/core/v1/catalog.mjs'
 
 const url = new URL(window.location.href)
@@ -224,18 +231,18 @@ try {
             ws.binaryType = "arraybuffer"
             ws.addEventListener('open', () => {
                 console.log('Connected to server !')
-                ws.send(concatWsMsg(MSG_KEYS.IDENTIFY_CLIENT, JSON.stringify({
+                ws.send(concatWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack({
                     id: clientId, roomId,
                 })))
             })
             ws.addEventListener('message', evt => {
                 const data = new Uint8Array(evt.data)
-                const key = data.subarray(0, MSG_KEY_LENGTH)
-                const body = new TextDecoder().decode(data.subarray(MSG_KEY_LENGTH))
-                if(compareMsgKeys(key, MSG_KEYS.IDENTIFY_CLIENT)) handleIdentifyClient(ws, body, ok)
-                else if(compareMsgKeys(key, MSG_KEYS.STATE)) handleState(ws, body)
-                else if(compareMsgKeys(key, MSG_KEYS.GAME_REINIT)) handleGameReinit(ws)
-                else if(compareMsgKeys(key, MSG_KEYS.PING)) handlePing(ws, body)
+                const key = data[0]
+                const body = data.subarray(1)
+                if(key == MSG_KEY_IDENTIFY_CLIENT) handleIdentifyClient(ws, body, ok)
+                else if(key == MSG_KEY_STATE) handleState(ws, body)
+                else if(key == MSG_KEY_GAME_REINIT) handleGameReinit(ws)
+                else if(key == MSG_KEY_PING) handlePing(ws, body)
             })
             ws.addEventListener('close', () => {
                 console.log('Disconnected from server.')
@@ -261,9 +268,9 @@ try {
             gameParentEl.innerHTML = ""
             game = new Game(gameParentEl, catalog, map, ws.id, {
                 mode: MODE_CLIENT,
-                sendPing: () => ws.send(MSG_KEYS.PING),
-                sendStates: statesStr => ws.send(concatWsMsg(MSG_KEYS.STATE, statesStr)),
-                sendGameInstruction: instr => ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, instr)),
+                sendPing: () => ws.send(MSG_KEY_PING),
+                sendStates: statesBin => ws.send(concatWsMsg(MSG_KEY_STATE, statesBin)),
+                sendGameInstruction: instr => ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([instr]))),
                 debug: isDebugMode,
             })
             game.run()
@@ -272,11 +279,11 @@ try {
     }
 
     function requestState() {
-        ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "state"))
+        ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_STATE])))
     }
 
     function handleIdentifyClient(ws, data, next) {
-        const { id, name, color, suggestedName, suggestedColor } = JSON.parse(data)
+        const { id, name, color, suggestedName, suggestedColor } = unpack(data)
         clientId = ws.id = id
         if(name) {
             // client already has a player name: he already joined the game
@@ -294,7 +301,7 @@ try {
     async function joinGame(name, color) {
         if(!ws || joined) return
         joined = true
-        ws.send(concatWsMsg(MSG_KEYS.JOIN_GAME, JSON.stringify({ name, color })))
+        ws.send(concatWsMsg(MSG_KEY_JOIN_GAME, pack({ name, color })))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         await initGame()
@@ -315,12 +322,12 @@ try {
     }
 
     function startGame() {
-        if(ws) ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "start"))
+        if(ws) ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_START])))
         if(game) game.focus()
     }
 
     function restartGame() {
-        if(ws) ws.send(concatWsMsg(MSG_KEYS.GAME_INSTRUCTION, "restart"))
+        if(ws) ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_RESTART])))
         if(game) game.focus()
     }
 
@@ -331,18 +338,11 @@ try {
     throw err
 }
 
-function concatWsMsg(key, bodyStr) {
-  const bodyBin = new TextEncoder().encode(bodyStr)
-  const res = new Uint8Array(key.length + bodyBin.length);
-  res.set(key)
-  res.set(bodyBin, key.length)
-  return res
-}
-
-function compareMsgKeys(a, b) {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
+function concatWsMsg(key, bodyBin) {
+    const res = new Uint8Array(1 + bodyBin.length);
+    res[0] = key
+    res.set(bodyBin, 1)
+    return res
 }
 
 </script>

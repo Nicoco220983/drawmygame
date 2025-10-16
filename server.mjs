@@ -9,7 +9,15 @@ import express from "express"
 import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
-import { GameMap, Game, MODE_SERVER, MSG_KEYS, MSG_KEY_LENGTH, GAME_STEP_WAITING } from './static/core/v1/game.mjs'
+import { pack } from './static/deps/pack.mjs'
+import { unpack } from './static/deps/unpack.mjs'
+
+import {
+  GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
+  MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT,
+  GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
+} from './static/core/v1/game.mjs'
+
 import { loadCatalog } from './static/core/v1/catalog.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
@@ -129,13 +137,13 @@ class GameServer {
 
     this.app.ws('/client', (ws, req) => {
       ws.on('message', msg => {
-        const key = msg.subarray(0, MSG_KEY_LENGTH)
-        const body = msg.subarray(MSG_KEY_LENGTH).toString()
-        if(Buffer.compare(key, MSG_KEYS.STATE) == 0) this.handleState(ws, body)
-        else if(Buffer.compare(key, MSG_KEYS.IDENTIFY_CLIENT) == 0) this.handleIdentifyClient(ws, JSON.parse(body))
-        else if(Buffer.compare(key, MSG_KEYS.JOIN_GAME) == 0) this.handleJoinGame(ws, JSON.parse(body))
-        else if(Buffer.compare(key, MSG_KEYS.GAME_INSTRUCTION) == 0) this.handleGameInstruction(ws, body)
-        else if(Buffer.compare(key, MSG_KEYS.PING) == 0) this.handlePing(ws)
+        const key = msg[0]
+        const body = msg.subarray(1)
+        if(key == MSG_KEY_STATE) this.handleState(ws, body)
+        else if(key == MSG_KEY_IDENTIFY_CLIENT) this.handleIdentifyClient(ws, unpack(body))
+        else if(key == MSG_KEY_JOIN_GAME) this.handleJoinGame(ws, unpack(body))
+        else if(key == MSG_KEY_GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
+        else if(key == MSG_KEY_PING) this.handlePing(ws)
         else console.warn("Unknown websocket key", key)
       })
       ws.on('close', () => {
@@ -195,7 +203,7 @@ class GameServer {
       idBody.suggestedName = room.nextPlayerName()
       idBody.suggestedColor = "black"
     }
-    ws.send(concatWsMsg(MSG_KEYS.IDENTIFY_CLIENT, JSON.stringify(idBody)))
+    ws.send(concatWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack(idBody)))
     console.log(`Client '${clientId}' connected`)
   }
 
@@ -227,12 +235,13 @@ class GameServer {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
     const { game } = client.room
-    if(data == "restart" && game) game.restartGame()
-    else if(data == "start" && game) game.startGame()
-    else if(data == "pause" && game) game.pause(true)
-    else if(data == "unpause" && game) game.pause(false)
-    else if(data == "state" && game) game.getAndSendFullState()
-    else console.warn(`Unknown game instruction: ${data}`)
+    const instr = data[0]
+    if(instr == GAME_INSTR_RESTART && game) game.restartGame()
+    else if(instr == GAME_INSTR_START && game) game.startGame()
+    else if(instr == GAME_INSTR_PAUSE && game) game.pause(true)
+    else if(instr == GAME_INSTR_UNPAUSE && game) game.pause(false)
+    else if(instr == GAME_INSTR_STATE && game) game.getAndSendFullState()
+    else console.warn(`Unknown game instruction: ${instr}`)
   }
 
   async startGame(room) {
@@ -242,7 +251,7 @@ class GameServer {
     if(room.game) room.game.stop()
     const game = room.game = new Game(null, catalog, map, null, {
       mode: MODE_SERVER,
-      sendStates: statesStr => room.sendAll(concatWsMsg(MSG_KEYS.STATE, statesStr)),
+      sendStates: statesBin => room.sendAll(concatWsMsg(MSG_KEY_STATE, statesBin)),
       debug: IS_DEBUG_MODE,
     })
     await game.loadWaitingScenes()
@@ -253,14 +262,14 @@ class GameServer {
       const color = client.playerColor
       if(name) game.addPlayer(clientId, { num: client.num, name, color })
     }
-    room.sendAll(MSG_KEYS.GAME_REINIT)
+    room.sendAll(MSG_KEY_GAME_REINIT)
     //game.getAndSendFullState()
   }
 
   handlePing(ws) {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
-    ws.send(MSG_KEYS.PING)
+    ws.send(MSG_KEY_PING)
   }
 
   handleClientDeconnection(ws) {
@@ -399,14 +408,12 @@ function closeWs(ws) {
   ws.closed = true
 }
 
-function concatWsMsg(key, bodyStr) {
-  const bodyBin = new TextEncoder().encode(bodyStr)
-  const res = new Uint8Array(key.length + bodyBin.length);
-  res.set(key)
-  res.set(bodyBin, key.length)
-  return res
+function concatWsMsg(key, bodyBin) {
+    const res = new Uint8Array(1 + bodyBin.length);
+    res[0] = key
+    res.set(bodyBin, 1)
+    return res
 }
-
 
 function getLocalIps() {
   const nets = networkInterfaces();

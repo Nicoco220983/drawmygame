@@ -16,18 +16,18 @@ const CANVAS_MAX_HEIGHT = 600
 const MAP_DEFAULT_WIDTH = 800
 const MAP_DEFAULT_HEIGHT = 600
 
-export const MSG_KEY_LENGTH = 3
-function msgKeyToBin(key) {
-    return new TextEncoder().encode(key.padEnd(MSG_KEY_LENGTH, '\0'))
-}
-export const MSG_KEYS = {
-    PING: msgKeyToBin("PNG"),
-    IDENTIFY_CLIENT: msgKeyToBin('IDC'),
-    JOIN_GAME: msgKeyToBin('JOI'),
-    STATE: msgKeyToBin('STT'),
-    GAME_INSTRUCTION: msgKeyToBin('GMI'),
-    GAME_REINIT: msgKeyToBin('GMR'),
-}
+export const MSG_KEY_PING = 0
+export const MSG_KEY_IDENTIFY_CLIENT = 1
+export const MSG_KEY_JOIN_GAME = 2
+export const MSG_KEY_STATE = 3
+export const MSG_KEY_GAME_INSTRUCTION = 4
+export const MSG_KEY_GAME_REINIT = 5
+
+export const GAME_INSTR_START = 0
+export const GAME_INSTR_RESTART = 1
+export const GAME_INSTR_PAUSE = 2
+export const GAME_INSTR_UNPAUSE = 3
+export const GAME_INSTR_STATE = 4
 
 const STATE_TYPE_FULL = "F"
 const STATE_TYPE_INPUT = "I"
@@ -1595,7 +1595,7 @@ export class GameCommon {
             else delete this.scenes.joypadPause
         }
         // state
-        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(val ? "pause" : "unpause")
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(val ? GAME_INSTR_PAUSE : GAME_INSTR_UNPAUSE)
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
         // sync
         this.syncSize()
@@ -2031,14 +2031,14 @@ export class Game extends GameCommon {
     }
 
     async startGame() {
-        if(this.mode == MODE_CLIENT) return this.sendGameInstruction("start")
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(GAME_INSTR_START)
         if(this.scenes.game instanceof GameScene) return
         await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
     async restartGame() {
-        if(this.mode == MODE_CLIENT) return this.sendGameInstruction("restart")
+        if(this.mode == MODE_CLIENT) return this.sendGameInstruction(GAME_INSTR_RESTART)
         if(!(this.scenes.game instanceof GameScene)) return
         await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
@@ -2167,8 +2167,7 @@ export class Game extends GameCommon {
         }
         if(statesToSend.length > 0) {
             if(this.isDebugMode) this.log("sendStates", statesToSend)
-            const statesToSendStr = JSON.stringify(statesToSend)
-            this.sendStates(statesToSendStr)
+            this.sendStates(pack(statesToSend))
             statesToSend.length = 0
         }
     }
@@ -2180,9 +2179,9 @@ export class Game extends GameCommon {
         this._lastSendFullStateTime = this.time
     }
 
-    receiveStatesFromPlayer(playerId, statesStr) {
-        if(this.isDebugMode) this.log("receiveStatesFromPlayer", playerId, statesStr)
-        const states = JSON.parse(statesStr)
+    receiveStatesFromPlayer(playerId, statesBin) {
+        const states = unpack(statesBin)
+        if(this.isDebugMode) this.log("receiveStatesFromPlayer", playerId, states)
         for(let state of states) {
             if(state.pid != playerId) continue
             if(state.t == STATE_TYPE_INPUT) this.handleInputStateFromPlayer(state)
@@ -2212,11 +2211,11 @@ export class Game extends GameCommon {
         }, RESEND_INPUT_STATE_PERIOD * 2 * 1000)
     }
 
-    receiveStatesFromLeader(statesStr) {
-        if(this.isDebugMode) this.log("receiveStatesFromLeader", statesStr)
+    receiveStatesFromLeader(statesBin) {
         const { receivedStates } = this
         this._lastFullStateIt ||= 0
-        const states = JSON.parse(statesStr)
+        const states = unpack(statesBin)
+        if(this.isDebugMode) this.log("receiveStatesFromLeader", states)
         for(let state of states) {
             this.addReceivedState(state)
             if(state.t == STATE_TYPE_FULL) {
