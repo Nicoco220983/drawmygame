@@ -7,8 +7,14 @@ import PhysicsEngine from './physics.mjs'
 import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
 // TODO import only if necessary
 import { gzip, ungzip } from '../../deps/pako.mjs'
-import { pack } from '../../deps/pack.mjs'
-import { unpack } from '../../deps/unpack.mjs'
+
+import * as packLib from '../../deps/pack.mjs'
+import * as unpackLib from '../../deps/unpack.mjs'
+// useRecords: ensure that a Map is packed/unpacked as a Map
+const packr = new packLib.Packr({ useRecords: true })
+const unpackr = new unpackLib.Unpackr({ useRecords: true })
+export function pack(val) { return packr.pack(val)}
+export function unpack(val) { return unpackr.unpack(val) }
 
 export const FPS = 30
 const CANVAS_MAX_WIDTH = 800
@@ -223,7 +229,7 @@ export class GameMap {
             viewManager: { key: "std:ViewHerosCenterManager" },
             physicsManager: { key: "std:PhysicsManager" },
             attackManager: { key: "std:AttackManager" },
-            objects: {},
+            objects: new Map(),
         }}
     }
 
@@ -1071,7 +1077,7 @@ export class GameObjectGroup {
         const { x, y } = obj
         const { nbChunksX } = this, { chunkSize } = this.scene
         const res = floor(x / chunkSize) + nbChunksX * floor(y / chunkSize)
-        return res.toString()
+        return res
     }
 
     getChunk(chunkId) {
@@ -1086,11 +1092,11 @@ export class GameObjectGroup {
 
     nextAutoId(cls) {
         if(cls.STATEFUL) {
-            const res = this._nextAutoStatefulObjId.toString()
+            const res = this._nextAutoStatefulObjId
             this._nextAutoStatefulObjId += 1
             return res
         } else {
-            const res = this._nextAutoStatelessObjId.toString()
+            const res = this._nextAutoStatelessObjId
             this._nextAutoStatelessObjId -= 1
             return res
         }
@@ -1184,9 +1190,10 @@ export class GameObjectGroup {
     }
 
     getState(isInitState=false) {
-        const state = {}
+        const state = new Map()
         this.chunks.forEach((chunk, chunkId) => {
-            const chunkState = state[chunkId] = []
+            const chunkState = []
+            state.set(chunkId, chunkState)
             chunk.forEach(obj => {
                 if(obj.removed) return
                 if(obj.getKey() && (isInitState || obj.constructor.STATEFUL)) {
@@ -1200,7 +1207,7 @@ export class GameObjectGroup {
     setState(state, isInitState=false) {
         if(isInitState) {
             // initState has only 1 chunk
-            const chunkState = state["0"]
+            const chunkState = state.get(0)
             for(let idx in chunkState) {
                 const objState = chunkState[idx]
                 const { id: objId } = objState
@@ -1210,7 +1217,7 @@ export class GameObjectGroup {
             const { objMap } = this
             // store stateful objs ids, and remove them from chunks
             let prevStatefullObjIds = new Set()
-            for(let chunkId in state) {
+            state.forEach((_, chunkId) => {
                 const chunk = this.getChunk(chunkId)
                 let idx = 0, nbEnts = chunk.length
                 while(idx < nbEnts) {
@@ -1222,10 +1229,9 @@ export class GameObjectGroup {
                         idx += 1
                     }
                 }
-            }
+            })
             // update/create statefull objs in chunks
-            for(let chunkId in state) {
-                const chunkState = state[chunkId]
+            state.forEach((chunkState, chunkId) => {
                 const chunk = this.getChunk(chunkId)
                 for(let idx in chunkState) {
                     const objState = chunkState[idx]
@@ -1241,7 +1247,7 @@ export class GameObjectGroup {
                     obj.setState(objState, isInitState)
                     prevStatefullObjIds.delete(objId)
                 }
-            }
+            })
             // remove remaining objs in prevStatefullObjIds
             for(let objId of prevStatefullObjIds) {
                 const obj = objMap.get(objId)
@@ -1257,6 +1263,7 @@ export class GameObjectGroup {
     }
 }
 
+// TODO: remove this
 GameObjectGroup.prototype.on = on
 GameObjectGroup.prototype.off = off
 GameObjectGroup.prototype.trigger = trigger
@@ -1437,8 +1444,8 @@ export class GameCommon {
         })
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
         const objsMaps = scnMap?.objects
-        if(objsMaps) for(let objsChunkId in objsMaps) {
-            const objsChunkMap = objsMaps[objsChunkId]
+        if(objsMaps) for(let objsChunkIdStr in objsMaps) {
+            const objsChunkMap = objsMaps[objsChunkIdStr]
             for(let objMap of objsChunkMap) {
                 paths.add(catalog.getObject(map.perspective, map.versions, objMap.key).path)
             }
@@ -1733,7 +1740,7 @@ export class SceneCommon {
         if(key.startsWith('A#')) {
             const mapNum = parseInt(key.substring(2))
             // initState has only 1 chunk
-            res = this.map.objects["0"][mapNum]
+            res = this.map.objects.get(0)[mapNum]
         } else if(key.startsWith('H#')) {
             const mapNum = parseInt(key.substring(2))
             res = this.game.map.heros[mapNum]

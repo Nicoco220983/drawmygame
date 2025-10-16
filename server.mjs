@@ -9,10 +9,8 @@ import express from "express"
 import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
-import { pack } from './static/deps/pack.mjs'
-import { unpack } from './static/deps/unpack.mjs'
-
 import {
+  pack, unpack,
   GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
   MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT,
   GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
