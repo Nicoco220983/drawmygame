@@ -2753,11 +2753,18 @@ export class OwnerableMixin extends Mixin {
 
 
 class AttackProps {
+
+    static {
+        assign(this.prototype, {
+            damages: 0,
+            knockback: 0,
+            knockbackAngle: 0,
+        })
+    }
+
     constructor(attacker, kwargs) {
         this.attacker = attacker
-        this.damages = kwargs?.damages ?? 0
-        this.knockback = kwargs?.knockback ?? 0
-        this.knockbackAngle = kwargs.knockbackAngle ?? 0
+        assign(this, kwargs)
     }
 }
 
@@ -2779,6 +2786,7 @@ export class AttackMixin extends Mixin {
         proto.attackDamages = kwargs?.attackDamages ?? 0
         proto.attackKnockback = kwargs?.attackKnockback ?? 0
         proto.attackPeriod = kwargs?.attackPeriod ?? 1
+        proto.getDamagedAge = Infinity
 
         const origCanHitGroup = proto.canHitGroup
         proto.canHitGroup = function(group) {
@@ -2815,14 +2823,21 @@ export class AttackMixin extends Mixin {
             origHit.call(this, obj, details)
             if(canReallyAttackObject.call(this, obj)) this.attack(obj)
         }
-        proto.getAttackProps ||= this.getAttackProps
+        proto.getAttackProps ||= AttackMixin.getAttackProps
         proto.attack = this.attack
         proto.onAttack ||= function(obj, props) {}
         proto.getAttacked ||= this.getAttacked
         proto.onGetAttacked ||= function(props) {}
 
-        proto.takeDamage ||= this.takeDamage
+        proto.getDamaged ||= this.getDamaged
         proto.die ||= this.die
+
+        const origGetGraphicsProps = proto.getGraphicsProps
+        proto.getGraphicsProps = function() {
+            const props = origGetGraphicsProps.call(this)
+            props.colorize = (this.getDamagedAge <= 5) ? "red" : null
+            return props
+        }
     }
 
     update() {
@@ -2840,19 +2855,11 @@ export class AttackMixin extends Mixin {
             }
             if(!atLeastOneId) this.attackAges = null
         }
+        this.getDamagedAge += 1
     }
 
     getHealth() {
         return this.maxHealth - this.damages
-    }
-
-    getAttackProps(obj) {
-        const props = this._attackProps ||= new AttackProps(this, {
-            damages: this.attackDamages,
-            knockback: this.attackKnockback,
-            knockbackAngle : atan2(obj.y-this.y, obj.x-this.x) * 180 / PI
-        })
-        return props
     }
 
     attack(obj) {
@@ -2869,7 +2876,7 @@ export class AttackMixin extends Mixin {
         if(this.getHealth() <= 0) return
         const { attacker, damages } = props
         if(this.scene.attackManager.canTeamDamage(attacker.team, this.team)) {
-            this.takeDamage(damages, props)
+            this.getDamaged(damages, props)
         }
         const knockback = props?.knockback
         if(knockback) {
@@ -2880,8 +2887,9 @@ export class AttackMixin extends Mixin {
         this.onGetAttacked(props)
     }
 
-    takeDamage(damages, props) {
+    getDamaged(damages, props) {
         this.damages += damages
+        this.getDamagedAge = 0
         const attacker = props?.attacker
         if(this.getHealth() <= 0) {
             this.die(attacker)
@@ -2894,6 +2902,21 @@ export class AttackMixin extends Mixin {
     die(killer) {
         this.remove()
     }
+
+    // getGraphicsProps() {
+    //     const props = this._attackMixinOrigGetGraphicsProps(this)
+    //     if(getDamagedAge < 2) props.color = "white"
+    //     return props
+    // }
+}
+
+AttackMixin.getAttackProps = function(obj) {
+    const props = this._attackProps ||= new AttackProps(this, {
+        damages: this.attackDamages,
+        knockback: this.attackKnockback,
+        knockbackAngle : atan2(obj.y-this.y, obj.x-this.x) * 180 / PI
+    })
+    return props
 }
 
 

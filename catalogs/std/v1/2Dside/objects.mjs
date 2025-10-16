@@ -271,7 +271,7 @@ export class Weapon extends Extra {
     }
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
+        const props = AttackMixin.getAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }
@@ -309,7 +309,7 @@ export class Projectile extends GameObject {
     }
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
+        const props = AttackMixin.getAttackProps.call(this, obj)
         props.attacker = this.owner ?? this
         return props
     }
@@ -768,7 +768,7 @@ const ShurikenImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets
     width: 30,
     height: 30,
 })
-@StateNumber.define("nb", { default:5, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("nb", { default: 10, nullableWith: Infinity, showInBuilder: true })
 export class ShurikenPack extends Extra {
 
     init(kwargs) {
@@ -936,7 +936,7 @@ const ExplosionSpriteSheet = new SpriteSheet(CATALOG.registerImage("/static/cata
 export class Explosion extends GameObject {
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
+        const props = AttackMixin.getAttackProps.call(this, obj)
         props.attacker = this.owner || this
         return props
     }
