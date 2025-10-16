@@ -201,7 +201,7 @@ class GameServer {
       idBody.suggestedName = room.nextPlayerName()
       idBody.suggestedColor = "black"
     }
-    ws.send(concatWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack(idBody)))
+    ws.send(toWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack(idBody)))
     console.log(`Client '${clientId}' connected`)
   }
 
@@ -249,7 +249,7 @@ class GameServer {
     if(room.game) room.game.stop()
     const game = room.game = new Game(null, catalog, map, null, {
       mode: MODE_SERVER,
-      sendStates: statesBin => room.sendAll(concatWsMsg(MSG_KEY_STATE, statesBin)),
+      sendStates: statesBin => room.sendAll(toWsMsg(MSG_KEY_STATE, statesBin)),
       debug: IS_DEBUG_MODE,
     })
     await game.loadWaitingScenes()
@@ -406,10 +406,10 @@ function closeWs(ws) {
   ws.closed = true
 }
 
-function concatWsMsg(key, bodyBin) {
-    const res = new Uint8Array(1 + bodyBin.length);
+function toWsMsg(key, bodyBin) {
+    const res = new Uint8Array(1 + (bodyBin ? bodyBin.length : 0));
     res[0] = key
-    res.set(bodyBin, 1)
+    if(bodyBin) res.set(bodyBin, 1)
     return res
 }
 

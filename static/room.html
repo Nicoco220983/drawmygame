@@ -229,7 +229,7 @@ try {
             ws.binaryType = "arraybuffer"
             ws.addEventListener('open', () => {
                 console.log('Connected to server !')
-                ws.send(concatWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack({
+                ws.send(toWsMsg(MSG_KEY_IDENTIFY_CLIENT, pack({
                     id: clientId, roomId,
                 })))
             })
@@ -266,9 +266,9 @@ try {
             gameParentEl.innerHTML = ""
             game = new Game(gameParentEl, catalog, map, ws.id, {
                 mode: MODE_CLIENT,
-                sendPing: () => ws.send(MSG_KEY_PING),
-                sendStates: statesBin => ws.send(concatWsMsg(MSG_KEY_STATE, statesBin)),
-                sendGameInstruction: instr => ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([instr]))),
+                sendPing: () => ws.send(toWsMsg(MSG_KEY_PING)),
+                sendStates: statesBin => ws.send(toWsMsg(MSG_KEY_STATE, statesBin)),
+                sendGameInstruction: instr => ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([instr]))),
                 debug: isDebugMode,
             })
             game.run()
@@ -277,7 +277,7 @@ try {
     }
 
     function requestState() {
-        ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_STATE])))
+        ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_STATE])))
     }
 
     function handleIdentifyClient(ws, data, next) {
@@ -299,7 +299,7 @@ try {
     async function joinGame(name, color) {
         if(!ws || joined) return
         joined = true
-        ws.send(concatWsMsg(MSG_KEY_JOIN_GAME, pack({ name, color })))
+        ws.send(toWsMsg(MSG_KEY_JOIN_GAME, pack({ name, color })))
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         await initGame()
@@ -320,12 +320,12 @@ try {
     }
 
     function startGame() {
-        if(ws) ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_START])))
+        if(ws) ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_START])))
         if(game) game.focus()
     }
 
     function restartGame() {
-        if(ws) ws.send(concatWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_RESTART])))
+        if(ws) ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_RESTART])))
         if(game) game.focus()
     }
 
@@ -336,10 +336,10 @@ try {
     throw err
 }
 
-function concatWsMsg(key, bodyBin) {
-    const res = new Uint8Array(1 + bodyBin.length);
+function toWsMsg(key, bodyBin) {
+    const res = new Uint8Array(1 + (bodyBin ? bodyBin.length : 0));
     res[0] = key
-    res.set(bodyBin, 1)
+    if(bodyBin) res.set(bodyBin, 1)
     return res
 }
 
