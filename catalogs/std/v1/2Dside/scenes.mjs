@@ -71,7 +71,7 @@ export class DamageBorderManager extends BorderManager {
 
     handleObjectOut(obj) {
         if(obj instanceof Hero) {
-            obj.takeDamage(this.heroOutDamages)
+            obj.getDamaged(this.heroOutDamages)
             if(obj.getHealth() > 0) this.scene.spawnHero(obj)
         } else {
             obj.remove()
@@ -443,14 +443,62 @@ export class Background extends GameObject {
 }
 
 
-const LandscapeImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/landscape.jpg")
+const GreenLandscapeImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/green_landscape.jpg")
 
 @CATALOG.registerObject({
-    label: "Landscape",
+    label: "Green Landscape",
 })
-export class LandscapeBackground extends Background {
+export class GreenLandscapeBackground extends Background {
     getBaseImg() {
-        return LandscapeImg
+        return GreenLandscapeImg
+    }
+}
+
+
+const RockMountainsImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/rock_mountains.jpg")
+
+@CATALOG.registerObject({
+    label: "Rock Mountains",
+})
+export class RockMountainsBackground extends Background {
+    getBaseImg() {
+        return RockMountainsImg
+    }
+}
+
+
+const SnowMountainsImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/snow_mountains.jpg")
+
+@CATALOG.registerObject({
+    label: "Snow Mountains",
+})
+export class SnowMountainsBackground extends Background {
+    getBaseImg() {
+        return SnowMountainsImg
+    }
+}
+
+
+const DarkForestImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/dark_forest.jpg")
+
+@CATALOG.registerObject({
+    label: "Dark Forest",
+})
+export class DarkForestBackground extends Background {
+    getBaseImg() {
+        return DarkForestImg
+    }
+}
+
+
+const DarkCityImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/dark_city.jpg")
+
+@CATALOG.registerObject({
+    label: "Dark City",
+})
+export class DarkCityBackground extends Background {
+    getBaseImg() {
+        return DarkCityImg
     }
 }
 
@@ -487,7 +535,7 @@ export class LandscapeBackground extends Background {
 })
 @GameObject.StateProperty.define("background", {
     filter: { category: "background" },
-    default: { key: "std:LandscapeBackground" },
+    default: { key: "std:GreenLandscapeBackground" },
     showInBuilder: true,
 })
 export class StandardScene extends GameScene {

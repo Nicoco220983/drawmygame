@@ -250,7 +250,7 @@ export class Trap extends Block {
     }
 
     getAttackProps(obj) {
-        const props = AttackMixin.prototype.getAttackProps.call(this, obj)
+        const props = AttackMixin.getAttackProps.call(this, obj)
         props.knockbackAngle = this.getAngle()
         return props
     }
