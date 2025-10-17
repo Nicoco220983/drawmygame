@@ -953,8 +953,8 @@ GameObject.StateProperty = class extends StateProperty {
     initObjectClassProp(cls) {
         cls.prototype[this.key] = this.nullableWith ?? null
     }
-    init(kwargs) {
-        super.init(kwargs)
+    constructor(key, kwargs) {
+        super(key, kwargs)
         this.filter = kwargs?.filter
     }
     getObjectPropState(obj) {
