@@ -224,6 +224,7 @@ export class Extra extends GameObject {
         if(owner && this.stuckToOwner) {
             this.x = owner.x
             this.y = owner.y
+            this.z = owner.z + 1
         }
         this.dropAge += 1
         if(this.dropAge > this.game.fps) this.dropAge = Infinity

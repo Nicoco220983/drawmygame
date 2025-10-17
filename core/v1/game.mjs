@@ -382,6 +382,19 @@ export class StateProperty {
         }
     }
 
+    static undefine(key) {
+        return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "undefine", key)
+                return target
+            }
+            if(!target.STATE_PROPS || !target.STATE_PROPS.has(key)) throw Error(`StateProperty "${key}" does not exist in ${target.name}`)
+            if(!target.hasOwnProperty('STATE_PROPS')) target.STATE_PROPS = new Map(target.STATE_PROPS)
+            target.STATE_PROPS.delete(key)
+            return target
+        }
+    }
+
     static modify(key, kwargs) {
         return target => {
             if(target.IS_MIXIN) {
@@ -675,11 +688,12 @@ export class ObjectLink {
 @StateNumber.define("angle")
 @StateIntEnum.define("dirY", { default: 1, options: { '1': "Up", '-1': "Down"} })
 @StateIntEnum.define("dirX", { default: 1, options: { '1': "Right", '-1': "Left"} })
+@StateNumber.define("z", { precision: .1, showInBuilder: true })
 @StateNumber.define("y", { precision: .1, showInBuilder: true })
 @StateNumber.define("x", { precision: .1, showInBuilder: true })
 export class GameObject {
 
-    // static STATE_PROPS = new Map()  // already done by x/y state props
+    // static STATE_PROPS = new Map()  // already done by x/y/z/... state props
     // static LINK_TRIGGERS = new Map()  // already done by isRemoved/reactRemove links
     // static LINK_REACTIONS = new Map()  // same...
     static MIXINS = new Map()
@@ -834,7 +848,7 @@ export class GameObject {
         const { color } = this
         const img = this.getBaseImg()
         if(!color && !img) return null
-        const props = this._graphicsProps ||= new GraphicsProps()
+        const props = new GraphicsProps()
         props.color = color
         props.img = img
         props.x = this.x
@@ -844,6 +858,7 @@ export class GameObject {
         props.dirX = this.dirX
         props.dirY = this.dirY
         props.angle = this.angle
+        props.order = this.z
         props.visibility = this.visibility
         return props
     }
@@ -2835,7 +2850,7 @@ export class AttackMixin extends Mixin {
         const origGetGraphicsProps = proto.getGraphicsProps
         proto.getGraphicsProps = function() {
             const props = origGetGraphicsProps.call(this)
-            props.colorize = (this.getDamagedAge <= 5) ? "red" : null
+            if(this.getDamagedAge <= 5) props.colorize = "red"
             return props
         }
     }
@@ -2902,12 +2917,6 @@ export class AttackMixin extends Mixin {
     die(killer) {
         this.remove()
     }
-
-    // getGraphicsProps() {
-    //     const props = this._attackMixinOrigGetGraphicsProps(this)
-    //     if(getDamagedAge < 2) props.color = "white"
-    //     return props
-    // }
 }
 
 AttackMixin.getAttackProps = function(obj) {

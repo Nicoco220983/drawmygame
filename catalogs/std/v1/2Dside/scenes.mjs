@@ -15,8 +15,9 @@ export const CATALOG = new ModuleCatalog(import.meta.url, {
 const IS_SERVER_ENV = (typeof window === 'undefined')
 
 
-@StateNumber.modify("y", { showInBuilder: false })
-@StateNumber.modify("x", { showInBuilder: false })
+@StateNumber.undefine("z")
+@StateNumber.undefine("y")
+@StateNumber.undefine("x")
 @Category.append("manager")
 export class Manager extends GameObject {}
 
@@ -413,6 +414,47 @@ class PlayerScoreText extends Text {
 }
 
 
+// Background
+
+@Category.append("background")
+@StateNumber.undefine("z")
+@StateNumber.undefine("y")
+@StateNumber.undefine("x")
+export class Background extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.z = -1000
+        this.updatePosAndSize()
+    }
+
+    update() {
+        super.update()
+        this.updatePosAndSize()
+    }
+
+    updatePosAndSize() {
+        const { scene } = this
+        this.width = scene.viewWidth
+        this.height = scene.viewHeight
+        this.x = this.width/2
+        this.y = this.height/2
+    }
+}
+
+
+const LandscapeImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/backgrounds/landscape.jpg")
+
+@CATALOG.registerObject({
+    label: "Landscape",
+})
+export class LandscapeBackground extends Background {
+    getBaseImg() {
+        return LandscapeImg
+    }
+}
+
+
 // Standard
 
 @CATALOG.registerScene()
@@ -443,10 +485,16 @@ class PlayerScoreText extends Text {
     default: { key: "std:BlockBorderManager" },
     showInBuilder: true,
 })
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:LandscapeBackground" },
+    showInBuilder: true,
+})
 export class StandardScene extends GameScene {
 
     init(args) {
         super.init(args)
+        this.backgroundColor = null
         this.hud = new HeadsUpDisplay(this)
     }
 
@@ -459,6 +507,7 @@ export class StandardScene extends GameScene {
 
     update() {
         super.update()
+        this.background.update()
         this.hud.update()
         this.borderManager.update()
         this.viewManager.update()
@@ -489,6 +538,10 @@ export class StandardScene extends GameScene {
         const drawer = this.graphicsEngine
         this.hud.draw(drawer)
         return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
     }
 }
 

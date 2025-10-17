@@ -17,6 +17,7 @@ export class GraphicsProps {
             dirX: 1,
             dirY: 1,
             angle: 0,
+            order: 0,
             visibility: 1,
             colorize: null,
         })
@@ -38,6 +39,7 @@ export class GraphicsEngine {
     }
 
     draw(...propss) {
+        propss.sort((p1, p2) => p1.order - p2.order)
         const scn = this.scene, can = scn.canvas
         const ctx = can.getContext("2d")
         for(let props of propss) {
