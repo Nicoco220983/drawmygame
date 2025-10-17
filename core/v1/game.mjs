@@ -359,7 +359,7 @@ export class SpriteSheet {
 export class Category {
     static append(cat) {
         return target => {
-            target.CATEGORY = (target.CATEGORY ?? "") + cat + "/"
+            target.CATEGORY = (target.CATEGORY ?? "/") + cat + "/"
         }
     }
 }
@@ -1014,19 +1014,20 @@ GameObject.StateProperty = class extends StateProperty {
 
 
 export function filterObject(filterDesc, obj) {
-    if(filterDesc.category) {
-        const objCat = obj.category
-        if(!objCat || !objCat.startsWith(filterDesc.category)) return false
-    }
     if(filterDesc.and) {
         for(let f of filterDesc.and) if(!filterObject(f, obj)) return false
+        return true
     }
     if(filterDesc.or) {
-        for(let f of filterDesc.or) if(!filterObject(f, obj)) return true
+        for(let f of filterDesc.or) if(filterObject(f, obj)) return true
         return false
     }
     if(filterDesc.not) {
         return !filterObject(filterDesc.not, obj)
+    }
+    if(filterDesc.category) {
+        const objCat = obj.category
+        if(!objCat || objCat.indexOf('/'+filterDesc.category+'/')<0) return false
     }
     return true
 }

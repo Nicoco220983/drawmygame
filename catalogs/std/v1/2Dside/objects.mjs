@@ -1527,7 +1527,19 @@ export class HeroSpawnPoint extends GameObject {
 @StateNumber.define("maxLiving", { default: 5, nullableWith: Infinity, showInBuilder: true })
 @StateNumber.define("max", { default: Infinity, nullableWith: Infinity, showInBuilder: true })
 @StateNumber.define("period", { default: 1, precision: .1, showInBuilder: true })
-@GameObject.StateProperty.define("model", { showInBuilder: true })
+@GameObject.StateProperty.define("model", {
+    showInBuilder: true,
+    filter: {
+        not: {
+            or: [
+                { category: "hero" },
+                { category: "manager" },
+                { category: "background" },
+                { category: "wall" },
+            ]
+        }
+    }
+})
 export class ObjectSpawner extends GameObject {
 
     update() {

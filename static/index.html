@@ -129,7 +129,7 @@ async function initInputEls(catalog) {
     herosEl.initCatalog(perspective, versions, catalog, objCat => objCat.isHero)
     herosEl.setSelectedObject("std:Nico")
     objectsEl.initCatalog(perspective, versions, catalog, objCat => {
-        return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("manager") || objCat.category.startsWith("wall")))
+        return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("/manager/") || objCat.category.startsWith("/background/") || objCat.category.startsWith("/wall/")))
     })
 }
 async function updScene() {
