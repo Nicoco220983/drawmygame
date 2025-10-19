@@ -287,18 +287,19 @@ class DraftScene extends SceneCommon {
         const { mode } = this.game
         const touch = this.game.touches[0]
         if(touch) {
+            const gameScn = this.game.scenes.game
             const draftPos = {
-                x: touch.x,
-                y: touch.y,
+                x: touch.x + gameScn.viewX,
+                y: touch.y + gameScn.viewY,
             }
             if(mode == "object") {
                 if(this.draftObject.constructor.STUCK_TO_GRID) this.applyAnchor(draftPos, true)
-                this.draftObject.x = draftPos.x
-                this.draftObject.y = draftPos.y
+                this.draftObject.x = draftPos.x - gameScn.viewX
+                this.draftObject.y = draftPos.y - gameScn.viewY
             } else if(mode == "wall") {
                 if(this.anchor) this.applyAnchor(draftPos)
-                this.draftObject.x2 = draftPos.x
-                this.draftObject.y2 = draftPos.y
+                this.draftObject.x2 = draftPos.x - gameScn.viewX
+                this.draftObject.y2 = draftPos.y - gameScn.viewY
             }
         }
     }
@@ -336,10 +337,15 @@ class DraftScene extends SceneCommon {
                 gameScn.addObject(modeKey, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
             if(!this.draftObject) {
-                this.draftObject = this.addObject(modeKey, { x1:pos.x, y1:pos.y, x2:pos.x, y2:pos.y })
+                this.draftObject = this.addObject(modeKey, {
+                    x1:pos.x - gameScn.viewX,
+                    y1:pos.y - gameScn.viewY,
+                    x2:pos.x - gameScn.viewX,
+                    y2:pos.y - gameScn.viewY,
+                })
             } else {
-                this.draftObject.x1 = pos.x
-                this.draftObject.y1 = pos.y
+                this.draftObject.x1 = pos.x - gameScn.viewX
+                this.draftObject.y1 = pos.y - gameScn.viewY
             }
             this.prevPos = pos
         }
