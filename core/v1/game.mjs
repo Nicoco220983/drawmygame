@@ -490,6 +490,7 @@ export class StateProperty {
         syncEls()
         return wrapperEl
     }
+    // TODO: remove it
     createInput(obj) {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
@@ -521,7 +522,6 @@ export class StateBool extends StateProperty {
         this.setObjectPropFromState(obj, inputEl.checked)
     }
 }
-
 
 export class StateNumber extends StateProperty {
     static DEFAULT_STATE_VALUE = 0
@@ -592,6 +592,26 @@ export class StateIntEnum extends StateEnum {
     syncObjectFromInput(inputEl, obj) {
         let val = inputEl.value
         this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : parseInt(val))
+    }
+}
+
+
+export class StateString extends StateProperty {
+    static DEFAULT_STATE_VALUE = ""
+
+    createInput(obj) {
+        const val = this.getObjectPropState(obj)
+        const inputEl = newDomEl("input", {
+            type: "text",
+            value: (typeof val === "string") ? val : ""
+        })
+        inputEl.addEventListener("change", () => this.syncObjectFromInput(inputEl, obj))
+        return inputEl
+    }
+
+    syncObjectFromInput(inputEl, obj) {
+        let val = inputEl.value
+        this.setObjectPropFromState(obj, (val == "") ? this.defaultStateValue : val)
     }
 }
 
