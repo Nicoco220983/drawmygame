@@ -1,0 +1,4 @@
+node_modules/
+static/core/
+static/catalogs/
+static/deps/pako.mjs
