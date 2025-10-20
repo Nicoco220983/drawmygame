@@ -130,7 +130,7 @@ async function initInputEls(catalog) {
         }))
     }
     const scnMap = map.scenes["0"]
-    scnKeyEl.value = scnMap.key
+    scnKeyEl.value = catalog.getFullKey(map.perspective, map.versions, scnMap.key)
     herosEl.initCatalog(perspective, versions, catalog, objCat => objCat.isHero)
     herosEl.setSelectedObject("std:Nico")
     objectsEl.initCatalog(perspective, versions, catalog, objCat => {

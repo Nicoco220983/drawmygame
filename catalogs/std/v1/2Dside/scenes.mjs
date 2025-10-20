@@ -88,8 +88,7 @@ export class LoopBorderManager extends BorderManager {
 
     update() {
         super.update()
-        const { scene } = this
-        const { width, height } = scene
+        const { scene } = this, { width, height } = scene
         scene.objects.forEach(obj => {
             const { x, y } = obj
             if(x > width) obj.x -= width
@@ -655,8 +654,9 @@ export class TagScene extends GameScene {
     update() {
         super.update()
         this.hud.update()
-        this.attackManager.update()
+        this.borderManager.update()
         this.physicsManager.update()
+        this.attackManager.update()
         this.checkTaggedHero()
         this.preventTaggedHeroToMove(this.step == "INIT")
         if(this.step == "INIT") this.updateStepInit()
@@ -848,8 +848,9 @@ export class StealTreasures extends GameScene {
     update() {
         super.update()
         this.hud.update()
-        this.attackManager.update()
+        this.borderManager.update()
         this.physicsManager.update()
+        this.attackManager.update()
     }
 
     updateStepGame() {
@@ -1132,6 +1133,6 @@ export class CountDown extends Text {
     syncText() {
         const { iteration } = this.scene
         const { fps } = this.game
-        this.text = ceil((this.duration - (iteration - this.startIt)/fps))
+        this.updateText(ceil((this.duration - (iteration - this.startIt)/fps)))
     }
 }
