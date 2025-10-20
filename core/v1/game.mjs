@@ -1503,11 +1503,17 @@ export class GameCommon {
         this.startTime = this.nextFrameTime = now()
         const tryUpdateGameLoop = () => {
             this.gameLoop = setTimeout(() => {
-                if(now() >= this.nextFrameTime) {
-                    this.updateGameLoop()
-                    this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
+                try {
+                    if(now() >= this.nextFrameTime) {
+                        this.updateGameLoop()
+                        this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
+                    }
+                    tryUpdateGameLoop()
+                } catch(err) {
+                    console.error(err)
+                    // gracefully stop game to not kill server
+                    this.stop()
                 }
-                tryUpdateGameLoop()
             }, 5)
         }
         tryUpdateGameLoop()
