@@ -4,7 +4,7 @@ import { GraphicsProps } from '../../../../core/v1/graphics.mjs'
 import { SceneCommon, GameScene, GameObject, Category, StateProperty, StateBool, StateNumber, Mixin, OwnerableMixin, Text, ModuleCatalog, hackMethod, GameObjectGroup, PlayerIcon, PlayerText, importAndPreload } from '../../../../core/v1/game.mjs'
 import { Hero, Wall, Star, HeroSpawnPoint } from './objects.mjs'
 import * as utils from '../../../../core/v1/utils.mjs'
-const { sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys } = utils
+const { sumTo, newCanvas, newTextCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys } = utils
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",

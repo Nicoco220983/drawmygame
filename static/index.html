@@ -124,7 +124,10 @@ async function initInputEls(catalog) {
     for(let fullKey in catalog.scenes) {
         const scnCat = catalog.scenes[fullKey]
         if(!scnCat.showInBuilder) continue
-        scnKeyEl.appendChild(newDomEl("option", { value: scnCat.key, text: scnCat.name }))
+        scnKeyEl.appendChild(newDomEl("option", {
+            value: fullKey,
+            text: scnCat.name,
+        }))
     }
     const scnMap = map.scenes["0"]
     scnKeyEl.value = scnMap.key

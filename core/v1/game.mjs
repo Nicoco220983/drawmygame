@@ -1046,13 +1046,14 @@ GameObject.StateProperty = class extends StateProperty {
                 gap: ".2em",
             }
         })
-        const inputEl = super.createObjectInput(obj)
-        wrapperEl.appendChild(inputEl)
-        const statesEl = this.createObjectStatesInput(obj)
-        wrapperEl.appendChild(statesEl)
+        const superWrapperEl = super.createObjectInput(obj)
+        const inputEl = superWrapperEl.querySelector("dmg-object-selector")
+        wrapperEl.appendChild(superWrapperEl)
+        const stateEl = this.createObjectStateInput(obj)
+        wrapperEl.appendChild(stateEl)
         inputEl.addEventListener("change", () => {
             this.syncObjectFromInput(inputEl, obj)
-            statesEl.showObjectStates(obj[this.key])
+            stateEl.showAndInit(obj[this.key])
         })
         return wrapperEl
     }
@@ -1066,20 +1067,20 @@ GameObject.StateProperty = class extends StateProperty {
         if(objVal) inputEl.setSelectedObject(objVal.getKey())
         return inputEl
     }
-    createObjectStatesInput(obj) {
+    createObjectStateInput(obj) {
         const objVal = obj[this.key]
-        const statesEl = newDomEl("dmg-object-state", {
+        const stateEl = newDomEl("dmg-object-state", {
             style: { display: "none" }
         })
-        statesEl.showAndInit = objVal => {
-            statesEl.style.display = ""
-            statesEl.initObject(objVal)
+        stateEl.showAndInit = objVal => {
+            stateEl.style.display = ""
+            stateEl.initObject(objVal)
         }
-        if(objVal) statesEl.showAndInit(objVal)
-        return statesEl
+        if(objVal) stateEl.showAndInit(objVal)
+        return stateEl
     }
     syncObjectFromInput(inputEl, obj) {
-        const objKey = inputEl.selectEl.value
+        const objKey = inputEl.value
         this.setObjectPropFromState(obj, { key: objKey })
     }
 }
@@ -3150,7 +3151,7 @@ export class PlayerText extends Text {
     update() {
         const { playerId } = this
         const player = this.game.players[playerId]
-        this.text = player.name
+        if(player) this.text = player.name
     }
 }
 

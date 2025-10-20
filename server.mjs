@@ -305,7 +305,6 @@ class Room {
   onCloseWs(client) {
     if(this.closed) return
     this.initCloseClientCountdown(client.id)
-    console.log(`Client '${client.id}' left the room '${this.id}'`)
   }
 
   hasClients() {
@@ -393,8 +392,8 @@ class Client {
     this.closed = true
     this.closeWs()
     this.room.onCloseClient(this)
+    console.log(`Client '${this.id}' left the room '${this.room.id}'`)
     this.room = null
-    console.log(`Client '${this.id}' has been closed`)
   }
 }
 
