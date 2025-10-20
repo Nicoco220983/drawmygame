@@ -210,6 +210,7 @@ export class Extra extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.stuckToOwner = true
+        this.extraKey = null
     }
 
     getPriority() {
@@ -235,7 +236,21 @@ export class Extra extends GameObject {
     }
 
     onGetCollected(owner) {
+        this.removeOwnerExtraWithSameKey(owner)
         owner.addExtra(this)
+    }
+
+    removeOwnerExtraWithSameKey(owner) {
+        const { extraKey } = this
+        if(!this.extraKey) return
+        const { extras } = owner
+        if(!extras) return
+        extras.forEach(extra2 => {
+            if(extra2.extraKey = extraKey) {
+                extra2.drop()
+                extra2.remove()  // TODO rm when infinite drop/collect solved
+            }
+        })
     }
 
     onDrop(owner) {
@@ -515,13 +530,6 @@ export class Nico extends Hero {
     }
 
     addExtra(extra) {
-        if(extra.isActionExtra) {
-            const prevActionExtra = this.getActionExtra()
-            if(prevActionExtra) {
-                prevActionExtra.drop()
-                prevActionExtra.remove()  // TODO rm when infinite drop/collect solved
-            }
-        }
         super.addExtra(extra)
         if(extra.isActionExtra) this.syncJoypadActionButton()
     }
@@ -628,6 +636,7 @@ export class Sword extends Weapon {
 
     init(kwargs) {
         super.init(kwargs)
+        this.extraKey = "hands"
         this.isActionExtra = true
         this.attackDamages = 100
         this.attackPeriod = SWORD_ATTACK_PERIOD
@@ -699,6 +708,7 @@ export class BoxingGlove extends Weapon {
 
     init(kwargs) {
         super.init(kwargs)
+        this.extraKey = "hands"
         this.isActionExtra = true
         this.attackDamages = 0
         this.attackKnockback = 500
@@ -774,6 +784,7 @@ export class ShurikenPack extends Extra {
 
     init(kwargs) {
         super.init(kwargs)
+        this.extraKey = "hands"
         this.isActionExtra = true
         this.actLastTryIt = -Infinity
         this.actRemIt = 0
@@ -875,6 +886,7 @@ export class Bomb extends Extra {
     init(kwargs) {
         super.init(kwargs)
         this.width = this.height = 40
+        this.extraKey = "hands"
         this.isActionExtra = true
     }
 
@@ -986,6 +998,7 @@ export class JetPack extends Extra {
         this.acc = 1200
         this.dec = 3000
         this.flyLastIt = -Infinity
+        this.extraKey = "back"
     }
 
     onGetCollected(owner) {
