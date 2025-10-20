@@ -541,7 +541,6 @@ export class StandardScene extends GameScene {
 
     init(args) {
         super.init(args)
-        this.backgroundColor = null
         this.hud = new HeadsUpDisplay(this)
     }
 
@@ -555,12 +554,12 @@ export class StandardScene extends GameScene {
     update() {
         super.update()
         this.background.update()
-        this.hud.update()
         this.borderManager.update()
         this.viewManager.update()
         this.herosLivesManager.update()
         this.physicsManager.update()
         this.attackManager.update()
+        this.hud.update()
         if(this.step == "GAME") {
             let allOk = null
             if(allOk!==false && this.catchAllStars) {
@@ -612,6 +611,11 @@ export class StandardScene extends GameScene {
     default: { key: "std:LoopBorderManager" },
     showInBuilder: true,
 })
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
 export class TagScene extends GameScene {
     
     init(args) {
@@ -653,10 +657,11 @@ export class TagScene extends GameScene {
 
     update() {
         super.update()
-        this.hud.update()
+        this.background.update()
         this.borderManager.update()
         this.physicsManager.update()
         this.attackManager.update()
+        this.hud.update()
         this.checkTaggedHero()
         this.preventTaggedHeroToMove(this.step == "INIT")
         if(this.step == "INIT") this.updateStepInit()
@@ -747,6 +752,10 @@ export class TagScene extends GameScene {
         this.hud.draw(drawer)
         return res
     }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
+    }
 }
 
 
@@ -803,6 +812,11 @@ export class Tag extends GameObject {
     default: { key: "std:LoopBorderManager" },
     showInBuilder: true,
 })
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
 export class StealTreasures extends GameScene {
     
     init(args) {
@@ -847,10 +861,11 @@ export class StealTreasures extends GameScene {
 
     update() {
         super.update()
-        this.hud.update()
+        this.background.update()
         this.borderManager.update()
         this.physicsManager.update()
         this.attackManager.update()
+        this.hud.update()
     }
 
     updateStepGame() {
@@ -887,6 +902,10 @@ export class StealTreasures extends GameScene {
         const drawer = this.graphicsEngine
         this.hud.draw(drawer)
         return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
     }
 }
 

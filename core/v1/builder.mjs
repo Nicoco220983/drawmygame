@@ -619,6 +619,7 @@ class ObjectStateElement extends HTMLElement {
         this.shadowRoot.append(styleEl, this.propsEl)
     }
     initObject(obj) {
+        this.propsEl.style.display = "none"
         this.propsEl.innerHTML = ""
         obj.constructor.STATE_PROPS.forEach(prop => {
             if(!prop.showInBuilder) return
