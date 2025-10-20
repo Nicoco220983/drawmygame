@@ -1067,7 +1067,7 @@ export class WaitingScene extends SceneCommon {
     }
 
     async loadJoypadScene() {
-        const { JoypadWaitingScene } = await importAndPreload("./joypad.mjs")
+        const { JoypadWaitingScene } = await importAndPreload("/static/catalogs/std/v1/2Dside/joypad.mjs")
         return new JoypadWaitingScene(this.game)
     }
 }
