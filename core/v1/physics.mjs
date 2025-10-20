@@ -1,7 +1,6 @@
 const { abs, floor, ceil, min, max, pow, sqrt, hypot, atan2, PI, random } = Math
 const { assign } = Object
 import * as utils from './utils.mjs'
-const { checkHit } = utils
 
 const FLOAT_PRECISION_CORRECTION = .00001
 const DEFAULT_GRAVITY_ACC = 1000

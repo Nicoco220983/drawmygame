@@ -1,7 +1,7 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { urlAbsPath, addToLoads, checkAllLoadsDone, checkHit, sumTo, newCanvas, newDomEl, addNewDomEl } = utils
+const { sumTo, newCanvas, newDomEl, addNewDomEl } = utils
 import { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, now, FPS } from './game.mjs'
 import { GraphicsProps } from './graphics.mjs'
 
