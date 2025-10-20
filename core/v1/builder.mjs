@@ -607,26 +607,23 @@ class ObjectStateElement extends HTMLElement {
         const styleEl = document.createElement('style')
         styleEl.textContent = ``
 
-        this.statesEl = newDomEl("div", {
-            display: "flex",
-            flexDirection: "column",
+        this.propsEl = newDomEl("div", {
+            style: {
+                padding: ".5em",
+                display: "none",
+                flexDirection: "column",
+                gap: ".2em",
+                border: "1px solid lightgrey"
+            }
         })
-        this.shadowRoot.append(styleEl, this.statesEl)
+        this.shadowRoot.append(styleEl, this.propsEl)
     }
     initObject(obj) {
-        this.statesEl.innerHTML = ""
+        this.propsEl.innerHTML = ""
         obj.constructor.STATE_PROPS.forEach(prop => {
             if(!prop.showInBuilder) return
-            const wrapperEl = addNewDomEl(this.statesEl, "div", {
-                style: {
-                    display: "flex",
-                    flexDirection: "row",
-                }
-            })
-            addNewDomEl(wrapperEl, "span", {
-                text: prop.key
-            })
-            wrapperEl.appendChild(prop.createObjectInput(obj))
+            this.propsEl.style.display = "flex"
+            this.propsEl.appendChild(prop.createObjectInput(obj))
         })
     }
     setOptionKey(optionEl, objKey) {

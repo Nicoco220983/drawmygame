@@ -455,43 +455,80 @@ export class StateProperty {
     }
     // inputs
     createObjectInput(obj) {
-        if(this.nullableWith !== undefined) return this.createNullableInput(obj)
-        else return this.createInput(obj)
-    }
-    createNullableInput(obj) {
         const val = this.getObjectPropState(obj)
         const wrapperEl = newDomEl("div", {
             style: {
                 display: "flex",
                 flexDirection: "row",
+                gap: ".5em",
             }
         })
-        const nullEl = newDomEl("input", {
-            type: "checkbox",
+        addNewDomEl(wrapperEl, "span", {
+            text: this.key
         })
-        wrapperEl.appendChild(nullEl)
-        if(val === null) nullEl.checked = true
-        const nullTxtEl = newDomEl("div", {
-            text: this.nullableWith,
-        })
-        wrapperEl.appendChild(nullTxtEl)
-        const valEl = this.createInput(obj)
-        wrapperEl.appendChild(valEl)
-        const syncEls = () => {
-            valEl.style.display = nullEl.checked ? "none" : "block"
-            nullTxtEl.style.display = nullEl.checked ? "block" : "none"
+        let nullEl = null, nullTxtEl = null
+        if(this.nullableWith !== undefined) {
+            nullEl = addNewDomEl(wrapperEl, "input", {
+                type: "checkbox",
+            })
+            if(val === null) nullEl.checked = true
+            nullTxtEl = addNewDomEl(wrapperEl, "div", {
+                text: this.nullableWith,
+            })
+            nullEl.addEventListener("change", () => {
+                syncEls()
+                if(nullEl.checked) this.setObjectPropFromState(obj, null)
+                else this.syncObjectFromInput(valEl, obj)
+            })
         }
-        nullEl.addEventListener("change", () => {
-            syncEls()
-            if(nullEl.checked) this.setObjectPropFromState(obj, null)
-            else this.syncObjectFromInput(valEl, obj)
-        })
-        valEl.addEventListener("change", syncEls)
+        const valEl = this.createObjectBaseInput(obj)
+        wrapperEl.appendChild(valEl)
+        valEl.addEventListener("change", () => syncEls())
+        const syncEls = () => {
+            valEl.style.display = nullEl?.checked ? "none" : "block"
+            if(nullTxtEl) nullTxtEl.style.display = nullEl?.checked ? "block" : "none"
+        }
         syncEls()
         return wrapperEl
     }
-    // TODO: remove it
-    createInput(obj) {
+    // createNullableInput(obj) {
+    //     const val = this.getObjectPropState(obj)
+    //     const wrapperEl = newDomEl("div", {
+    //         style: {
+    //             display: "flex",
+    //             flexDirection: "row",
+    //         }
+    //     })
+    //     addNewDomEl(wrapperEl, "span", {
+    //         text: this.key
+    //     })
+    //     let nullEl = null, nullTxtEl = null
+    //     if(this.nullableWith !== undefined) {
+    //         nullEl = addNewDomEl(wrapperEl, "input", {
+    //             type: "checkbox",
+    //         })
+    //         if(val === null) nullEl.checked = true
+    //         nullTxtEl = addNewDomEl(wrapperEl, "div", {
+    //             text: this.nullableWith,
+    //         })
+    //         nullEl.addEventListener("change", () => {
+    //             syncEls()
+    //             if(nullEl.checked) this.setObjectPropFromState(obj, null)
+    //             else this.syncObjectFromInput(valEl, obj)
+    //         })
+    //     }
+    //     const valEl = this.createObjectBaseInput(obj)
+    //     wrapperEl.appendChild(valEl)
+    //     valEl.addEventListener("change", () => syncEls())
+    //     const syncEls = () => {
+    //         valEl.style.display = nullEl?.checked ? "none" : "block"
+    //         if(nullTxtEl) nullTxtEl.style.display = nullEl?.checked ? "block" : "none"
+    //     }
+    //     syncEls()
+    //     return wrapperEl
+    // }
+    // TODO: remove it for generic StateProperty
+    createObjectBaseInput(obj) {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "text",
@@ -509,7 +546,7 @@ export class StateProperty {
 export class StateBool extends StateProperty {
     static DEFAULT_STATE_VALUE = false
 
-    createInput(obj) {
+    createObjectBaseInput(obj) {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "checkbox",
@@ -545,7 +582,7 @@ export class StateNumber extends StateProperty {
         if(valState === null) return obj[key] = this.nullableWith ?? null
         obj[key] = valState * this.precision
     }
-    createInput(obj) {
+    createObjectBaseInput(obj) {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "number",
@@ -570,7 +607,7 @@ export class StateEnum extends StateProperty {
         super(key, kwargs)
         this.options = kwargs.options
     }
-    createInput(obj) {
+    createObjectBaseInput(obj) {
         const { options } = this
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("select")
@@ -599,7 +636,7 @@ export class StateIntEnum extends StateEnum {
 export class StateString extends StateProperty {
     static DEFAULT_STATE_VALUE = ""
 
-    createInput(obj) {
+    createObjectBaseInput(obj) {
         const val = this.getObjectPropState(obj)
         const inputEl = newDomEl("input", {
             type: "text",
@@ -1001,30 +1038,45 @@ GameObject.StateProperty = class extends StateProperty {
             this.setObjectPropFromState(obj, this.defaultStateValue)
         }
     }
-    createInput(obj) {
+    createObjectInput(obj) {
+        const wrapperEl = newDomEl("div", {
+            style: {
+                display: "flex",
+                flexDirection: "column",
+                gap: ".2em",
+            }
+        })
+        const inputEl = super.createObjectInput(obj)
+        wrapperEl.appendChild(inputEl)
+        const statesEl = this.createObjectStatesInput(obj)
+        wrapperEl.appendChild(statesEl)
+        inputEl.addEventListener("change", () => {
+            this.syncObjectFromInput(inputEl, obj)
+            statesEl.showObjectStates(obj[this.key])
+        })
+        return wrapperEl
+    }
+    createObjectBaseInput(obj) {
         const objVal = obj[this.key]
         const { catalog, map } = obj.game
-        const inputEl = newDomEl("div")
-        const selectEl = inputEl.selectEl = addNewDomEl(inputEl, "dmg-object-selector")
+        const inputEl = addNewDomEl(inputEl, "dmg-object-selector")
         let filterFun = null
         if(this.filter) filterFun = obj => filterObject(this.filter, obj)
-        selectEl.initCatalog(map.perspective, map.versions, catalog, filterFun)
-        const statesEl = addNewDomEl(inputEl, "dmg-object-state", {
+        inputEl.initCatalog(map.perspective, map.versions, catalog, filterFun)
+        if(objVal) inputEl.setSelectedObject(objVal.getKey())
+        return inputEl
+    }
+    createObjectStatesInput(obj) {
+        const objVal = obj[this.key]
+        const statesEl = newDomEl("dmg-object-state", {
             style: { display: "none" }
         })
-        const showObjectStates = objVal => {
+        statesEl.showAndInit = objVal => {
             statesEl.style.display = ""
             statesEl.initObject(objVal)
         }
-        if(objVal) {
-            selectEl.setSelectedObject(objVal.getKey())
-            showObjectStates(objVal)
-        }
-        selectEl.addEventListener("change", () => {
-            this.syncObjectFromInput(inputEl, obj)
-            showObjectStates(obj[this.key])
-        })
-        return inputEl
+        if(objVal) statesEl.showAndInit(objVal)
+        return statesEl
     }
     syncObjectFromInput(inputEl, obj) {
         const objKey = inputEl.selectEl.value
@@ -1363,7 +1415,7 @@ ObjectRefs.StateProperty = class extends StateProperty {
         const val = obj[this.key]
         val.setState(valState ?? null)
     }
-    createInput(obj) {
+    createObjectBaseInput(obj) {
         // TODO
     }
 }
