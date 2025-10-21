@@ -28,12 +28,14 @@ export const MSG_KEY_JOIN_GAME = 2
 export const MSG_KEY_STATE = 3
 export const MSG_KEY_GAME_INSTRUCTION = 4
 export const MSG_KEY_GAME_REINIT = 5
+export const MSG_KEY_GAME_STOPPED = 6
 
 export const GAME_INSTR_START = 0
 export const GAME_INSTR_RESTART = 1
-export const GAME_INSTR_PAUSE = 2
-export const GAME_INSTR_UNPAUSE = 3
-export const GAME_INSTR_STATE = 4
+export const GAME_INSTR_STOP = 2
+export const GAME_INSTR_PAUSE = 3
+export const GAME_INSTR_UNPAUSE = 4
+export const GAME_INSTR_STATE = 5
 
 const STATE_TYPE_FULL = "F"
 const STATE_TYPE_INPUT = "I"
@@ -1442,6 +1444,7 @@ export class GameCommon {
         }
 
         this.game = this
+        this.gameLoop = null
         this.iteration = -1
         this.time = 0
         this.fps = FPS
@@ -1520,8 +1523,14 @@ export class GameCommon {
     }
 
     stop() {
-        if(this.gameLoop) clearTimeout(this.gameLoop)
+        if(!this.gameLoop) return
+        clearTimeout(this.gameLoop)
         this.gameLoop = null
+        this.onStop()
+    }
+
+    onStop() {
+        // to be replaced by game owner
     }
 
     async loadGameScenes() {

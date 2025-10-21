@@ -64,6 +64,7 @@
             <button id="fullscreen">Fullscreen</button>
             <button id="start">Start</button>
             <button id="restart">Restart</button>
+            <button id="stop">Stop</button>
             <button id="show_joypad_link"></button>
             <div id="joypad_qrcode"></div>
         </flexcol>
@@ -79,8 +80,8 @@ import { cloneCanvas, importJs } from '../static/core/v1/utils.mjs'
 import {
     pack, unpack,
     HAS_TOUCH, GameMap, Game, MODE_CLIENT,
-    MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT,
-    GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
+    MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
+    GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
 } from '../static/core/v1/game.mjs'
 import { loadCatalog } from '../static/core/v1/catalog.mjs'
 
@@ -137,8 +138,9 @@ try {
         )
     }
 
-    document.getElementById("start").onclick = startGame
-    document.getElementById("restart").onclick = restartGame
+    document.getElementById("start").onclick = requestStartGame
+    document.getElementById("restart").onclick = requestRestartGame
+    document.getElementById("stop").onclick = requestStopGame
 
     const gameParentEl = document.getElementById("game")
     const map = new GameMap()
@@ -240,6 +242,7 @@ try {
                 if(key == MSG_KEY_IDENTIFY_CLIENT) handleIdentifyClient(ws, body, ok)
                 else if(key == MSG_KEY_STATE) handleState(ws, body)
                 else if(key == MSG_KEY_GAME_REINIT) handleGameReinit(ws)
+                else if(key === MSG_KEY_GAME_STOPPED) handleGameStopped(ws)
                 else if(key == MSG_KEY_PING) handlePing(ws, body)
             })
             ws.addEventListener('close', () => {
@@ -262,8 +265,7 @@ try {
         catalogLoader ||= catalog.preloadAll()
         await catalogLoader
         if(!game || force) {
-            if(game) game.stop()
-            gameParentEl.innerHTML = ""
+            stopGame()
             game = new Game(gameParentEl, catalog, map, ws.id, {
                 mode: MODE_CLIENT,
                 sendPing: () => ws.send(toWsMsg(MSG_KEY_PING)),
@@ -306,6 +308,12 @@ try {
         if(game) game.focus()
     }
 
+    function stopGame() {
+        if(!game) return
+        game.stop()
+        gameParentEl.innerHTML = ""
+    }
+
     function handleState(ws, data) {
         if(game) game.receiveStatesFromLeader(data)
     }
@@ -315,17 +323,26 @@ try {
         await initGame(true)
     }
 
+    function handleGameStopped(ws) {
+        stopGame()
+    }
+
     function handlePing(ws, data) {
         if(game) game.receivePing(data)
     }
 
-    function startGame() {
+    function requestStartGame() {
         if(ws) ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_START])))
         if(game) game.focus()
     }
 
-    function restartGame() {
+    function requestRestartGame() {
         if(ws) ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_RESTART])))
+        if(game) game.focus()
+    }
+
+    function requestStopGame() {
+        if(ws) ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([GAME_INSTR_STOP])))
         if(game) game.focus()
     }
 

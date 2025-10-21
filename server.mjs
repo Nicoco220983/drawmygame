@@ -12,8 +12,8 @@ import bodyParser from 'body-parser'
 import {
   pack, unpack,
   GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
-  MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT,
-  GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
+  MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
+  GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
 } from './static/core/v1/game.mjs'
 
 import { loadCatalog } from './static/core/v1/catalog.mjs'
@@ -234,12 +234,14 @@ class GameServer {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
     const { game } = client.room
+    if(!game) return
     const instr = data[0]
-    if(instr == GAME_INSTR_RESTART && game) game.restartGame()
-    else if(instr == GAME_INSTR_START && game) game.startGame()
-    else if(instr == GAME_INSTR_PAUSE && game) game.pause(true)
-    else if(instr == GAME_INSTR_UNPAUSE && game) game.pause(false)
-    else if(instr == GAME_INSTR_STATE && game) game.getAndSendFullState()
+    if(instr == GAME_INSTR_RESTART) game.restartGame()
+    else if(instr == GAME_INSTR_START) game.startGame()
+    else if(instr == GAME_INSTR_STOP) game.stop()
+    else if(instr == GAME_INSTR_PAUSE) game.pause(true)
+    else if(instr == GAME_INSTR_UNPAUSE) game.pause(false)
+    else if(instr == GAME_INSTR_STATE) game.getAndSendFullState()
     else console.warn(`Unknown game instruction: ${instr}`)
   }
 
@@ -254,6 +256,11 @@ class GameServer {
       debug: IS_DEBUG_MODE,
     })
     await game.loadWaitingScenes()
+    game.onStop = () => {
+      console.log(`Game of room '${room.id}' stopped.`)
+      room.game = null
+      room.sendAll(toWsMsg(MSG_KEY_GAME_STOPPED))
+    }
     game.run()
     for(let clientId in room.clients) {
       const client = room.clients[clientId]
@@ -261,14 +268,13 @@ class GameServer {
       const color = client.playerColor
       if(name) game.addPlayer(clientId, { num: client.num, name, color })
     }
-    room.sendAll(MSG_KEY_GAME_REINIT)
-    //game.getAndSendFullState()
+    room.sendAll(toWsMsg(MSG_KEY_GAME_REINIT))
   }
 
   handlePing(ws) {
     const { client } = ws
     if(!client || client.closed) { closeWs(ws); return }
-    ws.send(MSG_KEY_PING)
+    ws.send(toWsMsg(MSG_KEY_PING))
   }
 
   handleClientDeconnection(ws) {
