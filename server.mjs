@@ -85,69 +85,70 @@ class GameServer {
       res.end('pong')
     })
     
-    this.app.post("/map/:mapId", (req, res) => {
-      const { mapId } = req.params
-      const mapBuf = new Buffer(req.body.toString('binary'),'binary')
-      this.maps[mapId] = mapBuf
-      res.end()
+    this.app.post("/map/:mapId", (req, res, next) => {
+      try {
+        const { mapId } = req.params
+        const mapBuf = new Buffer(req.body.toString('binary'),'binary')
+        this.maps[mapId] = mapBuf
+        res.end()
+      } catch(err) { next(err) }
     })
 
-    // this.app.get("/map/:mapId", (req, res) => {
-    //   const mapBuf = this.maps[mapId]
-    //   if(!mapBuf) return res.sendStatus(404)
-    //   res.writeHead(200, {
-    //     "Content-Type": "application/octet-stream"
-    //   }).end(mapBuf)
-    // })
-
-    this.app.post("/newroom", (req, res) => {
-      const roomId = this.newRoom()
-      res.json({ roomId })
+    this.app.post("/newroom", (req, res, next) => {
+      try {
+        const roomId = this.newRoom()
+        res.json({ roomId })
+      } catch(err) { next(err) }
     })
 
-    this.app.post("/room/:roomId/map/:mapId", async (req, res) => {
-      const { roomId, mapId } = req.params
-      const room = this.rooms[roomId]
-      const mapBuf = this.maps[mapId]
-      if(!room || !mapBuf) return res.sendStatus(404)
-      room.mapBuf = mapBuf
-      this.startGame(room)
-      res.end()
+    this.app.post("/room/:roomId/map/:mapId", async (req, res, next) => {
+      try {
+        const { roomId, mapId } = req.params
+        const room = this.rooms[roomId]
+        const mapBuf = this.maps[mapId]
+        if(!room || !mapBuf) return res.sendStatus(404)
+        room.mapBuf = mapBuf
+        this.startGame(room)
+        res.end()
+      } catch(err) { next(err) }
     })
 
-    // this.app.post("/room/:roomId/map", async (req, res) => {
-    //   const { roomId } = req.params
-    //   const room = this.rooms[roomId]
-    //   if(!room) return res.sendStatus(404)
-    //   room.mapBuf = new Buffer(req.body.toString('binary'),'binary')
-    //   this.startGame(room)
-    //   res.end()
-    // })
-
-    this.app.get("/room/:roomId/map", (req, res) => {
-      const { roomId } = req.params
-      const room = this.rooms[roomId]
-      if(!room || !room.mapBuf) return res.sendStatus(404)
-      res.writeHead(200, {
-        "Content-Type": "application/octet-stream"
-      }).end(room.mapBuf)
+    this.app.get("/room/:roomId/map", (req, res, next) => {
+      try {
+        const { roomId } = req.params
+        const room = this.rooms[roomId]
+        if(!room || !room.mapBuf) return res.sendStatus(404)
+        res.writeHead(200, {
+          "Content-Type": "application/octet-stream"
+        }).end(room.mapBuf)
+      } catch(err) { next(err) }
     })
 
-    this.app.ws('/client', (ws, req) => {
+    this.app.ws('/client', (ws, req, next) => {
       ws.on('message', msg => {
-        const key = msg[0]
-        const body = msg.subarray(1)
-        if(key == MSG_KEY_STATE) this.handleState(ws, body)
-        else if(key == MSG_KEY_IDENTIFY_CLIENT) this.handleIdentifyClient(ws, unpack(body))
-        else if(key == MSG_KEY_JOIN_GAME) this.handleJoinGame(ws, unpack(body))
-        else if(key == MSG_KEY_GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
-        else if(key == MSG_KEY_PING) this.handlePing(ws)
-        else console.warn("Unknown websocket key", key)
+        try {
+          const key = msg[0]
+          const body = msg.subarray(1)
+          if(key == MSG_KEY_STATE) this.handleState(ws, body)
+          else if(key == MSG_KEY_IDENTIFY_CLIENT) this.handleIdentifyClient(ws, unpack(body))
+          else if(key == MSG_KEY_JOIN_GAME) this.handleJoinGame(ws, unpack(body))
+          else if(key == MSG_KEY_GAME_INSTRUCTION) this.handleGameInstruction(ws, body)
+          else if(key == MSG_KEY_PING) this.handlePing(ws)
+          else console.warn("Unknown websocket key", key)
+        } catch(err) { console.error(err) }
       })
       ws.on('close', () => {
-        console.log(`Client '${ws.client.id}' disconnected`)
-        this.handleClientDeconnection(ws)
+        try {
+          console.log(`Client '${ws.client.id}' disconnected`)
+          this.handleClientDeconnection(ws)
+        } catch(err) { console.error(err) }
       })
+    })
+
+    // unexpected error handler
+    this.app.use((err, req, res, next) => {
+      console.log(err)
+      res.sendStatus(500)
     })
   }
 

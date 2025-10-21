@@ -552,7 +552,6 @@ export class StandardScene extends GameScene {
     }
 
     update() {
-        if(this.iteration == 100) throw new Error("TMP BOOM")
         super.update()
         this.background.update()
         this.borderManager.update()
