@@ -46,6 +46,10 @@
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame MultiPlayer Game</h1>
+    <flexrow id="section_load_map" style="display: none">
+        <input id="map_id" value="0">
+        <button id="load_map">Load map</button>
+    </flexrow>
     <flexrow id="section_join" style="display: none">
         <input id="player_name" type="text">
         <input id="player_color" type="color">
@@ -57,10 +61,6 @@
     </flexrow>
     <flexrow id="section_game" style="display: none">
         <flexcol>
-            <flexrow>
-                <input id="map_id" value="0">
-                <button id="load_map">Load map</button>
-            </flexrow>
             <button id="fullscreen">Fullscreen</button>
             <button id="start">Start</button>
             <button id="restart">Restart</button>
@@ -150,15 +150,16 @@ try {
     showGameEl.checked = IS_MOBILE ? (url.searchParams.get("game") == "1") : (url.searchParams.get("game") != "0")
     const showJoypadEl = document.getElementById("show_joypad")
     showJoypadEl.checked = IS_MOBILE ? (url.searchParams.get("joypad") != "0") : (url.searchParams.get("joypad") == "1")
-    const isGameVisible = () => showGameEl.checked
-    const isJoypadVisible = () => joined && showJoypadEl.checked
+    const isGameVisible = () => game && showGameEl.checked
+    const isJoypadVisible = () => joined && game && showJoypadEl.checked
     const syncGameShow = () => {
         if(game) {
             game.setGameSceneVisibility(isGameVisible())
             game.setJoypadSceneVisibility(isJoypadVisible())
         }
+        document.getElementById("section_load_map").style.display = game ? "none" : ""
+        document.getElementById("section_show_game").style.display = game ? "" : "none"
         document.getElementById("section_game").style.display = (isGameVisible() || isJoypadVisible()) ? "" : "none"
-        document.getElementById("section_show_game").style.display = ""
     }
     showGameEl.onchange = function() {
         url.searchParams.set('game', showGameEl.checked ? "1" : "0")
@@ -219,9 +220,8 @@ try {
     async function main() {
         catalog = await loadCatalog()
         await connectToRoom()
-        await getMap()
         await initGame()
-        requestState()
+        syncGameShow()
     }
 
     function connectToRoom() {
@@ -253,15 +253,20 @@ try {
         })
     }
 
-    async function getMap() {
-        const res = await fetch(`/room/${roomId}/map`)
-        const mapBin = await res.arrayBuffer()
-        await map.importFromBinary(mapBin)
+    async function getRoomMap() {
+        const resp = await fetch(`/room/${roomId}/map`)
+        if(resp.status == 200) {
+            const mapBin = await resp.arrayBuffer()
+            await map.importFromBinary(mapBin)
+            return true
+        }
+        return false
     }
 
     let catalogLoader = null
     async function initGame(force) {
-        if(!isGameVisible() && !isJoypadVisible()) return
+        if(!(await getRoomMap())) return
+        //if(!isGameVisible() && !isJoypadVisible()) return
         catalogLoader ||= catalog.preloadAll()
         await catalogLoader
         if(!game || force) {
@@ -274,6 +279,7 @@ try {
                 debug: isDebugMode,
             })
             game.run()
+            requestState()
             syncGameShow()
         }
     }
@@ -311,7 +317,9 @@ try {
     function stopGame() {
         if(!game) return
         game.stop()
+        game = null
         gameParentEl.innerHTML = ""
+        syncGameShow()
     }
 
     function handleState(ws, data) {
@@ -319,7 +327,6 @@ try {
     }
 
     async function handleGameReinit(ws) {
-        await getMap()
         await initGame(true)
     }
 

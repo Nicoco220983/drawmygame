@@ -117,7 +117,7 @@ class GameServer {
       try {
         const { roomId } = req.params
         const room = this.rooms[roomId]
-        if(!room || !room.mapBuf) return res.sendStatus(404)
+        if(!room || !room.mapBuf || !room.game) return res.sendStatus(404)
         res.writeHead(200, {
           "Content-Type": "application/octet-stream"
         }).end(room.mapBuf)
@@ -139,7 +139,6 @@ class GameServer {
       })
       ws.on('close', () => {
         try {
-          console.log(`Client '${ws.client.id}' disconnected`)
           this.handleClientDeconnection(ws)
         } catch(err) { console.error(err) }
       })
@@ -292,6 +291,8 @@ class Room {
     this.id = id
     this.numLastClient = 0
     this.clients = {}
+    this.mapBuf = null
+    this.game = null
     this.server.registerRoom(this)
     this.initCloseCountdown()
     console.log(`Room '${this.id}' has been created`)
