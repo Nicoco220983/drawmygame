@@ -175,7 +175,7 @@ function setBuilderMode(builderMode, builderModeKey) {
 }
 
 
-document.getElementById("game_draw").onclick = Keys["d"] = startAndShowBuilder
+document.getElementById("game_draw").onclick = startAndShowBuilder
 
 async function saveMap() {
     const mapId = document.getElementById("game_map_id").value
@@ -204,7 +204,7 @@ document.getElementById("game_share").onclick = async () => {
     }
 }
 
-document.getElementById("game_start").onclick = Keys["p"] = () => startAndShowGame(false)
+document.getElementById("game_start").onclick = () => startAndShowGame(false)
 document.getElementById("game_multi").onclick = async () => {
     const mapId = document.getElementById("game_map_id").value
     if(!mapId) return

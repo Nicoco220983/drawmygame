@@ -47,7 +47,7 @@ export class GrassBlock extends Block {
         let img = GrassImg
         if(this.color) {
             img = cachedTransform(img, this.color, () => {
-                return colorizeCanvas(cloneCanvas(img), this.color)
+                return colorizeCanvas(cloneCanvas(img), this.color, "#6f911b")
             })
         }
         return img

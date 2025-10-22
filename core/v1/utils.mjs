@@ -76,100 +76,13 @@ function cloneCanvas(canvas, kwargs) {
 }
 
 /**
- * Applies a color tint to a canvas in-place
- * @param {HTMLCanvasElement} canvas - Canvas to colorize
- * @param {string} color - Color to apply as tint
- * @returns {HTMLCanvasElement} The modified canvas
+ * Colorizes a canvas by shifting the hue of its pixels.
+ * @param {HTMLCanvasElement} canvas - The canvas to colorize.
+ * @param {string} toColor - The target color.
+ * @param {string} [fromColor="red"] - The source color to be replaced.
+ * @returns {HTMLCanvasElement} The colorized canvas.
  */
-// function colorizeCanvas(canvas, color) {
-//     const { width, height } = canvas
-//     const ctx = canvas.getContext("2d")
-//     const colorCanvas = newCanvas(width, height, color)
-//     const colorCtx = colorCanvas.getContext("2d")
-//     colorCtx.save()
-//     colorCtx.globalCompositeOperation = "destination-in"
-//     colorCtx.drawImage(canvas, 0, 0, width, height)
-//     colorCtx.globalCompositeOperation = "saturation"
-//     colorCtx.drawImage(canvas, 0, 0, width, height)
-//     colorCtx.restore()
-//     return colorCanvas
-// }
-
-
-function incrCanvasHue(canvas, delta) {
-    const { width, height } = canvas;
-    const ctx = canvas.getContext("2d");
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-
-    const res = document.createElement("canvas");
-    res.width = width;
-    res.height = height;
-    const resCtx = res.getContext("2d");
-    const resData = resCtx.createImageData(width, height);
-    const out = resData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i] / 255;
-        const g = data[i + 1] / 255;
-        const b = data[i + 2] / 255;
-
-        // --- Convertir RGB -> HSL
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h, s, l = (max + min) / 2;
-        if (max === min) {
-            h = s = 0; // gris
-        } else {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            switch (max) {
-                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                case g: h = (b - r) / d + 2; break;
-                case b: h = (r - g) / d + 4; break;
-            }
-            h /= 6;
-        }
-
-        // --- Incrémenter la teinte
-        h = (h + delta / 360) % 1;
-        if (h < 0) h += 1;
-
-        // --- Convertir HSL -> RGB
-        let r2, g2, b2;
-        if (s === 0) {
-            r2 = g2 = b2 = l; // gris
-        } else {
-            const hue2rgb = (p, q, t) => {
-                if (t < 0) t += 1;
-                if (t > 1) t -= 1;
-                if (t < 1 / 6) return p + (q - p) * 6 * t;
-                if (t < 1 / 2) return q;
-                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-                return p;
-            };
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            r2 = hue2rgb(p, q, h + 1 / 3);
-            g2 = hue2rgb(p, q, h);
-            b2 = hue2rgb(p, q, h - 1 / 3);
-        }
-
-        out[i] = Math.round(r2 * 255);
-        out[i + 1] = Math.round(g2 * 255);
-        out[i + 2] = Math.round(b2 * 255);
-        out[i + 3] = data[i + 3]; // alpha inchangé
-    }
-
-    resCtx.putImageData(resData, 0, 0);
-    return res;
-}
-
-function colorizeCanvas(canvas, color) {
-    return colorizeCanvasGlobal(canvas, "red", color)
-}
-
-function colorizeCanvasGlobal(canvas, fromColor, toColor) {
+function colorizeCanvas(canvas, toColor, fromColor="red") {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   const imgData = ctx.getImageData(0, 0, width, height);
@@ -201,14 +114,17 @@ function colorizeCanvasGlobal(canvas, fromColor, toColor) {
     data[i]     = newRGB.r;
     data[i + 1] = newRGB.g;
     data[i + 2] = newRGB.b;
-    // ✅ Do NOT touch alpha channel:
-    // data[i + 3] = a;
   }
 
   ctx.putImageData(imgData, 0, 0);
   return canvas;
 }
 
+/**
+ * Converts a CSS color string to an RGB object.
+ * @param {string} css - The CSS color string.
+ * @returns {{r: number, g: number, b: number}} The RGB object.
+ */
 function cssColorToRGB(css) {
   const ctx = document.createElement("canvas").getContext("2d");
   ctx.fillStyle = css;
@@ -226,6 +142,13 @@ function cssColorToRGB(css) {
   return { r: +cs[0], g: +cs[1], b: +cs[2] };
 }
 
+/**
+ * Converts an RGB color value to HSV.
+ * @param {number} r - The red color value.
+ * @param {number} g - The green color value.
+ * @param {number} b - The blue color value.
+ * @returns {{h: number, s: number, v: number}} The HSV color value.
+ */
 function rgbToHSV(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -242,6 +165,13 @@ function rgbToHSV(r, g, b) {
   return { h, s, v };
 }
 
+/**
+ * Converts an HSV color value to RGB.
+ * @param {number} h - The hue color value.
+ * @param {number} s - The saturation color value.
+ * @param {number} v - The value color value.
+ * @returns {{r: number, g: number, b: number}} The RGB color value.
+ */
 function hsvToRGB(h, s, v) {
   const c = v * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -414,7 +344,6 @@ export {
     newCanvas,
     cloneCanvas,
     colorizeCanvas,
-    incrCanvasHue,
     addCanvas,
     newTextCanvas,
     cachedTransform,
