@@ -1,3 +1,7 @@
+/**
+ * @fileoverview This file contains the physics engine for the game.
+ * @author ncarrez
+ */
 const { abs, floor, ceil, min, max, pow, sqrt, hypot, atan2, PI, random } = Math
 const { assign } = Object
 import * as utils from './utils.mjs'
@@ -9,12 +13,26 @@ const DEFAULT_GRAVITY_MAX_SPEED = 1000
 
 const colRes = {}, blockerColRes = {}, projRes = {}
 
+/**
+ * @class PhysicsEngine
+ * @description Handles physics simulation for the game.
+ */
 export default class PhysicsEngine {
+    /**
+     * @param {object} scn - The scene object.
+     */
     constructor(scn) {
         this.scene = scn
         this.gravityAcc = scn?.physicsManager.gravityAcc ?? DEFAULT_GRAVITY_ACC
         this.gravityMaxSpeed = scn?.physicsManager.gravityMaxSpeed ?? DEFAULT_GRAVITY_MAX_SPEED
     }
+
+    /**
+     * @description Get the hit properties of an object.
+     * @param {object} obj - The game object.
+     * @param {number} dt - The delta time.
+     * @returns {object} The hit properties of the object.
+     */
     getObjectHitProps(obj, dt) {
         const props = obj.getHitProps(dt)
         props.obj = obj
@@ -57,6 +75,12 @@ export default class PhysicsEngine {
         if(dx != 0 && dy != 0) normals.push(dy, -dx)
         return props
     }
+
+    /**
+     * @description Apply physics to the objects.
+     * @param {number} dt - The delta time.
+     * @param {Array<object>} objects - The list of game objects.
+     */
     apply(dt, objects) {
         // apply blocks and speeds
         const blockersProps = []
@@ -73,7 +97,7 @@ export default class PhysicsEngine {
             const { x: objOrigX, y: objOrigY, speedX: objOrigSpdX, speedY: objOrigSpdY } = obj
             const objOrigDx = objOrigSpdX * dt, objOrigDy = objOrigSpdY * dt
             if((obj.canGetBlocked || obj.checkBlocksAnyway) && (objOrigSpdX != 0 || objOrigSpdY != 0)) {
-                const objOrigD = dist(objOrigDx, objOrigDy) * dt
+                const objOrigD = hypot(objOrigDx, objOrigDy) * dt
                 while(remD > 0) {
                     colRes.time = Infinity
                     const objProps = this.getObjectHitProps(obj, dt*remD)
@@ -191,6 +215,11 @@ export default class PhysicsEngine {
         }
     }
 
+    /**
+     * @description Apply gravity to an object.
+     * @param {number} dt - The delta time.
+     * @param {object} obj - The game object.
+     */
     applyGravity(dt, obj) {
         const { gravityAcc, gravityMaxSpeed } = this
         if(obj.speedY >= gravityMaxSpeed) return
@@ -198,7 +227,12 @@ export default class PhysicsEngine {
     }
 }
 
-// Fonction principale pour détecter le moment de collision
+/**
+ * @description Detect the collision time between two objects.
+ * @param {object} hitProps1 - The hit properties of the first object.
+ * @param {object} hitProps2 - The hit properties of the second object.
+ * @param {object} res - The result object.
+ */
 function detectCollisionTime(hitProps1, hitProps2, res) {
     res.obj = null
     res.time = 0
@@ -217,6 +251,12 @@ function detectCollisionTime(hitProps1, hitProps2, res) {
     _checkUniDir2(hitProps1, hitProps2, res)
 }
 
+/**
+ * @description Check the unidirectional collision.
+ * @param {object} hitProps1 - The hit properties of the first object.
+ * @param {object} hitProps2 - The hit properties of the second object.
+ * @returns {boolean} True if there is a unidirectional collision, false otherwise.
+ */
 function _checkUniDir(hitProps1, hitProps2) {
     if(hitProps1.uniDirX === null) return false
     const { dx: dx1, dy: dy1 } = hitProps1
@@ -226,12 +266,25 @@ function _checkUniDir(hitProps1, hitProps2) {
     return dp >= 0
 }
 
+/**
+ * @description Check the unidirectional collision.
+ * @param {object} hitProps1 - The hit properties of the first object.
+ * @param {object} hitProps2 - The hit properties of the second object.
+ * @param {object} res - The result object.
+ */
 function _checkUniDir2(hitProps1, hitProps2, res) {
     if(hitProps1.uniDirX === null && hitProps2.uniDirX === null) return
     if(res.dist < -1) res.time = Infinity
 }
 
 const resProj1 = {}, resProj2 = {}, resOverlapTime = {}
+/**
+ * @description Detect the collision time between two objects.
+ * @param {object} hitProps1 - The hit properties of the first object.
+ * @param {object} hitProps2 - The hit properties of the second object.
+ * @param {number} num - The number of the object.
+ * @param {object} res - The result object.
+ */
 function _detectCollisionTime(hitProps1, hitProps2, num, res) {
     const pprops1 = (num==0) ? hitProps1 : hitProps2
     const pprops2 = (num==1) ? hitProps1 : hitProps2
@@ -257,7 +310,13 @@ function _detectCollisionTime(hitProps1, hitProps2, num, res) {
     }
 }
 
-// Fonction pour trouver le temps de chevauchement des projections sur un axe
+/**
+ * @description Get the overlap time between two projections.
+ * @param {object} proj1 - The projection of the first object.
+ * @param {object} proj2 - The projection of the second object.
+ * @param {number} relSpdProj - The relative speed projection.
+ * @param {object} res - The result object.
+ */
 function getOverlapTime(proj1, proj2, relSpdProj, res) {
 
     const dist12 = proj1.min - proj2.max, dist21 = proj2.min - proj1.max
@@ -283,13 +342,29 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
     else res.time = tEnter
 }
 
+/**
+ * @description Get the collision details.
+ * @param {object} colRes - The collision result.
+ * @returns {{
+ *   angle: number
+ * }} The collision details.
+ */
 function getCollisionDetails(colRes) {
     const { normalX, normalY, distFixSign } = colRes
     const colAngle = atan2(-normalY*distFixSign, -normalX*distFixSign)
     return { angle: colAngle*180/PI }
 }
 
-// Fonction pour projeter un polygone sur un axe
+/**
+ * @description Project a polygon on an axis.
+ * @param {Array<number>} polygon - The polygon to project.
+ * @param {number} ax - The x component of the axis.
+ * @param {number} ay - The y component of the axis.
+ * @param {{
+ *   min: number,
+ *   max: number
+ * }} res - The result object.
+ */
 function projectPolygonOnAxis(polygon, ax, ay, res) {
     const polyLen = polygon.length
     let pmin = Infinity, pmax = -Infinity
@@ -303,21 +378,32 @@ function projectPolygonOnAxis(polygon, ax, ay, res) {
     res.max = pmax
 }
 
+/**
+ * @description Calculate the dot product of two vectors.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @returns {number}
+ */
 function dotProduct(x1, y1, x2, y2) {
     return x1 * x2 + y1 * y2
 }
 
+/**
+ * @description Project a vector on another vector.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {{
+ *   x: number,
+ *   y: number
+ * }} res - The result object.
+ */
 function projection(x1, y1, x2, y2, res) {
-    const d22 = dist2(x2, y2)
+    const d22 = x2 ** 2 + y2 ** 2
     const dp = dotProduct(x1, y1, x2, y2)
     res.x = dp * x2 / d22
     res.y = dp * y2 / d22
-}
-
-function dist(x, y) {
-    return sqrt(x ** 2 + y ** 2)
-}
-
-function dist2(x, y) {
-    return x ** 2 + y ** 2
 }
