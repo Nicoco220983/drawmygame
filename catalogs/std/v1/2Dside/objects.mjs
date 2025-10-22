@@ -1315,17 +1315,6 @@ export class Ghost extends Enemy {
 
 const HeartImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/heart.png")
 
-const HeartSpriteSheetsImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/colorable_heart.png")
-export const HeartSpriteSheets = {
-    spritesheets: {},
-    get: function(color) {
-        return this.spritesheets[color] ||= new SpriteSheet((() => {
-            if(!color) return HeartSpriteSheetsImg
-            return colorizeCanvas(cloneCanvas(HeartSpriteSheetsImg), color)
-        })(), 2, 1)
-    },
-}
-
 @CATALOG.registerObject({
     label: "Heart",
     icon: HeartImg,
@@ -1360,7 +1349,7 @@ export class Heart extends GameObject {
     }
 
     getBaseImg() {
-        return HeartSpriteSheets.get("red").get(0)
+        return HeartImg
     }
 }
 

@@ -1,5 +1,5 @@
 const { assign } = Object
-const { min, max } = Math
+const { min, max, round } = Math
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
 
@@ -81,19 +81,181 @@ function cloneCanvas(canvas, kwargs) {
  * @param {string} color - Color to apply as tint
  * @returns {HTMLCanvasElement} The modified canvas
  */
-function colorizeCanvas(canvas, color) {
-    const { width, height } = canvas
-    const colorCanvas = newCanvas(width, height, color)
-    const colorCtx = colorCanvas.getContext("2d")
-    colorCtx.globalCompositeOperation = "destination-in"
-    colorCtx.drawImage(canvas, 0, 0, width, height)
-    const ctx = canvas.getContext("2d")
-    ctx.save()
-    ctx.globalCompositeOperation = "color"
-    ctx.drawImage(colorCanvas, 0, 0, width, height)
-    ctx.restore()
-    return canvas
+// function colorizeCanvas(canvas, color) {
+//     const { width, height } = canvas
+//     const ctx = canvas.getContext("2d")
+//     const colorCanvas = newCanvas(width, height, color)
+//     const colorCtx = colorCanvas.getContext("2d")
+//     colorCtx.save()
+//     colorCtx.globalCompositeOperation = "destination-in"
+//     colorCtx.drawImage(canvas, 0, 0, width, height)
+//     colorCtx.globalCompositeOperation = "saturation"
+//     colorCtx.drawImage(canvas, 0, 0, width, height)
+//     colorCtx.restore()
+//     return colorCanvas
+// }
+
+
+function incrCanvasHue(canvas, delta) {
+    const { width, height } = canvas;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    const res = document.createElement("canvas");
+    res.width = width;
+    res.height = height;
+    const resCtx = res.getContext("2d");
+    const resData = resCtx.createImageData(width, height);
+    const out = resData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i] / 255;
+        const g = data[i + 1] / 255;
+        const b = data[i + 2] / 255;
+
+        // --- Convertir RGB -> HSL
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        if (max === min) {
+            h = s = 0; // gris
+        } else {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+
+        // --- Incrémenter la teinte
+        h = (h + delta / 360) % 1;
+        if (h < 0) h += 1;
+
+        // --- Convertir HSL -> RGB
+        let r2, g2, b2;
+        if (s === 0) {
+            r2 = g2 = b2 = l; // gris
+        } else {
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            r2 = hue2rgb(p, q, h + 1 / 3);
+            g2 = hue2rgb(p, q, h);
+            b2 = hue2rgb(p, q, h - 1 / 3);
+        }
+
+        out[i] = Math.round(r2 * 255);
+        out[i + 1] = Math.round(g2 * 255);
+        out[i + 2] = Math.round(b2 * 255);
+        out[i + 3] = data[i + 3]; // alpha inchangé
+    }
+
+    resCtx.putImageData(resData, 0, 0);
+    return res;
 }
+
+function colorizeCanvas(canvas, color) {
+    return colorizeCanvasGlobal(canvas, "red", color)
+}
+
+function colorizeCanvasGlobal(canvas, fromColor, toColor) {
+  const ctx = canvas.getContext("2d");
+  const { width, height } = canvas;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  // Convert base & target colors to HSV
+  const fromRGB = cssColorToRGB(fromColor);
+  const toRGB = cssColorToRGB(toColor);
+  const fromHSV = rgbToHSV(fromRGB.r, fromRGB.g, fromRGB.b);
+  const toHSV = rgbToHSV(toRGB.r, toRGB.g, toRGB.b);
+
+  // Compute transformation factors
+  const deltaH = ((toHSV.h - fromHSV.h + 540) % 360) - 180; // shortest rotation
+  const satFactor = toHSV.s / (fromHSV.s || 1);
+  const valFactor = toHSV.v / (fromHSV.v || 1);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0) continue; // fully transparent → skip entirely
+
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const hsv = rgbToHSV(r, g, b);
+
+    hsv.h = (hsv.h + deltaH + 360) % 360;
+    hsv.s = Math.min(1, hsv.s * satFactor);
+    hsv.v = Math.min(1, hsv.v * valFactor);
+
+    const newRGB = hsvToRGB(hsv.h, hsv.s, hsv.v);
+    data[i]     = newRGB.r;
+    data[i + 1] = newRGB.g;
+    data[i + 2] = newRGB.b;
+    // ✅ Do NOT touch alpha channel:
+    // data[i + 3] = a;
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+function cssColorToRGB(css) {
+  const ctx = document.createElement("canvas").getContext("2d");
+  ctx.fillStyle = css;
+  const computed = ctx.fillStyle;
+  const m = computed.match(/^#([0-9a-f]{6})$/i);
+  if (m) {
+    const i = parseInt(m[1], 16);
+    return { r: (i >> 16) & 255, g: (i >> 8) & 255, b: i & 255 };
+  }
+  const temp = document.createElement("div");
+  temp.style.color = css;
+  document.body.appendChild(temp);
+  const cs = getComputedStyle(temp).color.match(/\d+/g);
+  document.body.removeChild(temp);
+  return { r: +cs[0], g: +cs[1], b: +cs[2] };
+}
+
+function rgbToHSV(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+  }
+  h = (h * 60 + 360) % 360;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+  return { h, s, v };
+}
+
+function hsvToRGB(h, s, v) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let [r, g, b] = [0, 0, 0];
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+
 
 /**
  * Draws one canvas onto another at specified coordinates
@@ -252,6 +414,7 @@ export {
     newCanvas,
     cloneCanvas,
     colorizeCanvas,
+    incrCanvasHue,
     addCanvas,
     newTextCanvas,
     cachedTransform,

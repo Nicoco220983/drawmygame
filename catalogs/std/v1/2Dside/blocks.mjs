@@ -1,5 +1,6 @@
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
-import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../../core/v1/game.mjs'
+import { cachedTransform, cloneCanvas, colorizeCanvas } from '../../../../core/v1/utils.mjs'
+import { ModuleCatalog, GameObject, Category, StateProperty, StateBool, StateNumber, StateString, StateEnum, LinkTrigger, LinkReaction, BodyMixin, PhysicsMixin, AttackMixin, SpriteSheet, ObjectRefs, ActivableMixin, CollectMixin, OwnerableMixin } from '../../../../core/v1/game.mjs'
 
 export const CATALOG = new ModuleCatalog(import.meta.url, {
     version: "v1",
@@ -37,9 +38,19 @@ const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/bl
     label: "Grass",
     icon: GrassImg,
 })
+@StateString.define("color", { showInBuilder: true })
 export class GrassBlock extends Block {
+    init(kwargs) {
+        super.init(kwargs)
+    }
     getBaseImg() {
-        return GrassImg
+        let img = GrassImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color)
+            })
+        }
+        return img
     }
 }
 

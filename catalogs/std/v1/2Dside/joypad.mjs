@@ -183,7 +183,8 @@ class JoypadPauseScene extends JoypadScene {
 }
 
 
-const BurronImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button_colorable.png")
+const ButtonSpriteSheetImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button_spritesheet.png")
+const ButtonColorableSpriteSheetImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/button_colorable.png")
 
 class JoypadButton extends GameObject {
 
@@ -239,18 +240,24 @@ class JoypadButton extends GameObject {
     }
 
     getBaseImg() {
-        if(BurronImg.unloaded) return
-        let img = BurronImg
         const { game } = this
+        if(ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
+        let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
         const localPlayer = game.players[game.localPlayerId]
         const color = localPlayer ? localPlayer.color : null
         const numCol = this.isDown ? 1 : 0
-        img = cachedTransform(img, numCol, () => {
-            return cloneCanvas(img, { col:[numCol,2] })
+        colorImg = cachedTransform(colorImg, numCol, () => {
+            return cloneCanvas(colorImg, { col:[numCol,2] })
         })
-        img = cachedTransform(img, color, () => {
-            const res = cloneCanvas(img)
+        colorImg = cachedTransform(colorImg, color, () => {
+            const res = cloneCanvas(colorImg)
             return color ? colorizeCanvas(res, color) : res
+        })
+        img = cachedTransform(img, numCol, () => {
+            const res = cloneCanvas(img, { col:[numCol,2] })
+            const ctx = res.getContext("2d")
+            ctx.drawImage(colorImg, 0, 0, res.width, res.height)
+            return res
         })
         const sizeRatio = this.width/this.height
         img = cachedTransform(img, sizeRatio, () => {
