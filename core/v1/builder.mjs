@@ -2,14 +2,25 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { sumTo, newCanvas, newDomEl, addNewDomEl } = utils
-import { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, now, FPS } from './game.mjs'
-import { GraphicsProps } from './graphics.mjs'
+import * as game from './game.mjs'
+const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink } = game
 
 
 // BUILDER //////////////////////////
 
+/**
+ * Game builder
+ * @extends {GameCommon}
+ */
 export class GameBuilder extends GameCommon {
 
+    /**
+     * @param {HTMLElement} canvasParentEl
+     * @param {HTMLElement} selectionMenuEl
+     * @param {game.Catalog} catalog
+     * @param {object} map
+     * @param {object} kwargs
+     */
     constructor(canvasParentEl, selectionMenuEl, catalog, map, kwargs) {
         super(canvasParentEl, catalog, map, kwargs)
         this.isBuilder = true
@@ -22,6 +33,9 @@ export class GameBuilder extends GameCommon {
         this.initKeysListeners()
     }
 
+    /**
+     * Initializes keyboard listeners for builder actions.
+     */
     initKeysListeners() {
         this.pressedKeys = new Set()
         document.body.addEventListener("keydown", evt => {
@@ -34,12 +48,19 @@ export class GameBuilder extends GameCommon {
             if(key == "Delete") {
                 this.removeSelectedObject()
             }
+            // IATODO: on press ctrl+V, store state on selected object (if any) in this.copiedObjectState
         })
         document.body.addEventListener("keyup", evt => {
             this.pressedKeys.delete(evt.key)
         })
     }
 
+    /**
+     * Creates a new scene.
+     * @param {typeof SceneCommon} cls
+     * @param {object} kwargs
+     * @returns {SceneCommon}
+     */
     createScene(cls, kwargs) {
         kwargs ||= {}
         kwargs.chunkSize = Infinity
@@ -48,6 +69,11 @@ export class GameBuilder extends GameCommon {
         return scn
     }
 
+    /**
+     * Sets the builder mode.
+     * @param {string} mode
+     * @param {string|null} modeKey
+     */
     setMode(mode, modeKey = null) {
         this.mode = mode
         this.modeKey = modeKey
@@ -56,20 +82,33 @@ export class GameBuilder extends GameCommon {
         this.scenes.draft.syncMode()
     }
 
+    /**
+     * Sets the anchor mode for the draft scene.
+     * @param {boolean} val
+     */
     setAnchor(val) {
         this.scenes.draft.anchor = val
     }
 
+    /**
+     * Syncs the game scene state to the map.
+     */
     syncMap() {
         this.map.scenes["0"] = this.scenes.game.getState(true)
     }
 
+    /**
+     * Updates the builder state.
+     */
     update() {
         this.scenes.draft.update()
         const touch = this.touches[0]
         this.prevTouchIsDown = Boolean(touch) && touch.isDown
     }
 
+    /**
+     * Removes the selected object(s).
+     */
     removeSelectedObject() {
         for(let obj of this.scenes.draft.selections) {
             if(obj instanceof GameObject) {
@@ -91,19 +130,32 @@ export class GameBuilder extends GameCommon {
         this.clearSelection()
     }
 
+    /**
+     * Clears the current selection.
+     */
     clearSelection() {
         this.scenes.draft.clearSelection()
     }
 
+    /**
+     * Draws the builder scenes.
+     */
     draw() {
         super.draw()
         this.drawScene(this.scenes.draft)
     }
 }
 
-
+/**
+ * Draft scene for the builder
+ * @extends {SceneCommon}
+ */
 class DraftScene extends SceneCommon {
     
+    /**
+     * Initializes the draft scene.
+     * @param {object} kwargs
+     */
     init(kwargs) {
         super.init(kwargs)
         this.backgroundColor = null
@@ -116,6 +168,9 @@ class DraftScene extends SceneCommon {
         this.syncPosSize()
     }
 
+    /**
+     * Syncs the draft object with the current builder mode.
+     */
     syncMode() {
         const { mode, modeKey } = this.game
         this.prevPos = null
@@ -128,6 +183,9 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Updates the draft scene.
+     */
     update() {
         this.syncPosSize()
         const { mode } = this.game
@@ -137,6 +195,9 @@ class DraftScene extends SceneCommon {
         else if(mode == "cursor") this.cursorUpdate()
     }
 
+    /**
+     * Handles updates when the mode is 'cursor'.
+     */
     cursorUpdate() {
         const { touches, prevTouchIsDown } = this.game
         const touch = touches[0]
@@ -167,6 +228,12 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Checks for object/link selection at a given touch position.
+     * @param {object} touch
+     * @param {GameObject|ObjectLink|null} ignore
+     * @returns {GameObject|ObjectLink|null}
+     */
     checkTouchSelect(touch, ignore=null) {
         const gameScn = this.game.scenes.game
         const x = touch.x + gameScn.viewX, y = touch.y + gameScn.viewY
@@ -200,6 +267,11 @@ class DraftScene extends SceneCommon {
         return res
     }
 
+    /**
+     * Initializes a move action.
+     * @param {object} touch
+     * @param {GameObject|ObjectLink} obj
+     */
     initMove(touch, obj) {
         const { viewX, viewY } = this.game.scenes.game
         const orig = this._moveOrig = {
@@ -221,10 +293,19 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Checks if an object can be moved.
+     * @param {GameObject|ObjectLink} obj
+     * @returns {boolean}
+     */
     canMove(obj) {
         return obj instanceof GameObject
     }
 
+    /**
+     * Updates a move action.
+     * @param {object} touch
+     */
     updateMove(touch) {
         const orig = this._moveOrig, { objs } = orig
         if(!orig) return
@@ -244,6 +325,10 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Checks if the object has moved.
+     * @returns {boolean}
+     */
     hasMoved() {
         const orig = this._moveOrig, objs = orig.objs
         if(!objs) return false
@@ -251,6 +336,9 @@ class DraftScene extends SceneCommon {
         return (objs[0].x != objsX[0]) || (objs[0].y != objsY[0])
     }
 
+    /**
+     * Cancels the current move action.
+     */
     cancelMove() {
         const orig = this._moveOrig
         if(!orig) return
@@ -267,10 +355,17 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Clears the move action state.
+     */
     clearMove() {
         this._moveOrig = null
     }
     
+    /**
+     * Adds an object link.
+     * @param {GameObject} trigObj
+     */
     addObjectLink(trigObj) {
         const orig = this._moveOrig
         if(!orig) return
@@ -282,6 +377,9 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Updates the position of the draft object.
+     */
     updateDraftObject() {
         if(!this.draftObject) return
         const { mode } = this.game
@@ -304,6 +402,9 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Adds an object at the pointed position.
+     */
     addPointedObject() {
         const { touches, prevTouchIsDown } = this.game
         const { modeKey } = this.game
@@ -322,6 +423,9 @@ class DraftScene extends SceneCommon {
         }
     }
     
+    /**
+     * Adds a wall at the pointed position.
+     */
     addPointedWall() {
         const { touches, prevTouchIsDown, modeKey } = this.game
         const touch = touches[0]
@@ -351,6 +455,11 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Applies grid anchoring to a position.
+     * @param {{x: number, y: number}} pos
+     * @param {boolean} targetCenters
+     */
     applyAnchor(pos, targetCenters) {
         const { gridSize } = this.game.scenes.game
         let { x, y } = pos
@@ -362,6 +471,10 @@ class DraftScene extends SceneCommon {
         if(targetCenters) { pos.x += gridSize/2; pos.y += gridSize/2 }
     }
 
+    /**
+     * Selects an object or a link.
+     * @param {GameObject|ObjectLink} obj
+     */
     select(obj) {
         if(this.game.pressedKeys.has("Shift")) {
             const idx = this.selections.indexOf(obj)
@@ -382,11 +495,17 @@ class DraftScene extends SceneCommon {
         }
     }
 
+    /**
+     * Clears the current selection.
+     */
     clearSelection() {
         this.selections.length = 0
         this.game.selectionMenuEl.innerHTML = ""
     }
 
+    /**
+     * Draws the draft scene.
+     */
     draw() {
         const { viewX, viewY } = this.game.scenes.game
         const can = this.canvas
@@ -410,6 +529,10 @@ class DraftScene extends SceneCommon {
         return can
     }
 
+    /**
+     * Initializes the grid background image.
+     * @returns {HTMLCanvasElement}
+     */
     initGridImg() {
         let gridImg = this._gridImg
         const { width, height, gridSize } = this.game.scenes.game
@@ -430,6 +553,10 @@ class DraftScene extends SceneCommon {
         return gridImg
     }
 
+    /**
+     * Draws the selection boxes.
+     * @param {CanvasRenderingContext2D} ctx
+     */
     drawSelections(ctx) {
         const { viewX, viewY } = this.game.scenes.game
         ctx.save()
@@ -466,6 +593,10 @@ class DraftScene extends SceneCommon {
         ctx.restore()
     }
 
+    /**
+     * Draws the outline of the object being linked to.
+     * @param {CanvasRenderingContext2D} ctx
+     */
     drawLinkedObject(ctx) {
         const { viewX, viewY } = this.game.scenes.game
         if(!this.linkedObject) return
@@ -479,6 +610,10 @@ class DraftScene extends SceneCommon {
         ctx.restore()
     }
 
+    /**
+     * Draws the object links.
+     * @param {CanvasRenderingContext2D} ctx
+     */
     drawObjectLinks(ctx) {
         const gameScn = this.game.scenes.game
         const { viewX, viewY } = gameScn
@@ -500,8 +635,12 @@ class DraftScene extends SceneCommon {
     }
 }
 
-
+/**
+ * Custom element for selecting a game object.
+ * @extends {HTMLElement}
+ */
 class ObjectSelectorElement extends HTMLElement {
+
     constructor() {
         super()
         this.value = null
@@ -549,6 +688,14 @@ class ObjectSelectorElement extends HTMLElement {
         this.selectEl.onclick = () => this.setOptionsVisibility(true)
         selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
+
+    /**
+     * Initializes the selector with catalog objects.
+     * @param {string} perspective
+     * @param {string[]} versions
+     * @param {game.Catalog} catalog
+     * @param {Function} filter
+     */
     initCatalog(perspective, versions, catalog, filter) {
         this.perspective = perspective
         this.versions = versions
@@ -566,6 +713,11 @@ class ObjectSelectorElement extends HTMLElement {
             }
         }
     }
+    /**
+     * Sets the content of an option element.
+     * @param {HTMLElement} optionEl
+     * @param {string} objKey
+     */
     setOptionKey(optionEl, objKey) {
         const objCat = this.catalog.getObject(this.perspective, this.versions, objKey)
         const label = objCat.label
@@ -579,9 +731,17 @@ class ObjectSelectorElement extends HTMLElement {
             }
         })
     }
+    /**
+     * Sets the visibility of the options list.
+     * @param {boolean} val
+     */
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
     }
+    /**
+     * Sets the selected object.
+     * @param {string} objKey
+     */
     setSelectedObject(objKey) {
         this.value = objKey
         this.setOptionKey(this.selectEl, objKey)
@@ -596,8 +756,12 @@ class ObjectSelectorElement extends HTMLElement {
 customElements.define('dmg-object-selector', ObjectSelectorElement)
 
 
-
+/**
+ * Custom element for editing the state of a game object.
+ * @extends {HTMLElement}
+ */
 class ObjectStateElement extends HTMLElement {
+
     constructor() {
         super()
         this.value = null
@@ -618,6 +782,11 @@ class ObjectStateElement extends HTMLElement {
         })
         this.shadowRoot.append(styleEl, this.propsEl)
     }
+
+    /**
+     * Initializes the state editor for a given object.
+     * @param {GameObject} obj
+     */
     initObject(obj) {
         this.propsEl.style.display = "none"
         this.propsEl.innerHTML = ""
@@ -627,6 +796,12 @@ class ObjectStateElement extends HTMLElement {
             this.propsEl.appendChild(prop.createObjectInput(obj))
         })
     }
+
+    /**
+     * Sets the content of an option element.
+     * @param {HTMLElement} optionEl
+     * @param {string} objKey
+     */
     setOptionKey(optionEl, objKey) {
         const objCat = this.catalog.objects[objKey]
         const label = objCat.label
@@ -640,9 +815,17 @@ class ObjectStateElement extends HTMLElement {
             }
         })
     }
+    /**
+     * Sets the visibility of the options list.
+     * @param {boolean} val
+     */
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
     }
+    /**
+     * Sets the selected object.
+     * @param {string} objKey
+     */
     setSelectedObject(objKey) {
         this.value = objKey
         this.setOptionKey(this.selectEl, objKey)
@@ -653,8 +836,12 @@ class ObjectStateElement extends HTMLElement {
 }
 customElements.define('dmg-object-state', ObjectStateElement)
 
-
+/**
+ * Custom element for editing an object link.
+ * @extends {HTMLElement}
+ */
 class ObjectLinkElement extends HTMLElement {
+
     constructor() {
         super()
         this.attachShadow({ mode: 'open' })
@@ -670,6 +857,11 @@ class ObjectLinkElement extends HTMLElement {
 
         this.objectLink = null
     }
+
+    /**
+     * Initializes the editor for a given object link.
+     * @param {ObjectLink} objLink
+     */
     initObjectLink(objLink) {
         this.objectLink = objLink
         this.wrapperEl.innerHTML = ""
@@ -701,12 +893,21 @@ class ObjectLinkElement extends HTMLElement {
 }
 customElements.define('dmg-object-link', ObjectLinkElement)
 
-
+/**
+ * Calculates the distance between a point and a line segment.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @returns {number}
+ */
 function distancePointSegment(x, y, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1
     const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)
     const px = x1 + t * dx, py = y1 + t * dy
     if (t < 0) return sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1))
-    else if (t > 1) sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2))
+    else if (t > 1) return sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2))
     else return sqrt((x - px) * (x - px) + (y - py) * (y - py))
   }
