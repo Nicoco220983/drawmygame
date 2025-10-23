@@ -25,6 +25,7 @@ export class GameBuilder extends GameCommon {
         super(canvasParentEl, catalog, map, kwargs)
         this.isBuilder = true
         this.selectionMenuEl = selectionMenuEl
+        this.copiedObjectState = null
         this.scenes.game = new DefaultScene(this)
         this.scenes.draft = new DraftScene(this)
         super.syncSize()
@@ -39,8 +40,9 @@ export class GameBuilder extends GameCommon {
     initKeysListeners() {
         this.pressedKeys = new Set()
         document.body.addEventListener("keydown", evt => {
-            const { key } = evt
+            const { key, ctrlKey } = evt
             this.pressedKeys.add(key)
+
             if(key == "Escape") {
                 if(this.mode != "cursor") this.setMode("cursor")
                 else this.clearSelection()
@@ -48,7 +50,16 @@ export class GameBuilder extends GameCommon {
             if(key == "Delete") {
                 this.removeSelectedObject()
             }
-            // IATODO: on press ctrl+V, store state on selected object (if any) in this.copiedObjectState
+            if (ctrlKey && (key === 'c' || key === 'x')) {
+                const draftScn = this.scenes.draft
+                const objState = draftScn.getSelectedObjectState()
+                if(objState) {
+                    this.setMode("object", objState)
+                    if (key === 'x') this.removeSelectedObject()
+                }
+                evt.preventDefault()
+                return
+            }
         })
         document.body.addEventListener("keyup", evt => {
             this.pressedKeys.delete(evt.key)
@@ -72,14 +83,13 @@ export class GameBuilder extends GameCommon {
     /**
      * Sets the builder mode.
      * @param {string} mode
-     * @param {string|null} modeKey
+     * @param {string|null} kwargs
      */
-    setMode(mode, modeKey = null) {
+    setMode(mode, kwargs) {
         this.mode = mode
-        this.modeKey = modeKey
         if(mode == "move") this.canvas.style.cursor = "move"
         else this.canvas.style.cursor = "cell"
-        this.scenes.draft.syncMode()
+        this.scenes.draft.syncMode(mode, kwargs)
     }
 
     /**
@@ -171,15 +181,38 @@ class DraftScene extends SceneCommon {
     /**
      * Syncs the draft object with the current builder mode.
      */
-    syncMode() {
-        const { mode, modeKey } = this.game
+    syncMode(mode, kwargs) {
         this.prevPos = null
-        if(this.draftObject) {
-            this.draftObject.remove()
+        this.setDraftObject(null)
+        if(mode == "object" || mode == "wall") {
+            this.setDraftObject(kwargs.key, kwargs)
+        }
+    }
+/**
+ * Sets the draft object using the given key or clears it if no key.
+ * @param {string} key - The object key.
+ * @param {object} kwargs - Additional arguments.
+ */
+
+    setDraftObject(key, kwargs) {
+        if(key) this.draftObject = this.createObjectFromKey(key, kwargs)
+        else {
+            if(this.draftObject) this.draftObject.remove()
             this.draftObject = null
         }
-        if(mode == "object") {
-            this.draftObject = this.createObjectFromKey(modeKey)
+    }
+/**
+ * Gets the state of the last selected GameObject.
+ * @returns {object|undefined}
+ */
+
+    getSelectedObjectState() {
+        const selections = this.selections
+        if (selections.length > 0) {
+            const lastSelected = selections[selections.length - 1]
+            if (lastSelected instanceof GameObject) {
+                return lastSelected.getState()
+            }
         }
     }
 
@@ -407,7 +440,6 @@ class DraftScene extends SceneCommon {
      */
     addPointedObject() {
         const { touches, prevTouchIsDown } = this.game
-        const { modeKey } = this.game
         const { draftObject } = this
         const touch = touches[0]
         if(touch && touch.isDown && !prevTouchIsDown) {
@@ -417,9 +449,13 @@ class DraftScene extends SceneCommon {
                 y: touch.y + gameScn.viewY,
             }
             if(draftObject && draftObject.constructor.STUCK_TO_GRID) this.applyAnchor(pos, true)
-            const x = floor(pos.x)
-            const y = floor(pos.y)
-            gameScn.addObject(modeKey, { x, y })
+            const objState = draftObject.getState()
+            delete objState.id
+            gameScn.addObject(objState.key, {
+                ...objState,
+                x: floor(pos.x),
+                y: floor(pos.y),
+            })
         }
     }
     
@@ -427,7 +463,8 @@ class DraftScene extends SceneCommon {
      * Adds a wall at the pointed position.
      */
     addPointedWall() {
-        const { touches, prevTouchIsDown, modeKey } = this.game
+        const { touches, prevTouchIsDown } = this.game
+        const { draftObject } = this
         const touch = touches[0]
 
         if(touch && touch.isDown && !prevTouchIsDown) {
@@ -438,19 +475,10 @@ class DraftScene extends SceneCommon {
             }
             if(this.anchor) this.applyAnchor(pos)
             if(this.prevPos !== null) {
-                gameScn.addObject(modeKey, { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
+                gameScn.addObject(draftObject.getKey(), { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
-            if(!this.draftObject) {
-                this.draftObject = this.addObject(modeKey, {
-                    x1:pos.x - gameScn.viewX,
-                    y1:pos.y - gameScn.viewY,
-                    x2:pos.x - gameScn.viewX,
-                    y2:pos.y - gameScn.viewY,
-                })
-            } else {
-                this.draftObject.x1 = pos.x - gameScn.viewX
-                this.draftObject.y1 = pos.y - gameScn.viewY
-            }
+            this.draftObject.x1 = pos.x - gameScn.viewX
+            this.draftObject.y1 = pos.y - gameScn.viewY
             this.prevPos = pos
         }
     }
@@ -815,6 +843,7 @@ class ObjectStateElement extends HTMLElement {
             }
         })
     }
+
     /**
      * Sets the visibility of the options list.
      * @param {boolean} val
@@ -822,6 +851,7 @@ class ObjectStateElement extends HTMLElement {
     setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
     }
+
     /**
      * Sets the selected object.
      * @param {string} objKey
