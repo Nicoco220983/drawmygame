@@ -53,6 +53,11 @@ const RESEND_INPUT_STATE_PERIOD = .5
 
 // CATALOG
 
+/**
+ * Imports and preloads a module.
+ * @param {string} path The path to the module.
+ * @returns {Promise<object>} The module.
+ */
 export async function importAndPreload(path) {
     const mod = await import(path)
     if(mod.CATALOG) await mod.CATALOG.preloadAssets()
@@ -61,12 +66,20 @@ export async function importAndPreload(path) {
 
 class None {}
 const Image = (!IS_SERVER_ENV && window.Image) || None
+/**
+ * Represents an image that can be loaded.
+ * @param {string} src The source of the image.
+ */
 export class Img extends Image {
     constructor(src) {
         super()
         this._src = src
         this.unloaded = true
     }
+    /**
+     * Loads the image.
+     * @returns {Promise<void>}
+     */
     async load() {
         if(IS_SERVER_ENV) return
         const loadPrm = this._loadPrm ||= new Promise((ok, ko) => {
@@ -78,11 +91,19 @@ export class Img extends Image {
     }
 }
 
+/**
+ * Represents an audio that can be loaded.
+ * @param {string} src The source of the audio.
+ */
 export class Aud {
     constructor(src) {
         this.src = src
         this.unloaded = true
     }
+    /**
+     * Loads the audio.
+     * @returns {Promise<void>}
+     */
     async load() {
         if(IS_SERVER_ENV) return
         const loadPrm = this._loadPrm ||= new Promise(async (ok, ko) => {
@@ -95,12 +116,19 @@ export class Aud {
     }
 }
 
+/**
+ * Represents a catalog of game objects and scenes.
+ */
 export class Catalog {
     constructor() {
         this.mods = {}
         this.objects = {}
         this.scenes = {}
     }
+    /**
+     * Adds module catalogs.
+     * @param {string[]} paths The paths to the modules.
+     */
     async addModuleCatalogs(paths) {
         for(let path of paths) this.mods[path] = null
         const modPrms = paths.map(path => import(path))
@@ -118,33 +146,77 @@ export class Catalog {
             addItems(path, mod.CATALOG.scenes, this.scenes)
         }
     }
+    /**
+     * Preloads modules.
+     * @param {string[]} paths The paths to the modules.
+     * @returns {Promise<object[]>} The modules.
+     */
     async preload(paths) {
         const mods = await Promise.all(paths.map(p => import(p)))
         for(let i=0; i<paths.length; ++i) this.mods[paths[i]] = mods[i]
         await Promise.all(mods.map(m => m.CATALOG).filter(l => l).map(l => l.preloadAssets()))
         return mods
     }
+    /**
+     * Preloads all modules.
+     * @returns {Promise<object[]>} The modules.
+     */
     async preloadAll() {
         return await this.preload(Object.keys(this.mods))
     }
+    /**
+     * Returns the full key of an item.
+     * @param {string} perspective The perspective.
+     * @param {object} versions The versions.
+     * @param {string} key The key.
+     * @returns {string} The full key.
+     */
     getFullKey(perspective, versions, key) {
         const modName = key.split(':')[0]
         const modVersion = versions[modName]
         return `${modVersion}/${perspective}/${key}`
     }
+    /**
+     * Returns a scene from the catalog.
+     * @param {string} perspective The perspective.
+     * @param {object} versions The versions.
+     * @param {string} key The key of the scene.
+     * @returns {object} The scene.
+     */
     getScene(perspective, versions, key) {
         const fullKey = this.getFullKey(perspective, versions, key)
         return this.scenes[fullKey]
     }
+    /**
+     * Returns a scene class from the catalog.
+     * @param {string} perspective The perspective.
+     * @param {object} versions The versions.
+     * @param {string} key The key of the scene.
+     * @returns {typeof SceneCommon} The scene class.
+     */
     getSceneClass(perspective, versions, key) {
         const scnCat = this.getScene(perspective, versions, key)
         const mod = this.mods[scnCat.path]
         return mod[scnCat.name]
     }
+    /**
+     * Returns an object from the catalog.
+     * @param {string} perspective The perspective.
+     * @param {object} versions The versions.
+     * @param {string} key The key of the object.
+     * @returns {object} The object.
+     */
     getObject(perspective, versions, key) {
         const fullKey = this.getFullKey(perspective, versions, key)
         return this.objects[fullKey]
     }
+    /**
+     * Returns an object class from the catalog.
+     * @param {string} perspective The perspective.
+     * @param {object} versions The versions.
+     * @param {string} key The key of the object.
+     * @returns {typeof GameObject} The object class.
+     */
     getObjectClass(perspective, versions, key) {
         const objCat = this.getObject(perspective, versions, key)
         const mod = this.mods[objCat.path]
@@ -152,6 +224,11 @@ export class Catalog {
     }
 }
 
+/**
+ * Represents a module catalog.
+ * @param {string} url The URL of the module.
+ * @param {object} kwargs The properties of the module.
+ */
 export class ModuleCatalog {
     constructor(url, kwargs) {
         this.path = '/' + url.substring(BASE_URL.length)
@@ -162,6 +239,11 @@ export class ModuleCatalog {
         this.scenes = {}
         this.assets = []
     }
+    /**
+     * Registers an object.
+     * @param {object} kwargs The properties of the object.
+     * @returns {function(typeof GameObject):typeof GameObject} The decorator.
+     */
     registerObject(kwargs) {
         return target => {
             const key = `${this.name}:${target.name}`
@@ -180,6 +262,11 @@ export class ModuleCatalog {
             return target
         }
     }
+    /**
+     * Registers a scene.
+     * @param {object} kwargs The properties of the scene.
+     * @returns {function(typeof SceneCommon):typeof SceneCommon} The decorator.
+     */
     registerScene(kwargs) {
         return target => {
             const key = `${this.name}:${target.name}`
@@ -194,16 +281,29 @@ export class ModuleCatalog {
             return target
         }
     }
+    /**
+     * Registers an image.
+     * @param {string} path The path to the image.
+     * @returns {Img} The image.
+     */
     registerImage(path) {
         const img =  new Img(path)
         this.assets.push(img)
         return img
     }
+    /**
+     * Registers an audio.
+     * @param {string} path The path to the audio.
+     * @returns {Aud} The audio.
+     */
     registerAudio(path) {
         const aud = new Aud(path)
         this.assets.push(aud)
         return aud
     }
+    /**
+     * Preloads the assets.
+     */
     async preloadAssets() {
         if(IS_SERVER_ENV) return
         await Promise.all(this.assets.map(a => a.load()))
@@ -213,6 +313,9 @@ export class ModuleCatalog {
 
 // MAP
 
+/**
+ * Represents a game map.
+ */
 export class GameMap {
     constructor() {
         this.perspective = "2Dside"
@@ -235,6 +338,10 @@ export class GameMap {
         }}
     }
 
+    /**
+     * Exports the map as a binary format.
+     * @returns {Uint8Array} The binary data.
+     */
     exportAsBinary() {
         const outScns = {}
         for(let scnId in this.scenes) {
@@ -248,16 +355,28 @@ export class GameMap {
         const outZip = compress(outPack)
         return outZip
     }
+    /**
+     * Exports the map as a safe base64 string.
+     * @returns {Promise<string>} The base64 string.
+     */
     async exportAsSafeBase64() {
         const outBin = this.exportAsBinary()
         const outSB64 = await binToSafeB64(outBin)
         return outSB64
     }
 
+    /**
+     * Imports a map from a safe base64 string.
+     * @param {string} inSB64 The base64 string.
+     */
     async importFromSafeBase64(inSB64) {
         const inBin = await safeB64ToBin(inSB64)
         this.importFromBinary(inBin)
     }
+    /**
+     * Imports a map from a binary format.
+     * @param {Uint8Array} inZip The binary data.
+     */
     importFromBinary(inZip) {
         const inPack = decompress(inZip)
         const inObj = unpack(inPack)
@@ -269,16 +388,31 @@ export class GameMap {
     }
 }
 
+/**
+ * Compresses data.
+ * @param {Uint8Array} bytes The data to compress.
+ * @returns {Uint8Array} The compressed data.
+ */
 function compress(bytes) {
     return gzip(new Uint8Array(bytes))
 }
 
+/**
+ * Decompresses data.
+ * @param {Uint8Array} compressedBytes The data to decompress.
+ * @returns {Uint8Array} The decompressed data.
+ */
 function decompress(compressedBytes) {
     return ungzip(new Uint8Array(compressedBytes))
 }
 
 const BIN_AS_B64_DATA_URL_PREFIX = "data:application/octet-stream;base64,"
 
+/**
+ * Converts binary data to a safe base64 string.
+ * @param {Uint8Array} bytes The binary data.
+ * @returns {Promise<string>} The base64 string.
+ */
 function binToSafeB64(bytes) {
     return new Promise((ok, ko) => {
         const reader = new FileReader()
@@ -290,6 +424,11 @@ function binToSafeB64(bytes) {
     })
 }
 
+/**
+ * Converts a safe base64 string to binary data.
+ * @param {string} sb64 The base64 string.
+ * @returns {Promise<ArrayBuffer>} The binary data.
+ */
 function safeB64ToBin(sb64) {
     return new Promise((ok, ko) => {
         const b64 = decodeURIComponent(sb64)
@@ -304,10 +443,20 @@ function safeB64ToBin(sb64) {
 
 // GAME UTILS ///////////////////////
 
+/**
+ * Returns the current time in seconds.
+ * @returns {number} The current time in seconds.
+ */
 export function now() {
     return Date.now() / 1000
 }
 
+/**
+ * Returns an array of numbers in a given range.
+ * @param {number} start The start of the range.
+ * @param {number} end The end of the range.
+ * @returns {number[]} The array of numbers.
+ */
 export function range(start, end) {
     const res = []
     for(let i=start; i<end; ++i) res.push(i)
@@ -315,11 +464,23 @@ export function range(start, end) {
 }
 
 const _round = Math.round
+/**
+ * Rounds a number to a given precision.
+ * @param {number} val The number to round.
+ * @param {number} precision The precision.
+ * @returns {number} The rounded number.
+ */
 export function round(val, precision = 1) {
     return _round(val / precision) * precision
 }
 
 
+/**
+ * Represents a sprite sheet.
+ * @param {HTMLImageElement} img The image of the sprite sheet.
+ * @param {number} nbCols The number of columns.
+ * @param {number} nbRows The number of rows.
+ */
 export class SpriteSheet {
     constructor(img, nbCols, nbRows) {
         this.img = img
@@ -330,6 +491,9 @@ export class SpriteSheet {
         this.unloaded = true
         this.initImgs()
     }
+    /**
+     * Initializes the images of the sprite sheet.
+     */
     initImgs() {
         if(!this.unloaded) return
         const { img, nbRows, nbCols } = this
@@ -345,6 +509,12 @@ export class SpriteSheet {
         }
         this.unloaded = false
     }
+    /**
+     * Returns an image from the sprite sheet.
+     * @param {number} num The number of the image.
+     * @param {boolean} loop Whether to loop.
+     * @returns {HTMLCanvasElement} The image.
+     */
     get(num, loop = false) {
         this.initImgs()
         const { imgs } = this, nbImgs = imgs.length
@@ -358,7 +528,15 @@ export class SpriteSheet {
 
 // CATEGORY //////////////////////////
 
+/**
+ * Represents a category.
+ */
 export class Category {
+    /**
+     * Appends a category to a target.
+     * @param {string} cat The category to append.
+     * @returns {function(object):object} The decorator.
+     */
     static append(cat) {
         return target => {
             target.CATEGORY = (target.CATEGORY ?? "/") + cat + "/"
@@ -369,9 +547,18 @@ export class Category {
 
 // STATE PROPERTY ////////////////////
 
+/**
+ * Represents a state property.
+ */
 export class StateProperty {
     static DEFAULT_STATE_VALUE = null
 
+    /**
+     * Defines a state property.
+     * @param {string} key The key of the property.
+     * @param {object} kwargs The properties of the property.
+     * @returns {function(object):object} The decorator.
+     */
     static define(key, kwargs) {
         return target => {
             if(target.IS_MIXIN) {
@@ -384,6 +571,11 @@ export class StateProperty {
         }
     }
 
+    /**
+     * Undefines a state property.
+     * @param {string} key The key of the property.
+     * @returns {function(object):object} The decorator.
+     */
     static undefine(key) {
         return target => {
             if(target.IS_MIXIN) {
@@ -397,6 +589,12 @@ export class StateProperty {
         }
     }
 
+    /**
+     * Modifies a state property.
+     * @param {string} key The key of the property.
+     * @param {object} kwargs The properties to modify.
+     * @returns {function(object):object} The decorator.
+     */
     static modify(key, kwargs) {
         return target => {
             if(target.IS_MIXIN) {
@@ -493,42 +691,6 @@ export class StateProperty {
         syncEls()
         return wrapperEl
     }
-    // createNullableInput(obj) {
-    //     const val = this.getObjectPropState(obj)
-    //     const wrapperEl = newDomEl("div", {
-    //         style: {
-    //             display: "flex",
-    //             flexDirection: "row",
-    //         }
-    //     })
-    //     addNewDomEl(wrapperEl, "span", {
-    //         text: this.key
-    //     })
-    //     let nullEl = null, nullTxtEl = null
-    //     if(this.nullableWith !== undefined) {
-    //         nullEl = addNewDomEl(wrapperEl, "input", {
-    //             type: "checkbox",
-    //         })
-    //         if(val === null) nullEl.checked = true
-    //         nullTxtEl = addNewDomEl(wrapperEl, "div", {
-    //             text: this.nullableWith,
-    //         })
-    //         nullEl.addEventListener("change", () => {
-    //             syncEls()
-    //             if(nullEl.checked) this.setObjectPropFromState(obj, null)
-    //             else this.syncObjectFromInput(valEl, obj)
-    //         })
-    //     }
-    //     const valEl = this.createObjectBaseInput(obj)
-    //     wrapperEl.appendChild(valEl)
-    //     valEl.addEventListener("change", () => syncEls())
-    //     const syncEls = () => {
-    //         valEl.style.display = nullEl?.checked ? "none" : "block"
-    //         if(nullTxtEl) nullTxtEl.style.display = nullEl?.checked ? "block" : "none"
-    //     }
-    //     syncEls()
-    //     return wrapperEl
-    // }
     // TODO: remove it for generic StateProperty
     createObjectBaseInput(obj) {
         const val = this.getObjectPropState(obj)
@@ -923,89 +1085,7 @@ export class GameObject {
     }
 
     getBaseImg() {}
-
-    // getSprite() {
-    //     return this.sprite // TODO: return null when this.sprite deprecated
-    // }
-
-    // getImg() {
-    //     if(this.spriteVisibility === 0) return
-    //     const sprite = this.getSprite()
-    //     if(!sprite || !sprite.baseImg) return
-    //     this.scaleSprite(sprite)
-    //     return sprite.getImg(
-    //         this.spriteWidth,
-    //         this.spriteHeight,
-    //         this.dirX,
-    //         this.dirY,
-    //         this.spriteVisibility,
-    //     )
-    // }
-
-    // spriteFit(sprite) {
-    //     const { width, height } = this
-    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    //     if(width * baseHeight > baseWidth * height){
-    //         this.spriteWidth = ~~(baseWidth*height/baseHeight)
-    //         this.spriteHeight = height
-    //     } else {
-    //         this.spriteWidth = width
-    //         this.spriteHeight = ~~(baseHeight*width/baseWidth)
-    //     }
-    // }
-    
-    // spriteFill(sprite) {
-    //     const { width, height } = this
-    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    //     if(width * baseHeight < baseWidth * height){
-    //         this.spriteWidth = ~~(baseWidth*height/baseHeight)
-    //         this.spriteHeight = height
-    //     } else {
-    //         this.spriteWidth = width
-    //         this.spriteHeight = ~~(baseHeight*width/baseWidth)
-    //     }
-    // }
-    
-    // spriteFitWidth(sprite) {
-    //     const { width } = this
-    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    //     this.spriteWidth = width
-    //     this.spriteHeight = ~~(baseHeight*width/baseWidth)
-    // }
-    
-    // spriteFitHeight(sprite) {
-    //     const { height } = this
-    //     const { width: baseWidth, height: baseHeight } = sprite.baseImg
-    //     this.spriteWidth = ~~(baseWidth*height/baseHeight)
-    //     this.spriteHeight = height
-    // }
 }
-
-function on(trigKey, nextKey, next) {
-    const events = this._events ||= {}
-    const trigNexts = events[trigKey] ||= {}
-    trigNexts[nextKey] = next
-}
-
-function off(trigKey, nextKey) {
-    const events = this._events ||= {}
-    const trigNexts = events[trigKey] ||= {}
-    delete trigNexts[nextKey]
-}
-
-function trigger(trigKey, kwargs) {
-    const events = this._events
-    if(events === undefined) return
-    const trigNexts = events[trigKey]
-    if(trigNexts === undefined) return
-    for(let nextKey in trigNexts) {
-        trigNexts[nextKey].call(this, kwargs)
-    }
-}
-
-GameObject.prototype.on = on
-GameObject.prototype.off = off
-GameObject.prototype.trigger = trigger
 
 
 GameObject.StateProperty = class extends StateProperty {
@@ -1353,11 +1433,6 @@ export class GameObjectGroup {
         this.objMap.clear()
     }
 }
-
-// TODO: remove this
-GameObjectGroup.prototype.on = on
-GameObjectGroup.prototype.off = off
-GameObjectGroup.prototype.trigger = trigger
 
 
 export class ObjectRefs extends Set {
@@ -2875,7 +2950,6 @@ class AttackProps {
 
 @HitMixin.addIfAbsent()
 @StateNumber.define("damages")
-//@StateNumber.define("lastDamageAge", { default: Infinity, nullableWith: Infinity })
 @StateProperty.define("attackAges")
 export class AttackMixin extends Mixin {
     static KEY = "attack"
