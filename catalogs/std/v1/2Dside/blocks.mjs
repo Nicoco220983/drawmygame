@@ -30,18 +30,38 @@ export class Block extends GameObject {
     }
 }
 
+@Category.append("background")
+@Category.append("block")
+export class BackgroundBlock extends GameObject {
+    static STATEFUL = false
+    static STUCK_TO_GRID = true
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.z = -1
+        this.width = this.height = floor(this.scene.gridSize)
+    }
+
+    getGraphicsProps() {
+        const props = super.getGraphicsProps()
+        props.width = this.width
+        props.height = this.height
+        return props
+    }
+}
 
 
-const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/grass.png")
+
+const DirtImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/dirt.png")
 
 @CATALOG.registerObject({
-    label: "Grass",
-    icon: GrassImg,
+    label: "Dirt",
+    icon: DirtImg,
 })
 @StateString.define("color", { showInBuilder: true })
-export class GrassBlock extends Block {
+export class DirtBlock extends Block {
     getBaseImg() {
-        let img = GrassImg
+        let img = DirtImg
         if(this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#6f911b")
@@ -63,6 +83,26 @@ const StoneImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/bl
 export class StoneBlock extends Block {
     getBaseImg() {
         let img = StoneImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
+            })
+        }
+        return img
+    }
+}
+
+
+const BackgroundStoneImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/background_stone.png")
+
+@CATALOG.registerObject({
+    label: "Background Stone",
+    icon: BackgroundStoneImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class BackgroundStoneBlock extends BackgroundBlock {
+    getBaseImg() {
+        let img = BackgroundStoneImg
         if(this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
@@ -95,6 +135,27 @@ export class BricksBlock extends Block {
 
 
 
+const BackgroundBricksImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/background_bricks.png")
+
+@CATALOG.registerObject({
+    label: "Background Bricks",
+    icon: BackgroundBricksImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class BackgroundBricksBlock extends BackgroundBlock {
+    getBaseImg() {
+        let img = BackgroundBricksImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
+            })
+        }
+        return img
+    }
+}
+
+
+
 const WoodImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/wood.png")
 
 @CATALOG.registerObject({
@@ -116,12 +177,34 @@ export class WoodBlock extends Block {
 
 
 
+const BackgroundWoodImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/background_wood.png")
+
+@CATALOG.registerObject({
+    label: "Background Wood",
+    icon: BackgroundWoodImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class BackgroundWoodBlock extends BackgroundBlock {
+    getBaseImg() {
+        let img = BackgroundWoodImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
+            })
+        }
+        return img
+    }
+}
+
+
+
 const PlatformImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/platform.png")
 
 @CATALOG.registerObject({
     label: "Platform",
     icon: PlatformImg,
 })
+@StateString.define("color", { showInBuilder: true })
 export class PlatformBlock extends Block {
 
     getHitProps(dt) {
@@ -143,9 +226,14 @@ export class PlatformBlock extends Block {
         )
         return pol
     }
-    
     getBaseImg() {
-        return PlatformImg
+        let img = PlatformImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
+            })
+        }
+        return img
     }
 }
 
