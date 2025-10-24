@@ -7,8 +7,7 @@ const staticDir = path.resolve("static");
 
 
 function build() {
-  compileOrCopyAll(path.resolve("core"), path.resolve("static/core"))
-  compileOrCopyAll(path.resolve("catalogs"), path.resolve("static/catalogs"))
+  compileOrCopyAll(path.resolve("src"), path.resolve("static"))
   copyIfOutdated(
     path.join(modulesDir, "pako/dist/pako.esm.mjs"),
     path.join(staticDir, "deps/pako.mjs"),
