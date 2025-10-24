@@ -19,14 +19,14 @@ function main(pkgSpecifier) {
         process.exit(1);
     }
 
-    const pkgName = getBasePackageName(pkgSpecifier)
+    const pkgName = getPackageName(pkgSpecifier)
     console.log("Package name:", pkgName)
     const sourceDir = path.join('node_modules', pkgName, 'static')
     const catalogName = getPackageProp(pkgName, "catalogname") ?? pkgName
     const destDir = path.join('static/catalogs', catalogName)
 
     if (!fs.existsSync(sourceDir)) {
-        console.error(`Package ${packageName} does not have a static/ directory.`)
+        console.error(`Package ${pkgName} does not have a static/ directory.`)
         // Clean up installed package? Maybe not, user can do it manually.
         process.exit(1);
     }
@@ -54,22 +54,38 @@ function copyDirRecursive(src, dest) {
   }
 }
 
-function getBasePackageName(pkgSpecifier) {
-  if (!pkgSpecifier) return null;
-  // Remove known prefixes
-  let s = pkgSpecifier.replace(/^(file:|git\+|github:|npm:)/, "");
-  // Handle relative or absolute paths
-  if (s.startsWith(".") || s.startsWith("/")) {
-    return path.basename(s);
+function getPackageName(specifier) {
+  if (!specifier) return null;
+
+  // Remove npm alias prefix
+  let s = specifier.replace(/^npm:/, "");
+
+  // Handle git URLs (HTTPS, SSH, GitHub)
+  const gitUrlMatch = s.match(
+    /^(?:git\+)?https?:\/\/[^/]+\/([^/]+)\/([^/#]+)(?:[#/]?.*)?$/
+  );
+  if (gitUrlMatch) {
+    return gitUrlMatch[2].replace(/\.git$/, ""); // extract repo name
   }
-  // Handle GitHub shorthand (github:user/repo)
-  const githubMatch = s.match(/^[^:]+:[^/]+\/([^#]+)/);
+
+  // Handle GitHub shorthand: github:user/repo[#ref]
+  const githubMatch = s.match(/^github:[^/]+\/([^#]+)/);
   if (githubMatch) {
-    return githubMatch[1];
+    return githubMatch[1].replace(/\.git$/, "");
   }
-  // Handle scoped and unscoped packages
-  const match = s.match(/^(@[^/]+\/[^@/]+)|^[^@/]+/);
-  return match ? match[0] : null;
+
+  // Handle file:, relative, or absolute paths
+  if (s.startsWith("file:") || s.startsWith(".") || s.startsWith("/")) {
+    return path.basename(s.replace(/^file:/, ""));
+  }
+
+  // Handle scoped and unscoped npm package specs
+  const npmMatch = s.match(/^(@[^/]+\/[^@/]+)|^[^@/]+/);
+  if (npmMatch) {
+    return npmMatch[0];
+  }
+
+  return null;
 }
 
 function getPackageProp(pkgName, prop) {
