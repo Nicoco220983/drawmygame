@@ -40,14 +40,74 @@ const GrassImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/bl
 })
 @StateString.define("color", { showInBuilder: true })
 export class GrassBlock extends Block {
-    init(kwargs) {
-        super.init(kwargs)
-    }
     getBaseImg() {
         let img = GrassImg
         if(this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#6f911b")
+            })
+        }
+        return img
+    }
+}
+
+
+
+const StoneImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/stone.png")
+
+@CATALOG.registerObject({
+    label: "Stone",
+    icon: StoneImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class StoneBlock extends Block {
+    getBaseImg() {
+        let img = StoneImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
+            })
+        }
+        return img
+    }
+}
+
+
+
+const BricksImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/bricks.png")
+
+@CATALOG.registerObject({
+    label: "Bricks",
+    icon: BricksImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class BricksBlock extends Block {
+    getBaseImg() {
+        let img = BricksImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
+            })
+        }
+        return img
+    }
+}
+
+
+
+const WoodImg = CATALOG.registerImage("/static/catalogs/std/v1/2Dside/assets/blocks/wood.png")
+
+@CATALOG.registerObject({
+    label: "Wood",
+    icon: WoodImg,
+})
+@StateString.define("color", { showInBuilder: true })
+export class WoodBlock extends Block {
+    getBaseImg() {
+        let img = WoodImg
+        if(this.color) {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
         return img
