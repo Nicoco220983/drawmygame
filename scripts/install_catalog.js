@@ -2,26 +2,27 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const packageName = process.argv[2];
-if (!packageName) {
+const pkgSpecifier = process.argv[2];
+if (!pkgSpecifier) {
   console.error('Please provide a package name.');
   process.exit(1);
 }
 
-function main(packageName) {
+function main(pkgSpecifier) {
 
-    console.log(`Installing catalog package: ${packageName}`);
+    console.log(`Installing catalog package: ${pkgSpecifier}`);
 
-    const npmInstall = spawnSync('npm', ['install', packageName], { stdio: 'inherit' });
+    const npmInstall = spawnSync('npm', ['install', pkgSpecifier], { stdio: 'inherit' });
 
     if (npmInstall.status !== 0) {
-        console.error(`Failed to install package ${packageName}`);
+        console.error(`Failed to install package ${pkgSpecifier}`);
         process.exit(1);
     }
 
-    const basePackageName = getBasePackageName(packageName)
-    const sourceDir = path.join('node_modules', basePackageName, 'static')
-    const catalogName = getPackageProp(basePackageName, "catalogname") ?? basePackageName
+    const pkgName = getBasePackageName(pkgSpecifier)
+    console.log("Package name:", pkgName)
+    const sourceDir = path.join('node_modules', pkgName, 'static')
+    const catalogName = getPackageProp(pkgName, "catalogname") ?? pkgName
     const destDir = path.join('static/catalogs', catalogName)
 
     if (!fs.existsSync(sourceDir)) {
@@ -53,10 +54,10 @@ function copyDirRecursive(src, dest) {
   }
 }
 
-function getBasePackageName(specifier) {
-  if (!specifier) return null;
+function getBasePackageName(pkgSpecifier) {
+  if (!pkgSpecifier) return null;
   // Remove known prefixes
-  let s = specifier.replace(/^(file:|git\+|github:|npm:)/, "");
+  let s = pkgSpecifier.replace(/^(file:|git\+|github:|npm:)/, "");
   // Handle relative or absolute paths
   if (s.startsWith(".") || s.startsWith("/")) {
     return path.basename(s);
@@ -82,4 +83,4 @@ function getPackageProp(pkgName, prop) {
   }
 }
 
-main(packageName)
+main(pkgSpecifier)
