@@ -343,17 +343,24 @@ class DraftScene extends SceneCommon {
         const orig = this._moveOrig, { objs } = orig
         if(!orig) return
         if(!objs) {
+            // update scene view
             const viewX = orig.viewX - (touch.x - orig.touchX)
             const viewY = orig.viewY - (touch.y - orig.touchY)
             this.setView(viewX, viewY)
             this.game.scenes.game.setView(viewX, viewY)
         } else {
+            // update selected objects positions
             for(let idx in objs) {
                 const obj = objs[idx]
                 const origX = orig.objsX[idx]
                 const origY = orig.objsY[idx]
-                obj.x = origX + (touch.x - orig.touchX)
-                obj.y = origY + (touch.y - orig.touchY)
+                const newPos = {
+                    x: origX + (touch.x - orig.touchX),
+                    y: origY + (touch.y - orig.touchY),
+                }
+                if(obj.constructor.STUCK_TO_GRID) this.applyAnchor(newPos, true)
+                obj.x = newPos.x
+                obj.y = newPos.y
             }
         }
     }
@@ -428,7 +435,7 @@ class DraftScene extends SceneCommon {
                 this.draftObject.x = draftPos.x - gameScn.viewX
                 this.draftObject.y = draftPos.y - gameScn.viewY
             } else if(mode == "wall") {
-                if(this.anchor) this.applyAnchor(draftPos)
+                this.applyAnchor(draftPos)
                 this.draftObject.x2 = draftPos.x - gameScn.viewX
                 this.draftObject.y2 = draftPos.y - gameScn.viewY
             }
@@ -473,7 +480,7 @@ class DraftScene extends SceneCommon {
                 x: touch.x + gameScn.viewX,
                 y: touch.y + gameScn.viewY,
             }
-            if(this.anchor) this.applyAnchor(pos)
+            this.applyAnchor(pos)
             if(this.prevPos !== null) {
                 gameScn.addObject(draftObject.getKey(), { x1:this.prevPos.x, y1:this.prevPos.y, x2:pos.x, y2:pos.y })
             }
@@ -489,6 +496,7 @@ class DraftScene extends SceneCommon {
      * @param {boolean} targetCenters
      */
     applyAnchor(pos, targetCenters) {
+        if(!this.anchor) return
         const { gridSize } = this.game.scenes.game
         let { x, y } = pos
         if(targetCenters) { x -= gridSize/2; y -= gridSize/2 }
