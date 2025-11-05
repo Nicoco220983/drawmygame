@@ -325,17 +325,7 @@ export class GameMap {
         this.heros = [{
             key: "std:Nico"
         }]
-        this.scenes = { "0": {
-            key: "std:StandardScene",
-            width: MAP_DEFAULT_WIDTH,
-            height: MAP_DEFAULT_HEIGHT,
-            borderManager: { key : "std:BlockBorderManager" },
-            herosLivesManager: { key : "std:HerosLivesManager" },
-            viewManager: { key: "std:ViewHerosCenterManager" },
-            physicsManager: { key: "std:PhysicsManager" },
-            attackManager: { key: "std:AttackManager" },
-            objects: new Map(),
-        }}
+        this.scenes = {}
     }
 
     /**

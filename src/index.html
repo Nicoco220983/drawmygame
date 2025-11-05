@@ -99,7 +99,7 @@
     </flexrow>
 <script type="module">
 import { newDomEl } from './static/core/v1/utils.mjs'
-import { GameMap, Game, MODE_LOCAL } from './static/core/v1/game.mjs'
+import { GameMap, Game, GameScene, MODE_LOCAL } from './static/core/v1/game.mjs'
 import { GameBuilder } from './static/core/v1/builder.mjs'
 import { loadCatalog } from './static/core/v1/catalog.mjs'
 
@@ -111,11 +111,13 @@ const builderParentEl = document.getElementById("builder")
 const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
 let mode = null, catalog = null, map = null, gameBuilder = null, game = null
-const perspective = "2Dside"
-const versions = {
+const defaultPerspective = "2Dside"
+const defaultVersions = {
     "core": "v1",
     "std": "v1",
 }
+const defaultScnKey = "std:StandardScene"
+const defaultHeroKey = "std:Nico"
 
 const herosEl = document.getElementById("heros")
 const scnKeyEl = document.getElementById("scene_key")
@@ -125,30 +127,33 @@ async function initInputEls(catalog) {
         const scnCat = catalog.scenes[fullKey]
         if(!scnCat.showInBuilder) continue
         scnKeyEl.appendChild(newDomEl("option", {
-            value: fullKey,
+            value: scnCat.key,
             text: scnCat.name,
         }))
     }
-    const scnMap = map.scenes["0"]
-    scnKeyEl.value = catalog.getFullKey(map.perspective, map.versions, scnMap.key)
-    herosEl.initCatalog(perspective, versions, catalog, objCat => objCat.isHero)
-    herosEl.setSelectedObject("std:Nico")
-    objectsEl.initCatalog(perspective, versions, catalog, objCat => {
+    scnKeyEl.value = defaultScnKey
+    herosEl.initCatalog(defaultPerspective, defaultVersions, catalog, objCat => objCat.isHero)
+    herosEl.setSelectedObject(defaultHeroKey)
+    objectsEl.initCatalog(defaultPerspective, defaultVersions, catalog, objCat => {
         return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("/manager/") || objCat.category.startsWith("/background/") || objCat.category.startsWith("/wall/")))
     })
 }
-async function updScene() {
+async function updScene(scnKey) {
+    if(!gameBuilder) return
     const prevGameScn = gameBuilder.scenes.game
-    const scnCat = catalog.scenes[scnKeyEl.value]
+    const scnFullKey = catalog.getFullKey(defaultPerspective, defaultVersions, scnKey)
+    const scnCat = catalog.scenes[scnFullKey]
     const mods = await catalog.preload([scnCat.path])
     await gameBuilder.loadScenes(mods[0][scnCat.name])
     scnStateEl.initObject(gameBuilder.scenes.game)
     // copy prev scene content
     const gameScn = gameBuilder.scenes.game
-    gameScn.objects.setState(prevGameScn.objects.getState(true))
-    gameScn.setObjectLinksFromState(prevGameScn.getObjectLinksState())
+    if(prevGameScn instanceof GameScene) {
+        gameScn.objects.setState(prevGameScn.objects.getState(true))
+        gameScn.setObjectLinksFromState(prevGameScn.getObjectLinksState())
+    }
 }
-scnKeyEl.onchange = updScene
+scnKeyEl.onchange = () => updScene(scnKeyEl.value)
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {
@@ -267,7 +272,7 @@ async function startAndShowBuilder() {
     stopGame()
     if(!gameBuilder) {
         gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
-        await gameBuilder.loadGameScenes()
+        await updScene(defaultScnKey)
     }
     initBuilderInputs()
     gameBuilder.run()
