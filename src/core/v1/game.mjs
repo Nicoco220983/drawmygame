@@ -42,6 +42,8 @@ const STATE_TYPE_INPUT = "I"
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
 const BASE_URL = import.meta.resolve("../../..")
+function getPathFromUrl(url) { return '/' + url.substring(BASE_URL.length) }
+function getUrlFromPath(path) { return BASE_URL + path.substring(1) }
 const CATALOGS_PATH = "/static/catalogs"
 //const CATALOGS_BASE_URL = import.meta.resolve("../../catalogs")
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
@@ -59,13 +61,14 @@ const RESEND_INPUT_STATE_PERIOD = .5
  * @returns {Promise<object>} The module.
  */
 export async function importAndPreload(path) {
-    const mod = await import(path)
+    const mod = await import(getUrlFromPath(path))
     if(mod.CATALOG) await mod.CATALOG.preloadAssets()
     return mod
 }
 
 class None {}
 const Image = (!IS_SERVER_ENV && window.Image) || None
+
 /**
  * Represents an image that can be loaded.
  * @param {string} src The source of the image.
@@ -76,6 +79,7 @@ export class Img extends Image {
         this._src = src
         this.unloaded = true
     }
+    
     /**
      * Loads the image.
      * @returns {Promise<void>}
@@ -122,41 +126,44 @@ export class Aud {
 export class Catalog {
     constructor() {
         this.mods = {}
-        this.objects = {}
         this.scenes = {}
+        this.objects = {}
     }
+
     /**
      * Adds module catalogs.
-     * @param {string[]} paths The paths to the modules.
+     * @param {string[]} urls The urls to the modules.
      */
-    async addModuleCatalogs(paths) {
-        for(let path of paths) this.mods[path] = null
-        const modPrms = paths.map(path => import(path))
+    async addModuleCatalogs(urls) {
+        for(let url of urls) this.mods[getPathFromUrl(url)] = null
+        const modPrms = urls.map(url => import(url))
         const mods = await Promise.all(modPrms)
-        const addItems = (path, modItems, items) => {
+        const addItems = (modItems, items) => {
             for(let key in modItems) {
                 const item = { ...modItems[key] }
-                item.path = path
+                //item.path = path
                 items[key] = item
             }
         }
-        for(let i in paths) {
-            const path = paths[i], mod = mods[i]
-            addItems(path, mod.CATALOG.objects, this.objects)
-            addItems(path, mod.CATALOG.scenes, this.scenes)
+        for(let i in mods) {
+            const mod = mods[i]
+            addItems(mod.CATALOG.objects, this.objects)
+            addItems(mod.CATALOG.scenes, this.scenes)
         }
     }
+
     /**
      * Preloads modules.
      * @param {string[]} paths The paths to the modules.
      * @returns {Promise<object[]>} The modules.
      */
     async preload(paths) {
-        const mods = await Promise.all(paths.map(p => import(p)))
+        const mods = await Promise.all(paths.map(p => import(getUrlFromPath(p))))
         for(let i=0; i<paths.length; ++i) this.mods[paths[i]] = mods[i]
         await Promise.all(mods.map(m => m.CATALOG).filter(l => l).map(l => l.preloadAssets()))
         return mods
     }
+
     /**
      * Preloads all modules.
      * @returns {Promise<object[]>} The modules.
@@ -164,6 +171,7 @@ export class Catalog {
     async preloadAll() {
         return await this.preload(Object.keys(this.mods))
     }
+
     /**
      * Returns the full key of an item.
      * @param {string} perspective The perspective.
@@ -176,6 +184,7 @@ export class Catalog {
         const modVersion = versions[modName]
         return `${modVersion}/${perspective}/${key}`
     }
+
     /**
      * Returns a scene from the catalog.
      * @param {string} perspective The perspective.
@@ -187,6 +196,7 @@ export class Catalog {
         const fullKey = this.getFullKey(perspective, versions, key)
         return this.scenes[fullKey]
     }
+
     /**
      * Returns a scene class from the catalog.
      * @param {string} perspective The perspective.
@@ -199,6 +209,7 @@ export class Catalog {
         const mod = this.mods[scnCat.path]
         return mod[scnCat.name]
     }
+
     /**
      * Returns an object from the catalog.
      * @param {string} perspective The perspective.
@@ -210,6 +221,7 @@ export class Catalog {
         const fullKey = this.getFullKey(perspective, versions, key)
         return this.objects[fullKey]
     }
+
     /**
      * Returns an object class from the catalog.
      * @param {string} perspective The perspective.
@@ -231,7 +243,7 @@ export class Catalog {
  */
 export class ModuleCatalog {
     constructor(url, kwargs) {
-        this.path = '/' + url.substring(BASE_URL.length)
+        this.path = getPathFromUrl(url)
         this.name = kwargs?.name ?? this.path.substring(CATALOGS_PATH.length+1).split('/')[0]
         this.version = kwargs?.version
         this.perspective = kwargs?.perspective

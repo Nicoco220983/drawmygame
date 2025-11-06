@@ -138,22 +138,19 @@ async function initInputEls(catalog) {
         return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("/manager/") || objCat.category.startsWith("/background/") || objCat.category.startsWith("/wall/")))
     })
 }
-async function updScene(scnKey) {
+
+async function updScene(scnMapId, scnMap) {
     if(!gameBuilder) return
-    const prevGameScn = gameBuilder.scenes.game
-    const scnFullKey = catalog.getFullKey(defaultPerspective, defaultVersions, scnKey)
-    const scnCat = catalog.scenes[scnFullKey]
-    const mods = await catalog.preload([scnCat.path])
-    await gameBuilder.loadScenes(mods[0][scnCat.name])
-    scnStateEl.initObject(gameBuilder.scenes.game)
-    // copy prev scene content
-    const gameScn = gameBuilder.scenes.game
-    if(prevGameScn instanceof GameScene) {
-        gameScn.objects.setState(prevGameScn.objects.getState(true))
-        gameScn.setObjectLinksFromState(prevGameScn.getObjectLinksState())
-    }
+    map.scenes[scnMapId] = scnMap
+    await gameBuilder.loadScenesFromMap(scnMap.key, scnMapId)
 }
-scnKeyEl.onchange = () => updScene(scnKeyEl.value)
+scnKeyEl.onchange = async () => {
+    const prevScn = gameBuilder?.scenes["0"]
+    await updScene("0", {
+        ...(prevScn ? prevScn.getState(true) : null),
+        key: scnKeyEl.value,
+    })
+}
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {
@@ -272,7 +269,8 @@ async function startAndShowBuilder() {
     stopGame()
     if(!gameBuilder) {
         gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
-        await updScene(defaultScnKey)
+        const scnMap = map.scenes["0"]
+        await updScene("0",scnMap ?? { key: defaultScnKey })
     }
     initBuilderInputs()
     gameBuilder.run()

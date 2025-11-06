@@ -40,6 +40,7 @@ async function main() {
   console.log(`Server started at: http://${localIp}:${PORT}`)
   catalog = await loadCatalog()
   await catalog.preloadAll()
+  initCatalogSearchTexts(catalog)
 }
 
 
@@ -83,6 +84,19 @@ class GameServer {
 
     this.app.get('/ping', (req, res) => {
       res.end('pong')
+    })
+
+    this.app.get("/catalog/objects", (req, res, next) => {
+      try {
+        const q = req.query.q.toLowerCase()
+        const resp = []
+        for(let objFullKey in catalog.objects) {
+          const objCat = catalog.objects[objFullKey]
+          if(objCat.searchText.indexOf(q) >= 0) resp.push(objCat)
+          if(resp.length >= 10) break
+        }
+        res.json(resp)
+      } catch(err) { next(err) }
     })
     
     this.app.post("/map/:mapId", (req, res, next) => {
@@ -404,6 +418,19 @@ class Client {
     this.room = null
   }
 }
+
+
+function initCatalogSearchTexts(catalog) {
+  for(let scnFullKey in catalog.scenes) {
+    const scnCat = catalog.scenes[scnFullKey]
+    scnCat.searchText = `${scnCat.key} ${scnCat.name} ${scnCat.label}`.toLowerCase()
+  }
+  for(let objFullKey in catalog.objects) {
+    const objCat = catalog.objects[objFullKey]
+    objCat.searchText = `${objCat.key} ${objCat.name} ${objCat.category ?? ""} ${objCat.label}`.toLowerCase()
+  }
+}
+
 
 function closeWs(ws) {
   if(ws.closed) return
