@@ -132,10 +132,17 @@ async function initInputEls(catalog) {
         }))
     }
     scnKeyEl.value = defaultScnKey
-    herosEl.initCatalog(defaultPerspective, defaultVersions, catalog, objCat => objCat.isHero)
-    herosEl.setSelectedObject(defaultHeroKey)
-    objectsEl.initCatalog(defaultPerspective, defaultVersions, catalog, objCat => {
-        return !objCat.isHero && (!objCat.category || !(objCat.category.startsWith("/manager/") || objCat.category.startsWith("/background/") || objCat.category.startsWith("/wall/")))
+    herosEl.init(defaultPerspective, defaultVersions, true, { category: "hero" })
+    //herosEl.setSelectedObject(defaultHeroKey)
+    objectsEl.init(defaultPerspective, defaultVersions, true, {
+        not: {
+            or: [
+                { category: "hero" },
+                { category: "manager" },
+                { category: "background" },
+                { category: "wall" },
+            ]
+        }
     })
 }
 

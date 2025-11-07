@@ -74,12 +74,13 @@ const Image = (!IS_SERVER_ENV && window.Image) || None
  * @param {string} src The source of the image.
  */
 export class Img extends Image {
-    constructor(src) {
+    constructor(src, doLoad=false) {
         super()
         this._src = src
         this.unloaded = true
+        if(doLoad) this.load()
     }
-    
+
     /**
      * Loads the image.
      * @returns {Promise<void>}
@@ -234,6 +235,25 @@ export class Catalog {
         const mod = this.mods[objCat.path]
         return mod[objCat.name]
     }
+
+    filterObject(filterDesc, obj) {
+        if(filterDesc.and) {
+            for(let f of filterDesc.and) if(!this.filterObject(f, obj)) return false
+            return true
+        }
+        if(filterDesc.or) {
+            for(let f of filterDesc.or) if(this.filterObject(f, obj)) return true
+            return false
+        }
+        if(filterDesc.not) {
+            return !this.filterObject(filterDesc.not, obj)
+        }
+        if(filterDesc.category) {
+            const objCat = obj.category
+            if(!objCat || objCat.indexOf('/'+filterDesc.category+'/')<0) return false
+        }
+        return true
+    }
 }
 
 /**
@@ -263,11 +283,15 @@ export class ModuleCatalog {
             const objCat = this.objects[fullKey] = {}
             objCat.key = key
             objCat.path = this.path
+            objCat.modName = this.name
+            objCat.modVersion = this.version
+            objCat.perspective = this.perspective
             objCat.name = target.name
             objCat.category = target.CATEGORY
             objCat.label = kwargs?.label ?? key
             objCat.icon = kwargs?.icon ?? null
-            objCat.showInBuilder = kwargs?.showInBuilder ?? true
+            if(objCat.icon instanceof Img) objCat.icon = objCat.icon._src
+            objCat.showInBuilder = kwargs?.showInBuilder ? true : false
             objCat.isHero = target.IS_HERO == true
             target.KEY = key
             target.STATEFUL = kwargs?.stateful ?? true
@@ -1145,9 +1169,7 @@ GameObject.StateProperty = class extends StateProperty {
         const objVal = obj[this.key]
         const { catalog, map } = obj.game
         const inputEl = addNewDomEl(inputEl, "dmg-object-selector")
-        let filterFun = null
-        if(this.filter) filterFun = obj => filterObject(this.filter, obj)
-        inputEl.initCatalog(map.perspective, map.versions, catalog, filterFun)
+        inputEl.init(map.perspective, map.versions, true, this.filter)
         if(objVal) inputEl.setSelectedObject(objVal.getKey())
         return inputEl
     }
@@ -1167,26 +1189,6 @@ GameObject.StateProperty = class extends StateProperty {
         const objKey = inputEl.value
         this.setObjectPropFromState(obj, { key: objKey })
     }
-}
-
-
-export function filterObject(filterDesc, obj) {
-    if(filterDesc.and) {
-        for(let f of filterDesc.and) if(!filterObject(f, obj)) return false
-        return true
-    }
-    if(filterDesc.or) {
-        for(let f of filterDesc.or) if(filterObject(f, obj)) return true
-        return false
-    }
-    if(filterDesc.not) {
-        return !filterObject(filterDesc.not, obj)
-    }
-    if(filterDesc.category) {
-        const objCat = obj.category
-        if(!objCat || objCat.indexOf('/'+filterDesc.category+'/')<0) return false
-    }
-    return true
 }
 
 
@@ -1378,6 +1380,10 @@ export class GameObjectGroup {
     }
 
     setState(state, isInitState=false) {
+        if(!state) {
+            this.clear()
+            return
+        }
         if(isInitState) {
             // initState has only 1 chunk
             const chunkState = state.get(0)

@@ -57,6 +57,7 @@ class GameServer {
     this.app = express()
     websocketWs(this.app)
 
+    this.app.use(express.json())
     this.app.use(bodyParser.raw({
       type: 'application/octet-stream',
       limit : MAX_BODY_SIZE
@@ -86,14 +87,21 @@ class GameServer {
       res.end('pong')
     })
 
-    this.app.get("/catalog/objects", (req, res, next) => {
+    this.app.post("/catalog/search", (req, res, next) => {
       try {
-        const q = req.query.q.toLowerCase()
+        const { type, perspective, versions, showInBuilder, q, catalogFilter } = req.body
         const resp = []
-        for(let objFullKey in catalog.objects) {
-          const objCat = catalog.objects[objFullKey]
-          if(objCat.searchText.indexOf(q) >= 0) resp.push(objCat)
-          if(resp.length >= 10) break
+        if(type == "object") {
+          for(let objFullKey in catalog.objects) {
+            const objCat = catalog.objects[objFullKey]
+            if(objCat.perspective != perspective) continue
+            if(objCat.searchText.indexOf(q) < 0) continue
+            if(versions[objCat.modName] != objCat.modVersion) continue
+            if(showInBuilder !== undefined && showInBuilder != objCat.showInBuilder) continue
+            if(catalogFilter && !catalog.filterObject(catalogFilter, objCat)) continue
+            resp.push(objCat)
+            if(resp.length >= 10) break
+          }
         }
         res.json(resp)
       } catch(err) { next(err) }

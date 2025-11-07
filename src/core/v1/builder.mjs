@@ -1,9 +1,9 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { sumTo, newCanvas, newDomEl, addNewDomEl } = utils
+const { sumTo, newCanvas, newDomEl, addNewDomEl, Debouncer } = utils
 import * as game from './game.mjs'
-const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink } = game
+const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
 
 
 // BUILDER //////////////////////////
@@ -707,6 +707,7 @@ class ObjectSelectorElement extends HTMLElement {
         })
         this.shadowRoot.append(styleEl, selectWrapperEl)
         this.selectEl = addNewDomEl(selectWrapperEl, "cs-option", {
+            contenteditable: true,
             style: {
                 border: "1px solid black",
             }
@@ -721,7 +722,7 @@ class ObjectSelectorElement extends HTMLElement {
                 zIndex: 99,
             }
         })
-        this.selectEl.onclick = () => this.setOptionsVisibility(true)
+        this.selectEl.oninput = () => this.setOptionsVisibility(this.selectEl.textContent)
         selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
     }
 
@@ -732,34 +733,23 @@ class ObjectSelectorElement extends HTMLElement {
      * @param {game.Catalog} catalog
      * @param {Function} filter
      */
-    initCatalog(perspective, versions, catalog, filter) {
+    init(perspective, versions, showInBuilder, catalogFilter) {
         this.perspective = perspective
         this.versions = versions
-        this.catalog = catalog
-        this.optionsEl.innerHTML = ""
-        for(let objFullKey in catalog.objects) {
-            const objCat = catalog.objects[objFullKey]
-            if(!objCat.showInBuilder) continue
-            if(filter && !filter(objCat)) continue
-            const optionEl = addNewDomEl(this.optionsEl, "cs-option")
-            this.setOptionKey(optionEl, objCat.key)
-            optionEl.onclick = () => {
-                this.setSelectedObject(objCat.key)
-                this.setOptionsVisibility(false)
-            }
-        }
+        this.showInBuilder = showInBuilder
+        this.catalogFilter = catalogFilter
     }
+
     /**
      * Sets the content of an option element.
      * @param {HTMLElement} optionEl
      * @param {string} objKey
      */
-    setOptionKey(optionEl, objKey) {
-        const objCat = this.catalog.getObject(this.perspective, this.versions, objKey)
+    setOptionKey(optionEl, objCat) {
         const label = objCat.label
         const icon = objCat.icon
         optionEl.innerHTML = ""
-        if(icon) optionEl.appendChild(icon.cloneNode(true))
+        if(icon) optionEl.appendChild(new Img(icon, true))
         addNewDomEl(optionEl, "span", {
             text: label,
             style: {
@@ -767,25 +757,56 @@ class ObjectSelectorElement extends HTMLElement {
             }
         })
     }
+
     /**
      * Sets the visibility of the options list.
      * @param {boolean} val
      */
-    setOptionsVisibility(val) {
+    async setOptionsVisibility(val) {
         this.optionsEl.style.display = val ? "block" : "none"
+        if(!val) return
+        this._fetchDebouncer ||= new Debouncer()
+        this._fetchDebouncer.call(300, async () => {
+            const resp = await fetch(`/catalog/search`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    type: "object",
+                    perspective: this.perspective,
+                    versions: this.versions,
+                    catalogFilter: this.catalogFilter,
+                    q: val,
+                }),
+            })
+            const objCats = await resp.json()
+            this.optionsEl.innerHTML = ""
+            for(let objCat of objCats) this.addOption(objCat)
+        })
     }
+
+    addOption(objCat) {
+        const optionEl = addNewDomEl(this.optionsEl, "cs-option")
+        this.setOptionKey(optionEl, objCat)
+        optionEl.onclick = () => {
+            this.setSelectedObject(objCat)
+            this.setOptionsVisibility(false)
+        }
+    }
+
     /**
      * Sets the selected object.
      * @param {string} objKey
      */
-    setSelectedObject(objKey) {
-        this.value = objKey
-        this.setOptionKey(this.selectEl, objKey)
+    setSelectedObject(objCat) {
+        this.value = objCat.key
+        this.setOptionKey(this.selectEl, objCat)
         // this.dispatchEvent(new CustomEvent("select", {
         //     detail: { key: objKey }
         // }))
         this.dispatchEvent(new CustomEvent("change", {
-            detail: { key: objKey }
+            detail: { key: objCat.key }
         }))
     }
 }
@@ -843,7 +864,7 @@ class ObjectStateElement extends HTMLElement {
         const label = objCat.label
         const icon = objCat.icon
         optionEl.innerHTML = ""
-        if(icon) optionEl.appendChild(icon.cloneNode(true))
+        if(icon) optionEl.appendChild(new Img(icon, true))
         addNewDomEl(optionEl, "span", {
             text: label,
             style: {

@@ -340,6 +340,20 @@ function nbKeys(obj) {
     return res
 }
 
+
+class Debouncer {
+    constructor() {
+        this.counter = 0
+    }
+    call(delay, next) {
+        const counter = this.counter += 1
+        setTimeout(() => {
+            if(this.counter != counter) return
+            next()
+        }, delay)
+    }
+}
+
 export {
     newCanvas,
     cloneCanvas,
@@ -354,4 +368,5 @@ export {
     importJs,
     hasKeys,
     nbKeys,
+    Debouncer,
 }
