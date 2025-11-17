@@ -76,7 +76,7 @@
             </flexcol>
             <div class="section_title">Scene:</div>
             <flexcol>
-                <flexrow>Scene: <select id="scene_key"></select></flexrow>
+                <flexrow>Scene: <dmg-object-selector id="scenes"></dmg-object-selector></flexrow>
                 <flexrow><dmg-object-state id="scene"></dmg-object-state></flexrow>
             </flexcol>
             <div class="section_title">Objects:</div>
@@ -99,9 +99,9 @@
     </flexrow>
 <script type="module">
 import { newDomEl } from './static/core/v1/utils.mjs'
-import { GameMap, Game, GameScene, MODE_LOCAL } from './static/core/v1/game.mjs'
+import { GameMap, Game, GameScene, MODE_LOCAL, CATALOG } from './static/core/v1/game.mjs'
 import { GameBuilder } from './static/core/v1/builder.mjs'
-import { loadCatalog } from './static/core/v1/catalog.mjs'
+//import { loadCatalog } from './static/core/v1/catalog.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)
@@ -110,7 +110,7 @@ const isDebugMode = urlParams.get("debug") == "1"
 const builderParentEl = document.getElementById("builder")
 const selectionMenuEl = document.getElementById("selection_menu")
 const gameParentEl = document.getElementById("game")
-let mode = null, catalog = null, map = null, gameBuilder = null, game = null
+let mode = null, map = null, gameBuilder = null, game = null
 const defaultPerspective = "2Dside"
 const defaultVersions = {
     "core": "v1",
@@ -120,21 +120,24 @@ const defaultScnKey = "std:StandardScene"
 const defaultHeroKey = "std:Nico"
 
 const herosEl = document.getElementById("heros")
-const scnKeyEl = document.getElementById("scene_key")
+const scnsEl = document.getElementById("scenes")
 const scnStateEl = document.getElementById("scene")
-async function initInputEls(catalog) {
-    for(let fullKey in catalog.scenes) {
-        const scnCat = catalog.scenes[fullKey]
-        if(!scnCat.showInBuilder) continue
-        scnKeyEl.appendChild(newDomEl("option", {
-            value: scnCat.key,
-            text: scnCat.name,
-        }))
-    }
-    scnKeyEl.value = defaultScnKey
-    herosEl.init(defaultPerspective, defaultVersions, true, { category: "hero" })
-    //herosEl.setSelectedObject(defaultHeroKey)
-    objectsEl.init(defaultPerspective, defaultVersions, true, {
+async function initInputEls() {
+    // for(let fullKey in catalog.scenes) {
+    //     const scnCat = catalog.scenes[fullKey]
+    //     if(!scnCat.showInBuilder) continue
+    //     scnKeyEl.appendChild(newDomEl("option", {
+    //         value: scnCat.key,
+    //         text: scnCat.name,
+    //     }))
+    // }
+    //scnKeyEl.value = defaultScnKey
+    scnsEl.init("scene", defaultPerspective, defaultVersions, true)
+    herosEl.init("object", defaultPerspective, defaultVersions, true, { category: "hero" })
+    await CATALOG.fetchObjects(defaultPerspective, defaultVersions, [defaultHeroKey])
+    //await CATALOG.loadObjects(defaultPerspective, defaultVersions, [defaultHeroKey])
+    herosEl.setSelectedObject(CATALOG.getObject(defaultPerspective, defaultVersions, defaultHeroKey))
+    objectsEl.init("object", defaultPerspective, defaultVersions, true, {
         not: {
             or: [
                 { category: "hero" },
@@ -151,11 +154,11 @@ async function updScene(scnMapId, scnMap) {
     map.scenes[scnMapId] = scnMap
     await gameBuilder.loadScenesFromMap(scnMap.key, scnMapId)
 }
-scnKeyEl.onchange = async () => {
+scnsEl.onchange = async () => {
     const prevScn = gameBuilder?.scenes["0"]
     await updScene("0", {
         ...(prevScn ? prevScn.getState(true) : null),
-        key: scnKeyEl.value,
+        key: scnsEl.value,
     })
 }
 
@@ -177,7 +180,10 @@ document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilder
 document.getElementById("mode_wall_bouncing").onclick = Keys["wb"] = () => setBuilderMode('wall', 'std:BouncingWall')
 document.getElementById("mode_wall_gliding").onclick = Keys["wg"] = () => setBuilderMode('wall', 'std:GlidingWall')
 const objectsEl = document.getElementById("objects")
-objectsEl.addEventListener("change", evt => setBuilderMode('object', evt.detail.key))
+objectsEl.addEventListener("change", async evt => {
+    await CATALOG.loadObjects(map.perspective, map.versions, [evt.detail.key])
+    setBuilderMode('object', evt.detail.key)
+})
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, { key: builderModeKey })
@@ -255,14 +261,14 @@ document.addEventListener('keydown', evt => {
 // main
 
 async function main() {
-    catalog = await loadCatalog()
-    await catalog.preloadAll()  // TODO remove this
+    //catalog = await loadCatalog()
+    //await catalog.preloadAll()  // TODO remove this
     map = new GameMap()
     if(urlParams.has("map")) {
         await map.importFromSafeBase64(urlParams.get("map"))
     }
     console.log("map", map)
-    initInputEls(catalog)
+    initInputEls()
     if(urlParams.has("map")) {
         await startAndShowGame(true)
     } else {
@@ -275,9 +281,14 @@ async function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) {
-        gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, catalog, map)
-        const scnMap = map.scenes["0"]
-        await updScene("0",scnMap ?? { key: defaultScnKey })
+        gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map)
+        let scnMap = map.scenes["0"]
+        if(!scnMap) {
+            await CATALOG.fetchScenes(defaultPerspective, defaultVersions, [defaultScnKey])
+            await CATALOG.loadScenes(defaultPerspective, defaultVersions, [defaultScnKey])
+            scnMap = { key: defaultScnKey }
+        }
+        await updScene("0", scnMap)
     }
     initBuilderInputs()
     gameBuilder.run()
@@ -300,7 +311,7 @@ async function startAndShowGame(pause) {
     if(mode == "builder") syncMap()
     if(!game) {
         const playerId = "0"
-        game = new Game(gameParentEl, catalog, map, playerId, {
+        game = new Game(gameParentEl, map, playerId, {
             mode: MODE_LOCAL,
             debug: isDebugMode
         })

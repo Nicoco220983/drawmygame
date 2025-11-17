@@ -79,11 +79,11 @@
 import { cloneCanvas, importJs } from '../static/core/v1/utils.mjs'
 import {
     pack, unpack,
-    HAS_TOUCH, GameMap, Game, MODE_CLIENT,
+    HAS_TOUCH, GameMap, Game, MODE_CLIENT, CATALOG,
     MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
     GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
 } from '../static/core/v1/game.mjs'
-import { loadCatalog } from '../static/core/v1/catalog.mjs'
+//import { loadCatalog } from '../static/core/v1/catalog.mjs'
 
 const url = new URL(window.location.href)
 const isDebugMode = url.searchParams.get("debug") == "1"
@@ -144,7 +144,7 @@ try {
 
     const gameParentEl = document.getElementById("game")
     const map = new GameMap()
-    let catalog = null, game = null, ws = null, joined = false
+    let game = null, ws = null, joined = false
 
     const showGameEl = document.getElementById("show_game")
     showGameEl.checked = IS_MOBILE ? (url.searchParams.get("game") == "1") : (url.searchParams.get("game") != "0")
@@ -218,7 +218,7 @@ try {
     // main
 
     async function main() {
-        catalog = await loadCatalog()
+        //catalog = await loadCatalog()
         await connectToRoom()
         await initGame()
         syncGameShow()
@@ -263,15 +263,15 @@ try {
         return false
     }
 
-    let catalogLoader = null
+    //let catalogLoader = null
     async function initGame(force) {
         if(!(await getRoomMap())) return
         //if(!isGameVisible() && !isJoypadVisible()) return
-        catalogLoader ||= catalog.preloadAll()
-        await catalogLoader
+        //catalogLoader ||= catalog.preloadAll()
+        //await catalogLoader
         if(!game || force) {
             stopGame()
-            game = new Game(gameParentEl, catalog, map, ws.id, {
+            game = new Game(gameParentEl, map, ws.id, {
                 mode: MODE_CLIENT,
                 sendPing: () => ws.send(toWsMsg(MSG_KEY_PING)),
                 sendStates: statesBin => ws.send(toWsMsg(MSG_KEY_STATE, statesBin)),

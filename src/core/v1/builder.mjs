@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { sumTo, newCanvas, newDomEl, addNewDomEl, Debouncer } = utils
 import * as game from './game.mjs'
-const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
+const { CATALOG, GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
 
 
 // BUILDER //////////////////////////
@@ -17,12 +17,11 @@ export class GameBuilder extends GameCommon {
     /**
      * @param {HTMLElement} canvasParentEl
      * @param {HTMLElement} selectionMenuEl
-     * @param {game.Catalog} catalog
      * @param {object} map
      * @param {object} kwargs
      */
-    constructor(canvasParentEl, selectionMenuEl, catalog, map, kwargs) {
-        super(canvasParentEl, catalog, map, kwargs)
+    constructor(canvasParentEl, selectionMenuEl, map, kwargs) {
+        super(canvasParentEl, map, kwargs)
         this.isBuilder = true
         this.selectionMenuEl = selectionMenuEl
         this.copiedObjectState = null
@@ -75,7 +74,7 @@ export class GameBuilder extends GameCommon {
     createScene(cls, kwargs) {
         kwargs ||= {}
         kwargs.chunkSize = Infinity
-        const scn = new cls(this, kwargs)
+        const scn = super.createScene(cls, kwargs)
         scn.doCreateObjectMapProto = false
         return scn
     }
@@ -195,6 +194,7 @@ class DraftScene extends SceneCommon {
  */
 
     setDraftObject(key, kwargs) {
+        const { perspective, versions } = this.game.map
         if(key) this.draftObject = this.createObjectFromKey(key, kwargs)
         else {
             if(this.draftObject) this.draftObject.remove()
@@ -733,7 +733,8 @@ class ObjectSelectorElement extends HTMLElement {
      * @param {game.Catalog} catalog
      * @param {Function} filter
      */
-    init(perspective, versions, showInBuilder, catalogFilter) {
+    init(type, perspective, versions, showInBuilder, catalogFilter) {
+        this.type = type
         this.perspective = perspective
         this.versions = versions
         this.showInBuilder = showInBuilder
@@ -773,7 +774,7 @@ class ObjectSelectorElement extends HTMLElement {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    type: "object",
+                    type: this.type,
                     perspective: this.perspective,
                     versions: this.versions,
                     catalogFilter: this.catalogFilter,
@@ -860,7 +861,7 @@ class ObjectStateElement extends HTMLElement {
      * @param {string} objKey
      */
     setOptionKey(optionEl, objKey) {
-        const objCat = this.catalog.objects[objKey]
+        const objCat = CATALOG.objects[objKey]
         const label = objCat.label
         const icon = objCat.icon
         optionEl.innerHTML = ""

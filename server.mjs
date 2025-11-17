@@ -4,6 +4,7 @@ import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 import crypto from "crypto"
 import { networkInterfaces } from "os"
+import { readdir } from 'fs/promises'
 
 import express from "express"
 import websocketWs from 'express-ws'
@@ -11,12 +12,12 @@ import bodyParser from 'body-parser'
 
 import {
   pack, unpack,
-  GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
+  CATALOG, GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
   MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
   GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
 } from './static/core/v1/game.mjs'
 
-import { loadCatalog } from './static/core/v1/catalog.mjs'
+//import { loadCatalog } from './static/core/v1/catalog.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
 const PORT = parseInt(process.env.PORT || 8080)
@@ -30,17 +31,15 @@ const DEFAULT_STATIC_CACHE_MAX_AGE = IS_DEBUG_MODE ? "1d" : 0
 const RM_PLAYER_COUNTDOWN = 10
 const CLOSE_ROOM_COUNTDOWN = 60
 
-let catalog = null
-
 
 async function main() {
   const gameServer = new GameServer()
   gameServer.serve()
   const localIp = Object.values(getLocalIps())[0]
   console.log(`Server started at: http://${localIp}:${PORT}`)
-  catalog = await loadCatalog()
-  await catalog.preloadAll()
-  initCatalogSearchTexts(catalog)
+  await loadAllCatalogs()
+  //await catalog.preloadAll()
+  initCatalogSearchTexts()
 }
 
 
@@ -87,22 +86,70 @@ class GameServer {
       res.end('pong')
     })
 
+    this.app.get("/catalog/:type/:fullKeys", (req, res, next) => {
+      try {
+        const { type, fullKeys } = req.params
+        const resp = {}
+        for(let fullKey of fullKeys.split(",")) {
+          let item
+          if(type == "object") item = CATALOG.objects[fullKey]
+          else if(type == "scene") item = CATALOG.scenes[fullKey]
+          else return res.sendStatus(422)
+          if(item) resp[fullKey] = {
+            key: item.key,
+            path: item.path,
+            modName: item.modName,
+            modVersion: item.modVersion,
+            perspective: item.perspective,
+            name: item.name,
+            category: item.category,
+            label: item.label,
+            icon: item.icon,
+            showInBuilder: item.showInBuilder,
+            isHero: item.isHero,
+          }
+        }
+        res.json(resp)
+      } catch(err) { next(err) }
+    })
+
     this.app.post("/catalog/search", (req, res, next) => {
       try {
         const { type, perspective, versions, showInBuilder, q, catalogFilter } = req.body
-        const resp = []
+        const items = []
         if(type == "object") {
-          for(let objFullKey in catalog.objects) {
-            const objCat = catalog.objects[objFullKey]
+          for(let objFullKey in CATALOG.objects) {
+            const objCat = CATALOG.objects[objFullKey]
             if(objCat.perspective != perspective) continue
             if(objCat.searchText.indexOf(q) < 0) continue
             if(versions[objCat.modName] != objCat.modVersion) continue
             if(showInBuilder !== undefined && showInBuilder != objCat.showInBuilder) continue
-            if(catalogFilter && !catalog.filterObject(catalogFilter, objCat)) continue
-            resp.push(objCat)
+            if(catalogFilter && !CATALOG.filterObject(catalogFilter, objCat)) continue
+            items.push(objCat)
+            if(items.length >= 10) break
+          }
+        } else if(type == "scene") {
+          for(let scnFullKey in CATALOG.scenes) {
+            const scnCat = CATALOG.scenes[scnFullKey]
+            if(scnCat.perspective != perspective) continue
+            if(versions[scnCat.modName] != scnCat.modVersion) continue
+            items.push(scnCat)
             if(resp.length >= 10) break
           }
         }
+        const resp = items.map(item => ({
+            key: item.key,
+            path: item.path,
+            modName: item.modName,
+            modVersion: item.modVersion,
+            perspective: item.perspective,
+            name: item.name,
+            category: item.category,
+            label: item.label,
+            icon: item.icon,
+            showInBuilder: item.showInBuilder,
+            isHero: item.isHero,
+        }))
         res.json(resp)
       } catch(err) { next(err) }
     })
@@ -271,7 +318,7 @@ class GameServer {
     const mapBin = new Uint8Array(room.mapBuf)
     await map.importFromBinary(mapBin)
     if(room.game) room.game.stop()
-    const game = room.game = new Game(null, catalog, map, null, {
+    const game = room.game = new Game(null, map, null, {
       mode: MODE_SERVER,
       sendStates: statesBin => room.sendAll(toWsMsg(MSG_KEY_STATE, statesBin)),
       debug: IS_DEBUG_MODE,
@@ -428,13 +475,20 @@ class Client {
 }
 
 
-function initCatalogSearchTexts(catalog) {
-  for(let scnFullKey in catalog.scenes) {
-    const scnCat = catalog.scenes[scnFullKey]
+async function loadAllCatalogs() {
+  const catsPath = join(DIRNAME, 'static/catalogs')
+  const catNames = await listDirectories(catsPath)
+  await Promise.all(catNames.map(n => import(join(catsPath, n, 'index.mjs'))))
+}
+
+
+function initCatalogSearchTexts() {
+  for(let scnFullKey in CATALOG.scenes) {
+    const scnCat = CATALOG.scenes[scnFullKey]
     scnCat.searchText = `${scnCat.key} ${scnCat.name} ${scnCat.label}`.toLowerCase()
   }
-  for(let objFullKey in catalog.objects) {
-    const objCat = catalog.objects[objFullKey]
+  for(let objFullKey in CATALOG.objects) {
+    const objCat = CATALOG.objects[objFullKey]
     objCat.searchText = `${objCat.key} ${objCat.name} ${objCat.category ?? ""} ${objCat.label}`.toLowerCase()
   }
 }
@@ -473,6 +527,12 @@ function getLocalIps() {
     }
   }
   return res
+}
+
+async function listDirectories(dirPath) {
+  return (await readdir(dirPath, { withFileTypes: true }))
+    .filter(dirent => dirent.isDirectory())
+    .map(dirent => dirent.name)
 }
 
 main()
