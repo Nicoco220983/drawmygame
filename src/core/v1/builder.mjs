@@ -768,22 +768,15 @@ class ObjectSelectorElement extends HTMLElement {
         if(!val) return
         this._fetchDebouncer ||= new Debouncer()
         this._fetchDebouncer.call(300, async () => {
-            const resp = await fetch(`/catalog/search`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    type: this.type,
-                    perspective: this.perspective,
-                    versions: this.versions,
-                    catalogFilter: this.catalogFilter,
-                    q: val,
-                }),
-            })
-            const objCats = await resp.json()
+            const itemCats = await CATALOG.searchItems(
+                this.type,
+                this.perspective,
+                this.versions,
+                this.catalogFilter,
+                val,
+            )
             this.optionsEl.innerHTML = ""
-            for(let objCat of objCats) this.addOption(objCat)
+            for(let itemCat of itemCats) this.addOption(itemCat)
         })
     }
 

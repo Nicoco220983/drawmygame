@@ -239,6 +239,40 @@ export class Catalog {
         return fullKeys.map(key => items[key])
     }
 
+    async searchScenes(perspective, versions, catalogFilter, query) {
+        return await this.searchItems("scene", perspective, versions, catalogFilter, query)
+    }
+
+    async searchObjects(perspective, versions, catalogFilter, query) {
+        return await this.searchItems("object", perspective, versions, catalogFilter, query)
+    }
+
+    async searchItems(type, perspective, versions, catalogFilter, query) {
+        let items
+        if(type == "scene") items = this.scenes
+        else if(type == "object") items = this.objects
+        else throw new Error("Unknown type")
+        const resp = await fetch(`/catalog/search`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                type,
+                perspective,
+                versions,
+                catalogFilter,
+                q: query,
+            }),
+        })
+        const itemCats = await resp.json()
+        for(let itemCat of itemCats) {
+            const fullKey = this.getFullKey(perspective, versions, itemCat.key)
+            items[fullKey] ||= itemCat
+        }
+        return itemCats
+    }
+
     filterObject(filterDesc, obj) {
         if(filterDesc.and) {
             for(let f of filterDesc.and) if(!this.filterObject(f, obj)) return false
