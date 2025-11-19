@@ -2,8 +2,9 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { sumTo, newCanvas, newDomEl, addNewDomEl, Debouncer } = utils
+import { CATALOG } from './catalog.mjs'
 import * as game from './game.mjs'
-const { CATALOG, GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
+const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
 
 
 // BUILDER //////////////////////////

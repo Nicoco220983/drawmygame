@@ -10,9 +10,10 @@ import express from "express"
 import websocketWs from 'express-ws'
 import bodyParser from 'body-parser'
 
+import { CATALOG } from './static/core/v1/catalog.mjs'
 import {
   pack, unpack,
-  CATALOG, GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
+  GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
   MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
   GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
 } from './static/core/v1/game.mjs'
