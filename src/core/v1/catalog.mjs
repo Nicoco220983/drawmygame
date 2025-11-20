@@ -75,20 +75,6 @@ export class Catalog {
         return this.scenes[fullKey]
     }
 
-    /**
-     * Returns a scene class from the catalog.
-     * @param {string} perspective The perspective.
-     * @param {object} versions The versions.
-     * @param {string} key The key of the scene.
-     * @returns {typeof SceneCommon} The scene class.
-     */
-    // getSceneClass(perspective, versions, key) {
-    //     const scnCat = this.getScene(perspective, versions, key)
-    //     if(!scnCat) return null
-    //     const mod = this.mods[scnCat.path]
-    //     return mod[scnCat.name]
-    // }
-
     async fetchScenes(perspective, versions, keys) {
         return await this._fetch(this.scenes, "scene", perspective, versions, keys)
     }
@@ -104,20 +90,6 @@ export class Catalog {
         const fullKey = this.getFullKey(perspective, versions, key)
         return this.objects[fullKey]
     }
-
-    /**
-     * Returns an object class from the catalog.
-     * @param {string} perspective The perspective.
-     * @param {object} versions The versions.
-     * @param {string} key The key of the object.
-     * @returns {typeof GameObject} The object class.
-     */
-    // getObjectClass(perspective, versions, key) {
-    //     const objCat = this.getObject(perspective, versions, key)
-    //     if(!objCat) return null
-    //     const mod = this.mods[objCat.path]
-    //     return mod[objCat.name]
-    // }
 
     async fetchObjects(perspective, versions, keys) {
         return await this._fetch(this.objects, "object", perspective, versions, keys)
@@ -230,6 +202,7 @@ export class ModuleCatalog {
             return target
         }
     }
+    
     /**
      * Registers a scene.
      * @param {object} kwargs The properties of the scene.

@@ -1,7 +1,50 @@
 const { assign } = Object
-const { min, max, round } = Math
+const { min, max } = Math
 
 const IS_SERVER_ENV = (typeof window === 'undefined')
+
+/**
+ * Returns the current time in seconds.
+ * @returns {number} The current time in seconds.
+ */
+export function now() {
+    return Date.now() / 1000
+}
+
+/**
+ * Returns an array of numbers in a given range.
+ * @param {number} start The start of the range.
+ * @param {number} end The end of the range.
+ * @returns {number[]} The array of numbers.
+ */
+export function range(start, end) {
+    const res = []
+    for(let i=start; i<end; ++i) res.push(i)
+    return res
+}
+
+const _round = Math.round
+/**
+ * Rounds a number to a given precision.
+ * @param {number} val The number to round.
+ * @param {number} precision The precision.
+ * @returns {number} The rounded number.
+ */
+export function round(val, precision = 1) {
+    return _round(val / precision) * precision
+}
+
+
+/**
+ * Returns the sign of a number
+ * @param {number} val - Value to check
+ * @returns {-1 | 0 | 1} -1 for negative, 0 for zero, 1 for positive
+ */
+export function sign(val) {
+    if(val == 0) return 0
+    else if(val > 0) return 1
+    else return -1
+}
 
 
 /**
@@ -11,7 +54,7 @@ const IS_SERVER_ENV = (typeof window === 'undefined')
  * @param {?string} [color] - Optional fill color for the canvas
  * @returns {HTMLCanvasElement | null} Canvas element or null if in server environment
  */
-function newCanvas(width, height, color) {
+export function newCanvas(width, height, color) {
     if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     canvas.width = width
@@ -41,7 +84,7 @@ function newCanvas(width, height, color) {
  * }} [kwargs] - Optional transformation parameters
  * @returns {HTMLCanvasElement} New canvas with transformations applied
  */
-function cloneCanvas(canvas, kwargs) {
+export function cloneCanvas(canvas, kwargs) {
     const flipX = (kwargs && kwargs.flipX) || false
     const flipY = (kwargs && kwargs.flipY) || false
     const scaleX = (kwargs && kwargs.scaleX) || 1
@@ -82,7 +125,7 @@ function cloneCanvas(canvas, kwargs) {
  * @param {string} [fromColor="red"] - The source color to be replaced.
  * @returns {HTMLCanvasElement} The colorized canvas.
  */
-function colorizeCanvas(canvas, toColor, fromColor="red") {
+export function colorizeCanvas(canvas, toColor, fromColor="red") {
   const ctx = canvas.getContext("2d");
   const { width, height } = canvas;
   const imgData = ctx.getImageData(0, 0, width, height);
@@ -195,7 +238,7 @@ function hsvToRGB(h, s, v) {
  * @param {number} [y=0] - Y coordinate
  * @returns {HTMLCanvasElement} The target canvas
  */
-function addCanvas(canvas, canvas2, x=0, y=0) {
+export function addCanvas(canvas, canvas2, x=0, y=0) {
     const ctx = canvas.getContext("2d")
     ctx.drawImage(canvas2, x, y)
     return canvas
@@ -207,7 +250,7 @@ function addCanvas(canvas, canvas2, x=0, y=0) {
  * @param {Partial<CanvasRenderingContext2D>} [kwargs] - Canvas context properties (fillStyle, font, etc.)
  * @returns {HTMLCanvasElement | null} Canvas with text rendered, or null if in server environment
  */
-function newTextCanvas(text, kwargs) {
+export function newTextCanvas(text, kwargs) {
     if(IS_SERVER_ENV) return null
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
@@ -235,23 +278,11 @@ function newTextCanvas(text, kwargs) {
  * @param {() => T} tranformFun - Transform function to execute if cache miss
  * @returns {T} Cached or newly computed result
  */
-function cachedTransform(obj, cacheKey, tranformFun) {
+export function cachedTransform(obj, cacheKey, tranformFun) {
     const cache = obj._transformCache ||= {}
     let res = cache[cacheKey]
     if(res === undefined) res = cache[cacheKey] = tranformFun()
     return res
-}
-
-
-/**
- * Returns the sign of a number
- * @param {number} val - Value to check
- * @returns {-1 | 0 | 1} -1 for negative, 0 for zero, 1 for positive
- */
-function sign(val) {
-    if(val == 0) return 0
-    else if(val > 0) return 1
-    else return -1
 }
 
 /**
@@ -261,7 +292,7 @@ function sign(val) {
  * @param {number} target - Target value
  * @returns {number} New value moved toward target
  */
-function sumTo(val, dv, target) {
+export function sumTo(val, dv, target) {
     // dv should always be > 0
     if(val == target) return target
     else if(target > val) return min(val + dv, target)
@@ -274,7 +305,7 @@ function sumTo(val, dv, target) {
  * @param {{ style?: Partial<CSSStyleDeclaration>, value?: string, checked?: boolean, text?: string, [key: string]: any }} [kwargs] - Element properties and attributes
  * @returns {HTMLElement} Created element
  */
-function newDomEl(tag, kwargs) {
+export function newDomEl(tag, kwargs) {
     const el = document.createElement(tag)
     for(let key in kwargs) {
         const val = kwargs[key]
@@ -294,7 +325,7 @@ function newDomEl(tag, kwargs) {
  * @param {Parameters<typeof newDomEl>[1]} [kwargs] - Element properties and attributes
  * @returns {HTMLElement} Created element
  */
-function addNewDomEl(parentEl, tag, kwargs) {
+export function addNewDomEl(parentEl, tag, kwargs) {
     const el = newDomEl(tag, kwargs)
     if(parentEl) parentEl.appendChild(el)
     return el
@@ -309,7 +340,7 @@ const importJsPrms = {}
  * @param {string} src - Script source URL
  * @returns {Promise<Event>} Promise that resolves when script loads
  */
-function importJs(src) {
+export function importJs(src) {
     return importJsPrms[src] ||= new Promise((ok, ko) => {
         const scriptEl = document.createElement("script")
         scriptEl.src = src
@@ -324,7 +355,7 @@ function importJs(src) {
  * @param {object} obj - Object to check
  * @returns {boolean} True if object has at least one key
  */
-function hasKeys(obj) {
+export function hasKeys(obj) {
     for(let _ in obj) return true
     return false
 }
@@ -334,14 +365,14 @@ function hasKeys(obj) {
  * @param {object} obj - Object to count keys for
  * @returns {number} Number of keys
  */
-function nbKeys(obj) {
+export function nbKeys(obj) {
     let res = 0
     for(let _ in obj) res += 1
     return res
 }
 
 
-class Debouncer {
+export class Debouncer {
     constructor() {
         this.counter = 0
     }
@@ -352,21 +383,4 @@ class Debouncer {
             next()
         }, delay)
     }
-}
-
-export {
-    newCanvas,
-    cloneCanvas,
-    colorizeCanvas,
-    addCanvas,
-    newTextCanvas,
-    cachedTransform,
-    sign,
-    sumTo,
-    newDomEl,
-    addNewDomEl,
-    importJs,
-    hasKeys,
-    nbKeys,
-    Debouncer,
 }
