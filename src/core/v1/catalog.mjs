@@ -1,9 +1,50 @@
 const { assign } = Object
 
 const BASE_URL = import.meta.resolve("../../..")
-function getPathFromUrl(url) { return '/' + url.substring(BASE_URL.length) }
-function getUrlFromPath(path) { return BASE_URL + path.substring(1) }
 const CATALOGS_PATH = "/static/catalogs"
+
+/**
+ * 
+ * @param {string} url 
+ * @returns {string}
+ */
+function getPathFromUrl(url) {
+    return '/' + url.substring(BASE_URL.length)
+}
+
+/**
+ * 
+ * @param {string} url 
+ * @returns {string}
+ */
+function getUrlFromPath(path) {
+    return BASE_URL + path.substring(1)
+}
+
+
+export class CatalogContext {
+
+    /**
+     * @typedef {Object} CatalogContextKwargs
+     * @property {string} [name]
+     * @property {string} version
+     * @property {string} perspective
+    */
+    /**
+     * @param {string} url 
+     * @param {CatalogContextKwargs} kwargs
+     */
+    constructor(url, kwargs) {
+        /** @type {string} */
+        this.path = getPathFromUrl(url)
+        /** @type {string} */
+        this.name = kwargs.name ?? this.path.substring(CATALOGS_PATH.length + 1).split('/')[0]
+        /** @type {string} */
+        this.version = kwargs.version
+        /** @type {string} */
+        this.perspective = kwargs.perspective
+    }
+}
 
 /**
  * Represents a catalog of game objects and scenes.
@@ -27,6 +68,12 @@ export class Catalog {
         await Promise.all(paths.map(p => import(getUrlFromPath(p))))
     }
 
+    /**
+     * 
+     * @param {string} perspective
+     * @param {Object.<string,string>} versions
+     * @param {string[]} keys
+     */
     async loadScenes(perspective, versions, keys) {
         const paths = new Set(keys.map(key => this.getScene(perspective, versions, key).path))
         await Promise.all(Array.from(paths).map(p => import(getUrlFromPath(p))))
@@ -98,8 +145,8 @@ export class Catalog {
     async _fetch(items, type, perspective, versions, keys) {
         const fullKeys = keys.map(key => this.getFullKey(perspective, versions, key))
         const fullKeysToFetch = []
-        for(let key of fullKeys) if(items[key] === undefined) fullKeysToFetch.push(key)
-        if(fullKeysToFetch.length > 0) {
+        for (let key of fullKeys) if (items[key] === undefined) fullKeysToFetch.push(key)
+        if (fullKeysToFetch.length > 0) {
             const resp = await fetch(`/catalog/${type}/${fullKeysToFetch.join(',')}`)
             assign(items, await resp.json())
         }
@@ -116,8 +163,8 @@ export class Catalog {
 
     async searchItems(type, perspective, versions, catalogFilter, query) {
         let items
-        if(type == "scene") items = this.scenes
-        else if(type == "object") items = this.objects
+        if (type == "scene") items = this.scenes
+        else if (type == "object") items = this.objects
         else throw new Error("Unknown type")
         const resp = await fetch(`/catalog/search`, {
             method: "POST",
@@ -133,7 +180,7 @@ export class Catalog {
             }),
         })
         const itemCats = await resp.json()
-        for(let itemCat of itemCats) {
+        for (let itemCat of itemCats) {
             const fullKey = this.getFullKey(perspective, versions, itemCat.key)
             items[fullKey] ||= itemCat
         }
@@ -141,59 +188,45 @@ export class Catalog {
     }
 
     filterObject(filterDesc, obj) {
-        if(filterDesc.and) {
-            for(let f of filterDesc.and) if(!this.filterObject(f, obj)) return false
+        if (filterDesc.and) {
+            for (let f of filterDesc.and) if (!this.filterObject(f, obj)) return false
             return true
         }
-        if(filterDesc.or) {
-            for(let f of filterDesc.or) if(this.filterObject(f, obj)) return true
+        if (filterDesc.or) {
+            for (let f of filterDesc.or) if (this.filterObject(f, obj)) return true
             return false
         }
-        if(filterDesc.not) {
+        if (filterDesc.not) {
             return !this.filterObject(filterDesc.not, obj)
         }
-        if(filterDesc.category) {
+        if (filterDesc.category) {
             const objCat = obj.category
-            if(!objCat || objCat.indexOf('/'+filterDesc.category+'/')<0) return false
+            if (!objCat || objCat.indexOf('/' + filterDesc.category + '/') < 0) return false
         }
         return true
-    }
-}
-
-/**
- * Represents a module catalog.
- * @param {string} url The URL of the module.
- * @param {object} kwargs The properties of the module.
- */
-export class ModuleCatalog {
-    constructor(catalog, url, kwargs) {
-        this.catalog = catalog
-        this.path = getPathFromUrl(url)
-        this.name = kwargs?.name ?? this.path.substring(CATALOGS_PATH.length+1).split('/')[0]
-        this.version = kwargs?.version
-        this.perspective = kwargs?.perspective
     }
 
     /**
      * Registers an object.
-     * @param {object} kwargs The properties of the object.
+     * @param {CatalogContext} ctx
+     * @param {Object} kwargs The properties of the object.
      * @returns {function(typeof GameObject):typeof GameObject} The decorator.
      */
-    registerObject(kwargs) {
+    registerObject(ctx, kwargs) {
         return target => {
-            const key = `${this.name}:${target.name}`
-            const fullKey = `${this.perspective}:${this.name}:${this.version}:${target.name}`
-            const objCat = this.catalog.objects[fullKey] = {}
+            const key = `${ctx.name}:${target.name}`
+            const fullKey = `${ctx.perspective}:${ctx.name}:${ctx.version}:${target.name}`
+            const objCat = this.objects[fullKey] = {}
             objCat.key = key
-            objCat.path = this.path
-            objCat.modName = this.name
-            objCat.modVersion = this.version
-            objCat.perspective = this.perspective
+            objCat.path = ctx.path
+            objCat.modName = ctx.name
+            objCat.modVersion = ctx.version
+            objCat.perspective = ctx.perspective
             objCat.name = target.name
             objCat.category = target.CATEGORY
             objCat.label = kwargs?.label ?? key
             objCat.icon = kwargs?.icon ?? null
-            if(objCat.icon?._src !== undefined) objCat.icon = objCat.icon._src
+            if (objCat.icon?._src !== undefined) objCat.icon = objCat.icon._src
             objCat.showInBuilder = (kwargs?.showInBuilder == false) ? false : true
             objCat.isHero = target.IS_HERO == true
             objCat.cls = target
@@ -202,22 +235,23 @@ export class ModuleCatalog {
             return target
         }
     }
-    
+
     /**
      * Registers a scene.
+     * @param {CatalogContext} ctx
      * @param {object} kwargs The properties of the scene.
      * @returns {function(typeof SceneCommon):typeof SceneCommon} The decorator.
      */
-    registerScene(kwargs) {
+    registerScene(ctx, kwargs) {
         return target => {
-            const key = `${this.name}:${target.name}`
-            const fullKey = `${this.perspective}:${this.name}:${this.version}:${target.name}`
-            const scnCat = this.catalog.scenes[fullKey] = {}
+            const key = `${ctx.name}:${target.name}`
+            const fullKey = `${ctx.perspective}:${ctx.name}:${ctx.version}:${target.name}`
+            const scnCat = this.scenes[fullKey] = {}
             scnCat.key = key
-            scnCat.path = this.path
-            scnCat.modName = this.name
-            scnCat.modVersion = this.version
-            scnCat.perspective = this.perspective
+            scnCat.path = ctx.path
+            scnCat.modName = ctx.name
+            scnCat.modVersion = ctx.version
+            scnCat.perspective = ctx.perspective
             scnCat.name = target.name
             scnCat.label = kwargs?.label ?? key
             scnCat.showInBuilder = (kwargs?.showInBuilder == false) ? false : true
