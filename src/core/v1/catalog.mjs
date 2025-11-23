@@ -22,30 +22,6 @@ function getUrlFromPath(path) {
 }
 
 
-export class CatalogContext {
-
-    /**
-     * @typedef {Object} CatalogContextKwargs
-     * @property {string} [name]
-     * @property {string} version
-     * @property {string} perspective
-    */
-    /**
-     * @param {string} url 
-     * @param {CatalogContextKwargs} kwargs
-     */
-    constructor(url, kwargs) {
-        /** @type {string} */
-        this.path = getPathFromUrl(url)
-        /** @type {string} */
-        this.name = kwargs.name ?? this.path.substring(CATALOGS_PATH.length + 1).split('/')[0]
-        /** @type {string} */
-        this.version = kwargs.version
-        /** @type {string} */
-        this.perspective = kwargs.perspective
-    }
-}
-
 /**
  * Represents a catalog of game objects and scenes.
  */
@@ -53,10 +29,6 @@ export class Catalog {
     constructor() {
         this.scenes = {}
         this.objects = {}
-    }
-
-    getModuleCatalog(url, kwargs) {
-        return new ModuleCatalog(this, url, kwargs)
     }
 
     /**
@@ -98,16 +70,16 @@ export class Catalog {
 
     /**
      * Returns the full key of an item.
-     * @param {string} perspective The perspective.
-     * @param {object} versions The versions.
-     * @param {string} key The key.
-     * @returns {string} The full key.
+     * @param {string} perspective
+     * @param {object} versions
+     * @param {string} key
+     * @returns {string}
      */
     getFullKey(perspective, versions, key) {
         const keySplit = key.split(':')
-        const modName = keySplit[0], className = keySplit[1]
-        const modVersion = versions[modName]
-        return `${perspective}:${modName}:${modVersion}:${className}`
+        const namespace = keySplit[0], className = keySplit[1]
+        const modVersion = versions[namespace]
+        return `${perspective}:${namespace}:${modVersion}:${className}`
     }
 
     /**
@@ -208,20 +180,22 @@ export class Catalog {
 
     /**
      * Registers an object.
-     * @param {CatalogContext} ctx
      * @param {Object} kwargs The properties of the object.
      * @returns {function(typeof GameObject):typeof GameObject} The decorator.
      */
-    registerObject(ctx, kwargs) {
+    registerObject(kwargs) {
         return target => {
-            const key = `${ctx.name}:${target.name}`
-            const fullKey = `${ctx.perspective}:${ctx.name}:${ctx.version}:${target.name}`
+            const path = getPathFromUrl(kwargs.url)
+            const namespace = kwargs.namespace ?? path.substring(CATALOGS_PATH.length + 1).split('/')[0]
+            const key = `${namespace}:${target.name}`
+            const fullKey = `${kwargs.perspective}:${namespace}:${kwargs.version}:${target.name}`
             const objCat = this.objects[fullKey] = {}
+            objCat.version = kwargs.version
+            objCat.perspective = kwargs.perspective
             objCat.key = key
-            objCat.path = ctx.path
-            objCat.modName = ctx.name
-            objCat.modVersion = ctx.version
-            objCat.perspective = ctx.perspective
+            objCat.path = path
+            objCat.namespace = namespace
+            objCat.perspective = kwargs.perspective
             objCat.name = target.name
             objCat.category = target.CATEGORY
             objCat.label = kwargs?.label ?? key
@@ -238,20 +212,21 @@ export class Catalog {
 
     /**
      * Registers a scene.
-     * @param {CatalogContext} ctx
      * @param {object} kwargs The properties of the scene.
      * @returns {function(typeof SceneCommon):typeof SceneCommon} The decorator.
      */
-    registerScene(ctx, kwargs) {
+    registerScene(kwargs) {
         return target => {
-            const key = `${ctx.name}:${target.name}`
-            const fullKey = `${ctx.perspective}:${ctx.name}:${ctx.version}:${target.name}`
+            const path = getPathFromUrl(kwargs.url)
+            const namespace = kwargs.namespace ?? path.substring(CATALOGS_PATH.length + 1).split('/')[0]
+            const key = `${namespace}:${target.name}`
+            const fullKey = `${kwargs.perspective}:${namespace}:${kwargs.version}:${target.name}`
             const scnCat = this.scenes[fullKey] = {}
+            scnCat.version = kwargs.version
+            scnCat.perspective = kwargs.perspective
             scnCat.key = key
-            scnCat.path = ctx.path
-            scnCat.modName = ctx.name
-            scnCat.modVersion = ctx.version
-            scnCat.perspective = ctx.perspective
+            scnCat.path = path
+            scnCat.namespace = namespace
             scnCat.name = target.name
             scnCat.label = kwargs?.label ?? key
             scnCat.showInBuilder = (kwargs?.showInBuilder == false) ? false : true

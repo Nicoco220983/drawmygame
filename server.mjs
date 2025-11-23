@@ -99,8 +99,8 @@ class GameServer {
           if(item) resp[fullKey] = {
             key: item.key,
             path: item.path,
-            modName: item.modName,
-            modVersion: item.modVersion,
+            namespace: item.namespace,
+            version: item.version,
             perspective: item.perspective,
             name: item.name,
             category: item.category,
@@ -123,7 +123,7 @@ class GameServer {
             const objCat = CATALOG.objects[objFullKey]
             if(objCat.perspective != perspective) continue
             if(objCat.searchText.indexOf(q) < 0) continue
-            if(versions[objCat.modName] != objCat.modVersion) continue
+            if(versions[objCat.namespace] != objCat.version) continue
             if(showInBuilder !== undefined && showInBuilder != objCat.showInBuilder) continue
             if(catalogFilter && !CATALOG.filterObject(catalogFilter, objCat)) continue
             items.push(objCat)
@@ -133,7 +133,7 @@ class GameServer {
           for(let scnFullKey in CATALOG.scenes) {
             const scnCat = CATALOG.scenes[scnFullKey]
             if(scnCat.perspective != perspective) continue
-            if(versions[scnCat.modName] != scnCat.modVersion) continue
+            if(versions[scnCat.namespace] != scnCat.version) continue
             items.push(scnCat)
             if(resp.length >= 10) break
           }
@@ -141,8 +141,8 @@ class GameServer {
         const resp = items.map(item => ({
             key: item.key,
             path: item.path,
-            modName: item.modName,
-            modVersion: item.modVersion,
+            namespace: item.namespace,
+            version: item.version,
             perspective: item.perspective,
             name: item.name,
             category: item.category,
