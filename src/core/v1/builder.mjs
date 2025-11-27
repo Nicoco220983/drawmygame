@@ -723,8 +723,19 @@ class ObjectSelectorElement extends HTMLElement {
                 zIndex: 99,
             }
         })
-        this.selectEl.oninput = () => this.setOptionsVisibility(this.selectEl.textContent)
-        selectWrapperEl.onblur = () => this.setOptionsVisibility(false)
+        this.selectEl.addEventListener("focus", () => {
+            if(this.value) this.setSelectedObject(this.value)
+            this.selectEl.innerHTML = "\u200B"  // hack for cursor placement
+        })
+        this.selectEl.oninput = () => {
+            this.setOptionsVisibility(this.selectEl.textContent.replace(/\u200B/g, ''))
+        }
+        selectWrapperEl.addEventListener("focusout", evt => {
+            if(selectWrapperEl.contains(evt.relatedTarget)) return
+            this.setOptionsVisibility(false)
+            if(this.value) this.setOptionKey(this.selectEl, this.value)
+            else this.selectEl.innerHTML = ""
+        })
     }
 
     /**
@@ -795,7 +806,7 @@ class ObjectSelectorElement extends HTMLElement {
      * @param {string} objKey
      */
     setSelectedObject(objCat) {
-        this.value = objCat.key
+        this.value = objCat
         this.setOptionKey(this.selectEl, objCat)
         // this.dispatchEvent(new CustomEvent("select", {
         //     detail: { key: objKey }
