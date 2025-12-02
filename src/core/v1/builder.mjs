@@ -4,7 +4,7 @@ import * as utils from './utils.mjs'
 const { sumTo, newCanvas, newDomEl, addNewDomEl, Debouncer } = utils
 import { CATALOG } from './catalog.mjs'
 import * as game from './game.mjs'
-const { GameCommon, SceneCommon, DefaultScene, GameObject, ObjectLink, Img } = game
+const { GameCommon, Scene, DefaultScene, GameObject, ObjectLink, Img } = game
 
 
 // BUILDER //////////////////////////
@@ -68,9 +68,9 @@ export class GameBuilder extends GameCommon {
 
     /**
      * Creates a new scene.
-     * @param {typeof SceneCommon} cls
+     * @param {typeof Scene} cls
      * @param {object} kwargs
-     * @returns {SceneCommon}
+     * @returns {Scene}
      */
     createScene(cls, kwargs) {
         kwargs ||= {}
@@ -158,9 +158,9 @@ export class GameBuilder extends GameCommon {
 
 /**
  * Draft scene for the builder
- * @extends {SceneCommon}
+ * @extends {Scene}
  */
-class DraftScene extends SceneCommon {
+class DraftScene extends Scene {
     
     /**
      * Initializes the draft scene.

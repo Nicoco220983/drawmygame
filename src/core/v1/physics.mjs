@@ -17,7 +17,7 @@ const colRes = {}, blockerColRes = {}, projRes = {}
  * @class PhysicsEngine
  * @description Handles physics simulation for the game.
  */
-export default class PhysicsEngine {
+export class PhysicsEngine {
     /**
      * @param {object} scn - The scene object.
      */

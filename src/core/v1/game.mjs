@@ -5,7 +5,6 @@ const { now, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newTextCa
 import { CATALOG } from './catalog.mjs'
 import { StateProperty, StateBool, StateNumber, StateEnum, StateIntEnum, StateString, StateObjectRef } from './stateproperty.mjs'
 import { AudioEngine } from './audio.mjs'
-import PhysicsEngine from './physics.mjs'
 import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
 // TODO import only if necessary
 import { gzip, ungzip } from '../../deps/pako.mjs'
@@ -595,7 +594,7 @@ GameObject.StateProperty = class extends StateProperty {
         if(!objVal || objVal.getKey() != valState.key) {
             const { map } = obj.game
             const cls = CATALOG.getObject(map.perspective, map.versions, valState.key).cls
-            const scn = (obj instanceof SceneCommon) ? obj : obj.scene
+            const scn = (obj instanceof Scene) ? obj : obj.scene
             objVal = new cls(scn)
             obj[key] = objVal
         }
@@ -1280,7 +1279,7 @@ export class GameCommon {
 @StateNumber.define("height", { default:600, showInBuilder:true })
 @StateNumber.define("width", { default:800, showInBuilder:true })
 @Dependencies.init()
-export class SceneCommon {
+export class Scene {
 
     // static STATE_PROPS = new Map()  // already done by width & height state props
     static MIXINS = new Map()
@@ -1305,6 +1304,7 @@ export class SceneCommon {
         this.backgroundAlpha = 1
         this.iteration = 0
         this.time = 0
+        this.seed = floor(random()*1000)
         this.paused = false
         if(!this.game.isServerEnv) {
             this.backgroundCanvas = null
@@ -1499,12 +1499,13 @@ export class SceneCommon {
         const state = {}
         state.key = this.constructor.KEY
         state.id = this.id
-        if(!isInitState) {
-            if(this.mapId) state.map = this.mapId
-            if(this.paused) state.paused = true
-        } else {
+        if(isInitState) {
             state.width = this.width
             state.height = this.height
+            state.seed = this.seed
+        } else {
+            if(this.mapId) state.map = this.mapId
+            if(this.paused) state.paused = true
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncStateFromObject(this, state))
         this.constructor.MIXINS.forEach(mixin => mixin.syncStateFromObject(this, state))
@@ -1512,7 +1513,9 @@ export class SceneCommon {
     }
 
     setState(state, isInitState=false) {
-        if(!isInitState) {
+        if(isInitState) {
+            this.seed = state.seed
+        } else {
             this.paused = state.paused === true
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.syncObjectFromState(state, this))
@@ -1689,14 +1692,14 @@ export class Game extends GameCommon {
 
     async startGame() {
         if(this.mode == MODE_CLIENT) return this.sendGameInstruction(GAME_INSTR_START)
-        if(this.scenes.game instanceof GameScene) return
+        if(this.scenes.game.isGameScene) return
         await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
 
     async restartGame() {
         if(this.mode == MODE_CLIENT) return this.sendGameInstruction(GAME_INSTR_RESTART)
-        if(!(this.scenes.game instanceof GameScene)) return
+        if(!(this.scenes.game.isGameScene)) return
         await this.loadGameScenes()
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
     }
@@ -1915,7 +1918,7 @@ export class Game extends GameCommon {
 }
 
 
-export class DefaultScene extends SceneCommon {
+export class DefaultScene extends Scene {
 
     buildBackground() {
         const { viewWidth, viewHeight } = this
@@ -1927,210 +1930,6 @@ export class DefaultScene extends SceneCommon {
         const text = newTextCanvas("DRAWMYGAME", { fillStyle: "white" })
         ctx.drawImage(text, floor((viewWidth-text.width)/2), floor((viewHeight-text.height)/2))
         return can
-    }
-}
-
-
-export class GameScene extends SceneCommon {
-    init(kwargs) {
-        super.init(kwargs)
-        this.step = "GAME"
-        this.herosSpawnX = 50
-        this.herosSpawnY = 50
-        this.scores = new Map()
-        this.seed = floor(random()*1000)
-    }
-
-    isPausable() {
-        return true
-    }
-
-    loadMap(scnMapId) {
-        super.loadMap(scnMapId)
-        this.initHeros()
-        this.physics = new PhysicsEngine(this)
-    }
-
-    initHeros() {
-        this.initHerosSpawnPos()
-        if(this.game.mode == MODE_CLIENT) return  // objects are init by first full state
-        for(let playerId in this.game.players) this.addHero(playerId)
-    }
-
-    addHero(playerId) {
-        const player = this.game.players[playerId]
-        if(!player) return
-        const prevHero = this.getHero(playerId)
-        if(prevHero && !prevHero.removed) return
-        const { heroKey } = player
-        if(!heroKey) return
-        const hero = this.addObject(heroKey, { playerId })
-        this.spawnHero(hero)
-        return hero
-    }
-
-    getHero(playerId) {
-        return this.heros[playerId]
-    }
-
-    getFirstHero() {
-        const firstPlayerId = this.game.getFirstPlayerId()
-        if(firstPlayerId === null) return null
-        return this.heros[firstPlayerId]
-    }
-
-    rmHero(playerId) {
-        const hero = this.getHero(playerId)
-        if(hero) hero.remove()
-    }
-
-    spawnHero(hero) {
-        hero.spawn(this.herosSpawnX, this.herosSpawnY)
-    }
-
-    incrScore(playerId, val) {
-        const { scores } = this
-        scores.set(playerId, (scores.get(playerId) ?? 0) + val)
-   }
-
-    update() {
-        const { step } = this
-        this.iteration += 1
-        this.time = this.iteration * this.game.dt
-        if(step == "GAME") this.updateStepGame()
-        else if(step == "GAMEOVER") this.updateStepGameOver()
-        else if(step == "VICTORY") this.updateStepVictory()
-        this.notifs.update()
-    }
-
-    updateWorld() {
-        const { dt } = this.game
-        this.physics.apply(dt, this.objects)
-        super.updateWorld()
-    }
-
-    updateStepGame() {
-        this.updateWorld()
-    }
-
-    updateStepGameOver() {
-        this.updateWorld()
-        this.initGameOverNotifs()
-    }
-
-    updateStepVictory() {
-        this.initVictoryNotifs()
-    }
-
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.notifs.draw(drawer)
-        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.draw(drawer)
-        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.draw(drawer)
-        return res
-    }
-
-    filterObjects(key, filter) {
-        const objsCache = this._filteredObjectsCache ||= new Map()
-        if(objsCache.iteration !== this.iteration) {
-            objsCache.clear()
-            objsCache.iteration = this.iteration
-        }
-        if(!objsCache.has(key)) {
-            const cache = []
-            this.objects.forEach(obj => {
-                if(filter(obj)) cache.push(obj)
-            })
-            objsCache.set(key, cache)
-        }
-        return objsCache.get(key)
-    }
-
-    initVictoryNotifs() {
-        if(this.victoryNotifs) return
-        this.victoryNotifs = new GameObjectGroup(this)
-        this.victoryNotifs.add(
-            CenteredText,
-            {
-                text: "VICTORY !",
-                font: "100px serif",
-            },
-        )
-    }
-
-    initGameOverNotifs() {
-        if(this.gameOverNotifs) return
-        this.gameOverNotifs = new GameObjectGroup(this)
-        this.gameOverNotifs.add(
-            CenteredText,
-            {
-                text: "GAME OVER",
-                font: "100px serif",
-            },
-        )
-    }
-
-    initHerosSpawnPos() {}
-
-    setHerosSpawnPos(x, y) {
-        this.herosSpawnX = floor(x)
-        this.herosSpawnY = floor(y)
-    }
-
-    getState(isInitState=false) {
-        const state = super.getState(isInitState)
-        if(isInitState) {
-            state.width = this.width
-            state.height = this.height
-        } else {
-            state.it = this.iteration
-            state.step = this.step
-            state.hsx = this.herosSpawnX
-            state.hsy = this.herosSpawnY
-            state.sco = {}
-            this.scores.forEach((val, pid) => state.sco[pid] = floor(val))
-            state.seed = this.seed
-        }
-        state.objects = this.objects.getState(isInitState)
-        if(isInitState) state.links = this.getObjectLinksState()
-        return state
-    }
-
-    getObjectLinksState() {
-        const res = []
-        this.objects.forEach(obj => {
-            const linksState = obj.getObjectLinksState()
-            if(linksState) for(let linkState of linksState) res.push(linkState)
-        })
-        return res
-    }
-
-    setState(state, isInitState=false) {
-        super.setState(state, isInitState)
-        if(!isInitState) {
-            this.iteration = state.it
-            this.step = state.step
-            this.setHerosSpawnPos(state.hsx, state.hsy)
-            this.scores.clear()
-            for(let pid in state.sco) this.scores.set(pid, state.sco[pid])
-            this.seed = state.seed
-        }
-        this.objects.setState(state.objects, isInitState)
-        if(isInitState) this.setObjectLinksFromState(state.links)
-    }
-
-    setObjectLinksFromState(state) {
-        if(!state) return
-        for(let linkState of state) {
-            const actionObjId = linkState[0]
-            const actionObj = this.objects.get(actionObjId)
-            actionObj.addObjectLinkFromState(linkState)
-        }
-    }
-
-    createPauseScene() {
-        return new PauseScene(this.game)
     }
 }
 
@@ -2223,7 +2022,7 @@ export class Mixin {
 
 // OBJECTS ///////////////////////////////////
 
-class PauseScene extends SceneCommon {
+class PauseScene extends Scene {
 
     init(kwargs) {
         super.init(kwargs)
@@ -2301,7 +2100,7 @@ export class PlayerText extends Text {
 }
 
 
-class DebugScene extends SceneCommon {
+class DebugScene extends Scene {
 
     init(kwargs) {
         super.init(kwargs)

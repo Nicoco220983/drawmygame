@@ -213,7 +213,7 @@ export class Catalog {
     /**
      * Registers a scene.
      * @param {object} kwargs The properties of the scene.
-     * @returns {function(typeof SceneCommon):typeof SceneCommon} The decorator.
+     * @returns {function(typeof Scene):typeof Scene} The decorator.
      */
     registerScene(kwargs) {
         return target => {

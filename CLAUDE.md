@@ -68,7 +68,7 @@ The engine uses a component-based architecture with these key concepts:
 
 1. **Game/GameCommon**: Main game instance that manages scenes, rendering loop, and player input
 2. **Scene hierarchy**:
-   - `SceneCommon`: Base scene class with object management and rendering
+   - `Scene`: Base scene class with object management and rendering
    - `DefaultScene`: Basic scene implementation
    - `GameScene`: Scene with game logic, physics, and collision detection
    - Scenes can have multiple objects and manage chunks for large maps
