@@ -1201,7 +1201,11 @@ export class GameCommon {
         const height = max(joypadPS.viewHeight, (gameVisible ? gamePS.viewHeight : 0) + ((joypadVisible && joypadScn) ? joypadPS.viewHeight : 0))
         assign(this, { width, height })
         if(!this.isServerEnv) {
-            assign(this.parentEl.style, { width: `${width}px`, height: `${height}px` })
+            assign(this.parentEl.style, {
+                padding: 0, margin: 0,
+                width: `${width}px`, height: `${height}px`,
+                background: "black",
+            })
             assign(this.canvas, { width, height })
             this.syncCanvasAspectRatio()
             window.addEventListener("resize", () => this.syncCanvasAspectRatio())
@@ -1219,13 +1223,41 @@ export class GameCommon {
     }
 
     isFullscreened() {
-        return document.fullscreenElement == this.parentEl
+        return document.fullscreenElement == this.parentEl || this.parentEl.fakeFullscreened
     }
 
-    requestFullscreen(orientation) {
-        this.parentEl.requestFullscreen()
-        if (orientation!==undefined && screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock(orientation).catch(console.error)
+    async requestFullscreen(orientation) {
+        try {
+            await this.parentEl.requestFullscreen()
+            if (orientation!==undefined && screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock(orientation).catch(console.error)
+            }
+        } catch(err) {
+            // fake fullscreen
+            const { parentEl } = this
+            const { style } = parentEl
+            const newStyle = {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: "100vw",
+                height: "100vh",
+                zIndex: "9999",
+            }
+            const origStyle = parentEl.fakeFullscreenOrigStyle = {}
+            for(const key in newStyle) {
+                origStyle[key] = style[key]
+                style[key] = newStyle[key]
+            }
+            parentEl.fakeFullscreened = true
+            parentEl.exitFakeFullscreen = () => {
+                if(!parentEl.fakeFullscreened) return
+                assign(parentEl.style, parentEl.fakeFullscreenOrigStyle)
+                parentEl.fakeFullscreened = false
+            }
+            document.addEventListener("keydown", evt => {
+                if(evt.key === "Escape") parentEl.exitFakeFullscreen()
+            })
         }
         this.focus()
     }
