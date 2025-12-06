@@ -311,6 +311,7 @@ try {
         document.getElementById("section_join").style.display = "none"
         console.log(`Joined as '${name}', with color '${color}'.`)
         await initGame()
+        syncGameShow()
         if(game) game.focus()
     }
 
