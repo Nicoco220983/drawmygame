@@ -204,11 +204,9 @@ try {
 
     const fullscrenEl = document.getElementById("fullscreen")
     gameParentEl.ontouchstart = evt => {
-        if(!IS_MOBILE) return 
-        if(!game || game.isFullscreened()) return
+        if(!IS_MOBILE || !game) return 
         const orientation = showGameEl.checked ? "portrait" : "landscape"
-        game.requestFullscreen(orientation)
-        evt.stopPropagation()
+        if(game.requestFullscreen(orientation)) evt.stopPropagation()
     }
     fullscrenEl.onclick = () => {
         if(game) game.requestFullscreen()

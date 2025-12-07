@@ -1227,6 +1227,7 @@ export class GameCommon {
     }
 
     async requestFullscreen(orientation) {
+        if(this.isFullscreened()) return false
         try {
             await this.parentEl.requestFullscreen()
             if (orientation!==undefined && screen.orientation && screen.orientation.lock) {
@@ -1234,8 +1235,7 @@ export class GameCommon {
             }
         } catch(err) {
             // fake fullscreen
-            const { parentEl } = this
-            const { style } = parentEl
+            const { parentEl } = this, { style } = parentEl
             const newStyle = {
                 position: "fixed",
                 top: 0,
@@ -1250,16 +1250,22 @@ export class GameCommon {
                 style[key] = newStyle[key]
             }
             parentEl.fakeFullscreened = true
+            history.pushState({ fakeFullscreen: true }, "");
             parentEl.exitFakeFullscreen = () => {
                 if(!parentEl.fakeFullscreened) return
-                assign(parentEl.style, parentEl.fakeFullscreenOrigStyle)
                 parentEl.fakeFullscreened = false
+                assign(parentEl.style, parentEl.fakeFullscreenOrigStyle)
+                if(history.state && history.state.fakeFullscreen) history.back()
             }
             document.addEventListener("keydown", evt => {
                 if(evt.key === "Escape") parentEl.exitFakeFullscreen()
             })
+            window.addEventListener("popstate", () => {
+                parentEl.exitFakeFullscreen()
+            })
         }
         this.focus()
+        return true
     }
 
     focus() {
