@@ -1203,12 +1203,12 @@ export class GameCommon {
         if(!this.isServerEnv) {
             assign(this.parentEl.style, {
                 padding: 0, margin: 0,
-                width: `${width}px`, height: `${height}px`,
                 background: "black",
             })
             assign(this.canvas, { width, height })
             this.syncCanvasAspectRatio()
             window.addEventListener("resize", () => this.syncCanvasAspectRatio())
+            window.addEventListener("orientationchange", () => this.syncCanvasAspectRatio())
         }
     }
 
@@ -1236,33 +1236,44 @@ export class GameCommon {
         } catch(err) {
             // fake fullscreen
             const { parentEl } = this, { style } = parentEl
+            const getFakeFullscreenSize = () => ({
+                width: window.visualViewport.width + "px",
+                height:  window.visualViewport.height + "px",
+            })
             const newStyle = {
                 position: "fixed",
                 top: 0,
                 left: 0,
-                width: "100vw",
-                height: "100vh",
                 zIndex: "9999",
+                ...getFakeFullscreenSize()
             }
             const origStyle = parentEl.fakeFullscreenOrigStyle = {}
             for(const key in newStyle) {
                 origStyle[key] = style[key]
                 style[key] = newStyle[key]
             }
-            parentEl.fakeFullscreened = true
             history.pushState({ fakeFullscreen: true }, "");
-            parentEl.exitFakeFullscreen = () => {
-                if(!parentEl.fakeFullscreened) return
-                parentEl.fakeFullscreened = false
-                assign(parentEl.style, parentEl.fakeFullscreenOrigStyle)
-                if(history.state && history.state.fakeFullscreen) history.back()
+            if(parentEl.fakeFullscreened === undefined) {
+                function exitFakeFullscreen() {
+                    if(!parentEl.fakeFullscreened) return
+                    parentEl.fakeFullscreened = false
+                    assign(parentEl.style, parentEl.fakeFullscreenOrigStyle)
+                    if(history.state && history.state.fakeFullscreen) history.back()
+                }
+                document.addEventListener("keydown", evt => {
+                    if(evt.key === "Escape") exitFakeFullscreen()
+                })
+                window.addEventListener("popstate", exitFakeFullscreen)
+                function updateFakeFullscreenSize() {
+                    if(!parentEl.fakeFullscreened) return
+                    assign(parentEl.style, getFakeFullscreenSize())
+                }
+                window.addEventListener("resize", updateFakeFullscreenSize)
+                window.addEventListener("orientationchange", () => {
+                    setTimeout(updateFakeFullscreenSize, 100);
+                })
             }
-            document.addEventListener("keydown", evt => {
-                if(evt.key === "Escape") parentEl.exitFakeFullscreen()
-            })
-            window.addEventListener("popstate", () => {
-                parentEl.exitFakeFullscreen()
-            })
+            parentEl.fakeFullscreened = true
         }
         this.focus()
         return true
