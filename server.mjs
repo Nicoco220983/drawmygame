@@ -135,7 +135,7 @@ class GameServer {
             if(scnCat.perspective != perspective) continue
             if(versions[scnCat.namespace] != scnCat.version) continue
             items.push(scnCat)
-            if(resp.length >= 10) break
+            if(items.length >= 10) break
           }
         }
         const resp = items.map(item => ({

@@ -626,11 +626,11 @@ GameObject.StateProperty = class extends StateProperty {
         return wrapperEl
     }
     createObjectBaseInput(obj) {
-        const objVal = obj[this.key]
+        const objState = this.getObjectPropState(obj)
         const { map } = obj.game
         const inputEl = addNewDomEl(inputEl, "dmg-object-selector")
         inputEl.init("object", map.perspective, map.versions, true, this.filter)
-        if(objVal) inputEl.setSelectedObject(objVal.getKey())
+        if(objState) inputEl.setSelectedObject(objState.key)
         return inputEl
     }
     createObjectStateInput(obj) {
@@ -646,8 +646,8 @@ GameObject.StateProperty = class extends StateProperty {
         return stateEl
     }
     syncObjectFromInput(inputEl, obj) {
-        const objKey = inputEl.value
-        this.setObjectPropFromState(obj, { key: objKey })
+        const objCat = inputEl.value
+        this.setObjectPropFromState(obj, { key: objCat.key })
     }
 }
 
@@ -676,7 +676,7 @@ export class Text extends GameObject {
     }
 }
 
-class CenteredText extends Text {
+export class CenteredText extends Text {
 
     getGraphicsProps() {
         const { viewWidth, viewHeight } = this.scene
@@ -1370,6 +1370,10 @@ export class Scene {
         this.doCreateObjectMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
+    }
+    
+    getKey() {
+        return this.key ?? this.constructor.KEY
     }
 
     isPausable() {

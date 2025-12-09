@@ -723,8 +723,7 @@ class ObjectSelectorElement extends HTMLElement {
                 zIndex: 99,
             }
         })
-        this.selectEl.addEventListener("focus", () => {
-            if(this.value) this.setSelectedObject(this.value)
+        this.selectEl.addEventListener("focus", async () => {
             this.selectEl.innerHTML = "\u200B"  // hack for cursor placement
         })
         this.selectEl.oninput = () => {
@@ -795,9 +794,12 @@ class ObjectSelectorElement extends HTMLElement {
     addOption(objCat) {
         const optionEl = addNewDomEl(this.optionsEl, "cs-option")
         this.setOptionKey(optionEl, objCat)
-        optionEl.onclick = () => {
-            this.setSelectedObject(objCat)
+        optionEl.onclick = async () => {
             this.setOptionsVisibility(false)
+            await this.setSelectedObject(objCat.key)
+            this.dispatchEvent(new CustomEvent("change", {
+                detail: { key: objCat.key }
+            }))
         }
     }
 
@@ -805,15 +807,12 @@ class ObjectSelectorElement extends HTMLElement {
      * Sets the selected object.
      * @param {string} objKey
      */
-    setSelectedObject(objCat) {
+    async setSelectedObject(objkey) {
+        const objCats = await CATALOG.fetchItems(this.type, this.perspective, this.versions, [objkey])
+        if(objCats.length == 0) return
+        const objCat = objCats[0]
         this.value = objCat
         this.setOptionKey(this.selectEl, objCat)
-        // this.dispatchEvent(new CustomEvent("select", {
-        //     detail: { key: objKey }
-        // }))
-        this.dispatchEvent(new CustomEvent("change", {
-            detail: { key: objCat.key }
-        }))
     }
 }
 customElements.define('dmg-object-selector', ObjectSelectorElement)

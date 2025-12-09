@@ -125,20 +125,9 @@ const herosEl = document.getElementById("heros")
 const scnsEl = document.getElementById("scenes")
 const scnStateEl = document.getElementById("scene")
 async function initInputEls() {
-    // for(let fullKey in catalog.scenes) {
-    //     const scnCat = catalog.scenes[fullKey]
-    //     if(!scnCat.showInBuilder) continue
-    //     scnKeyEl.appendChild(newDomEl("option", {
-    //         value: scnCat.key,
-    //         text: scnCat.name,
-    //     }))
-    // }
-    //scnKeyEl.value = defaultScnKey
     scnsEl.init("scene", defaultPerspective, defaultVersions, true)
     herosEl.init("object", defaultPerspective, defaultVersions, true, { category: "hero" })
-    await CATALOG.fetchObjects(defaultPerspective, defaultVersions, [defaultHeroKey])
-    //await CATALOG.loadObjects(defaultPerspective, defaultVersions, [defaultHeroKey])
-    herosEl.setSelectedObject(CATALOG.getObject(defaultPerspective, defaultVersions, defaultHeroKey))
+    herosEl.setSelectedObject(defaultHeroKey)
     objectsEl.init("object", defaultPerspective, defaultVersions, true, {
         not: {
             or: [
@@ -160,13 +149,15 @@ scnsEl.onchange = async () => {
     const prevScn = gameBuilder?.scenes["0"]
     await updScene("0", {
         ...(prevScn ? prevScn.getState(true) : null),
-        key: scnsEl.value,
+        key: scnsEl.value.key,
     })
+    scnStateEl.initObject(gameBuilder.scenes.game)
 }
 
 const anchorEl = document.getElementById("anchor")
 function initBuilderInputs() {
     if(!gameBuilder) return
+    scnsEl.setSelectedObject(gameBuilder.scenes.game.getKey())
     scnStateEl.initObject(gameBuilder.scenes.game)
     anchorEl.checked = gameBuilder.scenes.draft.anchor
 }
@@ -182,13 +173,16 @@ document.getElementById("mode_platform").onclick = Keys["wp"] = () => setBuilder
 document.getElementById("mode_wall_bouncing").onclick = Keys["wb"] = () => setBuilderMode('wall', 'std:BouncingWall')
 document.getElementById("mode_wall_gliding").onclick = Keys["wg"] = () => setBuilderMode('wall', 'std:GlidingWall')
 const objectsEl = document.getElementById("objects")
-objectsEl.addEventListener("change", async evt => {
-    await CATALOG.loadObjects(map.perspective, map.versions, [evt.detail.key])
-    setBuilderMode('object', evt.detail.key)
-})
+objectsEl.addEventListener("focus", () => { if(objectsEl.value) setBuilderModeAsObject(objectsEl.value.key) })
+objectsEl.addEventListener("change", evt => setBuilderModeAsObject(evt.detail.key))
+
 function setBuilderMode(builderMode, builderModeKey) {
     if(mode != "builder") return
     gameBuilder.setMode(builderMode, { key: builderModeKey })
+}
+const setBuilderModeAsObject = async key => {
+    await CATALOG.loadObjects(map.perspective, map.versions, [key])
+    setBuilderMode('object', key)
 }
 
 

@@ -95,7 +95,7 @@ export class Catalog {
     }
 
     async fetchScenes(perspective, versions, keys) {
-        return await this._fetch(this.scenes, "scene", perspective, versions, keys)
+        return await this.fetchItems("scene", perspective, versions, keys)
     }
 
     /**
@@ -111,7 +111,12 @@ export class Catalog {
     }
 
     async fetchObjects(perspective, versions, keys) {
-        return await this._fetch(this.objects, "object", perspective, versions, keys)
+        return await this.fetchItems("object", perspective, versions, keys)
+    }
+
+    async fetchItems(type, perspective, versions, keys) {
+        if(type === "object") return await this._fetch(this.objects, "object", perspective, versions, keys)
+        else if(type === "scene") return await this._fetch(this.scenes, "scene", perspective, versions, keys)
     }
 
     async _fetch(items, type, perspective, versions, keys) {
