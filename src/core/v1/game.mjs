@@ -298,7 +298,7 @@ export class Dependencies {
 
     static init() {
         return target => {
-            target.load = async function() {
+            target.load = async function(perspective, versions, initState) {
                 if(!this.DEPENDENCIES) return
                 await Promise.all(this.DEPENDENCIES.map(dep => dep.load()))
             }
@@ -647,7 +647,10 @@ GameObject.StateProperty = class extends StateProperty {
     }
     syncObjectFromInput(inputEl, obj) {
         const objCat = inputEl.value
-        this.setObjectPropFromState(obj, { key: objCat.key })
+        const objState = { key: objCat.key }
+        this.setObjectPropFromState(obj, objState)
+        const { map } = obj.game
+        CATALOG.loadObjects(map.perspective, map.versions, [objState])
     }
 }
 
@@ -1085,19 +1088,20 @@ export class GameCommon {
         const { map } = this
         const { perspective, versions } = map
         const scnMap = (scnMapId !== undefined) ? map.scenes[scnMapId] : null
-        const objKeysSet = new Set()
+        const objInitStates = []
         if(scnMap?.objects) scnMap.objects.forEach(objsChunkMap => {
-            for(let objMap of objsChunkMap) objKeysSet.add(objMap.key)
+            for(let objMap of objsChunkMap) objInitStates.push(objMap)
         })
-        if(map.heros) for(let heroCat of map.heros) objKeysSet.add(heroCat.key)
-        const objKeys = Array.from(objKeysSet)
+        if(map.heros) for(let heroMap of map.heros) objInitStates.push(heroMap)
+        const objKeysSet = new Set(objInitStates.map(state => state.key))
         await Promise.all([
             CATALOG.fetchScenes(perspective, versions, [scnKey]),
-            CATALOG.fetchObjects(perspective, versions, objKeys),
+            CATALOG.fetchObjects(perspective, versions, Array.from(objKeysSet)),
         ])
         await Promise.all([
-            CATALOG.loadScenes(perspective, versions, [scnKey]),
-            CATALOG.loadObjects(perspective, versions, objKeys),
+            // TODO: refactor this to inject state here
+            CATALOG.loadScenes(perspective, versions, [{key:scnKey}]),
+            CATALOG.loadObjects(perspective, versions, objInitStates),
         ])
         await this.loadScenes(scnKey, scnMapId, scnId)
     }

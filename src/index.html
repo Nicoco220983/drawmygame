@@ -181,7 +181,7 @@ function setBuilderMode(builderMode, builderModeKey) {
     gameBuilder.setMode(builderMode, { key: builderModeKey })
 }
 const setBuilderModeAsObject = async key => {
-    await CATALOG.loadObjects(map.perspective, map.versions, [key])
+    await CATALOG.loadObjects(map.perspective, map.versions, [{key}])
     setBuilderMode('object', key)
 }
 
@@ -281,7 +281,7 @@ async function startAndShowBuilder() {
         let scnMap = map.scenes["0"]
         if(!scnMap) {
             await CATALOG.fetchScenes(defaultPerspective, defaultVersions, [defaultScnKey])
-            await CATALOG.loadScenes(defaultPerspective, defaultVersions, [defaultScnKey])
+            await CATALOG.loadScenes(defaultPerspective, defaultVersions, [{key: defaultScnKey}])
             scnMap = { key: defaultScnKey }
         }
         await updScene("0", scnMap)

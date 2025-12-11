@@ -46,16 +46,16 @@ export class Catalog {
      * @param {Object.<string,string>} versions
      * @param {string[]} keys
      */
-    async loadScenes(perspective, versions, keys) {
-        const paths = new Set(keys.map(key => this.getScene(perspective, versions, key).path))
+    async loadScenes(perspective, versions, initStates) {
+        const paths = new Set(initStates.map(state => this.getScene(perspective, versions, state.key).path))
         await Promise.all(Array.from(paths).map(p => import(getUrlFromPath(p))))
-        await Promise.all(keys.map(key => this.getScene(perspective, versions, key).cls.load()))
+        await Promise.all(initStates.map(state => this.getScene(perspective, versions, state.key).cls.load(state)))
     }
 
-    async loadObjects(perspective, versions, keys) {
-        const paths = new Set(keys.map(key => this.getObject(perspective, versions, key).path))
+    async loadObjects(perspective, versions, initStates) {
+        const paths = new Set(initStates.map(state => this.getObject(perspective, versions, state.key).path))
         await Promise.all(Array.from(paths).map(p => import(getUrlFromPath(p))))
-        await Promise.all(keys.map(key => this.getObject(perspective, versions, key).cls.load()))
+        await Promise.all(initStates.map(state => this.getObject(perspective, versions, state.key).cls.load(perspective, versions, state)))
     }
 
     /**
