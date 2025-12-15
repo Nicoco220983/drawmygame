@@ -384,3 +384,13 @@ export class Debouncer {
         }, delay)
     }
 }
+
+
+export function normAngle(val) {
+    const res = ((val - 540) % 360) + 180
+    return res
+}
+
+export function isAngleInRange(angle, min, max) {
+  return normAngle(angle - min) <= normAngle(max - min)
+}

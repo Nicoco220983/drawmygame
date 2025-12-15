@@ -312,6 +312,10 @@ export class Dependencies {
      */
     static add(...deps) {
         return target => {
+            if(target.IS_MIXIN) {
+                target.addTargetDecorator(this, "add", ...deps)
+                return target
+            }
             if(!target.hasOwnProperty('DEPENDENCIES')) target.DEPENDENCIES = [...(target.DEPENDENCIES ?? [])]
             for(let dep of deps) target.DEPENDENCIES.push(dep)
         }

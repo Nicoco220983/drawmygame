@@ -350,8 +350,8 @@ function getOverlapTime(proj1, proj2, relSpdProj, res) {
  * }} The collision details.
  */
 function getCollisionDetails(colRes) {
-    const { normalX, normalY, distFixSign } = colRes
-    const colAngle = atan2(-normalY*distFixSign, -normalX*distFixSign)
+    const { normalX, normalY, distFixSign, dist } = colRes
+    const colAngle = atan2(-normalY*distFixSign*dist, -normalX*distFixSign*dist)
     return { angle: colAngle*180/PI }
 }
 
