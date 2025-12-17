@@ -473,9 +473,9 @@ export class GameObject {
         top += scn.y
         for(let touch of this.game.touches) {
             const { isDown, x: touchX, y: touchY } = touch
-            if(isDown && left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return true
+            if(isDown && left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) return touch
         }
-        return false
+        return null
     }
 
     remove() {
