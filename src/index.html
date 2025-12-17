@@ -207,10 +207,14 @@ document.getElementById("game_share").onclick = async () => {
     const valEl = document.getElementById("game_url_val")
     valEl.value = `${window.location.origin}?map=${mapStr}`
     document.getElementById("game_url").style.display = ""
-    document.getElementById("game_url_copy").onclick = () => {
+    document.getElementById("game_url_copy").onclick = async () => {
         valEl.select()
         valEl.setSelectionRange(0, 99999) // For mobile devices
-        navigator.clipboard.writeText(valEl.value)
+        try {
+            await navigator.clipboard.writeText(valEl.value)
+        } catch {
+            document.execCommand("copy")
+        }
         document.getElementById("game_url_copied").style.display = ""
     }
 }
