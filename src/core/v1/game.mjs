@@ -600,14 +600,18 @@ GameObject.StateProperty = class extends StateProperty {
             const cls = CATALOG.getObject(map.perspective, map.versions, valState.key).cls
             const scn = (obj instanceof Scene) ? obj : obj.scene
             objVal = new cls(scn)
+            if(this.defaultStateValue) {
+                objVal.setState(this.defaultStateValue, true)
+                objVal = Object.create(objVal)
+            }
             obj[key] = objVal
         }
         objVal.setState(valState)
     }
     initObject(obj, kwargs) {
         super.initObject(obj, kwargs)
-        if(!obj.hasOwnProperty(this.key) && this.defaultStateValue) {
-            this.setObjectPropFromState(obj, this.defaultStateValue)
+        if(this.defaultStateValue) {
+            this.setObjectPropFromState(obj, { key: this.defaultStateValue.key })
         }
     }
     createObjectInput(obj) {
@@ -1373,7 +1377,7 @@ export class Scene {
         })
         this.visuals = new GameObjectGroup(this)
         this.notifs = new GameObjectGroup(this)
-        this.heros = {}
+        this.heros = new Map()
         this.map = null
         this.doCreateObjectMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
@@ -1472,10 +1476,10 @@ export class Scene {
 
     syncHero(hero) {
         if(hero.removed) {
-            delete this.heros[hero.playerId]
+            this.heros.delete(hero.playerId)
             if(hero === this.localHero) this.setLocalHero(null)
         } else {
-            this.heros[hero.playerId] = hero
+            this.heros.set(hero.playerId, hero)
             if(hero !== this.localHero && hero.playerId === this.game.localPlayerId) this.setLocalHero(hero)
         }
     }
