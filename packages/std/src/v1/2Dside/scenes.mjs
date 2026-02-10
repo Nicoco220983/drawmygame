@@ -1,0 +1,1757 @@
+const { assign } = Object
+const { floor, round, ceil, min, max, hypot, PI } = Math
+import {
+    sumTo, newCanvas, newTextCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys,
+    GraphicsProps,
+    CATALOG,
+    MODE_CLIENT,
+    StateProperty, StateBool, StateNumber,
+    Dependencies, Scene, PhysicsEngine, GameObject, Category, Mixin, Text, CenteredText, hackMethod, GameObjectGroup, Img,
+} from '../../../../core/v1/index.mjs'
+import {
+    ActivableMixin, CollectMixin, OwnerableMixin, BodyMixin, PhysicsMixin, AttackMixin, 
+} from '../mixins.mjs'
+import { Enemy, Wall, Star, HeroSpawnPoint, Ball } from './objects.mjs'
+import { Hero } from './heros.mjs'
+
+const REGISTER_COMMON_ARGS = {
+    url: import.meta.url,
+    version: "v1",
+    perspective: "2Dside",
+}
+
+
+const IS_SERVER_ENV = (typeof window === 'undefined')
+
+
+// MANAGERS ///////////////////////////////////////
+
+@StateNumber.undefine("z")
+@StateNumber.undefine("y")
+@StateNumber.undefine("x")
+@Category.append("manager")
+export class Manager extends GameObject { }
+
+
+@Category.append("border")
+export class BorderManager extends Manager { }
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Block Border",
+    showInBuilder: true,
+})
+export class BlockBorderManager extends BorderManager {
+
+    update() {
+        super.update()
+        this.initWalls()
+    }
+
+    initWalls() {
+        if (this._initWallsDone) return
+        this._initWallsDone = true
+        const { scene } = this, { width, height } = scene
+        scene.addObject(Wall, { x1: 0, y1: 0, x2: width, y2: 0, visibility: 0 })
+        scene.addObject(Wall, { x1: width, y1: 0, x2: width, y2: height, visibility: 0 })
+        scene.addObject(Wall, { x1: width, y1: height, x2: 0, y2: height, visibility: 0 })
+        scene.addObject(Wall, { x1: 0, y1: height, x2: 0, y2: 0, visibility: 0 })
+    }
+}
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Damage Border",
+    showInBuilder: true,
+})
+@StateNumber.define("heroOutDamages", { default: 10, nullableWith: Infinity, showInBuilder: true })
+@StateNumber.define("limit", { default: 100, precision: 50, showInBuilder: true })
+export class DamageBorderManager extends BorderManager {
+
+    update() {
+        super.update()
+        const { scene, limit } = this
+        const { width, height } = scene
+        scene.objects.forEach(obj => {
+            const { x, y } = obj
+            if (x < -limit || x > width + limit || y < -limit || y > height + limit) {
+                this.handleObjectOut(obj)
+            }
+        })
+    }
+
+    handleObjectOut(obj) {
+        if (obj instanceof Hero) {
+            obj.getDamaged(this.heroOutDamages)
+            if (obj.getHealth() > 0) this.scene.spawnHero(obj)
+        } else {
+            obj.remove()
+        }
+    }
+}
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Loop Border",
+    showInBuilder: true,
+})
+export class LoopBorderManager extends BorderManager {
+
+    update() {
+        super.update()
+        const { scene } = this, { width, height } = scene
+        scene.objects.forEach(obj => {
+            const { x, y } = obj
+            if (x > width) obj.x -= width
+            else if (x < 0) obj.x += width
+            if (y > height) obj.y -= height
+            else if (y < 0) obj.y += height
+        })
+    }
+}
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Hero Lives",
+    showInBuilder: true,
+})
+@Category.append("heroslives")
+@StateProperty.define("deathsIts")
+@StateNumber.define("delay", { default: 1, precision: .5, showInBuilder: true })
+@StateNumber.define("lives", { default: 3, nullableWith: Infinity, showInBuilder: true })
+export class HerosLivesManager extends Manager {
+
+    init(kwargs) {
+        super.init(kwargs)
+        const { scene } = this
+        hackMethod(scene, "onAddObject", -1, evt => {
+            const obj = evt.inputArgs[0]
+            if (!(obj instanceof Hero)) return
+            hackMethod(obj, "die", -1, evt => {
+                const deathsIts = this.deathsIts ||= {}
+                deathsIts[obj.playerId] = scene.iteration
+            })
+        })
+    }
+    update() {
+        const { scene, deathsIts, delay } = this
+        const { game, iteration } = scene
+        const { fps } = game
+        if (deathsIts) {
+            for (let playerId in deathsIts) {
+                if (this.lives <= 0) break
+                if (iteration >= (deathsIts[playerId] + (delay * fps))) {
+                    scene.addHero(playerId)
+                    delete deathsIts[playerId]
+                    this.lives -= 1
+                }
+            }
+            if (!hasKeys(deathsIts)) this.deathsIts = null
+        }
+    }
+}
+
+
+@Category.append("view")
+export class ViewManager extends Manager { }
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "View Heros Center",
+    showInBuilder: true
+})
+export class ViewHerosCenterManager extends ViewManager {
+
+    update() {
+        super.update()
+        this.updateSceneView()
+    }
+
+    updateSceneView() {
+        const scn = this.scene
+        const { heros, localHero, viewWidth, viewHeight } = scn
+        if (heros.size===0) return
+        if (localHero) {
+            scn.setView(
+                localHero.x - viewWidth / 2,
+                localHero.y - viewHeight / 2,
+            )
+        } else {
+            let sumX = 0, sumY = 0, nbHeros = 0
+            heros.forEach(hero => {
+                sumX += hero.x
+                sumY += hero.y
+                nbHeros += 1
+            })
+            scn.setView(
+                sumX / nbHeros - viewWidth / 2,
+                sumY / nbHeros - viewHeight / 2,
+            )
+        }
+    }
+}
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "View First Hero",
+    showInBuilder: true
+})
+export class ViewFirstHeroManager extends ViewManager {
+
+    init(kwargs) {
+        super.init(kwargs)
+        const { scene } = this
+        hackMethod(scene, "spawnHero", 1, evt => {
+            const hero = evt.inputArgs[0]
+            this.spawnHero(hero)
+            evt.stopPropagation()
+        })
+    }
+
+    update() {
+        super.update()
+        this.updateSceneView()
+        this.spawnFarHeros()
+    }
+
+    updateSceneView() {
+        const scn = this.scene
+        const { heros, localHero, viewWidth, viewHeight } = scn
+        if (heros.size===0) return
+        if (localHero) {
+            scn.setView(
+                localHero.x - viewWidth / 2,
+                localHero.y - viewHeight / 2,
+            )
+        } else {
+            const firstHero = scn.getFirstHero()
+            if (firstHero) scn.setView(
+                firstHero.x - viewWidth / 2,
+                firstHero.y - viewHeight / 2,
+            )
+        }
+    }
+
+    spawnFarHeros() {
+        const scn = this.scene
+        const { heros, viewWidth, viewHeight } = scn
+        const firstHero = scn.getFirstHero()
+        if (!firstHero) return
+        const { x: fhx, y: fhy } = firstHero
+        heros.forEach((hero, playerId) => {
+            if (playerId === firstHero.playerId) return
+            const dx = hero.x - fhx, dy = hero.y - fhy
+            if (dx < -viewWidth * .7 || dx > viewWidth * .7 || dy < -viewHeight * .7 || dy > viewHeight * .7) {
+                this.spawnHero(hero)
+            }
+        })
+    }
+
+    spawnHero(hero) {
+        const scn = this.scene
+        const firstHero = scn.getFirstHero()
+        let spawnX, spawnY
+        if (!firstHero || hero === firstHero) {
+            spawnX = scn.herosSpawnX
+            spawnY = scn.herosSpawnY
+        } else {
+            spawnX = firstHero.x
+            spawnY = firstHero.y
+        }
+        hero.spawn(spawnX, spawnY)
+    }
+}
+
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Physics",
+})
+@StateNumber.define("gravityAcc", { default: 1000, precision: 100 })
+@StateNumber.define("gravityMaxSpeed", { default: 1000, precision: 100 })
+@Category.append("physics")
+export class PhysicsManager extends Manager { }
+
+
+const DEFAULT_TEAMS_COLOR = ["blue", "red", "yellow", "green", "purple", "orange"]
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Attack",
+})
+@Category.append("teams")
+@StateNumber.define("nbTeams", { default: 1, nullableWith: 1 })
+export class TeamsManager extends Manager {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.defaultHerosSpawnX = 50
+        this.defaultHerosSpawnY = 50
+        const { scene } = this
+        hackMethod(scene, "onAddObject", -1, evt => {
+            const obj = evt.inputArgs[0]
+            if (obj instanceof Hero) this.initHero(obj)
+            if (obj instanceof HeroSpawnPoint) this.initHeroSpawnPoint(obj)
+        })
+    }
+
+    initHero(hero) {
+        this.assignHeroTeam(hero)
+    }
+
+    assignHeroTeam(hero) {
+        if(hero.team !== null) return
+        const { nbTeams } = this
+        if(this.nbTeams === Infinity) return
+        const nbHerosByTeams = new Map()
+        this.scene.heros.forEach(hero2 => {
+            const { team } = hero2
+            if(team === null) return
+            nbHerosByTeams.set(team, (nbHerosByTeams.get(team) ?? 0) + 1)
+        })
+        let lowestNb = Infinity, lowestTeam = null
+        for(let team=1; team<=nbTeams; ++team) {
+            const nb = nbHerosByTeams.get(team) ?? 0
+            if(nb < lowestNb) {
+                lowestNb = nb
+                lowestTeam = team
+            }
+        }
+        hero.team = (lowestTeam === null) ? 1 : lowestTeam
+    }
+
+    initHeroSpawnPoint(point) {
+        this.assignHeroSpawnPointTeam(point)
+    }
+
+    assignHeroSpawnPointTeam(point) {
+        console.log("TMP point.team", point.team)
+        if(point.team !== null) return
+        const { nbTeams } = this
+        if(this.nbTeams === Infinity) return
+        const nbPointsByTeams = new Map()
+        const spawnPoints = this.scene.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        spawnPoints.forEach(point2 => {
+            const { team } = point2
+            if(team === null) return
+            nbPointsByTeams.set(team, (nbPointsByTeams.get(team) ?? 0) + 1)
+        })
+        let lowestNb = Infinity, lowestTeam = null
+        for(let team=1; team<=nbTeams; ++team) {
+            const nb = nbPointsByTeams.get(team) ?? 0
+            if(nb < lowestNb) {
+                lowestNb = nb
+                lowestTeam = team
+            }
+        }
+        point.team = (lowestTeam === null) ? 1 : lowestTeam
+    }
+
+    spawnHero(hero) {
+        const { scene } = this
+        const spawnPoints = scene.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        const spawnPointsSameTeam = spawnPoints.filter(point => point.team === hero.team)
+        const nbSpawnPoints = spawnPointsSameTeam.length
+        console.log("TMP nbSpawnPoints", nbSpawnPoints)
+        if(nbSpawnPoints == 0) return hero.spawn(this.defaultHerosSpawnX, this.defaultHerosSpawnY)
+        const r = scene.rand("spawnHero")
+        const numSpawnPoint = (nbSpawnPoints == 1) ? 0 : floor(r * nbSpawnPoints)
+        const spawnPoint = spawnPointsSameTeam[numSpawnPoint]
+        hero.spawn(spawnPoint.x, spawnPoint.y)
+    }
+
+    canTeamAttack(team1, team2) {
+        return true
+    }
+    canTeamDamage(team1, team2) {
+        return team1 === null || team1 != team2
+    }
+
+    getTeamColor(team) {
+        if(!team) return null
+        return DEFAULT_TEAMS_COLOR[(team-1)%DEFAULT_TEAMS_COLOR.length]
+    }
+}
+
+
+// NOTIFS ////////////////////////////////////////////
+
+export class HeadsUpDisplay extends GameObject {
+    init(kwargs) {
+        super.init(kwargs)
+        this.margin = 5
+        this.barWidth = 100
+        this.barHeight = 20
+        this.heroLineMinHeight = 20
+        this.textArgs = {
+            font: "bold 20px arial",
+            fillStyle: "black",
+        }
+        this.globalElems = new GameObjectGroup(this.scene)
+        this.playersElems = new Map()
+        this.showHerosHealths = kwargs?.showHerosHealths ?? true
+        this.showPlayersScores = kwargs?.showPlayersScores ?? true
+        this.playersLinesSorter = kwargs?.playersLinesSorter ?? null
+    }
+    addGlobalHudElem(cls, args) {
+        this.globalElems.add(cls, args)
+    }
+    initPlayerElements(hero) {
+        const { game, playersElems, textArgs, margin, barWidth, barHeight, heroLineMinHeight } = this
+        for (let playerId in game.players) {
+            if (playersElems.has(playerId)) continue
+            const grp = new GameObjectGroup(this.scene)
+            playersElems.set(playerId, grp)
+            //grp.nbBarElems = 0
+            grp.add(PlayerIcon, { x: heroLineMinHeight / 2, y: heroLineMinHeight / 2, width: heroLineMinHeight, height: heroLineMinHeight, playerId })
+            if (this.showHerosHealths) grp.add(HealthBar, { playerId, width: barWidth, height: barHeight })
+            if (this.showPlayersScores) grp.add(PlayerScoreText, { playerId, ...textArgs })
+            grp.sync = () => {
+                let hasBars = false, elemsX = heroLineMinHeight + margin, barsY = 0
+                grp.forEach(elem => {
+                    if (elem instanceof BarNotif) {
+                        elem.x = elemsX + elem.width / 2,
+                            elem.y = barsY + elem.height / 2
+                        hasBars = true
+                        barsY = elem.y + elem.height / 2 + margin
+                    }
+                })
+                if (hasBars) elemsX += barWidth + margin
+                grp.forEach(elem => {
+                    if (!(elem instanceof BarNotif || elem instanceof PlayerIcon)) {
+                        elem.x = elemsX + elem.width / 2
+                        elem.y = elem.height / 2
+                        elemsX = elem.x + elem.width + margin
+                    }
+                })
+                grp.height = max(heroLineMinHeight, barsY)
+            }
+            grp.sync()
+            hackMethod(grp, "update", 0, evt => grp.sync())
+        }
+        return playersElems
+    }
+    update() {
+        this.initPlayerElements()
+        this.globalElems.update()
+        this.playersElems.forEach(elems => elems.update())
+        this.syncPlayersElems()
+    }
+    syncPlayersElems() {
+        const { margin } = this
+        let prevGrp = null
+        let playerIds = Array.from(this.playersElems.keys())
+        if (this.playersLinesSorter) playerIds.sort(this.playersLinesSorter)
+        for (let playerId of playerIds) {
+            const grp = this.playersElems.get(playerId)
+            grp.x = margin
+            grp.y = (prevGrp ? (prevGrp.y + prevGrp.height) : 0) + margin
+            prevGrp = grp
+        }
+    }
+    draw(drawer) {
+        super.draw(drawer)
+        this.globalElems.draw(drawer)
+        this.playersElems.forEach(elems => elems.draw(drawer))
+    }
+}
+
+
+class BarNotif extends GameObject {
+
+    init(args) {
+        super.init(args)
+        this.barColor = "white"
+        this.value = 1  // from 0 to 1
+        this.width = 100
+        this.height = 10
+    }
+
+    getBaseImg() {
+        const { width, height } = this
+        const can = this._baseImg || newCanvas(width, height)
+        assign(can, { width, height })
+        const ctx = can.getContext("2d")
+        const valWidth = ~~(width * this.value)
+        ctx.fillStyle = "grey"
+        ctx.fillRect(0, 0, width, height)
+        ctx.fillStyle = this.barColor
+        ctx.fillRect(0, 0, valWidth, height)
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 1
+        ctx.strokeRect(0, 0, width, height)
+        return can
+    }
+}
+
+
+class HealthBar extends BarNotif {
+
+    init(args) {
+        super.init(args)
+        this.barColor = "red"
+        this.playerId = args.playerId
+    }
+
+    update() {
+        const hero = this.scene.getHero(this.playerId)
+        this.value = hero ? (hero.getHealth() / hero.maxHealth) : 0
+    }
+}
+
+
+class PlayerScoreText extends Text {
+
+    init(args) {
+        super.init(args)
+        this.playerId = args.playerId
+    }
+
+    update() {
+        super.update()
+        const { scores } = this.scene
+        this.updateText(floor(scores.get(this.playerId) ?? 0))
+    }
+}
+
+
+// BACKGROUND //////////////////////////////////////////////
+
+@Category.append("background")
+@StateNumber.undefine("z")
+@StateNumber.undefine("y")
+@StateNumber.undefine("x")
+export class Background extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.z = -1000
+        this.updatePosAndSize()
+    }
+
+    update() {
+        super.update()
+        this.updatePosAndSize()
+    }
+
+    updatePosAndSize() {
+        const { scene } = this
+        this.width = scene.viewWidth
+        this.height = scene.viewHeight
+        this.x = this.width / 2
+        this.y = this.height / 2
+    }
+}
+
+
+const GreenLandscapeImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/green_landscape.jpg")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Green Landscape",
+})
+@Dependencies.add(GreenLandscapeImg)
+export class GreenLandscapeBackground extends Background {
+    getBaseImg() {
+        return GreenLandscapeImg
+    }
+}
+
+
+const RockMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/rock_mountains.jpg")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Rock Mountains",
+})
+@Dependencies.add(RockMountainsImg)
+export class RockMountainsBackground extends Background {
+    getBaseImg() {
+        return RockMountainsImg
+    }
+}
+
+
+const SnowMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/snow_mountains.jpg")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Snow Mountains",
+})
+@Dependencies.add(SnowMountainsImg)
+export class SnowMountainsBackground extends Background {
+    getBaseImg() {
+        return SnowMountainsImg
+    }
+}
+
+
+const DarkForestImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/dark_forest.jpg")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Dark Forest",
+})
+@Dependencies.add(DarkForestImg)
+export class DarkForestBackground extends Background {
+    getBaseImg() {
+        return DarkForestImg
+    }
+}
+
+
+const DarkCityImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/dark_city.jpg")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    label: "Dark City",
+})
+@Dependencies.add(DarkCityImg)
+export class DarkCityBackground extends Background {
+    getBaseImg() {
+        return DarkCityImg
+    }
+}
+
+
+// SCENES ///////////////////////////////////////
+
+export class GameScene extends Scene {
+    init(kwargs) {
+        super.init(kwargs)
+        this.step = "GAME"
+        this.deaultHerosSpawnX = 50
+        this.defaultHerosSpawnY = 50
+        this.scores = new Map()
+        this.isGameScene = true // TODO: remove me
+    }
+
+    isPausable() {
+        return true
+    }
+
+    loadMap(scnMapId) {
+        super.loadMap(scnMapId)
+        this.initHeros()
+        this.physics = new PhysicsEngine(this)
+    }
+
+    initHeros() {
+        //this.initHerosSpawnPos()
+        if(this.game.mode == MODE_CLIENT) return  // objects are init by first full state
+        for(let playerId in this.game.players) this.addHero(playerId)
+    }
+
+    addHero(playerId) {
+        const player = this.game.players[playerId]
+        if(!player) return
+        const prevHero = this.getHero(playerId)
+        if(prevHero && !prevHero.removed) return
+        const { heroKey } = player
+        if(!heroKey) return
+        const hero = this.addObject(heroKey, { playerId })
+        this.spawnHero(hero)
+        return hero
+    }
+
+    getHero(playerId) {
+        return this.heros.get(playerId)
+    }
+
+    getFirstHero() {
+        const firstPlayerId = this.game.getFirstPlayerId()
+        if(firstPlayerId === null) return null
+        return this.heros.get(firstPlayerId)
+    }
+
+    rmHero(playerId) {
+        const hero = this.getHero(playerId)
+        if(hero) hero.remove()
+    }
+
+    spawnHero(hero) {
+        if(this.teamsManager) this.teamsManager.spawnHero(hero)
+        else hero.spawn(this.defaultHerosSpawnX, this.defaultHerosSpawnY)
+    }
+
+    incrScore(playerId, val) {
+        const { scores } = this
+        scores.set(playerId, (scores.get(playerId) ?? 0) + val)
+   }
+
+    update() {
+        const { step } = this
+        this.iteration += 1
+        this.time = this.iteration * this.game.dt
+        if(step == "GAME") this.updateStepGame()
+        else if(step == "GAMEOVER") this.updateStepGameOver()
+        else if(step == "VICTORY") this.updateStepVictory()
+        this.notifs.update()
+    }
+
+    updateWorld() {
+        const { dt } = this.game
+        this.physics.apply(dt, this.objects)
+        super.updateWorld()
+    }
+
+    updateStepGame() {
+        this.updateWorld()
+    }
+
+    updateStepGameOver() {
+        this.updateWorld()
+        this.initGameOverNotifs()
+    }
+
+    updateStepVictory() {
+        this.initVictoryNotifs()
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.notifs.draw(drawer)
+        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.draw(drawer)
+        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.draw(drawer)
+        return res
+    }
+
+    filterObjects(key, filter) {
+        const objsCache = this._filteredObjectsCache ||= new Map()
+        if(objsCache.iteration !== this.iteration) {
+            objsCache.clear()
+            objsCache.iteration = this.iteration
+        }
+        if(!objsCache.has(key)) {
+            const cache = []
+            this.objects.forEach(obj => {
+                if(filter(obj)) cache.push(obj)
+            })
+            objsCache.set(key, cache)
+        }
+        return objsCache.get(key)
+    }
+
+    initVictoryNotifs() {
+        if(this.victoryNotifs) return
+        this.victoryNotifs = new GameObjectGroup(this)
+        this.victoryNotifs.add(
+            CenteredText,
+            {
+                text: "VICTORY !",
+                font: "100px serif",
+            },
+        )
+    }
+
+    initGameOverNotifs() {
+        if(this.gameOverNotifs) return
+        this.gameOverNotifs = new GameObjectGroup(this)
+        this.gameOverNotifs.add(
+            CenteredText,
+            {
+                text: "GAME OVER",
+                font: "100px serif",
+            },
+        )
+    }
+
+    // initHerosSpawnPos() {
+    //     const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+    //     if (points.length == 0) return
+    //     const firstPoint = points[0]
+    //     this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
+    // }
+
+    // setHerosSpawnPos(x, y) {
+    //     this.herosSpawnX = floor(x)
+    //     this.herosSpawnY = floor(y)
+    // }
+
+    getState(isInitState=false) {
+        const state = super.getState(isInitState)
+        if(isInitState) {
+            state.width = this.width
+            state.height = this.height
+        } else {
+            state.it = this.iteration
+            state.step = this.step
+            // state.hsx = this.herosSpawnX
+            // state.hsy = this.herosSpawnY
+            state.sco = {}
+            this.scores.forEach((val, pid) => state.sco[pid] = floor(val))
+        }
+        state.objects = this.objects.getState(isInitState)
+        if(isInitState) state.links = this.getObjectLinksState()
+        return state
+    }
+
+    getObjectLinksState() {
+        const res = []
+        this.objects.forEach(obj => {
+            const linksState = obj.getObjectLinksState()
+            if(linksState) for(let linkState of linksState) res.push(linkState)
+        })
+        return res
+    }
+
+    setState(state, isInitState=false) {
+        super.setState(state, isInitState)
+        if(!isInitState) {
+            this.iteration = state.it
+            this.step = state.step
+            // this.setHerosSpawnPos(state.hsx, state.hsy)
+            this.scores.clear()
+            for(let pid in state.sco) this.scores.set(pid, state.sco[pid])
+        }
+        this.objects.setState(state.objects, isInitState)
+        if(isInitState) this.setObjectLinksFromState(state.links)
+    }
+
+    setObjectLinksFromState(state) {
+        if(!state) return
+        for(let linkState of state) {
+            const actionObjId = linkState[0]
+            const actionObj = this.objects.get(actionObjId)
+            actionObj.addObjectLinkFromState(linkState)
+        }
+    }
+
+    createPauseScene() {
+        return new PauseScene(this.game)
+    }
+}
+
+class PauseScene extends Scene {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.backgroundColor = "lightgrey"
+        this.backgroundAlpha = .5
+        this.pauseText = this.addNotif(Text, {
+            text: "PAUSE",
+            font: "bold 50px arial",
+            fillStyle: "black",
+        })
+        this.syncPosSize()
+        this.syncTextPos()
+    }
+
+    update() {
+        this.syncPosSize()
+        this.syncTextPos()
+    }
+
+    syncTextPos() {
+        assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
+    }
+
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        this.notifs.draw(drawer)
+        return this.canvas
+    }
+}
+
+
+// Standard
+
+@CATALOG.registerScene(REGISTER_COMMON_ARGS)
+@Dependencies.add(GreenLandscapeBackground)
+@StateBool.define("killAllEnemies", { default: false, showInBuilder: true })
+@StateBool.define("catchAllStars", { default: false, showInBuilder: true })
+@GameObject.StateProperty.define("teamsManager", {
+    filter: { category: "manager/teams" },
+    default: { key: "std:TeamsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "std:PhysicsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("viewManager", {
+    filter: { category: "manager/view" },
+    default: { key: "std:ViewHerosCenterManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("herosLivesManager", {
+    filter: { category: "manager/heroslives" },
+    default: { key: "std:HerosLivesManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "std:BlockBorderManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
+export class StandardScene extends GameScene {
+
+    init(args) {
+        super.init(args)
+        this.hud = new HeadsUpDisplay(this)
+    }
+
+    update() {
+        super.update()
+        this.background.update()
+        this.borderManager.update()
+        this.viewManager.update()
+        this.herosLivesManager.update()
+        this.physicsManager.update()
+        this.teamsManager.update()
+        this.hud.update()
+        if (this.step == "GAME") {
+            let allOk = null
+            if (allOk !== false && this.catchAllStars) {
+                const stars = this.filterObjects("stars", obj => obj instanceof Star && !obj.owner)
+                allOk = (stars.length == 0)
+            }
+            if (allOk !== false && this.killAllEnemies) {
+                const enemies = this.filterObjects("enemies", obj => obj instanceof Enemy)
+                allOk = (enemies.length == 0)
+            }
+            if (allOk) this.step = "VICTORY"
+        }
+    }
+
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await import("/static/catalogs/std/v1/joypad.mjs")
+        await JoypadGameScene.load()
+        return new JoypadGameScene(this.game)
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
+    }
+}
+
+
+// TAG
+
+@CATALOG.registerScene(REGISTER_COMMON_ARGS)
+@Dependencies.add(GreenLandscapeBackground)
+@StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
+@GameObject.StateProperty.define("teamsManager", {
+    filter: { category: "manager/teams" },
+    default: { key: "std:TeamsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "std:PhysicsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "std:BlockBorderManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
+export class TagScene extends GameScene {
+
+    init(args) {
+        super.init(args)
+        this.step = "INIT"
+        this.initDuration = 3
+        this.hud = new HeadsUpDisplay(this, {
+            showHerosHealths: false
+        })
+    }
+
+    loadMap(map) {
+        super.loadMap(map)
+        this.addObject(Tag)
+    }
+
+    onAddObject(obj) {
+        super.onAddObject(obj)
+        if (obj instanceof Hero) this.hackHero(obj)
+    }
+
+    hackHero(hero) {
+        hero.maxHealth = Infinity
+        hackMethod(hero, "onGetAttacked", 0, evt => {
+            const attackProps = evt.inputArgs[0]
+            const { attacker } = attackProps
+            const tag = this.tag
+            if (!tag || !attacker || tag.owner != attacker) return
+            tag.owner = hero
+        })
+    }
+
+    update() {
+        super.update()
+        this.background.update()
+        this.borderManager.update()
+        this.physicsManager.update()
+        this.teamsManager.update()
+        this.hud.update()
+        this.checkTaggedHero()
+        this.preventTaggedHeroToMove(this.step == "INIT")
+        if (this.step == "INIT") this.updateStepInit()
+    }
+
+    checkTaggedHero() {
+        const taggedHero = this.tag.owner
+        if (taggedHero && !taggedHero.removed) return
+        let heros = []
+        this.objects.forEach(ent => {
+            if (ent instanceof Hero) heros.push(ent)
+        })
+        if (heros.length == 0) return
+        const numHero = floor(this.rand("tag") * heros.length)
+        this.tag.owner = heros[numHero]
+    }
+
+    preventTaggedHeroToMove(val) {
+        const taggedHero = this.tag.owner
+        if (!taggedHero || taggedHero.removed) return
+        if (val) {
+            this.taggedHeroPreventMoveHack ||= hackMethod(taggedHero, "getInputState", 1, evt => {
+                evt.stopPropagation()
+            })
+        } else if (this.taggedHeroPreventMoveHack) {
+            this.taggedHeroPreventMoveHack.remove()
+            this.taggedHeroPreventMoveHack = null
+        }
+    }
+
+    updateStepInit() {
+        const { iteration, initDuration } = this
+        const { fps } = this.game
+        this.initCountDown()
+        this.updateWorld()
+        if (iteration > initDuration * fps) {
+            this.step = "GAME"
+            delete this.countDown
+        }
+    }
+
+    initCountDown() {
+        this.countDown ||= this.notifs.add(CountDown, {
+            x: this.width / 2,
+            y: this.height / 2,
+            duration: 3,
+            font: "bold 200px arial",
+            fillStyle: "black",
+        })
+    }
+
+    updateStepGame() {
+        const { iteration, initDuration, duration } = this
+        const { fps } = this.game
+        super.updateStepGame()
+        if (iteration % fps == 0) this.incrNonTaggedPlayerScores()
+        if (iteration > (initDuration + duration) * fps) this.step = "GAMEOVER"
+    }
+
+    incrNonTaggedPlayerScores() {
+        const { tag } = this
+        const taggedHero = tag.owner
+        if (!taggedHero) return
+        const taggedPlayerId = taggedHero.playerId
+        for (let playerId in this.game.players) {
+            if (playerId == taggedPlayerId) continue
+            this.incrScore(playerId, 1)
+        }
+    }
+
+    updateStepGameOver() {
+        const { scores } = this
+        if (!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
+            x: this.width / 2,
+            y: this.height / 2,
+            scores,
+        })
+    }
+
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await import("/static/catalogs/std/v1/joypad.mjs")
+        await JoypadGameScene.load()
+        return new JoypadGameScene(this.game)
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
+    }
+}
+
+
+const TagImg = new Img("/static/catalogs/std/v1/2Dside/assets/tag.png")
+
+@CATALOG.registerObject({
+    ...REGISTER_COMMON_ARGS,
+    showInBuilder: false
+})
+@Dependencies.add(TagImg)
+@OwnerableMixin.add({
+    removedWithOwner: false,
+})
+export class Tag extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = 30
+        this.height = 30
+        // self register in scene
+        this.scene.tag = this
+    }
+
+    update() {
+        super.update()
+        this.sync()
+    }
+
+    sync() {
+        const { owner } = this
+        if (!owner) return
+        this.x = owner.x
+        this.y = owner.y - 50
+    }
+
+    getBaseImg() {
+        return this.owner ? TagImg : null
+    }
+}
+
+
+@CATALOG.registerScene(REGISTER_COMMON_ARGS)
+@Dependencies.add(GreenLandscapeBackground)
+@StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
+@GameObject.StateProperty.define("teamsManager", {
+    filter: { category: "manager/teams" },
+    default: { key: "std:TeamsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "std:PhysicsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "std:BlockBorderManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
+export class StealTreasures extends GameScene {
+
+    init(args) {
+        super.init(args)
+        const { scores } = this
+        this.hud = new HeadsUpDisplay(this, {
+            showHerosHealths: false,
+            playersLinesSorter: (pid1, pid2) => {
+                return (scores.get(pid2) ?? 0) - (scores.get(pid1) ?? 0)
+            }
+        })
+    }
+
+    onAddObject(obj) {
+        super.onAddObject(obj)
+        if (obj instanceof Hero) this.hackHero(obj)
+    }
+
+    hackHero(hero) {
+        hero.maxHealth = Infinity
+        hackMethod(hero, "onGetAttacked", 0, evt => {
+            let oneDropped = false
+            if (hero.extras) hero.extras.forEach(extra => {
+                if (oneDropped) return
+                if (extra instanceof Star) {
+                    extra.drop()
+                    oneDropped = true
+                }
+            })
+        })
+        this.addObject(StarsBar, {
+            owner: hero,
+        })
+    }
+
+    update() {
+        super.update()
+        this.background.update()
+        this.borderManager.update()
+        this.physicsManager.update()
+        this.teamsManager.update()
+        this.hud.update()
+    }
+
+    updateStepGame() {
+        super.updateStepGame()
+        this.updatePlayersScore()
+        if (this.iteration > this.duration * this.game.fps) this.step = "GAMEOVER"
+    }
+
+    updatePlayersScore() {
+        for (let playerId in this.game.players) {
+            const hero = this.getHero(playerId)
+            if (!hero) continue
+            const nbStars = countStarExtras(hero)
+            this.incrScore(playerId, nbStars / this.game.fps)
+        }
+    }
+
+    updateStepGameOver() {
+        const { scores } = this
+        if (!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
+            x: this.width / 2,
+            y: this.height / 2,
+            scores,
+        })
+    }
+
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await import("/static/catalogs/std/v1/joypad.mjs")
+        await JoypadGameScene.load()
+        return new JoypadGameScene(this.game)
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
+    }
+}
+
+
+const StarImg = new Img("/static/catalogs/std/v1/2Dside/assets/star.png")
+
+@Dependencies.add(StarImg)
+@OwnerableMixin.add()
+class StarsBar extends GameObject {
+
+    update() {
+        super.update()
+        const { owner } = this
+        if (owner) {
+            this.x = owner.x
+            this.y = owner.y - owner.height / 2 - 10
+        }
+    }
+
+    draw(drawer) {
+        const { owner } = this
+        if (!owner) return
+        const nbStars = countStarExtras(owner)
+        const props = this._starsProps ||= []
+        for (let i = 0; i < nbStars; ++i) {
+            if (i >= props.length) props.push(new GraphicsProps({
+                img: StarImg,
+                width: 10,
+                height: 10,
+            }))
+            const prop = props[i]
+            prop.x = this.x + i * 5 - (nbStars - 1) * 5 / 2
+            prop.y = this.y
+            prop.draw(drawer)
+        }
+    }
+}
+
+
+function countStarExtras(hero) {
+    let nbStars = 0
+    if (hero.extras) hero.extras.forEach(extra => {
+        if (extra instanceof Star) nbStars += 1
+    })
+    return nbStars
+}
+
+
+// BALL
+
+@CATALOG.registerScene(REGISTER_COMMON_ARGS)
+@Dependencies.add(GreenLandscapeBackground)
+@StateNumber.define("goalsSize", { default: 150, precision: 10, showInBuilder: true })
+@StateNumber.define("duration", { default: 3 * 60, precision: 30, showInBuilder: true })
+@GameObject.StateProperty.define("teamsManager", {
+    filter: { category: "manager/teams" },
+    default: { key: "std:TeamsManager", nbTeams: 2 },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("physicsManager", {
+    filter: { category: "manager/physics" },
+    default: { key: "std:PhysicsManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("borderManager", {
+    filter: { category: "manager/border" },
+    default: { key: "std:BlockBorderManager" },
+    showInBuilder: true,
+})
+@GameObject.StateProperty.define("background", {
+    filter: { category: "background" },
+    default: { key: "std:GreenLandscapeBackground" },
+    showInBuilder: true,
+})
+export class BallScene extends GameScene {
+
+    init(args) {
+        super.init(args)
+        this.step = "INIT"
+        this.initDuration = 3
+        this.hud = new HeadsUpDisplay(this, {
+            showHerosHealths: false
+        })
+    }
+
+    onAddObject(obj) {
+        super.onAddObject(obj)
+        if (obj instanceof Ball) this.hackBall(obj)
+        if (obj instanceof HeroSpawnPoint) this.hackHeroSpawnPoint(obj)
+    }
+
+    hackBall(ball) {
+        ball._startX = ball.x
+        ball._startY = ball.y
+    }
+
+    hackHeroSpawnPoint(point) {
+        const goalsSize = this.goalsSize
+        point.getGoalImg = function() {
+            if(point.team===null) return
+            if(!this._goalImg) {
+                const scn = this.scene
+                const color = scn.teamsManager.getTeamColor(this.team)
+                this._goalImg = newCanvas(goalsSize, goalsSize)
+                const ctx = this._goalImg.getContext("2d")
+                ctx.beginPath()
+                ctx.arc(goalsSize/2, goalsSize/2, goalsSize/2, 0, 2*Math.PI)
+                ctx.lineWidth = 1
+                ctx.strokeStyle = color
+                ctx.setLineDash([5, 5])
+                ctx.stroke()
+            }
+            return this._goalImg
+        }
+        hackMethod(point, "draw", 0, evt => {
+            const drawer = evt.inputArgs[0]
+            const img = new GraphicsProps({
+                img: point.getGoalImg(),
+                width: goalsSize,
+                height: goalsSize,
+                x: point.x,
+                y: point.y,
+            })
+            if(img) drawer.draw(img)
+        })
+    }
+
+
+    update() {
+        super.update()
+        this.background.update()
+        this.borderManager.update()
+        this.physicsManager.update()
+        this.teamsManager.update()
+        this.hud.update()
+        //this.initTeams()
+        this.preventHerosToMove(this.step == "INIT")
+        this.checkBallGoals()
+        if (this.step == "INIT") this.updateStepInit()
+    }
+
+    // initTeams() {
+    //     if(this._initTeamsDone) return
+    //     this._initTeamsDone = true
+    //     const heroSpawnPoints = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+    //     const heros = this.filterObjects("heros", obj => obj instanceof Hero)
+    //     const nbTeams = heroSpawnPoints.length
+    //     for(let i=0; i<heroSpawnPoints.length; ++i) {
+    //         heroSpawnPoints[i].team = `heros${i%nbTeams}`
+    //         console.log("TMP spawnPoint team", `heros${i%nbTeams}`)
+    //     }
+    //     for(let i=0; i<heros.length; ++i) {
+    //         heros[i].team = `heros${i%nbTeams}`
+    //         console.log("TMP hero team", `heros${i%nbTeams}`)
+    //     }
+    // }
+
+    preventHerosToMove(val) {
+        if(this._herosPreventedToMove === val) return
+        this._herosPreventedToMove = val
+        const heros = this.filterObjects("heros", obj => obj.constructor.IS_HERO)
+        heros.forEach(hero => {
+            if (val) {
+                hero._preventMoveHack ||= hackMethod(hero, "getInputState", 1, evt => {
+                    evt.stopPropagation()
+                })
+            } else if (hero._preventMoveHack) {
+                hero._preventMoveHack.remove()
+                delete hero._preventMoveHack
+            }
+        })
+    }
+
+    checkBallGoals() {
+        const balls = this.filterObjects("balls", obj => obj instanceof Ball)
+        const heroSpawnPoints = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
+        const goalsRadius = this.goalsSize/2
+        balls.forEach(ball => heroSpawnPoints.forEach(point => {
+            if(hypot(ball.x-point.x, ball.y-point.y) < goalsRadius) {
+                this.handleBallGoal(ball, point)
+            }
+        }))
+    }
+
+    handleBallGoal(ball, heroSpawnPoint) {
+        // incr other teams scores
+        const { team } = heroSpawnPoint
+        const heros = this.filterObjects("heros", obj => obj.constructor.IS_HERO)
+        const otherTeamsHeros = heros.filter(hero => hero.team !== team)
+        otherTeamsHeros.forEach(hero => this.incrScore(hero.playerId, 1))
+        // respawn ball
+        ball.x = ball._startX
+        ball.y = ball._startY
+        ball.speedX = 0
+        ball.speedY = 0
+    }
+
+    updateStepInit() {
+        const { iteration, initDuration } = this
+        const { fps } = this.game
+        this.initCountDown()
+        this.updateWorld()
+        if (iteration > initDuration * fps) {
+            this.step = "GAME"
+            delete this.countDown
+        }
+    }
+
+    initCountDown() {
+        this.countDown ||= this.notifs.add(CountDown, {
+            x: this.width / 2,
+            y: this.height / 2,
+            duration: 3,
+            font: "bold 200px arial",
+            fillStyle: "black",
+        })
+    }
+
+    updateStepGame() {
+        const { iteration, initDuration, duration } = this
+        const { fps } = this.game
+        super.updateStepGame()
+        if (iteration > (initDuration + duration) * fps) this.step = "GAMEOVER"
+    }
+
+    updateStepGameOver() {
+        const { scores } = this
+        if (!this.scoresBoard) this.scoresBoard = this.notifs.add(ScoresBoard, {
+            x: this.width / 2,
+            y: this.height / 2,
+            scores,
+        })
+    }
+
+    async loadJoypadScene() {
+        const { JoypadGameScene } = await import("/static/catalogs/std/v1/joypad.mjs")
+        await JoypadGameScene.load()
+        return new JoypadGameScene(this.game)
+    }
+
+    draw() {
+        const res = super.draw()
+        const drawer = this.graphicsEngine
+        this.hud.draw(drawer)
+        return res
+    }
+
+    drawBackground(drawer) {
+        this.background.draw(drawer)
+    }
+}
+
+
+// WAIGTING
+
+@CATALOG.registerScene({
+    ...REGISTER_COMMON_ARGS,
+    showInBuilder: false,
+})
+export class WaitingScene extends Scene {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.backgroundColor = "black"
+        this.playerObjs = new Map()
+        this.initTitleText()
+        this.initQrcodeImg()
+    }
+
+    initTitleText() {
+        const titleTxt = this.addNotif(Text, {
+            text: "WAITING PLAYERS",
+            font: "bold 50px arial",
+            fillStyle: "white",
+        })
+        titleTxt.syncPos = () => {
+            titleTxt.x = this.viewWidth / 2
+            titleTxt.y = this.viewHeight / 6
+        }
+        hackMethod(titleTxt, "update", 0, evt => titleTxt.syncPos())
+        titleTxt.syncPos()
+    }
+
+    update() {
+        this.notifs.update()
+        this.syncPlayerObjs()
+        this.playerObjs.forEach(objs => objs.update())
+    }
+
+    syncPlayerObjs() {
+        const { playerObjs, viewWidth, viewHeight } = this
+        const { players } = this.game
+        // add & place players
+        let numPlayer = 0
+        for (let playerId in players) {
+            const grp = this.initPlayerObjGroup(playerId)
+            grp.x = viewWidth / 2
+            grp.y = viewHeight / 3 + (numPlayer * 40)
+            numPlayer += 1
+        }
+        // rm removed players
+        for (let playerId in playerObjs)
+            if (!(playerId in players))
+                playerObjs.remove(playerId)
+    }
+
+    initPlayerObjGroup(playerId) {
+        const { game, playerObjs } = this
+        let grp = playerObjs.get(playerId)
+        if (!grp) {
+            grp = new GameObjectGroup(this)
+            playerObjs.set(playerId, grp)
+            grp.add(PlayerIcon, { x: 15, y: 15, playerId, width: 30, height: 30, strokeColor: "white" })
+            const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
+            txt.sync = () => {
+                txt.x = 35 + txt.width / 2
+                txt.updateText(game.players[playerId]?.name ?? "")
+            }
+            txt.sync()
+            hackMethod(txt, "update", 0, evt => txt.sync())
+        }
+        return grp
+    }
+
+    draw() {
+        const can = this.canvas
+        can.width = this.viewWidth
+        can.height = this.viewHeight
+        const ctx = can.getContext("2d")
+        ctx.reset()
+        const drawer = this.graphicsEngine
+        this.drawBackground(drawer)
+        this.notifs.draw(drawer)
+        this.playerObjs.forEach(objs => objs.draw(drawer))
+        const qrcodeProps = this.getQrcodeGraphicsProps()
+        if (qrcodeProps) drawer.draw(qrcodeProps)
+        return can
+    }
+
+    getQrcodeGraphicsProps() {
+        const qrcodeImg = this._qrcodeImg
+        if (!qrcodeImg) return null
+        const qrcodeProps = this._qrcodeGraphicsProps ||= new GraphicsProps({
+            img: qrcodeImg,
+            width: 200,
+            height: 200,
+            x: 150,
+            y: this.viewHeight / 2,
+        })
+        return qrcodeProps
+    }
+
+    async initQrcodeImg() {
+        if (IS_SERVER_ENV) return
+        let res = this._qrcodeImg
+        if (!res) {
+            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
+            const can = newCanvas(ceil(qrcodeImg.width * 1.2), ceil(qrcodeImg.height * 1.2))
+            const ctx = can.getContext("2d")
+            ctx.fillStyle = "white"
+            ctx.fillRect(0, 0, can.width, can.height)
+            ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
+            res = this._qrcodeImg = can
+        }
+        return res
+    }
+
+    async loadJoypadScene() {
+        const { JoypadWaitingScene } = await import("/static/catalogs/std/v1/joypad.mjs")
+        await JoypadWaitingScene.load()
+        return new JoypadWaitingScene(this.game)
+    }
+}
+
+
+export class PlayerIcon extends GameObject {
+    init(kwargs) {
+        super.init(kwargs)
+        this.playerId = kwargs.playerId
+        this.strokeColor = kwargs?.strokeColor ?? "black"
+    }
+
+    getBaseImg() {
+        let baseImg = this._baseImg
+        if(baseImg) return baseImg
+        const { playerId } = this
+        const player = this.game.players[playerId]
+        baseImg = this._baseImg = document.createElement("canvas")
+        baseImg.width = baseImg.height = 36
+        const ctx = baseImg.getContext("2d")
+        ctx.beginPath()
+        ctx.arc(floor(baseImg.width/2), floor(baseImg.height/2), 15, 0, 2 * PI)
+        ctx.strokeStyle = this.strokeColor
+        ctx.lineWidth = 3
+        ctx.stroke()
+        ctx.fillStyle = player.color
+        ctx.fill()
+        return baseImg
+    }
+}
+
+
+export class PlayerText extends Text {
+    init(kwargs) {
+        super.init(kwargs)
+        this.playerId = kwargs.playerId
+    }
+    update() {
+        const { playerId } = this
+        const player = this.game.players[playerId]
+        if(player) this.text = player.name
+    }
+}
+
+
+// UTILS
+
+export class ScoresBoard extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.scores = kwargs.scores
+        this.width = 300
+        this.headerHeight = 80
+        this.lineHeight = 40
+        this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
+    }
+
+    getBaseImg() {
+        const baseImg = this._baseImg ||= document.createElement("canvas")
+        baseImg.width = this.width
+        baseImg.height = this.height
+        this.drawBackground(baseImg)
+        this.drawScores(baseImg)
+        return baseImg
+    }
+
+    drawBackground(can) {
+        const { width, height } = can
+        const ctx = can.getContext("2d")
+        ctx.fillStyle = "lightgrey"
+        ctx.globalAlpha = .8
+        ctx.fillRect(0, 0, width, height)
+        ctx.globalAlpha = 1
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 1
+        ctx.strokeRect(0, 0, width, height)
+    }
+
+    drawScores(can) {
+        const { headerHeight, lineHeight, scores } = this
+        const { width } = can
+        const { players } = this.game
+        const ctx = can.getContext("2d")
+        const fontHeight = floor(lineHeight * .7)
+        const fontArgs = {
+            font: `${fontHeight}px arial`,
+            fillStyle: "black"
+        }
+        const titleCan = newTextCanvas("Scores:", {
+            ...fontArgs,
+            font: `bold ${fontHeight}px arial`,
+        })
+        ctx.drawImage(titleCan, (width - titleCan.width) / 2, lineHeight / 4)
+        const sortedPlayerScores = Object.keys(players).map(pid => [pid, scores.get(pid) ?? 0]).sort((a, b) => b[1] - a[1])
+        for (let i in sortedPlayerScores) {
+            const [playerId, score] = sortedPlayerScores[i]
+            const playerName = players[playerId].name
+            const lineCan = newTextCanvas(`${playerName}: ${floor(score)}`, fontArgs)
+            ctx.drawImage(lineCan, (width - lineCan.width) / 2, headerHeight + i * lineHeight)
+        }
+    }
+}
+
+
+export class CountDown extends Text {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.duration = kwargs && kwargs.duration || 3
+        this.startIt = this.scene.iteration
+        this.syncText()
+    }
+
+    update() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        if ((iteration - this.startIt) / fps > this.duration) this.remove()
+        this.syncText()
+    }
+
+    syncText() {
+        const { iteration } = this.scene
+        const { fps } = this.game
+        this.updateText(ceil((this.duration - (iteration - this.startIt) / fps)))
+    }
+}

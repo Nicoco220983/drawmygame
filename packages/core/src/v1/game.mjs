@@ -7,10 +7,10 @@ import { StateProperty, StateBool, StateNumber, StateEnum, StateIntEnum, StateSt
 import { AudioEngine } from './audio.mjs'
 import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
 // TODO import only if necessary
-import { gzip, ungzip } from '../../deps/pako.mjs'
+import { gzip, ungzip } from '../deps/pako.mjs'
 
-import * as packLib from '../../deps/pack.mjs'
-import * as unpackLib from '../../deps/unpack.mjs'
+import * as packLib from '../deps/pack.mjs'
+import * as unpackLib from '../deps/unpack.mjs'
 // useRecords: ensure that a Map is packed/unpacked as a Map
 const packr = new packLib.Packr({ useRecords: true })
 const unpackr = new unpackLib.Unpackr({ useRecords: true })
@@ -1963,7 +1963,7 @@ export class Game extends GameCommon {
         if(IS_SERVER_ENV) return
         let { qrcodeImg } = this
         if(!qrcodeImg) {
-            await importJs('../static/deps/qrcode.min.js')
+            await importJs('/static/core/deps/qrcode.min.js')
             const wrapperEl = document.createElement("div")
             const url = URL.parse(window.location)
             url.searchParams.set("game", "0")

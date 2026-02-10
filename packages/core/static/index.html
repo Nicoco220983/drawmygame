@@ -97,13 +97,21 @@
         <flexcol id="builder"></flexcol>
         <flexcol id="game" style="padding:1em; display: none"></flexcol>
     </flexrow>
+<script type="importmap">
+{
+    "imports": {
+        "@drawmygame/core/v1": "/static/core/v1/index.mjs",
+        "@drawmygame/core": "/static/core/v1/index.mjs"
+    }
+}
+</script>
 <script type="module">
 import {
     newDomEl,
     CATALOG,
     GameMap, Game, MODE_LOCAL
-} from './static/core/v1/index.mjs'
-import { GameBuilder } from './static/core/v1/builder.mjs'
+} from '/static/core/v1/index.mjs'
+import { GameBuilder } from '/static/core/v1/builder.mjs'
 
 const urlQueryStr = window.location.search
 const urlParams = new URLSearchParams(urlQueryStr)

@@ -1,15 +1,26 @@
 const { assign } = Object
 
-const BASE_URL = import.meta.resolve("../../..")
-const CATALOGS_PATH = "/static/catalogs"
+const IS_SERVER_ENV = (typeof window === 'undefined')
+const STATIC_SRC = import.meta.resolve("../..").replace(/\/+$/, "")
+const CATALOGS_PATH = "/catalogs"
 
 /**
  * 
- * @param {string} url 
+ * @param {string} src 
  * @returns {string}
  */
-function getPathFromUrl(url) {
-    return '/' + url.substring(BASE_URL.length)
+function getUrlPath(src) {
+    // Here "src" may be an url (client) or an fs path (server)
+    return src.substring(STATIC_SRC.length)
+}
+
+/**
+ * Extract namespace from urlPath
+ * @param {string} urlPath 
+ * @returns {string}
+ */
+function getNamespaceFromUrlPath(urlPath) {
+    return urlPath.substring(CATALOGS_PATH.length + 1).split('/')[0]
 }
 
 /**
@@ -17,8 +28,8 @@ function getPathFromUrl(url) {
  * @param {string} url 
  * @returns {string}
  */
-function getUrlFromPath(path) {
-    return BASE_URL + path.substring(1)
+function getUrlFromPath(urlPath) {
+    return STATIC_SRC + urlPath
 }
 
 
@@ -47,14 +58,16 @@ export class Catalog {
      * @param {string[]} keys
      */
     async loadScenes(perspective, versions, initStates) {
-        const paths = new Set(initStates.map(state => this.getScene(perspective, versions, state.key).path))
-        await Promise.all(Array.from(paths).map(p => import(getUrlFromPath(p))))
+        const scnCats = initStates.map(state => this.getScene(perspective, versions, state.key))
+        const paths = new Set(IS_SERVER_ENV ? scnCats.map(c => c.filePath) : scnCats.map(c => getUrlFromPath(c.urlPath)))
+        await Promise.all(Array.from(paths).map(p => import(p)))
         await Promise.all(initStates.map(state => this.getScene(perspective, versions, state.key).cls.load(state)))
     }
 
     async loadObjects(perspective, versions, initStates) {
-        const paths = new Set(initStates.map(state => this.getObject(perspective, versions, state.key).path))
-        await Promise.all(Array.from(paths).map(p => import(getUrlFromPath(p))))
+        const objCats = initStates.map(state => this.getObject(perspective, versions, state.key))
+        const paths = new Set(IS_SERVER_ENV ? objCats.map(c => c.filePath) : objCats.map(c => getUrlFromPath(c.urlPath)))
+        await Promise.all(Array.from(paths).map(p => import(p)))
         await Promise.all(initStates.map(state => this.getObject(perspective, versions, state.key).cls.load(perspective, versions, state)))
     }
 
@@ -190,15 +203,16 @@ export class Catalog {
      */
     registerObject(kwargs) {
         return target => {
-            const path = getPathFromUrl(kwargs.url)
-            const namespace = kwargs.namespace ?? path.substring(CATALOGS_PATH.length + 1).split('/')[0]
+            const urlPath = getUrlPath(kwargs.url)
+            const namespace = kwargs.namespace ?? getNamespaceFromUrlPath(urlPath)
             const key = `${namespace}:${target.name}`
             const fullKey = `${kwargs.perspective}:${namespace}:${kwargs.version}:${target.name}`
             const objCat = this.objects[fullKey] = {}
             objCat.version = kwargs.version
             objCat.perspective = kwargs.perspective
             objCat.key = key
-            objCat.path = path
+            objCat.urlPath = urlPath
+            objCat.filePath = IS_SERVER_ENV ? kwargs.url : null
             objCat.namespace = namespace
             objCat.perspective = kwargs.perspective
             objCat.name = target.name
@@ -222,15 +236,16 @@ export class Catalog {
      */
     registerScene(kwargs) {
         return target => {
-            const path = getPathFromUrl(kwargs.url)
-            const namespace = kwargs.namespace ?? path.substring(CATALOGS_PATH.length + 1).split('/')[0]
+            const urlPath = getUrlPath(kwargs.url)
+            const namespace = kwargs.namespace ?? getNamespaceFromUrlPath(urlPath)
             const key = `${namespace}:${target.name}`
             const fullKey = `${kwargs.perspective}:${namespace}:${kwargs.version}:${target.name}`
             const scnCat = this.scenes[fullKey] = {}
             scnCat.version = kwargs.version
             scnCat.perspective = kwargs.perspective
             scnCat.key = key
-            scnCat.path = path
+            scnCat.urlPath = urlPath
+            scnCat.filePath = IS_SERVER_ENV ? kwargs.url : null
             scnCat.namespace = namespace
             scnCat.name = target.name
             scnCat.label = kwargs?.label ?? key

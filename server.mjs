@@ -16,13 +16,14 @@ import {
   GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
   MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
   GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
-} from './static/core/v1/index.mjs'
+} from '@drawmygame/core/v1'
 
 //import { loadCatalog } from './static/core/v1/catalog.mjs'
 
 const PROD = ((process.env.DRAWMYGAME_ENV || "").toLowerCase() === "production") ? true : false
 const PORT = parseInt(process.env.PORT || 8080)
-const DIRNAME = dirname(fileURLToPath(import.meta.url))
+const DRAWMYGAME_DIR = dirname(fileURLToPath(import.meta.url))
+const DIST_DIR = join(DRAWMYGAME_DIR, "packages/core/dist")
 const IS_DEBUG_MODE = process.env.DEBUG == "1"
 
 const MAX_BODY_SIZE = '2mb'
@@ -70,16 +71,15 @@ class GameServer {
       })
     }
 
-    this.app.use('/static/assets', express.static('static/assets', { maxAge: ASSETS_STATIC_CACHE_MAX_AGE }))
-    this.app.use('/static', express.static('static', { maxAge: DEFAULT_STATIC_CACHE_MAX_AGE }))
+    this.app.use('/static', express.static('packages/core/dist', { maxAge: DEFAULT_STATIC_CACHE_MAX_AGE }))
     this.app.get("/", (req, res) => {
-      res.sendFile(join(DIRNAME, "static/index.html"))
+      res.sendFile(join(DIST_DIR, "core/index.html"))
     })
     this.app.get("/favicon.ico", (req, res) => {
-      res.sendFile(join(DIRNAME, "static/favicon.ico"))
+      res.sendFile(join(DIST_DIR, "core/favicon.ico"))
     })
     this.app.get("/r/*", (req, res) => {
-      res.sendFile(join(DIRNAME, "static/room.html"))
+      res.sendFile(join(DIST_DIR, "core/room.html"))
     })
 
 
@@ -98,7 +98,7 @@ class GameServer {
           else return res.sendStatus(422)
           if(item) resp[fullKey] = {
             key: item.key,
-            path: item.path,
+            urlPath: item.urlPath,
             namespace: item.namespace,
             version: item.version,
             perspective: item.perspective,
@@ -477,9 +477,18 @@ class Client {
 
 
 async function loadAllCatalogs() {
-  const catsPath = join(DIRNAME, 'static/catalogs')
+  const catsPath = join(DIST_DIR, 'catalogs')
   const catNames = await listDirectories(catsPath)
-  await Promise.all(catNames.map(n => import(join(catsPath, n, 'index.mjs'))))
+  await Promise.all(catNames.map(async (n) => {
+    const indexPath = join(catsPath, n, 'v1/index.mjs')
+    try {
+      await import(indexPath)
+    } catch(err) {
+      if(err.code !== 'ERR_MODULE_NOT_FOUND') {
+        console.warn(`Failed to load catalog ${n}:`, err.message)
+      }
+    }
+  }))
 }
 
 

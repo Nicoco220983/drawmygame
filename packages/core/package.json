@@ -1,0 +1,15 @@
+{
+  "name": "@drawmygame/core",
+  "version": "1.0.0",
+  "description": "DrawMyGame core engine",
+  "main": "dist/index.mjs",
+  "type": "module",
+  "exports": {
+    "./v1": "./dist/core/v1/index.mjs"
+  },
+  "scripts": {
+    "build": "babel src -d dist/core --copy-files --extensions .mjs --out-file-extension .mjs --config-file ../../.babelrc && cp -r static/* dist/core/ 2>/dev/null || true"
+  },
+  "author": "nicolas.carrez@gmail.com",
+  "license": "ISC"
+}

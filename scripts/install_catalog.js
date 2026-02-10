@@ -5,32 +5,51 @@ const { spawnSync } = require('child_process');
 const pkgSpecifier = process.argv[2];
 if (!pkgSpecifier) {
   console.error('Please provide a package name.');
+  console.error('Usage: npm run install_catalog <package-name>');
+  console.error('Examples:');
+  console.error('  npm run install_catalog @drawmygame/std');
+  console.error('  npm run install_catalog some-catalog-package');
   process.exit(1);
 }
+
+const DRAWMYGAME_DIR = path.resolve(path.join(__dirname, ".."))
 
 function main(pkgSpecifier) {
 
     console.log(`Installing catalog package: ${pkgSpecifier}`);
 
+    console.log(`Installing ${pkgSpecifier}...`);
     const npmInstall = spawnSync('npm', ['install', pkgSpecifier], { stdio: 'inherit' });
-
     if (npmInstall.status !== 0) {
         console.error(`Failed to install package ${pkgSpecifier}`);
         process.exit(1);
     }
 
-    const pkgName = getPackageName(pkgSpecifier)
-    console.log("Package name:", pkgName)
-    const sourceDir = path.join('node_modules', pkgName, 'static')
-    const catalogName = getPackageProp(pkgName, "catalogname") ?? pkgName
-    const destDir = path.join('static/catalogs', catalogName)
+    // get config vars from package.json
+    const pkgBaseDir = isLocalSpecifier(pkgSpecifier) ? path.resolve(DRAWMYGAME_DIR, pkgSpecifier) : require.resolve(pkgSpecifier)
+    const pkg = require(path.join(pkgBaseDir, 'package.json'));
+    const catalogName = pkg.catalogname ?? pkg.name
+    const catalogSource = pkg.catalogsource ?? "dist"
+    
+    const sourceDir = path.join(pkgBaseDir, catalogSource)
+    const CORE_DIST = path.resolve('packages/core/dist');
+    const CATALOGS_DIR = path.join(CORE_DIST, 'catalogs');
+    const destDir = path.join(CATALOGS_DIR, catalogName)
 
     if (!fs.existsSync(sourceDir)) {
-        console.error(`Package ${pkgName} does not have a static/ directory.`)
-        // Clean up installed package? Maybe not, user can do it manually.
+        console.error(`Package ${pkg.name} does not have a "${catalogSource}" directory.`)
         process.exit(1);
     }
 
+    // Ensure catalogs directory exists
+    fs.mkdirSync(CATALOGS_DIR, { recursive: true });
+    
+    // Remove existing catalog if present
+    if (fs.existsSync(destDir)) {
+        fs.rmSync(destDir, { recursive: true, force: true });
+        console.log(`Removed existing catalog: ${catalogName}`);
+    }
+    
     console.log(`Copying from ${sourceDir} to ${destDir}`)
     copyDirRecursive(sourceDir, destDir)
 
@@ -54,49 +73,17 @@ function copyDirRecursive(src, dest) {
   }
 }
 
-function getPackageName(specifier) {
-  if (!specifier) return null;
+function isLocalSpecifier(pkgSpecifier) {
+  if (typeof pkgSpecifier !== 'string') return false;
 
-  // Remove npm alias prefix
-  let s = specifier.replace(/^npm:/, "");
+  const trimmed = pkgSpecifier.trim();
 
-  // Handle git URLs (HTTPS, SSH, GitHub)
-  const gitUrlMatch = s.match(
-    /^(?:git\+)?https?:\/\/[^/]+\/([^/]+)\/([^/#]+)(?:[#/]?.*)?$/
+  return (
+    trimmed.startsWith('./') ||
+    trimmed.startsWith('../') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('file:')
   );
-  if (gitUrlMatch) {
-    return gitUrlMatch[2].replace(/\.git$/, ""); // extract repo name
-  }
-
-  // Handle GitHub shorthand: github:user/repo[#ref]
-  const githubMatch = s.match(/^github:[^/]+\/([^#]+)/);
-  if (githubMatch) {
-    return githubMatch[1].replace(/\.git$/, "");
-  }
-
-  // Handle file:, relative, or absolute paths
-  if (s.startsWith("file:") || s.startsWith(".") || s.startsWith("/")) {
-    return path.basename(s.replace(/^file:/, ""));
-  }
-
-  // Handle scoped and unscoped npm package specs
-  const npmMatch = s.match(/^(@[^/]+\/[^@/]+)|^[^@/]+/);
-  if (npmMatch) {
-    return npmMatch[0];
-  }
-
-  return null;
-}
-
-function getPackageProp(pkgName, prop) {
-  try {
-    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
-    const pkg = require(pkgJsonPath);
-    return prop ? pkg[prop] : pkg;
-  } catch (err) {
-    console.error(`Cannot read ${prop || "package.json"} from ${pkgName}:`, err.message);
-    return null;
-  }
 }
 
 main(pkgSpecifier)

@@ -1,0 +1,5 @@
+import "./2Dside/objects.mjs"
+import "./2Dside/heros.mjs"
+import "./2Dside/triggers.mjs"
+import "./2Dside/blocks.mjs"
+import "./2Dside/scenes.mjs"

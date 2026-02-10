@@ -1,5 +1,2 @@
 node_modules/
-static/*.html
-static/core/
-static/catalogs/
-static/deps/pako.mjs
+dist/

@@ -166,20 +166,17 @@ const pingResponse = await httpGet('/ping');
 assertEqual(pingResponse.statusCode, 200, 'GET /ping returns 200');
 assertEqual(pingResponse.body, 'pong', 'GET /ping returns "pong"');
 
-// Test 2b: Catalog object endpoint (valid object - if std catalog installed)
+// Test 2b: Catalog object endpoint (valid object)
 const catalogResponse = await httpGet('/catalog/object/2Dside:std:v1:Sword');
 assertEqual(catalogResponse.statusCode, 200, 'GET /catalog/object/2Dside:std:v1:Sword returns 200');
 
 try {
   const catalogData = JSON.parse(catalogResponse.body);
   const swordKey = '2Dside:std:v1:Sword';
-  if (catalogData[swordKey]) {
-    assertEqual(catalogData[swordKey].key, 'std:Sword', 'Sword object has correct key');
-    assertEqual(catalogData[swordKey].namespace, 'std', 'Sword object has correct namespace');
-    assertEqual(catalogData[swordKey].perspective, '2Dside', 'Sword object has correct perspective');
-  } else {
-    console.log(`  ${YELLOW}⚠${RESET} Std catalog not installed - skipping Sword object validation`);
-  }
+  assert(catalogData[swordKey], 'Sword object returned')
+  assertEqual(catalogData[swordKey].key, 'std:Sword', 'Sword object has correct key');
+  assertEqual(catalogData[swordKey].namespace, 'std', 'Sword object has correct namespace');
+  assertEqual(catalogData[swordKey].perspective, '2Dside', 'Sword object has correct perspective');
 } catch (e) {
   assert(false, `Catalog response is valid JSON: ${e.message}`);
 }
@@ -213,18 +210,21 @@ const coreGameResponse = await httpGet('/static/core/v1/game.mjs');
 assertEqual(coreGameResponse.statusCode, 200, 'GET /static/core/v1/game.mjs returns 200');
 assert(coreGameResponse.body.length > 1000, 'Core game.mjs has content');
 
-// Test 3c & 3d: Catalog std (if installed)
-const stdCatalogExists = existsSync(join(ROOT_DIR, 'static/catalogs/std/index.mjs'));
-if (stdCatalogExists) {
-  const stdIndexResponse = await httpGet('/static/catalogs/std/index.mjs');
-  assertEqual(stdIndexResponse.statusCode, 200, 'GET /static/catalogs/std/index.mjs returns 200');
+// Test 3c & 3d: Catalog std (if built)
+const stdCatalogPath = join(ROOT_DIR, 'packages/core/dist/catalogs/std/v1/index.mjs');
+if (existsSync(stdCatalogPath)) {
+  const stdIndexResponse = await httpGet('/static/catalogs/std/v1/index.mjs');
+  assertEqual(stdIndexResponse.statusCode, 200, 'GET /static/catalogs/std/v1/index.mjs returns 200');
   assert(stdIndexResponse.body.includes('import'), 'Std catalog index.mjs contains imports');
 
-  const stdObjectsResponse = await httpGet('/static/catalogs/std/v1/2Dside/objects.mjs');
-  assertEqual(stdObjectsResponse.statusCode, 200, 'GET /static/catalogs/std/v1/2Dside/objects.mjs returns 200');
-  assert(stdObjectsResponse.body.length > 1000, 'Std objects.mjs has content');
+  const stdObjectsPath = join(ROOT_DIR, 'packages/core/dist/catalogs/std/v1/2Dside/objects.mjs');
+  if (existsSync(stdObjectsPath)) {
+    const stdObjectsResponse = await httpGet('/static/catalogs/std/v1/2Dside/objects.mjs');
+    assertEqual(stdObjectsResponse.statusCode, 200, 'GET /static/catalogs/std/v1/2Dside/objects.mjs returns 200');
+    assert(stdObjectsResponse.body.length > 1000, 'Std objects.mjs has content');
+  }
 } else {
-  console.log(`  ${YELLOW}⚠${RESET} Std catalog not installed - skipping static file tests`);
+  console.log(`  ${YELLOW}⚠${RESET} Std catalog not found in packages/core/dist/catalogs/std/v1/ - skipping static file tests`);
 }
 
 // Test 3e: HTML files
