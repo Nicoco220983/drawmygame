@@ -349,6 +349,7 @@ export class Nico extends Hero {
 
     syncJoypadActionButton() {
         const { actionButton } = this
+        if(!actionButton) return
         const actionExtra = this.getActionExtra()
         actionButton.icon = actionExtra ? actionExtra.getBaseImg() : HandImg
     }
