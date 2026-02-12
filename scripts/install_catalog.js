@@ -18,15 +18,36 @@ function main(pkgSpecifier) {
 
     console.log(`Installing catalog package: ${pkgSpecifier}`);
 
-    console.log(`Installing ${pkgSpecifier}...`);
-    const npmInstall = spawnSync('npm', ['install', pkgSpecifier], { stdio: 'inherit' });
-    if (npmInstall.status !== 0) {
-        console.error(`Failed to install package ${pkgSpecifier}`);
-        process.exit(1);
+    // Determine if local specifier and compute base directory if already installed
+    const isLocal = isLocalSpecifier(pkgSpecifier)
+    let pkgBaseDir = null
+    
+    if (isLocal) {
+        pkgBaseDir = path.resolve(DRAWMYGAME_DIR, pkgSpecifier)
+    } else {
+        // Try to resolve the package - if it throws, package is not installed
+        try {
+            pkgBaseDir = path.dirname(require.resolve(pkgSpecifier))
+        } catch (err) {
+            pkgBaseDir = null
+        }
     }
-
-    // get config vars from package.json
-    const pkgBaseDir = isLocalSpecifier(pkgSpecifier) ? path.resolve(DRAWMYGAME_DIR, pkgSpecifier) : require.resolve(pkgSpecifier)
+    
+    // Check if package is already installed
+    if (pkgBaseDir && fs.existsSync(pkgBaseDir)) {
+        console.log(`Package already exists at ${pkgBaseDir}, skipping npm install.`);
+    } else {
+        console.log(`Installing ${pkgSpecifier}...`);
+        const npmInstall = spawnSync('npm', ['install', pkgSpecifier], { stdio: 'inherit' });
+        if (npmInstall.status !== 0) {
+            console.error(`Failed to install package ${pkgSpecifier}`);
+            process.exit(1);
+        }
+        // Re-compute pkgBaseDir after installation
+        pkgBaseDir = isLocal 
+            ? path.resolve(DRAWMYGAME_DIR, pkgSpecifier)
+            : path.dirname(require.resolve(pkgSpecifier))
+    }
     const pkg = require(path.join(pkgBaseDir, 'package.json'));
     const catalogName = pkg.catalogname ?? pkg.name
     const catalogSource = pkg.catalogsource ?? "dist"
@@ -41,16 +62,9 @@ function main(pkgSpecifier) {
         process.exit(1);
     }
 
-    // Ensure catalogs directory exists
+    console.log(`Copying catalog from ${sourceDir} to ${destDir}`)
     fs.mkdirSync(CATALOGS_DIR, { recursive: true });
-    
-    // Remove existing catalog if present
-    if (fs.existsSync(destDir)) {
-        fs.rmSync(destDir, { recursive: true, force: true });
-        console.log(`Removed existing catalog: ${catalogName}`);
-    }
-    
-    console.log(`Copying from ${sourceDir} to ${destDir}`)
+    if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true });
     copyDirRecursive(sourceDir, destDir)
 
     console.log('Catalog installed successfully')

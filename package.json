@@ -9,7 +9,7 @@
   "scripts": {
     "build": "npm run build:core && npm run build:std",
     "build:core": "npm run build --workspace=@drawmygame/core",
-    "build:std": "npm run install_catalog -- ./packages/std",
+    "build:std": "npm run build --workspace=@drawmygame/std && npm run install_catalog -- ./packages/std",
     "install_catalog": "node scripts/install_catalog.js",
     "start": "node server.mjs",
     "test": "node tests/run-all.mjs",
@@ -32,7 +32,8 @@
     "express-static": "^1.2.6",
     "express-ws": "^5.0.2",
     "msgpackr": "^1.11.5",
-    "pako": "^2.1.0"
+    "pako": "^2.1.0",
+    "pixi.js": "^8.16.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.27.2",

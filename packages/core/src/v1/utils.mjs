@@ -1,7 +1,7 @@
 const { assign } = Object
 const { min, max } = Math
 
-const IS_SERVER_ENV = (typeof window === 'undefined')
+export const IS_SERVER_ENV = (typeof window === 'undefined')
 
 /**
  * Returns the current time in seconds.

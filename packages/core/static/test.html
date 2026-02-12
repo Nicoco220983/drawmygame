@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Fullscreen Test</title>
+<style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  #canvas {
+    background: #4aa;
+    width: 200px;
+    height: 200px;
+    touch-action: none;
+  }
+  #log {
+    margin-top: 20px;
+    font-size: 18px;
+    color: #333;
+  }
+</style>
+</head>
+
+<body>
+
+<h3>Canvas Fullscreen Test</h3>
+<p>Tap the square below.</p>
+
+<canvas id="canvas" width="300" height="300"></canvas>
+<div id="log"></div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const log = msg => document.getElementById("log").innerText = msg;
+
+// Use pointerup — works on both iOS and Android
+canvas.addEventListener("pointerup", () => {
+  log("Attempting fullscreen...");
+
+  const req = canvas.requestFullscreen 
+             || canvas.webkitRequestFullscreen 
+             || canvas.mozRequestFullScreen 
+             || canvas.msRequestFullscreen;
+
+  if (!req) {
+    log("Fullscreen API NOT supported on this device.");
+    return;
+  }
+
+  try {
+    // MUST be synchronous!
+    const result = req.call(canvas);
+
+    // If the browser returns a Promise (most do)
+    if (result instanceof Promise) {
+      result.then(() => log("SUCCESS: Canvas is fullscreen"))
+            .catch(err => log("FAILED: " + err));
+    } else {
+      log("Requested fullscreen (no promise returned).");
+    }
+  } catch (err) {
+    log("ERROR: " + err);
+  }
+});
+</script>
+
+</body>
+</html>

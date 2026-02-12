@@ -43,6 +43,7 @@
             }
         }
     </style>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.x/dist/pixi.min.js"></script>
 </head>
 <body style="padding: 1em; gap: 1em; justify-content: start">
     <h1>DrawMyGame MultiPlayer Game</h1>
@@ -277,12 +278,30 @@ try {
         //await catalogLoader
         if(!game || force) {
             stopGame()
+            
+            // Create Pixi application if Pixi is available
+            let pixiApp = null
+            if (window.PIXI) {
+                pixiApp = new PIXI.Application()
+                await pixiApp.init({
+                    width: 800,
+                    height: 600,
+                    backgroundColor: 0x000000,
+                    resolution: window.devicePixelRatio || 1,
+                    autoDensity: true,
+                    preference: 'canvas',  // Use Canvas2D for stability
+                })
+                gameParentEl.appendChild(pixiApp.canvas)
+            }
+            
             game = new Game(gameParentEl, map, ws.id, {
                 mode: MODE_CLIENT,
                 sendPing: () => ws.send(toWsMsg(MSG_KEY_PING)),
                 sendStates: statesBin => ws.send(toWsMsg(MSG_KEY_STATE, statesBin)),
                 sendGameInstruction: instr => ws.send(toWsMsg(MSG_KEY_GAME_INSTRUCTION, new Uint8Array([instr]))),
                 debug: isDebugMode,
+                usePixi: !!pixiApp,
+                pixiApp: pixiApp,
             })
             game.run()
             requestState()
@@ -324,6 +343,10 @@ try {
     function stopGame() {
         if(!game) return
         game.stop()
+        // Destroy Pixi app if exists
+        if(game.pixiApp) {
+            game.pixiApp.destroy(true)
+        }
         game = null
         gameParentEl.innerHTML = ""
         syncGameShow()

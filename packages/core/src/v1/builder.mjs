@@ -1,8 +1,9 @@
 const { assign } = Object
 const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
-const { sumTo, newCanvas, newDomEl, addNewDomEl, Debouncer } = utils
+const { sumTo, newDomEl, addNewDomEl, Debouncer } = utils
 import { CATALOG } from './catalog.mjs'
+import * as pixiHelpers from './pixi-helpers.mjs'
 import * as game from './game.mjs'
 const { GameCommon, Scene, DefaultScene, GameObject, ObjectLink, Img } = game
 
@@ -22,10 +23,12 @@ export class GameBuilder extends GameCommon {
      * @param {object} kwargs
      */
     constructor(canvasParentEl, selectionMenuEl, map, kwargs) {
-        super(canvasParentEl, map, kwargs)
+        super(canvasParentEl, map, { ...kwargs, usePixi: true })
         this.isBuilder = true
         this.selectionMenuEl = selectionMenuEl
         this.copiedObjectState = null
+        // Remove default scene created by parent and create builder scenes
+        this.removeScenePixiContainer(this.scenes.game)
         this.scenes.game = new DefaultScene(this)
         this.scenes.draft = new DraftScene(this)
         super.syncSize()
@@ -87,8 +90,8 @@ export class GameBuilder extends GameCommon {
      */
     setMode(mode, kwargs) {
         this.mode = mode
-        if(mode == "move") this.canvas.style.cursor = "move"
-        else this.canvas.style.cursor = "cell"
+        if(mode == "move") this.pixiApp.canvas.style.cursor = "move"
+        else this.pixiApp.canvas.style.cursor = "cell"
         this.scenes.draft.syncMode(mode, kwargs)
     }
 
@@ -151,8 +154,9 @@ export class GameBuilder extends GameCommon {
      * Draws the builder scenes.
      */
     draw() {
-        super.draw()
-        this.drawScene(this.scenes.draft)
+        // Pixi rendering is automatic via ticker
+        // Just sync scene visibility
+        this.syncPixiScenes()
     }
 }
 
@@ -168,6 +172,7 @@ class DraftScene extends Scene {
      */
     init(kwargs) {
         super.init(kwargs)
+        this.z = 1
         this.backgroundColor = null
         this.viewSpeed = Infinity
         this.anchor = true
@@ -176,6 +181,25 @@ class DraftScene extends Scene {
         this.linkedObject = null
         this.selections = []
         this.syncPosSize()
+    }
+
+    initPixiContainer() {
+        super.initPixiContainer()
+        this.initBuilderGraphics()
+    }
+
+    /**
+     * Initialize Pixi graphics for builder overlays
+     */
+    initBuilderGraphics() {
+        
+        // Grid graphics - drawn first (background)
+        this.gridGraphics = new PIXI.Graphics()
+        this.pixiContainer.addChild(this.gridGraphics)
+        
+        // Selections, links, draft object - drawn on top
+        this.builderGraphics = new PIXI.Graphics()
+        this.pixiContainer.addChild(this.builderGraphics)
     }
 
     /**
@@ -195,11 +219,33 @@ class DraftScene extends Scene {
  */
 
     setDraftObject(key, kwargs) {
-        const { perspective, versions } = this.game.map
-        if(key) this.draftObject = this.createObjectFromKey(key, kwargs)
-        else {
-            if(this.draftObject) this.draftObject.remove()
+        
+        // Clean up old draft object
+        if(this.draftObject) {
+            this.draftObject.remove()
             this.draftObject = null
+        }
+        
+        if(key) {
+            this.draftObject = this.createObjectFromKey(key, kwargs)
+            // Pixi object is created automatically by constructor
+            // Set semi-transparent alpha
+            const pixiObj = this.draftObject.getPixiObject?.()
+            if (pixiObj) pixiObj.alpha = 0.5
+        }
+    }
+
+    /**
+     * Updates the draft preview position and transform
+     */
+    updateDraftPreview() {
+        if (!this.draftObject) return
+        
+        // Update the Pixi object transform directly
+        const pixiObj = this.draftObject.getPixiObject?.()
+        if (pixiObj && this.draftObject.syncGraphics) {
+            this.draftObject.syncGraphics(pixiObj, this.game.dt)
+            pixiObj.alpha = 0.5
         }
     }
 /**
@@ -227,6 +273,55 @@ class DraftScene extends Scene {
         if(mode == "object") this.addPointedObject()
         else if(mode == "wall") this.addPointedWall()
         else if(mode == "cursor") this.cursorUpdate()
+        if(this.game.hasGraphics) this.updateBuilderGraphics()
+    }
+
+    /**
+     * Updates the builder graphics (grid, selections, links)
+     */
+    updateBuilderGraphics() {
+        
+        const gridGraphics = this.gridGraphics
+        const builderGraphics = this.builderGraphics
+        gridGraphics.clear()
+        builderGraphics.clear()
+        
+        // Draw grid
+        this.drawGrid(gridGraphics)
+        
+        // Draw selections
+        this.drawSelections(builderGraphics)
+        
+        // Draw linked object highlight
+        this.drawLinkedObject(builderGraphics)
+        
+        // Draw object links
+        this.drawObjectLinks(builderGraphics)
+    }
+
+    /**
+     * Draws the grid background.
+     * @param {PIXI.Graphics} graphics
+     */
+    drawGrid(graphics) {
+        const { viewX, viewY } = this.game.scenes.game
+        const { width, height, gridSize } = this.game.scenes.game
+        
+        const nbCols = ceil(width/gridSize), nbRows = ceil(height/gridSize)
+        
+        // PixiJS v8 Graphics API
+        for(let x=1; x<nbCols; ++x) {
+            const xPos = gridSize * x - viewX
+            graphics.moveTo(xPos, -viewY)
+            graphics.lineTo(xPos, height - viewY)
+        }
+        for(let y=1; y<nbRows; ++y) {
+            const yPos = gridSize * y - viewY
+            graphics.moveTo(-viewX, yPos)
+            graphics.lineTo(width - viewX, yPos)
+        }
+        // Stroke all lines at once (PixiJS v8 style)
+        graphics.stroke({ width: 1, color: 0xd3d3d3, alpha: 0.5 })
     }
 
     /**
@@ -441,6 +536,9 @@ class DraftScene extends Scene {
                 this.draftObject.y2 = draftPos.y - gameScn.viewY
             }
         }
+        
+        // Update draft preview position and transform
+        this.updateDraftPreview()
     }
 
     /**
@@ -541,64 +639,12 @@ class DraftScene extends Scene {
     }
 
     /**
-     * Draws the draft scene.
-     */
-    draw() {
-        const { viewX, viewY } = this.game.scenes.game
-        const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        const gridImg = this.initGridImg()
-        if(gridImg) ctx.drawImage(gridImg, ~~-viewX, ~~-viewY)
-        if(this.draftObject) {
-            const props = this.draftObject.getGraphicsProps()
-            if(props) {
-                props.visibility = .5
-                drawer.draw(props)
-            }
-        }
-        this.drawSelections(ctx)
-        this.drawLinkedObject(ctx)
-        this.drawObjectLinks(ctx)
-        return can
-    }
-
-    /**
-     * Initializes the grid background image.
-     * @returns {HTMLCanvasElement}
-     */
-    initGridImg() {
-        let gridImg = this._gridImg
-        const { width, height, gridSize } = this.game.scenes.game
-        if(gridImg && gridImg.width == width && gridImg.height == height && gridImg.gridSize == gridSize) return gridImg
-        gridImg = this._gridImg = newCanvas(width, height)
-        assign(gridImg, { gridSize })
-        const ctx = gridImg.getContext("2d")
-        ctx.strokeStyle = "lightgrey"
-        const addLine = (x1, y1, x2, y2) => {
-            ctx.beginPath()
-            ctx.moveTo(x1, y1)
-            ctx.lineTo(x2, y2)
-            ctx.stroke()
-        }
-        const nbCols = ceil(width/gridSize), nbRows = ceil(height/gridSize)
-        for(let x=1; x<nbCols; ++x) addLine(gridSize*x, 0, gridSize*x, height)
-        for(let y=1; y<nbRows; ++y) addLine(0, gridSize*y, width, gridSize*y)
-        return gridImg
-    }
-
-    /**
      * Draws the selection boxes.
-     * @param {CanvasRenderingContext2D} ctx
+     * @param {PIXI.Graphics} graphics
      */
-    drawSelections(ctx) {
+    drawSelections(graphics) {
         const { viewX, viewY } = this.game.scenes.game
-        ctx.save()
-        ctx.lineWidth = 1
-        ctx.strokeStyle = "grey"
+        
         for(let sel of this.selections) {
             let left, top, width, height
             if(sel instanceof GameObject) {
@@ -622,53 +668,41 @@ class DraftScene extends Scene {
                 width = x2 - x1
                 height = y2 - y1
             }
-            ctx.beginPath()
-            ctx.setLineDash([5, 5])
-            ctx.rect(~~(left-viewX), ~~(top-viewY), width, height)
-            ctx.stroke()
+            graphics.rect(left - viewX, top - viewY, width, height)
         }
-        ctx.restore()
+        graphics.stroke({ width: 1, color: 0x808080 })  // grey
     }
 
     /**
      * Draws the outline of the object being linked to.
-     * @param {CanvasRenderingContext2D} ctx
+     * @param {PIXI.Graphics} graphics
      */
-    drawLinkedObject(ctx) {
+    drawLinkedObject(graphics) {
         const { viewX, viewY } = this.game.scenes.game
         if(!this.linkedObject) return
         const { left, top, width, height } = this.linkedObject.getHitBox()
-        ctx.save()
-        ctx.lineWidth = 2
-        ctx.strokeStyle = "red"
-        ctx.beginPath()
-        ctx.rect(~~(left-viewX), ~~(top-viewY), width, height)
-        ctx.stroke()
-        ctx.restore()
+        
+        graphics.rect(left - viewX, top - viewY, width, height)
+        graphics.stroke({ width: 2, color: 0xff0000 })  // red
     }
 
     /**
      * Draws the object links.
-     * @param {CanvasRenderingContext2D} ctx
+     * @param {PIXI.Graphics} graphics
      */
-    drawObjectLinks(ctx) {
+    drawObjectLinks(graphics) {
         const gameScn = this.game.scenes.game
         const { viewX, viewY } = gameScn
-        ctx.save()
-        ctx.lineWidth = 1
-        ctx.strokeStyle = "red"
-        ctx.beginPath()
-        ctx.setLineDash([5, 5])
+        
         gameScn.objects.forEach(obj => {
             const objLinks = obj.objectLinks
             if(objLinks) objLinks.forEach(objLink => {
                 const trigObj = objLink.triggerObject
-                ctx.moveTo(~~(obj.x-viewX), ~~(obj.y-viewY))
-                ctx.lineTo(~~(trigObj.x-viewX), ~~(trigObj.y-viewY))
+                graphics.moveTo(obj.x - viewX, obj.y - viewY)
+                graphics.lineTo(trigObj.x - viewX, trigObj.y - viewY)
             })
         })
-        ctx.stroke()
-        ctx.restore()
+        graphics.stroke({ width: 1, color: 0xff0000 })  // red
     }
 }
 
@@ -957,21 +991,12 @@ class ObjectLinkElement extends HTMLElement {
 }
 customElements.define('dmg-object-link', ObjectLinkElement)
 
-/**
- * Calculates the distance between a point and a line segment.
- * @param {number} x
- * @param {number} y
- * @param {number} x1
- * @param {number} y1
- * @param {number} x2
- * @param {number} y2
- * @returns {number}
- */
-function distancePointSegment(x, y, x1, y1, x2, y2) {
+
+function distancePointSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1
-    const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)
-    const px = x1 + t * dx, py = y1 + t * dy
-    if (t < 0) return sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1))
-    else if (t > 1) return sqrt((x - x2) * (x - x2) + (y - y2) * (y - y2))
-    else return sqrt((x - px) * (x - px) + (y - py) * (y - py))
-  }
+    const len2 = dx*dx + dy*dy
+    if(len2 === 0) return sqrt((px-x1)**2 + (py-y1)**2)
+    let t = max(0, min(1, ((px-x1)*dx + (py-y1)*dy) / len2))
+    const projX = x1 + t*dx, projY = y1 + t*dy
+    return sqrt((px-projX)**2 + (py-projY)**2)
+}

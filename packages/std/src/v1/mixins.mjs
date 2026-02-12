@@ -5,7 +5,7 @@ import {
     StateProperty, StateBool, StateNumber, StateObjectRef,
     LinkReaction,
     Mixin,
-} from '@drawmygame/core/v1'
+} from '../../../core/v1/index.mjs'
 
 
 @LinkReaction.add("reactToggle", { label:"Toggle", isDefault: true })

@@ -1,4 +1,5 @@
-const IS_SERVER_ENV = (typeof window === 'undefined')
+import * as utils from './utils.mjs'
+const { IS_SERVER_ENV } = utils
 
 
 /**

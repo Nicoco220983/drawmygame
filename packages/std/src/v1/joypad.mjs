@@ -5,7 +5,7 @@ import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
     GraphicsEngine, GraphicsProps,
     Dependencies, GameObject, Text, GameObjectGroup, Img,
-} from "@drawmygame/core/v1"
+} from "../../../core/v1/index.mjs"
 
 
 const ButtonSpriteSheetImg = new Img("/static/catalogs/std/v1/2Dside/assets/button_spritesheet.png")
@@ -83,7 +83,7 @@ export class JoypadButton extends GameObject {
         }
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
         let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
@@ -114,7 +114,7 @@ export class JoypadButton extends GameObject {
             for (let x = iw2; x < rw - iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
             return res
         })
-        return img
+        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
     }
 
     createTextImg(text) {
@@ -189,7 +189,7 @@ export class StickButton extends GameObject {
         }
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
         let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
@@ -220,7 +220,7 @@ export class StickButton extends GameObject {
             for (let x = iw2; x < rw - iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
             return res
         })
-        return img
+        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
     }
 }
 

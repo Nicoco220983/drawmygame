@@ -1,11 +1,11 @@
 const { values, assign, getPrototypeOf } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
-const { now, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newTextCanvas, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys } = utils
+const { IS_SERVER_ENV, now, sumTo, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys } = utils
 import { CATALOG } from './catalog.mjs'
 import { StateProperty, StateBool, StateNumber, StateEnum, StateIntEnum, StateString, StateObjectRef } from './stateproperty.mjs'
 import { AudioEngine } from './audio.mjs'
-import { GraphicsProps, GraphicsEngine } from './graphics.mjs'
+import { pixiHelpers, toPixiColor } from './graphics.mjs'
 // TODO import only if necessary
 import { gzip, ungzip } from '../deps/pako.mjs'
 
@@ -41,13 +41,11 @@ export const GAME_INSTR_STATE = 5
 const STATE_TYPE_FULL = "F"
 const STATE_TYPE_INPUT = "I"
 
-const IS_SERVER_ENV = (typeof window === 'undefined')
 export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (navigator.msMaxTouchPoints > 0))
 
 const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
 const RESEND_INPUT_STATE_PERIOD = .5
-
 
 class None {}
 const Image = (!IS_SERVER_ENV && window.Image) || None
@@ -61,6 +59,7 @@ export class Img extends Image {
         super()
         this._src = src
         this.unloaded = true
+        this._texture = null
         if(doLoad) this.load()
     }
 
@@ -72,10 +71,35 @@ export class Img extends Image {
         if(IS_SERVER_ENV) return
         this._loadPrm ||= new Promise((ok, ko) => {
             this.src = this._src
-            this.onload = () => { this.unloaded = false; ok() }
+            this.onload = () => { 
+                this.unloaded = false
+                this._createTexture()
+                ok() 
+            }
             this.onerror = () => { this.unloaded = false; ko() }
         })
         return await this._loadPrm
+    }
+
+    /**
+     * Creates a Pixi texture from this image.
+     * @private
+     */
+    _createTexture() {
+        this._texture = window.PIXI.Texture.from(this)
+    }
+
+    /**
+     * Gets the Pixi texture for this image.
+     * Creates the texture if it doesn't exist.
+     * @returns {PIXI.Texture|null} The Pixi texture
+     */
+    getTexture() {
+        if (IS_SERVER_ENV || this.unloaded) return null
+        if (!this._texture) {
+            this._createTexture()
+        }
+        return this._texture
     }
 }
 
@@ -236,42 +260,62 @@ export class SpriteSheet {
         this.img = img
         this.nbCols = nbCols
         this.nbRows = nbRows
-        this.imgs = []
+        this._textures = null
         if(IS_SERVER_ENV) return
         this.unloaded = true
-        this.initImgs()
     }
+
     /**
-     * Initializes the images of the sprite sheet.
+     * Initializes the textures of the sprite sheet.
      */
-    initImgs() {
-        if(!this.unloaded) return
+    _initTextures() {
+        if(this._textures) return
+        // Handle both Img instances (with unloaded property) and raw canvas/image
+        const isImg = this.img.getTexture !== undefined
+        if (isImg && this.img.unloaded) return
+
         const { img, nbRows, nbCols } = this
-        if(img.unloaded) return
         const frameWidth = floor(img.width / nbCols)
         const frameHeight = floor(img.height / nbRows)
-        for (let j = 0; j < nbRows; ++j) for (let i = 0; i < nbCols; ++i) {
-            const can = document.createElement("canvas")
-            can.width = frameWidth
-            can.height = frameHeight
-            can.getContext("2d").drawImage(img, ~~(-i * frameWidth), ~~(-j * frameHeight))
-            this.imgs[i + j*nbCols] = can
+        
+        // Get texture source - either from Img's cached texture or create from raw canvas/image
+        const textureSource = isImg 
+            ? img.getTexture().source  // Img instance - use cached texture
+            : window.PIXI.Texture.from(img).source  // Raw canvas/image
+        
+        this._textures = []
+        for (let j = 0; j < nbRows; ++j) {
+            for (let i = 0; i < nbCols; ++i) {
+                const frame = new window.PIXI.Rectangle(
+                    i * frameWidth, 
+                    j * frameHeight, 
+                    frameWidth, 
+                    frameHeight
+                )
+                // Create texture from the same source with a frame
+                const texture = new window.PIXI.Texture({
+                    source: textureSource,
+                    frame: frame
+                })
+                this._textures[i + j * nbCols] = texture
+            }
         }
         this.unloaded = false
     }
+
     /**
-     * Returns an image from the sprite sheet.
-     * @param {number} num The number of the image.
+     * Returns a texture from the sprite sheet.
+     * @param {number} num The number of the frame.
      * @param {boolean} loop Whether to loop.
-     * @returns {HTMLCanvasElement} The image.
+     * @returns {PIXI.Texture|null} The texture.
      */
-    get(num, loop = false) {
-        this.initImgs()
-        const { imgs } = this, nbImgs = imgs.length
-        if(nbImgs == 0) return null
-        if(loop) num = num % nbImgs
-        else if(num >= nbImgs) return null
-        return imgs[num]
+    getTexture(num, loop = false) {
+        this._initTextures()
+        const { _textures } = this, nbTextures = _textures?.length ?? 0
+        if(nbTextures == 0) return null
+        if(loop) num = num % nbTextures
+        else if(num >= nbTextures) return null
+        return _textures[num]
     }
 }
 
@@ -423,6 +467,7 @@ export class GameObject {
         this.scene = scn
         this.game = scn.game
         this.init(kwargs)
+        if(this.game.hasGraphics) this.initPixiObject()
     }
 
     init(kwargs) {
@@ -441,6 +486,20 @@ export class GameObject {
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
+    }
+
+    /**
+     * Initialize the Pixi object for this game object.
+     * Called automatically when object is added to a scene with Pixi support.
+     * Subclasses can override createPixiObject() to customize.
+     */
+    initPixiObject() {
+        const pixiObj = this.createPixiObject()
+        if (pixiObj) {
+            this._pixiObject = pixiObj
+            this.scene.addPixiObject(pixiObj, this.z)
+            this.syncGraphics()
+        }
     }
     
     getKey() {
@@ -480,6 +539,7 @@ export class GameObject {
 
     remove() {
         this.removed = true
+        this.removePixiObject()
     }
 
     isRemoved() {
@@ -550,31 +610,122 @@ export class GameObject {
         this.addObjectLink(trigObj, trigKey, reactKey, threshold)
     }
 
-    draw(drawer) {
-        const props = this.getGraphicsProps()
-        if(props) drawer.draw(props)
+    /**
+     * Returns the base texture for this game object.
+     * Override to provide a custom texture (e.g., from Img or SpriteSheet).
+     * @returns {PIXI.Texture|null} The base texture or null
+     */
+    getBaseTexture() {
+        return null
     }
 
-    getGraphicsProps() {
+    /**
+     * Create a PixiJS display object for this game object.
+     * Override this method to customize the visual representation.
+     * Note: This is only called on client, subclasses don't need to check IS_SERVER_ENV.
+     * @returns {PIXI.DisplayObject|null} The Pixi object or null for invisible objects
+     */
+    createPixiObject() {
+        // Default implementation: create a sprite from base texture or colored rect
+        const texture = this.getBaseTexture()
         const { color } = this
-        const img = this.getBaseImg()
-        if(!color && !img) return null
-        const props = new GraphicsProps()
-        props.color = color
-        props.img = img
-        props.x = this.x
-        props.y = this.y
-        props.width = this.width ?? 50
-        props.height = this.height ?? 50
-        props.dirX = this.dirX
-        props.dirY = this.dirY
-        props.angle = this.angle
-        props.order = this.z
-        props.visibility = this.visibility
-        return props
+        
+        if (texture) {
+            if(!(texture instanceof window.PIXI.Texture)) throw Error("Not a texture")
+            const sprite = pixiHelpers.createSpriteFromCanvas(texture)
+            if (sprite) {
+                sprite.anchor.set(0.5, 0.5)
+                this._pixiSprite = sprite
+                return sprite
+            }
+        }
+        
+        if (color) {
+            // Create a colored rectangle as fallback
+            const graphics = new PIXI.Graphics()
+            if (graphics) {
+                pixiHelpers.drawRect(graphics, 0, 0, this.width, this.height, color)
+                this._pixiGraphics = graphics
+                return graphics
+            }
+        }
+        
+        return null
     }
 
-    getBaseImg() {}
+    /**
+     * Update the PixiJS display object based on current game object state.
+     * Override this method for custom update logic.
+     * Supports texture swapping via getBaseTexture().
+     * Note: This is only called on client.
+     */
+    syncGraphics() {
+        const pixiObj = this._pixiObject
+        if(!pixiObj) return
+        const { x, y, z, width, height, dirX, dirY, angle, visibility, color } = this
+        
+        // Update sprite-specific properties
+        if (pixiObj instanceof window.PIXI?.Sprite) {
+            // Check for texture swap
+            const newTexture = this.getBaseTexture()
+            if (newTexture && pixiObj.texture !== newTexture) {
+                if(!(newTexture instanceof window.PIXI.Texture)) throw Error("Not a texture")
+                pixiObj.texture = newTexture
+            }
+            
+            if (width !== undefined && pixiObj.texture) {
+                const origWidth = pixiObj.texture.orig?.width || pixiObj.texture.width || 1
+                pixiObj.scale.x = (width / origWidth) * (dirX >= 0 ? 1 : -1)
+            }
+            if (height !== undefined && pixiObj.texture) {
+                const origHeight = pixiObj.texture.orig?.height || pixiObj.texture.height || 1
+                pixiObj.scale.y = (height / origHeight) * (dirY >= 0 ? 1 : -1)
+            }
+        }
+        
+        // Update graphics-specific properties
+        if (pixiObj instanceof window.PIXI?.Graphics && this.color) {
+            // Clear and redraw if color changed
+            pixiObj.clear()
+            pixiHelpers.drawRect(pixiObj, 0, 0, width, height, color)
+            pixiObj.x = x
+            pixiObj.y = y
+        }
+
+        // Update position
+        pixiObj.x = x
+        pixiObj.y = y
+
+        if (angle !== undefined) pixiObj.rotation = (angle * Math.PI) / 180
+        if (visibility !== undefined) pixiObj.alpha = visibility
+        if (color) pixiHelpers.colorizeSprite(pixiObj, color)
+        if (z !== undefined) pixiObj.zIndex = z
+    }
+
+    /**
+     * Get the Pixi object associated with this game object.
+     * @returns {PIXI.DisplayObject|null}
+     */
+    getPixiObject() {
+        return this._pixiObject || null
+    }
+
+    /**
+     * Set the Pixi object associated with this game object.
+     * @param {PIXI.DisplayObject|null} obj
+     */
+    setPixiObject(obj) {
+        this._pixiObject = obj
+    }
+
+    /**
+     * Destroy the Pixi object for this game object.
+     * Called automatically when object is removed from scene.
+     */
+    removePixiObject() {
+        this._pixiObject?.destroy()
+        this._pixiObject = null
+    }
 }
 
 
@@ -668,33 +819,45 @@ export class Text extends GameObject {
     init(kwargs) {
         super.init(kwargs)
         this.textArgs = kwargs
-        this.updateText(kwargs?.text ?? "")
+        this.text = kwargs?.text ?? ""
     }
 
     updateText(text) {
         this.text = text
-        this.initBaseImg()
     }
 
-    initBaseImg() {
-        const img = this._baseImg = newTextCanvas(this.text, this.textArgs)
-        this.width = img?.width ?? 0
-        this.height = img?.height ?? 0
+    createPixiObject() {
+        
+        const style = {
+            fontFamily: this.textArgs?.font ?? 'Arial',
+            fontSize: this.textArgs?.fontSize ?? 24,
+            fill: toPixiColor(this.textArgs?.fillStyle ?? 'black'),
+            align: 'center',
+        }
+        
+        const pixi = PIXI || (typeof window !== 'undefined' && window.PIXI)
+        if (!pixi) return null
+        
+        const text = new pixi.Text(this.text, style)
+        text.anchor.set(0.5)
+        return text
     }
 
-    getBaseImg() {
-        return this._baseImg
+    syncGraphics() {
+        const pixiObj = this._pixiObject
+        pixiObj.x = this.x
+        pixiObj.y = this.y
+        pixiObj.text = this.text
     }
 }
 
 export class CenteredText extends Text {
 
-    getGraphicsProps() {
+    init(kwargs) {
+        super.init(kwargs)
         const { viewWidth, viewHeight } = this.scene
-        const props = super.getGraphicsProps()
-        props.x = viewWidth / 2
-        props.y = viewHeight / 2
-        return props
+        this.x = viewWidth / 2
+        this.y = viewHeight / 2
     }
 }
 
@@ -788,10 +951,20 @@ export class GameObjectGroup {
     update() {
         this.chunks.forEach((chunk, chunkId) => {
             this.sortItems(chunk)
-            chunk.forEach(obj => obj.update())
+            chunk.forEach(obj => {
+                obj.update()
+            })
         })
         this.chunks.forEach((chunk, chunkId) => {
             this.cleanChunk(chunkId, chunk)
+        })
+    }
+
+    syncGraphics() {
+        this.chunks.forEach((chunk, chunkId) => {
+            chunk.forEach(obj => {
+                obj.syncGraphics()
+            })
         })
     }
 
@@ -820,19 +993,6 @@ export class GameObjectGroup {
 
     sortItems(chunk) {
         chunk.sort((a, b) => (b.getPriority() - a.getPriority()))
-    }
-
-    draw(drawer) {
-        const propss = []
-        const objDrawer = this._objDrawer ||= {}
-        objDrawer.draw = props => {
-            if(!props) return
-            props.x += this.x
-            props.y += this.y
-            propss.push(props)
-        }
-        this.forEach(obj => obj.draw(objDrawer))
-        drawer.draw(...propss)
     }
 
     getState(isInitState=false) {
@@ -986,15 +1146,20 @@ export class GameCommon {
 
     constructor(parentEl, map, kwargs) {
         this.mode = (kwargs && kwargs.mode) || MODE_LOCAL
-        this.isServerEnv = IS_SERVER_ENV
-        if(!this.isServerEnv) {
+        this.hasGraphics = !IS_SERVER_ENV
+        
+        if(this.hasGraphics) {
             this.parentEl = parentEl
-            this.canvas = document.createElement("canvas")
-            this.canvas.setAttribute('tabindex', '0')
-            assign(this.canvas.style, {
+            // PixiJS is required - canvas comes from pixiApp
+            if (!kwargs?.pixiApp) {
+                throw new Error('PixiJS Application is required. Pass pixiApp in kwargs.')
+            }
+            this.initPixi(kwargs.pixiApp)
+            // Use Pixi canvas for events/focus
+            this.pixiApp.canvas.setAttribute('tabindex', '0')
+            assign(this.pixiApp.canvas.style, {
                 outline: "2px solid grey"
             })
-            parentEl.appendChild(this.canvas)
         }
 
         this.game = this
@@ -1018,11 +1183,44 @@ export class GameCommon {
         this.syncSize()
     }
 
+    /**
+     * Initialize PixiJS application
+     * @param {PIXI.Application} pixiApp - Existing Pixi app
+     */
+    initPixi(pixiApp) {
+        this.pixiApp = pixiApp
+        this.pixiApp.stage.sortableChildren = true
+    }
+
+    /**
+     * Add a scene's Pixi container to the main stage
+     * @param {Scene} scn - Scene to add
+     * @param {Object} options - Options (zIndex, visible)
+     */
+    addScenePixiContainer(scn, options = {}) {
+
+        const zIndex = options.zIndex ?? 0
+        scn.pixiContainer.zIndex = zIndex
+        scn.pixiContainer.visible = options.visible !== false
+        
+        this.pixiApp.stage.addChild(scn.pixiContainer)
+    }
+
+    /**
+     * Remove a scene's Pixi container from the main stage
+     * @param {Scene} scn - Scene to remove
+     */
+    removeScenePixiContainer(scn) {
+        if (scn?.pixiContainer.parent) {
+            scn.pixiContainer.parent.removeChild(scn.pixiContainer)
+        }
+    }
+
     initTouches() {
         if(this.touches) return
         this.touches = []
 
-        const el = this.game.canvas
+        const el = this.game.pixiApp.canvas
         const _updTouches = (isDown, evtTouches) => {
             this.touches.length = 0
             const rect = el.getBoundingClientRect()
@@ -1057,27 +1255,50 @@ export class GameCommon {
     run() {
         if(this.gameLoop) return
         this.startTime = this.nextFrameTime = now()
-        const tryUpdateGameLoop = () => {
-            this.gameLoop = setTimeout(() => {
-                try {
-                    if(now() >= this.nextFrameTime) {
-                        this.updateGameLoop()
-                        this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
-                    }
-                    tryUpdateGameLoop()
-                } catch(err) {
-                    console.error(err)
-                    // gracefully stop game to not kill server
-                    this.stop()
-                }
-            }, 5)
-        }
-        tryUpdateGameLoop()
+        this.initPixiTicker()
     }
 
+    /**
+     * Initialize the game loop using Pixi ticker
+     */
+    initPixiTicker() {
+        if (!this.pixiApp?.ticker || !this.pixiApp?.renderer) return
+        
+        let lastTime = now()
+        
+        this.gameLoop = { stop: () => {
+            this.pixiApp.ticker.remove(this._pixiTickHandler)
+        }}
+        
+        this._pixiTickHandler = (ticker) => {
+            try {
+                const currentTime = now()
+                // Maintain target FPS
+                if (currentTime >= this.nextFrameTime) {
+                    this.updateGameLoop()
+                    this.nextFrameTime = max(currentTime, this.nextFrameTime + 1/this.fps)
+                }
+            } catch(err) {
+                console.error(err)
+                this.stop()
+            }
+        }
+        
+        this.pixiApp.ticker.add(this._pixiTickHandler)
+    }
+
+    /**
+     * Initialize the game loop using setTimeout (fallback)
+     */
     stop() {
         if(!this.gameLoop) return
-        clearTimeout(this.gameLoop)
+        
+        // Handle Pixi ticker or setTimeout
+        if (this._pixiTickHandler && this.pixiApp?.ticker) {
+            this.pixiApp.ticker.remove(this._pixiTickHandler)
+            this._pixiTickHandler = null
+        }
+        
         this.gameLoop = null
         this.onStop()
     }
@@ -1118,6 +1339,7 @@ export class GameCommon {
         const scn = this.createScene(cls, { id: scnId })
         if(scnMapId !== undefined) scn.loadMap(scnMapId)
         this.scenes.game = scn
+        
         if(this.joypadVisible) await this.loadJoypadScene()
         this.syncSize()
     }
@@ -1169,24 +1391,49 @@ export class GameCommon {
         if(this._drawing) return
         this._drawing = true
         window.requestAnimationFrame(() => {
-            this.draw()
+            this.syncGraphics()
             this._drawing = false
         })
     }
 
-    draw() {
-        const { game:gameScn, pause:pauseScn, joypad:joypadScn, joypadPause:joypadPauseScn } = this.scenes
-        this.drawScene(gameScn)
-        this.drawScene(pauseScn)
-        this.drawScene(joypadScn)
-        this.drawScene(joypadPauseScn)
+    syncGraphics() {
+        // Pixi scenes render automatically to the Pixi stage
+        // We just need to sync scene visibility and position
+        this.syncPixiScenes()
+        const { game: gameScn, joypad: joypadScn } = this.scenes
+        gameScn.syncGraphics()
+        if(joypadScn) joypadScn.syncGraphics()
     }
 
-    drawScene(scn) {
-        if(!scn || !scn.visible) return
-        const can = scn.draw()
-        if(can.width == 0 || can.height == 0) return
-        this.canvas.getContext("2d").drawImage(can, scn.x, scn.y)
+    /**
+     * Sync Pixi scene containers visibility and position
+     */
+    syncPixiScenes() {
+        if (!this.pixiApp?.renderer) return
+        
+        const { game:gameScn, pause:pauseScn, joypad:joypadScn, joypadPause:joypadPauseScn, draft:draftScn } = this.scenes
+        
+        if (gameScn?.pixiContainer) {
+            gameScn.pixiContainer.visible = gameScn.visible
+            gameScn.pixiContainer.x = gameScn.x
+            gameScn.pixiContainer.y = gameScn.y
+        }
+        if (pauseScn?.pixiContainer) {
+            pauseScn.pixiContainer.visible = pauseScn.visible && pauseScn.paused
+        }
+        if (joypadScn?.pixiContainer) {
+            joypadScn.pixiContainer.visible = joypadScn.visible
+            joypadScn.pixiContainer.x = joypadScn.x
+            joypadScn.pixiContainer.y = joypadScn.y
+        }
+        if (joypadPauseScn?.pixiContainer) {
+            joypadPauseScn.pixiContainer.visible = joypadPauseScn?.visible && joypadPauseScn?.paused
+        }
+        if (draftScn?.pixiContainer) {
+            draftScn.pixiContainer.visible = draftScn.visible
+            draftScn.pixiContainer.x = draftScn.x
+            draftScn.pixiContainer.y = draftScn.y
+        }
     }
 
     syncSize() {
@@ -1212,12 +1459,12 @@ export class GameCommon {
         const width = gamePS.viewWidth
         const height = max(joypadPS.viewHeight, (gameVisible ? gamePS.viewHeight : 0) + ((joypadVisible && joypadScn) ? joypadPS.viewHeight : 0))
         assign(this, { width, height })
-        if(!this.isServerEnv) {
+        if(this.hasGraphics) {
             assign(this.parentEl.style, {
                 padding: 0, margin: 0,
                 background: "black",
             })
-            assign(this.canvas, { width, height })
+            this.pixiApp.renderer.resize(width, height)
             this.syncCanvasAspectRatio()
             window.addEventListener("resize", () => this.syncCanvasAspectRatio())
             window.addEventListener("orientationchange", () => this.syncCanvasAspectRatio())
@@ -1227,7 +1474,7 @@ export class GameCommon {
     syncCanvasAspectRatio() {
         const { width, height } = this
         const gameIsMoreLandscapeThanScreen = ((width / window.innerWidth) / (height / window.innerHeight)) >= 1
-        assign(this.canvas.style, {
+        assign(this.pixiApp.canvas.style, {
             width: gameIsMoreLandscapeThanScreen ? "100%" : null,
             height: gameIsMoreLandscapeThanScreen ? null : "100%",
             aspectRatio: width / height,
@@ -1292,11 +1539,11 @@ export class GameCommon {
     }
 
     focus() {
-        this.canvas.focus()
+        this.pixiApp.canvas.focus()
     }
 
     hasFocus() {
-        return document.activeElement === this.canvas
+        return document.activeElement === this.pixiApp.canvas
     }
 
     pause(val) {
@@ -1348,6 +1595,7 @@ export class Scene {
     constructor(game, kwargs) {
         this.game = game
         this.init(kwargs)
+        if(this.game.hasGraphics) this.initPixiContainer()
     }
 
     init(kwargs) {
@@ -1356,6 +1604,7 @@ export class Scene {
         this.chunkSize = kwargs?.chunkSize ?? 1000
         this.x = 0
         this.y = 0
+        this.z = 0
         this.viewX = 0
         this.viewY = 0
         this.viewSpeed = 100
@@ -1367,11 +1616,6 @@ export class Scene {
         this.time = 0
         this.seed = floor(random()*1000)
         this.paused = false
-        if(!this.game.isServerEnv) {
-            this.backgroundCanvas = null
-            this.canvas = document.createElement("canvas")
-            this.graphicsEngine = new GraphicsEngine(this)
-        }
         this.objects = new GameObjectGroup(this, {
             onAdd: obj => this.onAddObject(obj)
         })
@@ -1382,6 +1626,58 @@ export class Scene {
         this.doCreateObjectMapProto = true
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
         this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
+    }
+
+    /**
+     * Initialize the Pixi container for this scene.
+     * Creates a container that will hold all object sprites.
+     */
+    initPixiContainer() {
+        
+        // Create main container for this scene
+        this.pixiContainer = new window.PIXI.Container()
+        
+        // Enable sorting by z-index
+        this.pixiContainer.sortableChildren = true
+        
+        // Create sub-containers for different object groups
+        this.objectsPixiContainer = new window.PIXI.Container()
+        this.visualsPixiContainer = new window.PIXI.Container()
+        this.notifsPixiContainer = new window.PIXI.Container()
+        
+        // Add to main container with z-index
+        this.objectsPixiContainer.zIndex = 0
+        this.visualsPixiContainer.zIndex = 100
+        this.notifsPixiContainer.zIndex = 200
+        
+        this.pixiContainer.addChild(this.objectsPixiContainer)
+        this.pixiContainer.addChild(this.visualsPixiContainer)
+        this.pixiContainer.addChild(this.notifsPixiContainer)
+
+        this.game.addScenePixiContainer(this, { zIndex: this.z, visible: true })
+    }
+
+    /**
+     * Add a Pixi object to the scene's container
+     * @param {PIXI.DisplayObject} pixiObj - The Pixi object to add
+     * @param {number} zIndex - Optional z-index
+     * @param {string} group - Which group ('objects', 'visuals', 'notifs')
+     */
+    addPixiObject(pixiObj, zIndex, group = 'objects') {
+
+        let container
+        switch (group) {
+            case 'visuals': container = this.visualsPixiContainer; break
+            case 'notifs': container = this.notifsPixiContainer; break
+            default: container = this.objectsPixiContainer
+        }
+        
+        if (container && pixiObj) {
+            if (zIndex !== undefined) {
+                pixiObj.zIndex = zIndex
+            }
+            container.addChild(pixiObj)
+        }
     }
     
     getKey() {
@@ -1434,6 +1730,8 @@ export class Scene {
                 obj = Object.create(proto)
                 obj.init(kwargs)
                 obj.key = origKey
+                // Initialize Pixi object since we bypassed constructor
+                if (this.pixiContainer && obj.initPixiObject) obj.initPixiObject()
             } else {
                 obj = new cls(this, kwargs)
                 obj.setState(mapState, true)
@@ -1519,37 +1817,30 @@ export class Scene {
         return seed / m
     }
 
-    draw() {
-        const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        this.drawBackground(drawer)
-        this.objects.x = -this.viewX
-        this.objects.y = -this.viewY
-        this.objects.draw(drawer)
-        this.visuals.x = -this.viewX
-        this.visuals.y = -this.viewY
-        this.visuals.draw(drawer)
-        this.notifs.draw(drawer)
-        return can
+    syncGraphics() {
+        this.syncGraphicsView()
+        this.objects.syncGraphics()
+        this.visuals.syncGraphics()
+        this.notifs.syncGraphics()
+    }
+
+    /**
+     * Update the Pixi container position based on view
+     */
+    syncGraphicsView() {
+        this.objectsPixiContainer.x = -this.viewX
+        this.objectsPixiContainer.y = -this.viewY
+        this.visualsPixiContainer.x = -this.viewX
+        this.visualsPixiContainer.y = -this.viewY
     }
 
     drawBackground(drawer) {
-        drawer.draw(this.getBackgroundGraphicsProps())
+        // Deprecated - background is now rendered via Pixi
     }
 
     getBackgroundGraphicsProps() {
-        const props = this._backgroundGraphicsProps ||= new GraphicsProps()
-        props.color = this.backgroundColor
-        props.x = this.viewWidth/2
-        props.y = this.viewHeight/2
-        props.width = this.viewWidth
-        props.height = this.viewHeight
-        props.visibility = this.backgroundAlpha
-        return props
+        // Deprecated - background is now rendered via Pixi
+        return null
     }
 
     async loadJoypadScene() {
@@ -1627,15 +1918,27 @@ export class Game extends GameCommon {
     initKeyListeners() {
         this.keysPressed = {}
         if(this.mode != MODE_SERVER) {
-            const onKey = (evt, val) => {
-                if(!this.hasFocus()) return
-                this.setInputKey(evt.key, val)
-                if(val===false && evt.key=="o") this.togglePause()
-                evt.stopPropagation()
-                evt.preventDefault()
-            }
-            document.addEventListener('keydown', evt => onKey(evt, true))
-            document.addEventListener('keyup', evt => onKey(evt, false))
+            this._onKeyDown = evt => this._onKey(evt, true)
+            this._onKeyUp = evt => this._onKey(evt, false)
+            document.addEventListener('keydown', this._onKeyDown)
+            document.addEventListener('keyup', this._onKeyUp)
+        }
+    }
+
+    _onKey(evt, val) {
+        if(!this.hasFocus()) return
+        this.setInputKey(evt.key, val)
+        if(val===false && evt.key=="o") this.togglePause()
+        evt.stopPropagation()
+        evt.preventDefault()
+    }
+
+    removeKeyListeners() {
+        if(this._onKeyDown) {
+            document.removeEventListener('keydown', this._onKeyDown)
+            document.removeEventListener('keyup', this._onKeyUp)
+            this._onKeyDown = null
+            this._onKeyUp = null
         }
     }
 
@@ -1672,6 +1975,10 @@ export class Game extends GameCommon {
             delete this.scenes.pause
             delete this.scenes.joypadPause
         }
+    }
+
+    onStop() {
+        this.removeKeyListeners()
     }
 
     updateGameLoop() {
@@ -1752,7 +2059,6 @@ export class Game extends GameCommon {
         const drawStartTime = now()
         super.draw()
         if(this.isDebugMode) this.pushMetric("drawDur", now() - drawStartTime, this.fps * 5)
-        this.drawScene(this.debugScene)
     }
 
     async startGame() {
@@ -1984,18 +2290,7 @@ export class Game extends GameCommon {
 
 
 export class DefaultScene extends Scene {
-
-    buildBackground() {
-        const { viewWidth, viewHeight } = this
-        const can = document.createElement("canvas")
-        assign(can, { width: viewWidth, height: viewHeight })
-        const ctx = can.getContext("2d")
-        ctx.fillStyle = "black"
-        ctx.fillRect(0, 0, viewWidth, viewHeight)
-        const text = newTextCanvas("DRAWMYGAME", { fillStyle: "white" })
-        ctx.drawImage(text, floor((viewWidth-text.width)/2), floor((viewHeight-text.height)/2))
-        return can
-    }
+    // Default scene - background is handled by Pixi
 }
 
 
@@ -2114,19 +2409,6 @@ class DebugScene extends Scene {
             const lagMts = metrics["lag"]
             if(lagMts) this.lagTxt.updateText(`Lag: ${arrAvg(lagMts).toFixed(3)} / ${arrMax(lagMts).toFixed(3)}`)
         }
-    }
-    
-    draw() {
-        const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        this.updDurTxt.draw(drawer)
-        this.drawDurTxt.draw(drawer)
-        this.lagTxt.draw(drawer)
-        return this.canvas
     }
 }
 

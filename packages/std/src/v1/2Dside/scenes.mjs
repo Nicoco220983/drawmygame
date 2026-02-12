@@ -3,10 +3,11 @@ const { floor, round, ceil, min, max, hypot, PI } = Math
 import {
     sumTo, newCanvas, newTextCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys,
     GraphicsProps,
-    CATALOG,
+    CATALOG, IS_SERVER_ENV,
     MODE_CLIENT,
     StateProperty, StateBool, StateNumber,
     Dependencies, Scene, PhysicsEngine, GameObject, Category, Mixin, Text, CenteredText, hackMethod, GameObjectGroup, Img,
+    pixiHelpers,
 } from '../../../../core/v1/index.mjs'
 import {
     ActivableMixin, CollectMixin, OwnerableMixin, BodyMixin, PhysicsMixin, AttackMixin, 
@@ -19,9 +20,6 @@ const REGISTER_COMMON_ARGS = {
     version: "v1",
     perspective: "2Dside",
 }
-
-
-const IS_SERVER_ENV = (typeof window === 'undefined')
 
 
 // MANAGERS ///////////////////////////////////////
@@ -331,7 +329,6 @@ export class TeamsManager extends Manager {
     }
 
     assignHeroSpawnPointTeam(point) {
-        console.log("TMP point.team", point.team)
         if(point.team !== null) return
         const { nbTeams } = this
         if(this.nbTeams === Infinity) return
@@ -358,7 +355,6 @@ export class TeamsManager extends Manager {
         const spawnPoints = scene.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
         const spawnPointsSameTeam = spawnPoints.filter(point => point.team === hero.team)
         const nbSpawnPoints = spawnPointsSameTeam.length
-        console.log("TMP nbSpawnPoints", nbSpawnPoints)
         if(nbSpawnPoints == 0) return hero.spawn(this.defaultHerosSpawnX, this.defaultHerosSpawnY)
         const r = scene.rand("spawnHero")
         const numSpawnPoint = (nbSpawnPoints == 1) ? 0 : floor(r * nbSpawnPoints)
@@ -473,7 +469,7 @@ class BarNotif extends GameObject {
         this.height = 10
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { width, height } = this
         const can = this._baseImg || newCanvas(width, height)
         assign(can, { width, height })
@@ -486,7 +482,7 @@ class BarNotif extends GameObject {
         ctx.strokeStyle = "black"
         ctx.lineWidth = 1
         ctx.strokeRect(0, 0, width, height)
-        return can
+        return window.PIXI.Texture.from(can)
     }
 }
 
@@ -547,6 +543,31 @@ export class Background extends GameObject {
         this.x = this.width / 2
         this.y = this.height / 2
     }
+
+    createPixiObject() {
+        const img = this.getBaseTexture()
+        if (!img) return null
+        
+        const sprite = pixiHelpers.createSpriteFromCanvas(img)
+        if (!sprite) return null
+        
+        sprite.anchor.set(0.5, 0.5)
+        sprite.x = this.x
+        sprite.y = this.y
+        sprite.width = this.width
+        sprite.height = this.height
+        
+        return sprite
+    }
+
+    syncGraphics() {
+        const pixiObj = this._pixiObject
+        if(!pixiObj) return
+        pixiObj.x = this.x
+        pixiObj.y = this.y
+        pixiObj.width = this.width
+        pixiObj.height = this.height
+    }
 }
 
 
@@ -558,8 +579,8 @@ const GreenLandscapeImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgro
 })
 @Dependencies.add(GreenLandscapeImg)
 export class GreenLandscapeBackground extends Background {
-    getBaseImg() {
-        return GreenLandscapeImg
+    getBaseTexture() {
+        return GreenLandscapeImg.getTexture()
     }
 }
 
@@ -572,8 +593,8 @@ const RockMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(RockMountainsImg)
 export class RockMountainsBackground extends Background {
-    getBaseImg() {
-        return RockMountainsImg
+    getBaseTexture() {
+        return RockMountainsImg.getTexture()
     }
 }
 
@@ -586,8 +607,8 @@ const SnowMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(SnowMountainsImg)
 export class SnowMountainsBackground extends Background {
-    getBaseImg() {
-        return SnowMountainsImg
+    getBaseTexture() {
+        return SnowMountainsImg.getTexture()
     }
 }
 
@@ -600,8 +621,8 @@ const DarkForestImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds
 })
 @Dependencies.add(DarkForestImg)
 export class DarkForestBackground extends Background {
-    getBaseImg() {
-        return DarkForestImg
+    getBaseTexture() {
+        return DarkForestImg.getTexture()
     }
 }
 
@@ -614,8 +635,8 @@ const DarkCityImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/d
 })
 @Dependencies.add(DarkCityImg)
 export class DarkCityBackground extends Background {
-    getBaseImg() {
-        return DarkCityImg
+    getBaseTexture() {
+        return DarkCityImg.getTexture()
     }
 }
 
@@ -910,6 +931,14 @@ export class StandardScene extends GameScene {
         this.hud = new HeadsUpDisplay(this)
     }
 
+    loadMap(scnMapId) {
+        super.loadMap(scnMapId)
+        // Initialize Pixi object for background
+        if (this.background) {
+            this.background.initPixiObject()
+        }
+    }
+
     update() {
         super.update()
         this.background.update()
@@ -990,6 +1019,10 @@ export class TagScene extends GameScene {
 
     loadMap(map) {
         super.loadMap(map)
+        // Initialize Pixi object for background
+        if (this.background) {
+            this.background.initPixiObject()
+        }
         this.addObject(Tag)
     }
 
@@ -1146,7 +1179,7 @@ export class Tag extends GameObject {
         this.y = owner.y - 50
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         return this.owner ? TagImg : null
     }
 }
@@ -1399,22 +1432,6 @@ export class BallScene extends GameScene {
         if (this.step == "INIT") this.updateStepInit()
     }
 
-    // initTeams() {
-    //     if(this._initTeamsDone) return
-    //     this._initTeamsDone = true
-    //     const heroSpawnPoints = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
-    //     const heros = this.filterObjects("heros", obj => obj instanceof Hero)
-    //     const nbTeams = heroSpawnPoints.length
-    //     for(let i=0; i<heroSpawnPoints.length; ++i) {
-    //         heroSpawnPoints[i].team = `heros${i%nbTeams}`
-    //         console.log("TMP spawnPoint team", `heros${i%nbTeams}`)
-    //     }
-    //     for(let i=0; i<heros.length; ++i) {
-    //         heros[i].team = `heros${i%nbTeams}`
-    //         console.log("TMP hero team", `heros${i%nbTeams}`)
-    //     }
-    // }
-
     preventHerosToMove(val) {
         if(this._herosPreventedToMove === val) return
         this._herosPreventedToMove = val
@@ -1640,9 +1657,9 @@ export class PlayerIcon extends GameObject {
         this.strokeColor = kwargs?.strokeColor ?? "black"
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         let baseImg = this._baseImg
-        if(baseImg) return baseImg
+        if(baseImg) return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
         const { playerId } = this
         const player = this.game.players[playerId]
         baseImg = this._baseImg = document.createElement("canvas")
@@ -1655,7 +1672,7 @@ export class PlayerIcon extends GameObject {
         ctx.stroke()
         ctx.fillStyle = player.color
         ctx.fill()
-        return baseImg
+        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
     }
 }
 
@@ -1686,13 +1703,13 @@ export class ScoresBoard extends GameObject {
         this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const baseImg = this._baseImg ||= document.createElement("canvas")
         baseImg.width = this.width
         baseImg.height = this.height
         this.drawBackground(baseImg)
         this.drawScores(baseImg)
-        return baseImg
+        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
     }
 
     drawBackground(can) {

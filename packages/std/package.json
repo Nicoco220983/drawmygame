@@ -6,7 +6,7 @@
   "main": "dist/v1/index.mjs",
   "type": "module",
   "scripts": {
-    "build": "babel src -d dist --copy-files --extensions .mjs --out-file-extension .mjs --config-file ../../.babelrc && cp -r static/* dist/ 2>/dev/null || true",
+    "build": "cd ../.. && node scripts/build.js packages/std/src packages/std/dist packages/std/static",
     "postinstall": "npm run build"
   },
   "author": "nicolas.carrez@gmail.com",

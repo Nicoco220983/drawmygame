@@ -16,7 +16,7 @@ import {
   GameMap, Game, MODE_SERVER, GAME_STEP_WAITING,
   MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
   GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
-} from '@drawmygame/core/v1'
+} from './packages/core/dist/core/v1/index.mjs'
 
 //import { loadCatalog } from './static/core/v1/catalog.mjs'
 
@@ -36,12 +36,12 @@ const CLOSE_ROOM_COUNTDOWN = 60
 
 async function main() {
   const gameServer = new GameServer()
-  gameServer.serve()
-  const localIp = Object.values(getLocalIps())[0]
-  console.log(`Server started at: http://${localIp}:${PORT}`)
   await loadAllCatalogs()
   //await catalog.preloadAll()
   initCatalogSearchTexts()
+  gameServer.serve()
+  const localIp = Object.values(getLocalIps())[0]
+  console.log(`Server started at: http://${localIp}:${PORT}`)
 }
 
 
@@ -140,7 +140,7 @@ class GameServer {
         }
         const resp = items.map(item => ({
             key: item.key,
-            path: item.path,
+            urlPath: item.urlPath,
             namespace: item.namespace,
             version: item.version,
             perspective: item.perspective,
@@ -484,9 +484,7 @@ async function loadAllCatalogs() {
     try {
       await import(indexPath)
     } catch(err) {
-      if(err.code !== 'ERR_MODULE_NOT_FOUND') {
-        console.warn(`Failed to load catalog ${n}:`, err.message)
-      }
+      console.warn(`WARNING: Failed to load catalog ${n}:`, err.message)
     }
   }))
 }

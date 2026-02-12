@@ -97,11 +97,11 @@
         <flexcol id="builder"></flexcol>
         <flexcol id="game" style="padding:1em; display: none"></flexcol>
     </flexrow>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.x/dist/pixi.min.js"></script>
 <script type="importmap">
 {
     "imports": {
-        "@drawmygame/core/v1": "/static/core/v1/index.mjs",
-        "@drawmygame/core": "/static/core/v1/index.mjs"
+        "@drawmygame/": "/static/"
     }
 }
 </script>
@@ -289,7 +289,22 @@ async function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) {
-        gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map)
+        // Create Pixi application for the builder
+        let pixiApp = null
+        if (window.PIXI) {
+            pixiApp = new PIXI.Application()
+            await pixiApp.init({
+                width: 800,
+                height: 600,
+                backgroundColor: 0x000000,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+                preference: 'canvas',
+            })
+            builderParentEl.appendChild(pixiApp.canvas)
+        }
+        
+        gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map, { pixiApp })
         let scnMap = map.scenes["0"]
         if(!scnMap) {
             await CATALOG.fetchScenes(defaultPerspective, defaultVersions, [defaultScnKey])
@@ -319,9 +334,27 @@ async function startAndShowGame(pause) {
     if(mode == "builder") syncMap()
     if(!game) {
         const playerId = "0"
+        
+        // Create Pixi application if Pixi is available
+        let pixiApp = null
+        if (window.PIXI) {
+            pixiApp = new PIXI.Application()
+            await pixiApp.init({
+                width: 800,
+                height: 600,
+                backgroundColor: 0x000000,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+                preference: 'canvas',  // Use Canvas2D for stability
+            })
+            gameParentEl.appendChild(pixiApp.canvas)
+        }
+        
         game = new Game(gameParentEl, map, playerId, {
             mode: MODE_LOCAL,
-            debug: isDebugMode
+            debug: isDebugMode,
+            usePixi: !!pixiApp,
+            pixiApp: pixiApp,
         })
         await game.loadGameScenes()
         game.addPlayer(playerId, {
@@ -337,12 +370,16 @@ async function startAndShowGame(pause) {
     syncJoypadVisibility()
     mode = "game"
     gameParentEl.style.display = ""
-    game.canvas.focus()
+    if (game.pixiApp?.canvas) game.pixiApp.canvas.focus()
 }
 
 function stopGame() {
     if(!game) return
     game.stop()
+    // Destroy Pixi app if exists
+    if(game.pixiApp) {
+        game.pixiApp.destroy(true)
+    }
     gameParentEl.innerHTML = ""
     game = null
 }

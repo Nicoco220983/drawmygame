@@ -2,16 +2,31 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const modulesDir = path.resolve("node_modules");
-const staticDir = path.resolve("static");
+const SCRIPT_DIR = __dirname;
+const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 
+
+// Parse command line arguments for srcDir, destDir, and staticDir
+// Usage: node build.js [srcDir] [destDir] [staticDir]
+// Defaults: srcDir='src', destDir='dist', staticDir='static'
+const args = process.argv.slice(2);
+const srcDirArg = args[0] ? path.resolve(args[0]) : path.resolve("src");
+const destDirArg = args[1] ? path.resolve(args[1]) : path.resolve("dist");
+const staticDirArg = args[2] ? path.resolve(args[2]) : null; // null means no static copy
 
 function build() {
-  compileOrCopyAll(path.resolve("src"), path.resolve("static"))
-  copyIfOutdated(
-    path.join(modulesDir, "pako/dist/pako.esm.mjs"),
-    path.join(staticDir, "deps/pako.mjs"),
-  )
+  // Compile/copy source files
+  if (fs.existsSync(srcDirArg)) {
+    compileOrCopyAll(srcDirArg, destDirArg)
+  } else {
+    console.log(`Source directory not found: ${srcDirArg}`)
+  }
+  
+  // Copy static files if staticDir exists and is specified
+  if (staticDirArg && fs.existsSync(staticDirArg)) {
+    console.log(`Copying static files from ${staticDirArg} to ${destDirArg}...`)
+    copyDirRecursive(staticDirArg, destDirArg)
+  }
 }
 
 
@@ -34,6 +49,26 @@ function compileOrCopyAll(srcDir, destDir) {
       }
     } else {
       console.log(`⏩ Skipped (up-to-date): ${relPath}`);
+    }
+  }
+}
+
+
+function copyDirRecursive(src, dest) {
+  ensureDirectoryExistence(dest)
+  const entries = fs.readdirSync(src, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath)
+    } else {
+      if (isOutdated(srcPath, destPath)) {
+        fs.copyFileSync(srcPath, destPath)
+        console.log(`✅ Copied: ${path.relative(destDirArg, destPath)}`)
+      }
     }
   }
 }
@@ -87,7 +122,8 @@ function compileFile(srcFile, distFile) {
       srcFile,
       "--out-file",
       distFile,
-      "--extensions", ".mjs"
+      "--extensions", ".mjs",
+      "--config-file", path.join(PROJECT_ROOT, ".babelrc")
     ], { shell: true, encoding: "utf-8", stdio: "pipe" }); // <-- IMPORTANT : pas 'inherit'
 
     if (result.error) {
@@ -110,16 +146,7 @@ function compileFile(srcFile, distFile) {
 }
 
 
-// function copyAll() {
-//   copyIfOutdated(
-//     path.join(modulesDir, "pako/dist/pako.esm.mjs"),
-//     path.join(staticDir, "deps/pako.mjs"),
-//   )
-//   for (const distFile of walk(distDir)) {
-//     const relativePath = path.relative(distDir, distFile)
-//     const staticSrcFile = path.join(staticDir, "src", relativePath)
-//     copyIfOutdated(distFile, staticSrcFile)
-//   }
-// }
-
 build()
+
+// Export for programmatic use
+module.exports = { build, compileOrCopyAll, copyDirRecursive, copyIfOutdated, isOutdated, ensureDirectoryExistence, walk }

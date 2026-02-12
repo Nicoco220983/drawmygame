@@ -1,6 +1,7 @@
 const { assign } = Object
+import * as utils from './utils.mjs'
+const { IS_SERVER_ENV } = utils
 
-const IS_SERVER_ENV = (typeof window === 'undefined')
 const STATIC_SRC = import.meta.resolve("../..").replace(/\/+$/, "")
 const CATALOGS_PATH = "/catalogs"
 

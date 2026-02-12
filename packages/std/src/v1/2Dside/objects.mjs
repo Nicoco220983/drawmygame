@@ -3,9 +3,10 @@ const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypo
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
     GraphicsProps,
-    CATALOG,
+    CATALOG, IS_SERVER_ENV,
     StateProperty, StateBool, StateNumber,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
+    pixiHelpers,
 } from '../../../../core/v1/index.mjs'
 import {
     ActivableMixin, CollectMixin, OwnerableMixin, BodyMixin, PhysicsMixin, AttackMixin,
@@ -46,9 +47,17 @@ export class SmokeExplosion extends GameObject {
         if (time > .5) { this.remove(); return }
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const time = this.iteration * this.game.dt
-        return SmokeExplosionSpriteSheet.get(floor(time / .5 * 4))
+        return SmokeExplosionSpriteSheet.getTexture(floor(time / .5 * 4))
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        // Scale based on time
+        const time = this.iteration * this.game.dt
+        const scale = 1 + time * 2
+        this._pixiObject.scale.set(scale, scale)
     }
 }
 
@@ -74,8 +83,14 @@ export class Pop extends GameObject {
         this.remIt -= 1
         if (this.remIt <= 0) this.remove()
     }
-    getBaseImg() {
-        return PopImg
+    getBaseTexture() {
+        return PopImg.getTexture()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        const scale = (10 + 100 * (1 - this.remIt / this.duration)) / 10
+        this._pixiObject.scale.set(scale, scale)
     }
 }
 
@@ -294,12 +309,12 @@ export class Sword extends Weapon {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if (ratioSinceLastAttack <= 1) {
-            return SwordSlashSpriteSheet.get(floor(6 * ratioSinceLastAttack))
+            return SwordSlashSpriteSheet.getTexture(floor(6 * ratioSinceLastAttack))
         } else {
-            return SwordImg
+            return SwordImg.getTexture()
         }
     }
 }
@@ -377,8 +392,8 @@ export class BoxingGlove extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseImg() {
-        return BoxingGloveImg
+    getBaseTexture() {
+        return BoxingGloveImg.getTexture()
     }
 }
 
@@ -419,8 +434,8 @@ export class Shuriken extends Projectile {
         if (this.itToLive <= 0) this.remove()
     }
 
-    getBaseImg() {
-        return ShurikenImg
+    getBaseTexture() {
+        return ShurikenImg.getTexture()
     }
 }
 
@@ -476,8 +491,8 @@ export class ShurikenPack extends Extra {
         if (this.actRemIt > 0) this.actRemIt -= 1
     }
 
-    getBaseImg() {
-        return ShurikenImg
+    getBaseTexture() {
+        return ShurikenImg.getTexture()
     }
 }
 
@@ -527,8 +542,8 @@ export class Explosion extends GameObject {
         return props
     }
 
-    getBaseImg() {
-        return ExplosionSpriteSheet.get(floor(
+    getBaseTexture() {
+        return ExplosionSpriteSheet.getTexture(floor(
             this.iteration / this.game.fps * 15
         ))
     }
@@ -595,10 +610,10 @@ export class Bomb extends Extra {
         this.itToLive = this.countdown * this.game.fps
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { itToLive, countdown } = this
-        if (itToLive === null) return BombSpriteSheet.get(0)
-        return BombSpriteSheet.get(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
+        if (itToLive === null) return BombSpriteSheet.getTexture(0)
+        return BombSpriteSheet.getTexture(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
     }
 }
 
@@ -672,8 +687,8 @@ export class JetPack extends Extra {
         this.y = owner.y + 10
     }
 
-    getBaseImg() {
-        return JetPackSpriteSheet.get(this.isFlying() ? 1 : 0)
+    getBaseTexture() {
+        return JetPackSpriteSheet.getTexture(this.isFlying() ? 1 : 0)
     }
 
     remove() {
@@ -735,8 +750,8 @@ export class Spiky extends Enemy {
         return props
     }
 
-    getBaseImg() {
-        return SpikyImg
+    getBaseTexture() {
+        return SpikyImg.getTexture()
     }
 }
 
@@ -823,8 +838,8 @@ export class BlobEnemy extends Enemy {
         return props
     }
 
-    getBaseImg() {
-        return BlobImg
+    getBaseTexture() {
+        return BlobImg.getTexture()
     }
 
     getHitBox() {
@@ -918,8 +933,8 @@ export class Ghost extends Enemy {
         return obj.constructor.IS_HERO
     }
 
-    getBaseImg() {
-        return GhostImg
+    getBaseTexture() {
+        return GhostImg.getTexture()
     }
 
     getGraphicsProps() {
@@ -981,8 +996,8 @@ export class Heart extends GameObject {
         return props
     }
 
-    getBaseImg() {
-        return HeartImg
+    getBaseTexture() {
+        return HeartImg.getTexture()
     }
 }
 
@@ -1044,8 +1059,8 @@ export class Star extends Extra {
         return props
     }
 
-    getBaseImg() {
-        return this.owner ? null : StarImg
+    getBaseTexture() {
+        return this.owner ? null : StarImg.getTexture()
     }
 }
 
@@ -1073,8 +1088,8 @@ export class Checkpoint extends GameObject {
         this.scene.herosSpawnY = this.y
     }
 
-    getBaseImg() {
-        return CheckpointImg
+    getBaseTexture() {
+        return CheckpointImg.getTexture()
     }
 }
 
@@ -1127,8 +1142,8 @@ export class Portal extends GameObject {
         return props
     }
 
-    getBaseImg() {
-        return PortalImg
+    getBaseTexture() {
+        return PortalImg.getTexture()
     }
 }
 
@@ -1158,8 +1173,8 @@ const BallImg = new Img("/static/catalogs/std/v1/2Dside/assets/ball.png")
 })
 export class Ball extends GameObject {
 
-    getBaseImg() {
-        return BallImg
+    getBaseTexture() {
+        return BallImg.getTexture()
     }
 }
 
@@ -1179,8 +1194,8 @@ export class HeroSpawnPoint extends GameObject {
         this.width = this.height = 50
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? PopImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? PopImg.getTexture() : null
     }
 }
 
@@ -1280,8 +1295,8 @@ export class ObjectSpawner extends GameObject {
         modelProps2.draw(drawer)
     }
 
-    getBaseImg() {
-        return PopImg
+    getBaseTexture() {
+        return PopImg.getTexture()
     }
 }
 
@@ -1321,7 +1336,7 @@ export class Wall extends GameObject {
 
     getGraphicsProps() {
         const { x1, y1, x2, y2 } = this
-        const img = this.getBaseImg()
+        const img = this.getBaseTexture()
         const props = this._graphicsProps ||= new GraphicsProps()
         const lineWidth = 5
         props.img = img
@@ -1333,10 +1348,10 @@ export class Wall extends GameObject {
         return props
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { x1, y1, x2, y2 } = this
         let baseImg = this._baseImg
-        if (baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return baseImg
+        if (baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
         const lineWidth = 5
         baseImg = this._baseImg = newCanvas(abs(x1 - x2) + 2 * lineWidth, abs(y1 - y2) + 2 * lineWidth)
         assign(baseImg, { x1, y1, x2, y2 })
@@ -1348,7 +1363,7 @@ export class Wall extends GameObject {
         ctx.moveTo(lineWidth + x1 - minX, lineWidth + y1 - minY)
         ctx.lineTo(lineWidth + x2 - minX, lineWidth + y2 - minY)
         ctx.stroke()
-        return baseImg
+        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
     }
 
     getState(isInitState = false) {

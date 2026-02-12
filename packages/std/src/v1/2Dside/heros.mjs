@@ -3,9 +3,10 @@ const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypo
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
     GraphicsProps,
-    CATALOG,
+    CATALOG, IS_SERVER_ENV,
     StateProperty, StateBool, StateNumber,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
+    pixiHelpers,
 } from '../../../../core/v1/index.mjs'
 import {
     ActivableMixin, CollectMixin, OwnerableMixin, BodyMixin, PhysicsMixin, AttackMixin,
@@ -166,6 +167,109 @@ export class Hero extends GameObject {
         super.remove()
         this.scene.syncHero(this)
     }
+
+    /**
+     * Create Pixi container for hero with body sprite
+     * @returns {PIXI.Container|null}
+     */
+    // createPixiObject() {
+    //     // Create main container
+    //     const container = pixiHelpers.createContainer()
+    //     if (!container) return null
+        
+    //     // Create body sprite container
+    //     container.bodyContainer = pixiHelpers.createContainer()
+    //     pixiHelpers.addChild(container, container.bodyContainer)
+        
+    //     // Create extras container for attached items
+    //     container.extrasContainer = pixiHelpers.createContainer()
+    //     pixiHelpers.addChild(container, container.extrasContainer)
+        
+    //     // Create initial body sprite
+    //     this.updateHeroBodySprite(container)
+        
+    //     return container
+    // }
+
+    /**
+     * Update the hero's body sprite based on current state
+     * @param {PIXI.Container} container
+     */
+    // updateHeroBodySprite(container) {
+    //     if (!container?.bodyContainer) return
+        
+    //     const img = this.getBaseTexture()
+    //     if (!img) return
+        
+    //     // Create new sprite
+    //     const sprite = pixiHelpers.createSpriteFromCanvas(img)
+    //     if (!sprite) return
+        
+    //     pixiHelpers.setAnchor(sprite, 0.5, 0.5)
+        
+    //     // Clear old sprites and add new one
+    //     const bodyContainer = container.bodyContainer
+    //     while (bodyContainer.children[0]) {
+    //         pixiHelpers.safeDestroy(bodyContainer.children[0], false)
+    //         bodyContainer.removeChild(bodyContainer.children[0])
+    //     }
+        
+    //     pixiHelpers.addChild(bodyContainer, sprite)
+    //     container.bodySprite = sprite
+        
+    //     // Apply player color tint
+    //     const player = this.game.players?.[this.playerId]
+    //     if (player?.color) {
+    //         pixiHelpers.colorizeSprite(sprite, player.color)
+    //     }
+    // }
+
+    // syncGraphics() {
+    //     // Update container position
+    //     pixiHelpers.setPosition(pixiObj, this.x, this.y)
+        
+    //     // Update body sprite
+    //     const bodySprite = pixiObj.bodySprite
+    //     if (bodySprite) {
+    //         // Update size
+    //         bodySprite.width = this.width
+    //         bodySprite.height = this.height
+            
+    //         // Handle direction flipping
+    //         const scaleX = Math.abs(bodySprite.scale.x) * (this.dirX >= 0 ? 1 : -1)
+    //         bodySprite.scale.x = scaleX
+            
+    //         // Update visibility
+    //         pixiHelpers.setSpriteAlpha(bodySprite, this.visibility ?? 1)
+            
+    //         // Check if we need to update the texture (animation frame changed)
+    //         // This is a simple check - subclasses can override for more complex animations
+    //         this.updateHeroAnimation(bodySprite, pixiObj)
+    //     }
+        
+    //     // Update z-index
+    //     if (this.z !== undefined) {
+    //         pixiHelpers.setZIndex(pixiObj, this.z)
+    //     }
+    // }
+
+    /**
+     * Update hero animation frame
+     * @param {PIXI.Sprite} bodySprite
+     * @param {PIXI.Container} container
+     */
+    // updateHeroAnimation(bodySprite, container) {
+    //     // Override in subclasses for sprite sheet animation
+    //     // This base implementation just updates the texture if the image changed
+    //     const currentImg = this.getBaseTexture()
+    //     if (currentImg && bodySprite.texture && window.PIXI) {
+    //         // Only update if image source changed
+    //         const currentSource = bodySprite.texture.baseTexture?.resource?.source
+    //         if (currentSource !== currentImg) {
+    //             this.updateHeroBodySprite(container)
+    //         }
+    //     }
+    // }
 }
 
 
@@ -212,8 +316,8 @@ class NicoHand extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseImg() {
-        return HandImg
+    getBaseTexture() {
+        return HandImg.getTexture()
     }
 }
 
@@ -342,7 +446,7 @@ export class Nico extends Hero {
             this.game.setInputKey("ArrowRight", (pos && pos.x > 10))
             this.game.setInputKey("ArrowLeft", (pos && pos.x < -10))
         }
-        joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", x: width * .85, y: height * .27, size, icon: ArrowsSpriteSheet.get(0) })
+        joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", x: width * .85, y: height * .27, size, icon: ArrowsSpriteSheet.getTexture(0) })
         this.actionButton = joypadScn.addButton(JoypadButton, { inputKey: " ", x: width * .7, y: height * .73, size, icon: HandImg })
         this.syncJoypadActionButton()
     }
@@ -351,7 +455,7 @@ export class Nico extends Hero {
         const { actionButton } = this
         if(!actionButton) return
         const actionExtra = this.getActionExtra()
-        actionButton.icon = actionExtra ? actionExtra.getBaseImg() : HandImg
+        actionButton.icon = actionExtra ? actionExtra.getBaseTexture() : HandImg
     }
 
     addExtra(extra) {
@@ -369,16 +473,58 @@ export class Nico extends Hero {
         return actionExtra
     }
 
-    getBaseImg() {
+    getBaseTexture() {
         const { iteration } = this.scene
         const { dt, players } = this.game
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if (iteration > 0 && (this.handRemIt || !this.canJump())) return spriteSheet.get(1)
-        else if (this.speedX == 0) return spriteSheet.get(0)
-        else return spriteSheet.get(1 + floor((iteration * dt * 6) % 3))
+        if (iteration > 0 && (this.handRemIt || !this.canJump())) return spriteSheet.getTexture(1)
+        else if (this.speedX == 0) return spriteSheet.getTexture(0)
+        else return spriteSheet.getTexture(1 + floor((iteration * dt * 6) % 3))
     }
+
+    /**
+     * Get current animation frame index for Nico
+     * @returns {number}
+     */
+    // getAnimationFrame() {
+    //     const { iteration } = this.scene
+    //     const { dt } = this.game
+    //     if (iteration > 0 && (this.handRemIt || !this.canJump())) return 1
+    //     else if (this.speedX == 0) return 0
+    //     else return 1 + floor((iteration * dt * 6) % 3)
+    // }
+
+    /**
+     * Update hero animation - optimized for Nico's sprite sheet
+     * @param {PIXI.Sprite} bodySprite
+     * @param {PIXI.Container} container
+     */
+    // updateHeroAnimation(bodySprite, container) {
+    //     if (!bodySprite) return
+        
+    //     const player = this.game.players?.[this.playerId]
+    //     const color = player?.color
+    //     const frameIndex = this.getAnimationFrame()
+        
+    //     // Get the correct sprite sheet frame
+    //     const spriteSheet = NicoSpriteSheets.get(color)
+    //     const newImg = spriteSheet.get(frameIndex)
+        
+    //     if (newImg && window.PIXI) {
+    //         // Only update texture if it changed
+    //         const currentSource = bodySprite.texture?.baseTexture?.resource?.source
+    //         if (currentSource !== newImg) {
+    //             bodySprite.texture = window.PIXI.Texture.from(newImg)
+    //         }
+    //     }
+        
+    //     // Apply color tint if player has a color
+    //     if (player?.color && !color) {
+    //         pixiHelpers.colorizeSprite(bodySprite, player.color)
+    //     }
+    // }
 
     getInputState() {
         const { game } = this

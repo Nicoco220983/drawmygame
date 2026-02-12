@@ -4,11 +4,8 @@
   "description": "DrawMyGame core engine",
   "main": "dist/index.mjs",
   "type": "module",
-  "exports": {
-    "./v1": "./dist/core/v1/index.mjs"
-  },
   "scripts": {
-    "build": "babel src -d dist/core --copy-files --extensions .mjs --out-file-extension .mjs --config-file ../../.babelrc && cp -r static/* dist/core/ 2>/dev/null || true"
+    "build": "cd ../.. && node scripts/build.js packages/core/src packages/core/dist/core packages/core/static"
   },
   "author": "nicolas.carrez@gmail.com",
   "license": "ISC"

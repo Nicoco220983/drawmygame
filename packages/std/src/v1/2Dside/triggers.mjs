@@ -78,8 +78,8 @@ export class Button extends Trigger {
         this.triggerValue = this.pushed ? 1 : 0
     }
 
-    getBaseImg() {
-        return ButtonSpriteSheet.get(this.pushed ? 1 : 0)
+    getBaseTexture() {
+        return ButtonSpriteSheet.getTexture(this.pushed ? 1 : 0)
     }
 }
 
@@ -112,8 +112,8 @@ export class Clock extends Trigger {
         this.iteration += 1
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? ClockImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? ClockImg.getTexture() : null
     }
 }
 
@@ -148,8 +148,8 @@ export class Viewer extends Trigger {
         }
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? WatcherImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? WatcherImg.getTexture() : null
     }
 }
 
@@ -181,8 +181,8 @@ export class InverterTrigger extends Trigger {
         this.triggerValue = 1 - this.lastMsg.value
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? InvertTriggerImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? InvertTriggerImg.getTexture() : null
     }
 }
 
@@ -246,8 +246,8 @@ export class MinTrigger extends AggregatorTrigger {
         return min(...vals)
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? MinTriggerImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? MinTriggerImg.getTexture() : null
     }
 }
 
@@ -272,8 +272,8 @@ export class MaxTrigger extends AggregatorTrigger {
         return max(...vals)
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? MaxTriggerImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? MaxTriggerImg.getTexture() : null
     }
 }
 
@@ -300,8 +300,8 @@ export class XorTrigger extends AggregatorTrigger {
         return aggVal
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? XorTriggerImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? XorTriggerImg.getTexture() : null
     }
 }
 
@@ -368,7 +368,7 @@ export class DelayTrigger extends Trigger {
         this.triggerValue = value
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? DelayTriggerImg : null
+    getBaseTexture() {
+        return this.game.isBuilder ? DelayTriggerImg.getTexture() : null
     }
 }
