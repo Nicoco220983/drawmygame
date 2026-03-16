@@ -109,7 +109,8 @@
 import {
     newDomEl,
     CATALOG,
-    GameMap, Game, MODE_LOCAL
+    GameMap, Game, MODE_LOCAL,
+    initPixiApp,
 } from '/static/core/v1/index.mjs'
 import { GameBuilder } from '/static/core/v1/builder.mjs'
 
@@ -289,20 +290,7 @@ async function startAndShowBuilder() {
     gameParentEl.style.display = "none"
     stopGame()
     if(!gameBuilder) {
-        // Create Pixi application for the builder
-        let pixiApp = null
-        if (window.PIXI) {
-            pixiApp = new PIXI.Application()
-            await pixiApp.init({
-                width: 800,
-                height: 600,
-                backgroundColor: 0x000000,
-                resolution: window.devicePixelRatio || 1,
-                autoDensity: true,
-                preference: 'canvas',
-            })
-            builderParentEl.appendChild(pixiApp.canvas)
-        }
+        const pixiApp = await initPixiApp(builderParentEl)
         
         gameBuilder = new GameBuilder(builderParentEl, selectionMenuEl, map, { pixiApp })
         let scnMap = map.scenes["0"]
@@ -334,21 +322,7 @@ async function startAndShowGame(pause) {
     if(mode == "builder") syncMap()
     if(!game) {
         const playerId = "0"
-        
-        // Create Pixi application if Pixi is available
-        let pixiApp = null
-        if (window.PIXI) {
-            pixiApp = new PIXI.Application()
-            await pixiApp.init({
-                width: 800,
-                height: 600,
-                backgroundColor: 0x000000,
-                resolution: window.devicePixelRatio || 1,
-                autoDensity: true,
-                preference: 'canvas',  // Use Canvas2D for stability
-            })
-            gameParentEl.appendChild(pixiApp.canvas)
-        }
+        const pixiApp = await initPixiApp(gameParentEl)
         
         game = new Game(gameParentEl, map, playerId, {
             mode: MODE_LOCAL,

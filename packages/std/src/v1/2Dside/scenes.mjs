@@ -2,11 +2,10 @@ const { assign } = Object
 const { floor, round, ceil, min, max, hypot, PI } = Math
 import {
     sumTo, newCanvas, newTextCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys,
-    GraphicsProps,
     CATALOG, IS_SERVER_ENV,
     MODE_CLIENT,
     StateProperty, StateBool, StateNumber,
-    Dependencies, Scene, PhysicsEngine, GameObject, Category, Mixin, Text, CenteredText, hackMethod, GameObjectGroup, Img,
+    Dependencies, Scene, PhysicsEngine, GameObject, Category, Mixin, Text, hackMethod, GameObjectGroup, Img,
     pixiHelpers,
 } from '../../../../core/v1/index.mjs'
 import {
@@ -379,140 +378,196 @@ export class TeamsManager extends Manager {
 // NOTIFS ////////////////////////////////////////////
 
 export class HeadsUpDisplay extends GameObject {
+
+    static MARGIN = 5
+    static BAR_WIDTH = 100
+    static BAR_HEIGHT = 20
+    static ICON_SIZE = 20
+    static ROW_HEIGHT = 25
+    static FONT_SIZE = 20
+
     init(kwargs) {
         super.init(kwargs)
-        this.margin = 5
-        this.barWidth = 100
-        this.barHeight = 20
-        this.heroLineMinHeight = 20
-        this.textArgs = {
-            font: "bold 20px arial",
-            fillStyle: "black",
-        }
-        this.globalElems = new GameObjectGroup(this.scene)
-        this.playersElems = new Map()
         this.showHerosHealths = kwargs?.showHerosHealths ?? true
         this.showPlayersScores = kwargs?.showPlayersScores ?? true
         this.playersLinesSorter = kwargs?.playersLinesSorter ?? null
+        this._playerRows = new Map()
+        this._playerIds = []
     }
-    addGlobalHudElem(cls, args) {
-        this.globalElems.add(cls, args)
+
+    createPixiObject() {
+        this._container = new window.PIXI.Container()
+        return this._container
     }
-    initPlayerElements(hero) {
-        const { game, playersElems, textArgs, margin, barWidth, barHeight, heroLineMinHeight } = this
-        for (let playerId in game.players) {
-            if (playersElems.has(playerId)) continue
-            const grp = new GameObjectGroup(this.scene)
-            playersElems.set(playerId, grp)
-            //grp.nbBarElems = 0
-            grp.add(PlayerIcon, { x: heroLineMinHeight / 2, y: heroLineMinHeight / 2, width: heroLineMinHeight, height: heroLineMinHeight, playerId })
-            if (this.showHerosHealths) grp.add(HealthBar, { playerId, width: barWidth, height: barHeight })
-            if (this.showPlayersScores) grp.add(PlayerScoreText, { playerId, ...textArgs })
-            grp.sync = () => {
-                let hasBars = false, elemsX = heroLineMinHeight + margin, barsY = 0
-                grp.forEach(elem => {
-                    if (elem instanceof BarNotif) {
-                        elem.x = elemsX + elem.width / 2,
-                            elem.y = barsY + elem.height / 2
-                        hasBars = true
-                        barsY = elem.y + elem.height / 2 + margin
-                    }
-                })
-                if (hasBars) elemsX += barWidth + margin
-                grp.forEach(elem => {
-                    if (!(elem instanceof BarNotif || elem instanceof PlayerIcon)) {
-                        elem.x = elemsX + elem.width / 2
-                        elem.y = elem.height / 2
-                        elemsX = elem.x + elem.width + margin
-                    }
-                })
-                grp.height = max(heroLineMinHeight, barsY)
+
+    update() {
+        this._syncRows()
+        this._updateRows()
+    }
+
+    _syncRows() {
+        const { game, showHerosHealths, showPlayersScores } = this
+        const { players } = game
+        const container = this._container
+        if (!container) return
+
+        // Add rows for new players
+        for (const playerId in players) {
+            if (this._playerRows.has(playerId)) continue
+
+            const row = this._createPlayerRow(playerId)
+            this._playerRows.set(playerId, row)
+            container.addChild(row.container)
+        }
+
+        // Remove rows for disconnected players
+        for (const [playerId, row] of this._playerRows) {
+            if (!(playerId in players)) {
+                container.removeChild(row.container)
+                row.container.destroy({ children: true })
+                this._playerRows.delete(playerId)
             }
-            grp.sync()
-            hackMethod(grp, "update", 0, evt => grp.sync())
         }
-        return playersElems
-    }
-    update() {
-        this.initPlayerElements()
-        this.globalElems.update()
-        this.playersElems.forEach(elems => elems.update())
-        this.syncPlayersElems()
-    }
-    syncPlayersElems() {
-        const { margin } = this
-        let prevGrp = null
-        let playerIds = Array.from(this.playersElems.keys())
-        if (this.playersLinesSorter) playerIds.sort(this.playersLinesSorter)
-        for (let playerId of playerIds) {
-            const grp = this.playersElems.get(playerId)
-            grp.x = margin
-            grp.y = (prevGrp ? (prevGrp.y + prevGrp.height) : 0) + margin
-            prevGrp = grp
+
+        // Sort player IDs if sorter provided
+        this._playerIds = Array.from(this._playerRows.keys())
+        if (this.playersLinesSorter) {
+            this._playerIds.sort(this.playersLinesSorter)
         }
     }
-    draw(drawer) {
-        super.draw(drawer)
-        this.globalElems.draw(drawer)
-        this.playersElems.forEach(elems => elems.draw(drawer))
+
+    _createPlayerRow(playerId) {
+        const { MARGIN, BAR_WIDTH, BAR_HEIGHT, ICON_SIZE, ROW_HEIGHT, FONT_SIZE } = HeadsUpDisplay
+        const rowContainer = new window.PIXI.Container()
+
+        // Icon (colored circle representing player)
+        const icon = new window.PIXI.Graphics()
+        icon.circle(0, 0, ICON_SIZE / 2)
+        icon.x = ICON_SIZE / 2 + MARGIN
+        icon.y = ROW_HEIGHT / 2
+        rowContainer.addChild(icon)
+
+        let currentX = ICON_SIZE + MARGIN * 2
+
+        // Health bar
+        let healthBarBg = null
+        let healthBarFill = null
+        if (this.showHerosHealths) {
+            healthBarBg = new window.PIXI.Graphics()
+            healthBarBg.rect(0, 0, BAR_WIDTH, BAR_HEIGHT)
+            healthBarBg.fill({ color: 0x808080 }) // grey
+            healthBarBg.x = currentX
+            healthBarBg.y = (ROW_HEIGHT - BAR_HEIGHT) / 2
+            rowContainer.addChild(healthBarBg)
+
+            healthBarFill = new window.PIXI.Graphics()
+            healthBarFill.x = currentX
+            healthBarFill.y = (ROW_HEIGHT - BAR_HEIGHT) / 2
+            rowContainer.addChild(healthBarFill)
+
+            currentX += BAR_WIDTH + MARGIN
+        }
+
+        // Score text
+        let scoreText = null
+        if (this.showPlayersScores) {
+            const style = new window.PIXI.TextStyle({
+                fontFamily: 'Arial',
+                fontSize: FONT_SIZE,
+                fontWeight: 'bold',
+                fill: 0x000000
+            })
+            scoreText = new window.PIXI.Text({ text: '0', style })
+            scoreText.anchor.set(0, 0.5)
+            scoreText.x = currentX
+            scoreText.y = ROW_HEIGHT / 2
+            rowContainer.addChild(scoreText)
+        }
+
+        return {
+            container: rowContainer,
+            icon,
+            healthBarBg,
+            healthBarFill,
+            scoreText,
+            playerId
+        }
     }
-}
 
-
-class BarNotif extends GameObject {
-
-    init(args) {
-        super.init(args)
-        this.barColor = "white"
-        this.value = 1  // from 0 to 1
-        this.width = 100
-        this.height = 10
-    }
-
-    getBaseTexture() {
-        const { width, height } = this
-        const can = this._baseImg || newCanvas(width, height)
-        assign(can, { width, height })
-        const ctx = can.getContext("2d")
-        const valWidth = ~~(width * this.value)
-        ctx.fillStyle = "grey"
-        ctx.fillRect(0, 0, width, height)
-        ctx.fillStyle = this.barColor
-        ctx.fillRect(0, 0, valWidth, height)
-        ctx.strokeStyle = "black"
-        ctx.lineWidth = 1
-        ctx.strokeRect(0, 0, width, height)
-        return window.PIXI.Texture.from(can)
-    }
-}
-
-
-class HealthBar extends BarNotif {
-
-    init(args) {
-        super.init(args)
-        this.barColor = "red"
-        this.playerId = args.playerId
-    }
-
-    update() {
-        const hero = this.scene.getHero(this.playerId)
-        this.value = hero ? (hero.getHealth() / hero.maxHealth) : 0
-    }
-}
-
-
-class PlayerScoreText extends Text {
-
-    init(args) {
-        super.init(args)
-        this.playerId = args.playerId
-    }
-
-    update() {
-        super.update()
+    _updateRows() {
+        const { MARGIN, BAR_WIDTH, BAR_HEIGHT, ROW_HEIGHT } = HeadsUpDisplay
+        const { players } = this.game
         const { scores } = this.scene
-        this.updateText(floor(scores.get(this.playerId) ?? 0))
+
+        let yOffset = MARGIN
+
+        for (const playerId of this._playerIds) {
+            const row = this._playerRows.get(playerId)
+            if (!row) continue
+
+            const player = players[playerId]
+            const hero = this.scene.getHero(playerId)
+
+            // Update icon color
+            row.icon.clear()
+            row.icon.circle(0, 0, HeadsUpDisplay.ICON_SIZE / 2)
+            row.icon.fill({ color: player?.color ?? 0xffffff })
+            row.icon.stroke({ color: 0x000000, width: 1 })
+
+            // Update health bar
+            if (row.healthBarFill && hero) {
+                const healthRatio = hero.getHealth() / hero.maxHealth
+                const fillWidth = Math.max(0, BAR_WIDTH * healthRatio)
+                row.healthBarFill.clear()
+                if (fillWidth > 0) {
+                    row.healthBarFill.rect(0, 0, fillWidth, BAR_HEIGHT)
+                    row.healthBarFill.fill({ color: 0xff0000 }) // red
+                }
+            }
+
+            // Update score
+            if (row.scoreText) {
+                row.scoreText.text = String(floor(scores.get(playerId) ?? 0))
+            }
+
+            // Position row
+            row.container.x = MARGIN
+            row.container.y = yOffset
+            yOffset += ROW_HEIGHT + MARGIN
+        }
+    }
+
+    syncGraphics() {
+        if (this._container) {
+            this._container.x = this.x
+            this._container.y = this.y
+        }
+    }
+}
+
+
+class QrCodeDisplay extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this._image = kwargs?.image
+        this._width = this._image?.width ?? 100
+        this._height = this._image?.height ?? 100
+    }
+
+    createPixiObject() {
+        if (!window.PIXI || !this._image) return null
+        const texture = window.PIXI.Texture.from(this._image)
+        const sprite = new window.PIXI.Sprite(texture)
+        sprite.anchor.set(0.5)
+        return sprite
+    }
+
+    syncGraphics() {
+        const pixiObj = this._pixiObject
+        if (!pixiObj) return
+        pixiObj.x = this.x
+        pixiObj.y = this.y
     }
 }
 
@@ -735,15 +790,6 @@ export class GameScene extends Scene {
         this.initVictoryNotifs()
     }
 
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.notifs.draw(drawer)
-        if(this.step == "VICTORY" && this.victoryNotifs) this.victoryNotifs.draw(drawer)
-        if(this.step == "GAMEOVER" && this.gameOverNotifs) this.gameOverNotifs.draw(drawer)
-        return res
-    }
-
     filterObjects(key, filter) {
         const objsCache = this._filteredObjectsCache ||= new Map()
         if(objsCache.iteration !== this.iteration) {
@@ -764,10 +810,12 @@ export class GameScene extends Scene {
         if(this.victoryNotifs) return
         this.victoryNotifs = new GameObjectGroup(this)
         this.victoryNotifs.add(
-            CenteredText,
+            Text,
             {
                 text: "VICTORY !",
                 font: "100px serif",
+                x: this.viewWidth / 2,
+                y: this.viewHeight / 2,
             },
         )
     }
@@ -776,10 +824,12 @@ export class GameScene extends Scene {
         if(this.gameOverNotifs) return
         this.gameOverNotifs = new GameObjectGroup(this)
         this.gameOverNotifs.add(
-            CenteredText,
+            Text,
             {
                 text: "GAME OVER",
                 font: "100px serif",
+                x: this.viewWidth / 2,
+                y: this.viewHeight / 2,
             },
         )
     }
@@ -933,10 +983,11 @@ export class StandardScene extends GameScene {
 
     loadMap(scnMapId) {
         super.loadMap(scnMapId)
-        // Initialize Pixi object for background
+        // Initialize Pixi objects
         if (this.background) {
             this.background.initPixiObject()
         }
+        this.hud.initPixiObject()
     }
 
     update() {
@@ -969,10 +1020,7 @@ export class StandardScene extends GameScene {
     }
 
     draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.hud.draw(drawer)
-        return res
+        return super.draw()
     }
 
     drawBackground(drawer) {
@@ -1310,23 +1358,6 @@ class StarsBar extends GameObject {
         }
     }
 
-    draw(drawer) {
-        const { owner } = this
-        if (!owner) return
-        const nbStars = countStarExtras(owner)
-        const props = this._starsProps ||= []
-        for (let i = 0; i < nbStars; ++i) {
-            if (i >= props.length) props.push(new GraphicsProps({
-                img: StarImg,
-                width: 10,
-                height: 10,
-            }))
-            const prop = props[i]
-            prop.x = this.x + i * 5 - (nbStars - 1) * 5 / 2
-            prop.y = this.y
-            prop.draw(drawer)
-        }
-    }
 }
 
 
@@ -1405,17 +1436,6 @@ export class BallScene extends GameScene {
             }
             return this._goalImg
         }
-        hackMethod(point, "draw", 0, evt => {
-            const drawer = evt.inputArgs[0]
-            const img = new GraphicsProps({
-                img: point.getGoalImg(),
-                width: goalsSize,
-                height: goalsSize,
-                x: point.x,
-                y: point.y,
-            })
-            if(img) drawer.draw(img)
-        })
     }
 
 
@@ -1538,8 +1558,8 @@ export class WaitingScene extends Scene {
 
     init(kwargs) {
         super.init(kwargs)
-        this.backgroundColor = "black"
-        this.playerObjs = new Map()
+        this.backgroundColor = "grey"
+        this.playerList = this.addNotif(PlayerList, {})
         this.initTitleText()
         this.initQrcodeImg()
     }
@@ -1560,86 +1580,25 @@ export class WaitingScene extends Scene {
 
     update() {
         this.notifs.update()
-        this.syncPlayerObjs()
-        this.playerObjs.forEach(objs => objs.update())
-    }
-
-    syncPlayerObjs() {
-        const { playerObjs, viewWidth, viewHeight } = this
-        const { players } = this.game
-        // add & place players
-        let numPlayer = 0
-        for (let playerId in players) {
-            const grp = this.initPlayerObjGroup(playerId)
-            grp.x = viewWidth / 2
-            grp.y = viewHeight / 3 + (numPlayer * 40)
-            numPlayer += 1
-        }
-        // rm removed players
-        for (let playerId in playerObjs)
-            if (!(playerId in players))
-                playerObjs.remove(playerId)
-    }
-
-    initPlayerObjGroup(playerId) {
-        const { game, playerObjs } = this
-        let grp = playerObjs.get(playerId)
-        if (!grp) {
-            grp = new GameObjectGroup(this)
-            playerObjs.set(playerId, grp)
-            grp.add(PlayerIcon, { x: 15, y: 15, playerId, width: 30, height: 30, strokeColor: "white" })
-            const txt = grp.add(PlayerText, { y: 15, playerId, font: "bold 30px arial", fillStyle: "white" })
-            txt.sync = () => {
-                txt.x = 35 + txt.width / 2
-                txt.updateText(game.players[playerId]?.name ?? "")
-            }
-            txt.sync()
-            hackMethod(txt, "update", 0, evt => txt.sync())
-        }
-        return grp
-    }
-
-    draw() {
-        const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        this.drawBackground(drawer)
-        this.notifs.draw(drawer)
-        this.playerObjs.forEach(objs => objs.draw(drawer))
-        const qrcodeProps = this.getQrcodeGraphicsProps()
-        if (qrcodeProps) drawer.draw(qrcodeProps)
-        return can
-    }
-
-    getQrcodeGraphicsProps() {
-        const qrcodeImg = this._qrcodeImg
-        if (!qrcodeImg) return null
-        const qrcodeProps = this._qrcodeGraphicsProps ||= new GraphicsProps({
-            img: qrcodeImg,
-            width: 200,
-            height: 200,
-            x: 150,
-            y: this.viewHeight / 2,
-        })
-        return qrcodeProps
+        this.playerList.x = this.viewWidth / 2
+        this.playerList.y = this.viewHeight / 3
+        this.playerList.setPlayers(this.game.players)
     }
 
     async initQrcodeImg() {
-        if (IS_SERVER_ENV) return
-        let res = this._qrcodeImg
-        if (!res) {
-            const qrcodeImg = this._qrcodeImg = await this.game.initQrcodeImg()
-            const can = newCanvas(ceil(qrcodeImg.width * 1.2), ceil(qrcodeImg.height * 1.2))
-            const ctx = can.getContext("2d")
-            ctx.fillStyle = "white"
-            ctx.fillRect(0, 0, can.width, can.height)
-            ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
-            res = this._qrcodeImg = can
-        }
-        return res
+        if (!this.game.hasGraphics) return
+        if (this._qrcodeObj) return
+        
+        const qrcodeImg = await this.game.initQrcodeImg()
+        const can = newCanvas(ceil(qrcodeImg.width * 1.2), ceil(qrcodeImg.height * 1.2))
+        const ctx = can.getContext("2d")
+        ctx.fillStyle = "white"
+        ctx.fillRect(0, 0, can.width, can.height)
+        ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
+        
+        this._qrcodeObj = this.addNotif(QrCodeDisplay, { image: can })
+        this._qrcodeObj.x = this.viewWidth / 2
+        this._qrcodeObj.y = this.viewHeight * 2 / 3
     }
 
     async loadJoypadScene() {
@@ -1650,42 +1609,78 @@ export class WaitingScene extends Scene {
 }
 
 
-export class PlayerIcon extends GameObject {
+export class PlayerList extends GameObject {
+
+    static ROW_HEIGHT = 40
+    static ICON_SIZE = 30
+    static FONT_SIZE = 24
+
     init(kwargs) {
         super.init(kwargs)
-        this.playerId = kwargs.playerId
-        this.strokeColor = kwargs?.strokeColor ?? "black"
+        this._playerIds = []
     }
 
-    getBaseTexture() {
-        let baseImg = this._baseImg
-        if(baseImg) return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
-        const { playerId } = this
-        const player = this.game.players[playerId]
-        baseImg = this._baseImg = document.createElement("canvas")
-        baseImg.width = baseImg.height = 36
-        const ctx = baseImg.getContext("2d")
-        ctx.beginPath()
-        ctx.arc(floor(baseImg.width/2), floor(baseImg.height/2), 15, 0, 2 * PI)
-        ctx.strokeStyle = this.strokeColor
-        ctx.lineWidth = 3
-        ctx.stroke()
-        ctx.fillStyle = player.color
-        ctx.fill()
-        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
+    setPlayers(players) {
+        this._players = players
     }
-}
 
-
-export class PlayerText extends Text {
-    init(kwargs) {
-        super.init(kwargs)
-        this.playerId = kwargs.playerId
+    createPixiObject() {
+        this._container = new window.PIXI.Container()
+        this._rows = {}
+        return this._container
     }
-    update() {
-        const { playerId } = this
-        const player = this.game.players[playerId]
-        if(player) this.text = player.name
+
+    syncGraphics() {
+        const container = this._container
+        if (!container) return
+        container.x = this.x
+        container.y = this.y
+
+        const players = this._players ?? {}
+        const { ROW_HEIGHT, ICON_SIZE, FONT_SIZE } = PlayerList
+
+        // add rows for new players
+        for (const playerId in players) {
+            if (!this._rows[playerId]) {
+                const player = players[playerId]
+                const row = new window.PIXI.Container()
+
+                // icon: colored circle
+                const icon = new window.PIXI.Graphics()
+                icon.circle(0, 0, ICON_SIZE / 2)
+                icon.fill({ color: player.color ?? 0xffffff })
+                icon.stroke({ color: 0xffffff, width: 2 })
+                icon.x = ICON_SIZE / 2
+                icon.y = ROW_HEIGHT / 2
+                row.addChild(icon)
+
+                // name text
+                const style = new window.PIXI.TextStyle({ fontFamily: 'Arial', fontSize: FONT_SIZE, fontWeight: 'bold', fill: 0xffffff })
+                const txt = new window.PIXI.Text({ text: player.name ?? '', style })
+                txt.anchor.set(0, 0.5)
+                txt.x = ICON_SIZE + 8
+                txt.y = ROW_HEIGHT / 2
+                row.addChild(txt)
+                row._txt = txt
+
+                this._rows[playerId] = row
+                container.addChild(row)
+            }
+        }
+
+        // update & position rows, remove stale ones
+        let rowIndex = 0
+        for (const playerId in this._rows) {
+            const row = this._rows[playerId]
+            if (!(playerId in players)) {
+                container.removeChild(row)
+                delete this._rows[playerId]
+            } else {
+                row._txt.text = players[playerId].name ?? ''
+                row.y = rowIndex * ROW_HEIGHT
+                rowIndex++
+            }
+        }
     }
 }
 

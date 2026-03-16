@@ -3,7 +3,6 @@ const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
 import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
-    GraphicsEngine, GraphicsProps,
     Dependencies, GameObject, Text, GameObjectGroup, Img,
 } from "../../../core/v1/index.mjs"
 
@@ -57,30 +56,6 @@ export class JoypadButton extends GameObject {
 
     onClickUp() {
         if (this.inputKey) this.game.setInputKey(this.inputKey, false)
-    }
-
-    draw(drawer) {
-        if (this.disabled) return
-        super.draw(drawer)
-        if (this.icon) {
-            const iconProps = this._iconGraphicsProps ||= new GraphicsProps()
-            iconProps.img = this.icon
-            iconProps.x = this.x
-            iconProps.y = this.y
-            iconProps.width = this.width * .5
-            iconProps.height = this.height * .5
-            iconProps.draw(drawer)
-        }
-        if (this.text) {
-            const textProps = this._textGraphicsProps ||= new GraphicsProps({
-                img: this.createTextImg(this.text)
-            })
-            textProps.x = this.x
-            textProps.y = this.y
-            textProps.width = this.width * .5
-            textProps.height = this.width * .5 / textProps.img.width * textProps.img.height,
-                textProps.draw(drawer)
-        }
     }
 
     getBaseTexture() {
@@ -175,20 +150,6 @@ export class StickButton extends GameObject {
         this.prevInput = input
     }
 
-    draw(drawer) {
-        if (this.disabled) return
-        super.draw(drawer)
-        if (this.icon) {
-            const iconProps = this._iconGraphicsProps ||= new GraphicsProps()
-            iconProps.img = this.icon
-            iconProps.x = this.x
-            iconProps.y = this.y
-            iconProps.width = this.width * .5
-            iconProps.height = this.height * .5
-            iconProps.draw(drawer)
-        }
-    }
-
     getBaseTexture() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
@@ -243,7 +204,6 @@ export class JoypadScene {
             this.canvas = document.createElement("canvas")
             this.canvas.width = this.width
             this.canvas.height = this.height
-            this.graphicsEngine = new GraphicsEngine(this)
         }
         this.game.initTouches()
         this.buttons = new GameObjectGroup(this)
@@ -281,33 +241,6 @@ export class JoypadScene {
         return new JoypadPauseScene(this.game)
     }
 
-    draw() {
-        const { viewWidth, viewHeight } = this
-        const can = this.canvas
-        can.width = viewWidth
-        can.height = viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        this.drawBackground(drawer)
-        this.buttons.draw(drawer)
-        return can
-    }
-
-    drawBackground(drawer) {
-        drawer.draw(this.getBackgroundGraphicsProps())
-    }
-
-    getBackgroundGraphicsProps() {
-        const props = this._backgroundGraphicsProps ||= new GraphicsProps()
-        props.color = this.backgroundColor
-        props.x = this.viewWidth / 2
-        props.y = this.viewHeight / 2
-        props.width = this.viewWidth
-        props.height = this.viewHeight
-        props.visibility = this.backgroundAlpha
-        return props
-    }
 }
 
 

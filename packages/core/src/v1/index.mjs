@@ -1,6 +1,4 @@
 export * from './utils.mjs'
-export * from './pixi.mjs'
-export * from './pixi-helpers.mjs'
 export * from './graphics.mjs'
 export * from './audio.mjs'
 export * from './physics.mjs'

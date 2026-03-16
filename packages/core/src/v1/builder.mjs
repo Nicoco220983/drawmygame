@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 import * as utils from './utils.mjs'
 const { sumTo, newDomEl, addNewDomEl, Debouncer } = utils
 import { CATALOG } from './catalog.mjs'
-import * as pixiHelpers from './pixi-helpers.mjs'
+import * as pixiHelpers from './graphics.mjs'
 import * as game from './game.mjs'
 const { GameCommon, Scene, DefaultScene, GameObject, ObjectLink, Img } = game
 
@@ -27,8 +27,6 @@ export class GameBuilder extends GameCommon {
         this.isBuilder = true
         this.selectionMenuEl = selectionMenuEl
         this.copiedObjectState = null
-        // Remove default scene created by parent and create builder scenes
-        this.removeScenePixiContainer(this.scenes.game)
         this.scenes.game = new DefaultScene(this)
         this.scenes.draft = new DraftScene(this)
         super.syncSize()

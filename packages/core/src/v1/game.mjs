@@ -467,7 +467,7 @@ export class GameObject {
         this.scene = scn
         this.game = scn.game
         this.init(kwargs)
-        if(this.game.hasGraphics) this.initPixiObject()
+        this.initPixiObject(kwargs?.pixiContainer)
     }
 
     init(kwargs) {
@@ -493,11 +493,13 @@ export class GameObject {
      * Called automatically when object is added to a scene with Pixi support.
      * Subclasses can override createPixiObject() to customize.
      */
-    initPixiObject() {
+    initPixiObject(scnPixiContainer) {
+        if(!this.game.hasGraphics) return
         const pixiObj = this.createPixiObject()
         if (pixiObj) {
             this._pixiObject = pixiObj
-            this.scene.addPixiObject(pixiObj, this.z)
+            if(!scnPixiContainer) scnPixiContainer = this.scene.objectsPixiContainer
+            scnPixiContainer.addChild(pixiObj)
             this.syncGraphics()
         }
     }
@@ -818,8 +820,23 @@ export class Text extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
-        this.textArgs = kwargs
         this.text = kwargs?.text ?? ""
+        this._fontFamily = kwargs?.fontFamily ?? 'Arial'
+        this._fontSize = kwargs?.fontSize ?? 24
+        this._fontStyle = 'normal'
+        this._fontWeight = 'normal'
+        // Parse CSS font shorthand: e.g. "bold 50px arial"
+        if (kwargs?.font) {
+            const parts = kwargs.font.split(/\s+/)
+            for (const part of parts) {
+                if (part === 'bold' || part === 'bolder') this._fontWeight = part
+                else if (part === 'italic' || part === 'oblique') this._fontStyle = part
+                else if (/^\d+px$/.test(part)) this._fontSize = parseInt(part)
+                else if (/^\d+$/.test(part)) this._fontSize = parseInt(part)
+                else if (part !== 'normal') this._fontFamily = part
+            }
+        }
+        this._fill = kwargs?.fillStyle ?? 'black'
     }
 
     updateText(text) {
@@ -827,37 +844,25 @@ export class Text extends GameObject {
     }
 
     createPixiObject() {
-        
-        const style = {
-            fontFamily: this.textArgs?.font ?? 'Arial',
-            fontSize: this.textArgs?.fontSize ?? 24,
-            fill: toPixiColor(this.textArgs?.fillStyle ?? 'black'),
+        const style = new window.PIXI.TextStyle({
+            fontFamily: this._fontFamily,
+            fontSize: this._fontSize,
+            fontStyle: this._fontStyle,
+            fontWeight: this._fontWeight,
+            fill: this._fill,
             align: 'center',
-        }
-        
-        const pixi = PIXI || (typeof window !== 'undefined' && window.PIXI)
-        if (!pixi) return null
-        
-        const text = new pixi.Text(this.text, style)
+        })
+        const text = new window.PIXI.Text({ text: this.text, style })
         text.anchor.set(0.5)
         return text
     }
 
     syncGraphics() {
         const pixiObj = this._pixiObject
+        if (!pixiObj) return
         pixiObj.x = this.x
         pixiObj.y = this.y
         pixiObj.text = this.text
-    }
-}
-
-export class CenteredText extends Text {
-
-    init(kwargs) {
-        super.init(kwargs)
-        const { viewWidth, viewHeight } = this.scene
-        this.x = viewWidth / 2
-        this.y = viewHeight / 2
     }
 }
 
@@ -1206,16 +1211,6 @@ export class GameCommon {
         this.pixiApp.stage.addChild(scn.pixiContainer)
     }
 
-    /**
-     * Remove a scene's Pixi container from the main stage
-     * @param {Scene} scn - Scene to remove
-     */
-    removeScenePixiContainer(scn) {
-        if (scn?.pixiContainer.parent) {
-            scn.pixiContainer.parent.removeChild(scn.pixiContainer)
-        }
-    }
-
     initTouches() {
         if(this.touches) return
         this.touches = []
@@ -1255,50 +1250,34 @@ export class GameCommon {
     run() {
         if(this.gameLoop) return
         this.startTime = this.nextFrameTime = now()
-        this.initPixiTicker()
+        this.initTicker()
     }
 
     /**
-     * Initialize the game loop using Pixi ticker
+     * Initialize the game loop using setTimeout (works in both browser and Node.js)
      */
-    initPixiTicker() {
-        if (!this.pixiApp?.ticker || !this.pixiApp?.renderer) return
-        
-        let lastTime = now()
-        
-        this.gameLoop = { stop: () => {
-            this.pixiApp.ticker.remove(this._pixiTickHandler)
-        }}
-        
-        this._pixiTickHandler = (ticker) => {
-            try {
-                const currentTime = now()
-                // Maintain target FPS
-                if (currentTime >= this.nextFrameTime) {
+    initTicker() {
+        const schedule = () => {
+            const currentTime = now()
+            const delay = max(0, (this.nextFrameTime - currentTime) * 1000)
+            this.gameLoop = setTimeout(() => {
+                try {
                     this.updateGameLoop()
-                    this.nextFrameTime = max(currentTime, this.nextFrameTime + 1/this.fps)
+                    this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
+                } catch(err) {
+                    console.error(err)
+                    this.stop()
+                    return
                 }
-            } catch(err) {
-                console.error(err)
-                this.stop()
-            }
+                if(this.gameLoop !== null) schedule()
+            }, delay)
         }
-        
-        this.pixiApp.ticker.add(this._pixiTickHandler)
+        schedule()
     }
 
-    /**
-     * Initialize the game loop using setTimeout (fallback)
-     */
     stop() {
-        if(!this.gameLoop) return
-        
-        // Handle Pixi ticker or setTimeout
-        if (this._pixiTickHandler && this.pixiApp?.ticker) {
-            this.pixiApp.ticker.remove(this._pixiTickHandler)
-            this._pixiTickHandler = null
-        }
-        
+        if(this.gameLoop === null) return
+        clearTimeout(this.gameLoop)
         this.gameLoop = null
         this.onStop()
     }
@@ -1336,6 +1315,10 @@ export class GameCommon {
     }
 
     async loadScenes(cls, scnMapId=undefined, scnId=undefined) {
+        // Remove old scene if exists
+        const oldScn = this.scenes.game
+        if(oldScn) oldScn.remove()
+        
         const scn = this.createScene(cls, { id: scnId })
         if(scnMapId !== undefined) scn.loadMap(scnMapId)
         this.scenes.game = scn
@@ -1594,8 +1577,8 @@ export class Scene {
 
     constructor(game, kwargs) {
         this.game = game
-        this.init(kwargs)
         if(this.game.hasGraphics) this.initPixiContainer()
+        this.init(kwargs)
     }
 
     init(kwargs) {
@@ -1628,6 +1611,10 @@ export class Scene {
         this.constructor.MIXINS.forEach(mixin => mixin.init.call(this, kwargs))
     }
 
+    remove() {
+        this.removePixiContainer()
+    }
+
     /**
      * Initialize the Pixi container for this scene.
      * Creates a container that will hold all object sprites.
@@ -1639,6 +1626,11 @@ export class Scene {
         
         // Enable sorting by z-index
         this.pixiContainer.sortableChildren = true
+        
+        // Create background graphics (rendered behind everything)
+        this.backgroundPixiGraphics = new window.PIXI.Graphics()
+        this.backgroundPixiGraphics.zIndex = -1000
+        this.pixiContainer.addChild(this.backgroundPixiGraphics)
         
         // Create sub-containers for different object groups
         this.objectsPixiContainer = new window.PIXI.Container()
@@ -1655,29 +1647,45 @@ export class Scene {
         this.pixiContainer.addChild(this.notifsPixiContainer)
 
         this.game.addScenePixiContainer(this, { zIndex: this.z, visible: true })
+        
+        // Initial background render
+        this.syncBackgroundGraphics()
     }
 
     /**
-     * Add a Pixi object to the scene's container
-     * @param {PIXI.DisplayObject} pixiObj - The Pixi object to add
-     * @param {number} zIndex - Optional z-index
-     * @param {string} group - Which group ('objects', 'visuals', 'notifs')
+     * Sync the background graphics based on backgroundColor and backgroundAlpha
      */
-    addPixiObject(pixiObj, zIndex, group = 'objects') {
+    syncBackgroundGraphics() {
+        const graphics = this.backgroundPixiGraphics
+        if (!graphics) return
+        
+        const color = this.backgroundColor
+        const alpha = this.backgroundAlpha ?? 1
 
-        let container
-        switch (group) {
-            case 'visuals': container = this.visualsPixiContainer; break
-            case 'notifs': container = this.notifsPixiContainer; break
-            default: container = this.objectsPixiContainer
+        if(color == graphics.baseColor && alpha == graphics.baseAlpha) return
+        graphics.baseColor = color
+        graphics.baseALpha = alpha
+        
+        if (!color || alpha <= 0) {
+            graphics.clear()
+            graphics.visible = false
+            return
         }
         
-        if (container && pixiObj) {
-            if (zIndex !== undefined) {
-                pixiObj.zIndex = zIndex
-            }
-            container.addChild(pixiObj)
-        }
+        graphics.clear()
+        graphics.visible = true
+        
+        // Draw background rectangle covering the scene
+        const fillColor = toPixiColor(color)
+        graphics.rect(0, 0, this.viewWidth, this.viewHeight)
+        graphics.fill({ color: fillColor, alpha })
+    }
+
+    removePixiContainer() {
+        if(!this.pixiContainer) return
+        this.pixiContainer.destroy()
+        this.pixiContainer = null
+        this.backgroundPixiGraphics = null
     }
     
     getKey() {
@@ -1713,6 +1721,18 @@ export class Scene {
 
     onAddObject(obj) {}
 
+    // onAddVisual(obj) {
+    //     if(this.game.hasGraphics && obj.initPixiObject) {
+    //         obj.initPixiObject('visuals')
+    //     }
+    // }
+
+    // onAddNotif(obj) {
+    //     if(this.game.hasGraphics && obj.initPixiObject) {
+    //         obj.initPixiObject('notifs')
+    //     }
+    // }
+
     createObjectFromKey(key, kwargs) {
         const { map } = this.game
         const mapState = this.getObjectMapState(key)
@@ -1731,7 +1751,7 @@ export class Scene {
                 obj.init(kwargs)
                 obj.key = origKey
                 // Initialize Pixi object since we bypassed constructor
-                if (this.pixiContainer && obj.initPixiObject) obj.initPixiObject()
+                if (obj.initPixiObject) obj.initPixiObject()
             } else {
                 obj = new cls(this, kwargs)
                 obj.setState(mapState, true)
@@ -1765,10 +1785,14 @@ export class Scene {
     }
 
     addVisual(cls, kwargs) {
+        if(!kwargs) kwargs = {}
+        kwargs.pixiContainer = this.visualsPixiContainer
         return this.visuals.add(cls, kwargs)
     }
 
     addNotif(cls, kwargs) {
+        if(!kwargs) kwargs = {}
+        kwargs.pixiContainer = this.notifsPixiContainer
         return this.notifs.add(cls, kwargs)
     }
 
@@ -1819,6 +1843,7 @@ export class Scene {
 
     syncGraphics() {
         this.syncGraphicsView()
+        this.syncBackgroundGraphics()
         this.objects.syncGraphics()
         this.visuals.syncGraphics()
         this.notifs.syncGraphics()
@@ -1832,15 +1857,6 @@ export class Scene {
         this.objectsPixiContainer.y = -this.viewY
         this.visualsPixiContainer.x = -this.viewX
         this.visualsPixiContainer.y = -this.viewY
-    }
-
-    drawBackground(drawer) {
-        // Deprecated - background is now rendered via Pixi
-    }
-
-    getBackgroundGraphicsProps() {
-        // Deprecated - background is now rendered via Pixi
-        return null
     }
 
     async loadJoypadScene() {

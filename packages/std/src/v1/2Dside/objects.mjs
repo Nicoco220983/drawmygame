@@ -2,7 +2,6 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
-    GraphicsProps,
     CATALOG, IS_SERVER_ENV,
     StateProperty, StateBool, StateNumber,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
@@ -534,14 +533,6 @@ export class Explosion extends GameObject {
         this.iteration += 1
     }
 
-    getGraphicsProps() {
-        const props = super.getGraphicsProps()
-        if (!props) return null
-        props.width = 500
-        props.height = 500
-        return props
-    }
-
     getBaseTexture() {
         return ExplosionSpriteSheet.getTexture(floor(
             this.iteration / this.game.fps * 15
@@ -741,15 +732,6 @@ export class Spiky extends Enemy {
         return obj.constructor.IS_HERO
     }
 
-    getGraphicsProps() {
-        const { fps } = this.game, { iteration } = this.scene
-        const props = super.getGraphicsProps()
-        const rand = this._graphicsRand ||= floor(random() * fps)
-        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
-        props.y += props.height * .05 * cosAngle
-        return props
-    }
-
     getBaseTexture() {
         return SpikyImg.getTexture()
     }
@@ -824,17 +806,6 @@ export class BlobEnemy extends Enemy {
     getAttackProps(obj) {
         const props = super.getAttackProps(obj)
         props.knockbackAngle = this.x < obj.x ? -45 : -135
-        return props
-    }
-
-    getGraphicsProps() {
-        const { fps } = this.game, { iteration } = this.scene
-        const props = super.getGraphicsProps()
-        const rand = this._graphicsRand ||= floor(random() * fps)
-        const angle = 2 * PI * (rand + iteration) / fps, cosAngle = cos(angle), sinAngle = sin(angle)
-        props.width = 50 * (1 + .1 * cosAngle)
-        props.height = 35 * (1 + .1 * sinAngle)
-        props.y -= 35 * .1 * sinAngle / 2
         return props
     }
 
@@ -937,15 +908,6 @@ export class Ghost extends Enemy {
         return GhostImg.getTexture()
     }
 
-    getGraphicsProps() {
-        const { fps } = this.game, { iteration } = this.scene
-        const props = super.getGraphicsProps()
-        const rand = this._graphicsRand ||= floor(random() * fps)
-        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
-        props.y += props.height * .1 * cosAngle
-        return props
-    }
-
     getHitBox() {
         return {
             left: this.x - 30,
@@ -985,15 +947,6 @@ export class Heart extends GameObject {
     onGetCollected(hero) {
         this.remove()
         hero.damages = 0
-    }
-
-    getGraphicsProps() {
-        const { fps } = this.game, { iteration } = this.scene
-        const props = super.getGraphicsProps()
-        const rand = this._graphicsRand ||= floor(random() * fps)
-        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
-        props.y += props.height * .05 * cosAngle
-        return props
     }
 
     getBaseTexture() {
@@ -1047,16 +1000,6 @@ export class Star extends Extra {
         else if (speedX < 0 && this.x < 0) this.speedX *= -1
         if (speedY > 0 && this.y > scene.height) this.speedY *= -1
         else if (speedY < 0 && this.y < 0) this.speedY *= -1
-    }
-
-    getGraphicsProps() {
-        const { fps } = this.game, { iteration } = this.scene
-        const props = super.getGraphicsProps()
-        if (!props) return null
-        const rand = this._graphicsRand ||= floor(random() * fps)
-        const angle = PI * (rand + iteration) / fps, cosAngle = cos(angle)
-        props.y += props.height * .05 * cosAngle
-        return props
     }
 
     getBaseTexture() {
@@ -1133,13 +1076,6 @@ export class Portal extends GameObject {
         obj.x = targetPortal.x + (this.x - obj.x)
         obj.y = targetPortal.y + (this.y - obj.y)
         this.game.audio.playSound(PortalJumpAud)
-    }
-
-    getGraphicsProps() {
-        const props = super.getGraphicsProps()
-        props.visibility = this.activated ? 1 : .5
-        props.angle = this.scene.iteration
-        return props
     }
 
     getBaseTexture() {
@@ -1278,23 +1214,6 @@ export class ObjectSpawner extends GameObject {
         return obj
     }
 
-    draw(drawer) {
-        if (!this.game.isBuilder) return
-        super.draw(drawer)
-        const { model } = this
-        if (!model) return
-        const modelProps = model.getGraphicsProps()
-        const modelProps2 = this._modelGraphicsProps ||= new GraphicsProps({
-            visibility: .5
-        })
-        modelProps2.img = modelProps.img
-        modelProps2.x = this.x
-        modelProps2.y = this.y
-        modelProps2.width = modelProps.width
-        modelProps2.height = modelProps.height
-        modelProps2.draw(drawer)
-    }
-
     getBaseTexture() {
         return PopImg.getTexture()
     }
@@ -1332,20 +1251,6 @@ export class Wall extends GameObject {
             x2, y2,
         )
         return pol
-    }
-
-    getGraphicsProps() {
-        const { x1, y1, x2, y2 } = this
-        const img = this.getBaseTexture()
-        const props = this._graphicsProps ||= new GraphicsProps()
-        const lineWidth = 5
-        props.img = img
-        props.x = (x1 + x2) / 2
-        props.y = (y1 + y2) / 2
-        props.width = abs(x1 - x2) + 2 * lineWidth
-        props.height = abs(y1 - y2) + 2 * lineWidth
-        props.visibility = this.visibility
-        return props
     }
 
     getBaseTexture() {

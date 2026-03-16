@@ -2,7 +2,6 @@ const { assign } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
-    GraphicsProps,
     CATALOG, IS_SERVER_ENV,
     StateProperty, StateBool, StateNumber,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
@@ -386,13 +385,6 @@ export class Nico extends Hero {
             this.hand.remove()
             this.hand = null
         }
-    }
-
-    getGraphicsProps() {
-        const props = super.getGraphicsProps()
-        props.width = 50
-        props.height = 50
-        return props
     }
 
     applyInputState() {

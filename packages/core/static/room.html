@@ -92,6 +92,7 @@ import {
     HAS_TOUCH, GameMap, Game, MODE_CLIENT,
     MSG_KEY_PING, MSG_KEY_IDENTIFY_CLIENT, MSG_KEY_JOIN_GAME, MSG_KEY_STATE, MSG_KEY_GAME_INSTRUCTION, MSG_KEY_GAME_REINIT, MSG_KEY_GAME_STOPPED,
     GAME_INSTR_START, GAME_INSTR_RESTART, GAME_INSTR_STOP, GAME_INSTR_PAUSE, GAME_INSTR_UNPAUSE, GAME_INSTR_STATE,
+    initPixiApp,
 } from '/static/core/v1/index.mjs'
 
 const url = new URL(window.location.href)
@@ -279,20 +280,7 @@ try {
         if(!game || force) {
             stopGame()
             
-            // Create Pixi application if Pixi is available
-            let pixiApp = null
-            if (window.PIXI) {
-                pixiApp = new PIXI.Application()
-                await pixiApp.init({
-                    width: 800,
-                    height: 600,
-                    backgroundColor: 0x000000,
-                    resolution: window.devicePixelRatio || 1,
-                    autoDensity: true,
-                    preference: 'canvas',  // Use Canvas2D for stability
-                })
-                gameParentEl.appendChild(pixiApp.canvas)
-            }
+            const pixiApp = await initPixiApp(gameParentEl)
             
             game = new Game(gameParentEl, map, ws.id, {
                 mode: MODE_CLIENT,

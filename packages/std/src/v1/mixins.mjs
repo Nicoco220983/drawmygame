@@ -273,13 +273,6 @@ export class AttackMixin extends Mixin {
 
         proto.getDamaged ||= this.getDamaged
         proto.die ||= this.die
-
-        const origGetGraphicsProps = proto.getGraphicsProps
-        proto.getGraphicsProps = function() {
-            const props = origGetGraphicsProps.call(this)
-            if(this.getDamagedAge <= 5) props.colorize = "red"
-            return props
-        }
     }
 
     update() {

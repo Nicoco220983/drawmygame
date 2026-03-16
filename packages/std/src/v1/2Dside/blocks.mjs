@@ -32,13 +32,6 @@ export class Block extends GameObject {
         this.width = this.height = floor(this.scene.gridSize)
     }
 
-    getGraphicsProps() {
-        const props = super.getGraphicsProps()
-        props.width = this.width
-        props.height = this.height
-        return props
-    }
-
     /**
      * Create Pixi sprite for block
      * @returns {PIXI.Sprite|null}
@@ -441,15 +434,6 @@ export class Cloud extends Block {
         this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
     }
 
-    getGraphicsProps() {
-        const { step } = this
-        const props = super.getGraphicsProps()
-        if (step == 0) props.visibility = 1
-        else if (step == 1) props.visibility = .75
-        else props.visibility = .5
-        return props
-    }
-
     getBaseTexture() {
         return CloudImg.getTexture()
     }
@@ -544,13 +528,6 @@ export class Trap extends Block {
 
     reactTrigger(msg) {
         if (msg.value >= .5 && this.lastDetectAge == Infinity) this.lastDetectAge = this.countdown * this.game.fps
-    }
-
-    getGraphicsProps() {
-        const props = super.getGraphicsProps()
-        props.angle = this.getAngle()
-        props.visibility = this.canAttack ? 1 : 0
-        return props
     }
 
     syncGraphics() {

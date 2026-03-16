@@ -1,6 +1,4 @@
-# KIMI.md - DrawMyGame Project Guide
-
-Guidance for Kimi AI when working with the DrawMyGame codebase.
+# DrawMyGame Project Guide
 
 ## Project Overview
 
@@ -31,8 +29,6 @@ drawmygame/
 │   │   │   ├── builder.mjs    # Visual builder/editor logic
 │   │   │   ├── catalog.mjs    # Catalog registration system
 │   │   │   ├── graphics.mjs   # Rendering, canvas, sprites
-│   │   │   ├── pixi.mjs       # PixiJS integration
-│   │   │   ├── pixi-helpers.mjs  # PixiJS helper functions
 │   │   │   ├── physics.mjs    # Physics engine, collisions
 │   │   │   ├── audio.mjs      # Audio system
 │   │   │   ├── stateproperty.mjs  # State decorators for networking
@@ -247,116 +243,3 @@ Players use phones as controllers for single-screen multiplayer:
 4. **Input** sent via WebSocket to host
 
 Joypad scenes (e.g., `std:SimpleJoypad`) are in the standard catalog under `joypad.mjs`.
-
----
-
-## Graphics (PixiJS)
-
-The game uses **PixiJS** for rendering on the client side, while maintaining server compatibility (no graphics on server).
-
-### Server-Aware Pattern
-
-All Pixi-related code uses the `IS_SERVER_ENV` check:
-
-```javascript
-const IS_SERVER_ENV = (typeof window === 'undefined')
-```
-
-### Creating Pixi Objects for Game Objects
-
-Override `createPixiObject()` and `updatePixiObject()` in your GameObject subclass:
-
-```javascript
-import { IS_SERVER_ENV, pixiHelpers } from '@drawmygame/core'
-
-export class MyObject extends GameObject {
-    createPixiObject() {
-        if (IS_SERVER_ENV) return null
-        
-        // Create a sprite
-        const sprite = pixiHelpers.createSpriteFromCanvas(this.getBaseImg())
-        if (sprite) {
-            pixiHelpers.setAnchor(sprite, 0.5, 0.5)
-            pixiHelpers.setPosition(sprite, this.x, this.y)
-        }
-        return sprite
-    }
-
-    updatePixiObject(pixiObj, dt) {
-        if (IS_SERVER_ENV || !pixiObj) return
-        
-        // Update position
-        pixiHelpers.setPosition(pixiObj, this.x, this.y)
-        
-        // Update size
-        pixiObj.width = this.width
-        pixiObj.height = this.height
-        
-        // Apply color tint
-        if (this.color) {
-            pixiHelpers.colorizeSprite(pixiObj, this.color)
-        }
-    }
-}
-```
-
-### Pixi Helpers
-
-The `pixiHelpers` module provides utility functions:
-
-| Function | Description |
-|----------|-------------|
-| `createSpriteFromCanvas(source)` | Create sprite from canvas/image |
-| `createText(text, style)` | Create text object |
-| `createContainer()` | Create a container for grouping |
-| `createGraphics()` | Create graphics for shapes |
-| `setPosition(obj, x, y)` | Set object position |
-| `setAnchor(sprite, x, y)` | Set sprite anchor point |
-| `setScale(sprite, x, y)` | Set sprite scale |
-| `colorizeSprite(sprite, color)` | Apply color tint |
-| `setSpriteAlpha(sprite, alpha)` | Set transparency |
-| `setZIndex(obj, zIndex)` | Set z-order |
-| `safeDestroy(obj, destroyChildren)` | Safely destroy Pixi object |
-
-### Enabling PixiJS in Your Game
-
-Add PixiJS to your HTML:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.x/dist/pixi.min.js"></script>
-```
-
-Create a game with Pixi:
-
-```javascript
-const pixiApp = new PIXI.Application({
-    width: 800,
-    height: 600,
-    backgroundColor: 0x000000,
-})
-parentEl.appendChild(pixiApp.view)
-
-const game = new Game(parentEl, map, playerId, {
-    usePixi: true,
-    pixiApp: pixiApp,
-})
-game.run()
-```
-
-### Legacy Canvas 2D Support
-
-The original Canvas 2D rendering system is still available for backward compatibility. If `usePixi` is false or PixiJS is not loaded, the game falls back to Canvas 2D rendering.
-
----
-
-## Technical Details
-
-| Aspect | Value |
-|--------|-------|
-| FPS | 30 |
-| Canvas | Max 800x600 |
-| Renderer | PixiJS (WebGL/Canvas2D) with fallback to Canvas 2D |
-| Serialization | `msgpackr` (state), `pako` (maps) |
-| Networking | WebSocket via `express-ws` |
-| Babel | Decorators 2023-05, ES modules |
-| Room IDs | 1-999 (prod), sequential (dev) |
