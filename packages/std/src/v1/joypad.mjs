@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, sqrt, atan2, PI, random } = Math
 const { assign } = Object
 import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
-    Dependencies, GameObject, Text, GameObjectGroup, Img,
+    Dependencies, GameObject, Text, GameObjectGroup, Img, Scene,
 } from "../../../core/v1/index.mjs"
 
 
@@ -22,16 +22,6 @@ export class JoypadButton extends GameObject {
         this.isDown = false
     }
 
-    // checkClick() {
-    //     if (this.disabled) return
-    //     const isDown = Boolean(this.checkHitTouches())
-    //     if (isDown != this.isDown) {
-    //         this.isDown = isDown
-    //         if (isDown) this.onClickDown()
-    //         else this.onClickUp()
-    //     }
-    // }
-
     update() {
         super.update()
         if (this.disabled) return
@@ -45,10 +35,6 @@ export class JoypadButton extends GameObject {
             }
         }
     }
-
-    // getValue() {
-    //     return !this.disabled && Boolean(this.checkHitTouches())
-    // }
 
     onClickDown() {
         if (this.inputKey) this.game.setInputKey(this.inputKey, true)
@@ -99,25 +85,87 @@ export class JoypadButton extends GameObject {
             font: `bold ${fontSize}px serif`,
         })
     }
+
+    createPixiObject() {
+        const container = new window.PIXI.Container()
+        
+        // Background sprite
+        const texture = this.getBaseTexture()
+        if (texture) {
+            this._bgSprite = new window.PIXI.Sprite(texture)
+            this._bgSprite.anchor.set(0.5, 0.5)
+            container.addChild(this._bgSprite)
+        }
+        
+        // Text overlay
+        if (this.text) {
+            const style = new window.PIXI.TextStyle({
+                fontFamily: 'serif',
+                fontSize: floor(this.height / 2),
+                fontWeight: 'bold',
+                fill: 'white',
+                align: 'center',
+            })
+            this._textObj = new window.PIXI.Text({ text: this.text, style })
+            this._textObj.anchor.set(0.5, 0.5)
+            container.addChild(this._textObj)
+        }
+        
+        // Icon overlay (if provided)
+        if (this.icon) {
+            // Icon could be a texture or an Img instance
+            const iconTexture = this.icon.getTexture ? this.icon.getTexture() : 
+                               (this.icon instanceof window.PIXI.Texture ? this.icon : null)
+            if (iconTexture) {
+                this._iconSprite = new window.PIXI.Sprite(iconTexture)
+                this._iconSprite.anchor.set(0.5, 0.5)
+                // Scale icon to fit within button
+                const iconSize = min(this.width, this.height) * 0.5
+                const scale = iconSize / max(this._iconSprite.width, this._iconSprite.height)
+                this._iconSprite.scale.set(scale)
+                container.addChild(this._iconSprite)
+            }
+        }
+        
+        return container
+    }
+
+    syncGraphics() {
+        const container = this._pixiObject
+        if (!container) return
+        
+        // Update container position
+        container.x = this.x
+        container.y = this.y
+        container.alpha = this.visibility
+        
+        // Update background sprite
+        if (this._bgSprite) {
+            const texture = this.getBaseTexture()
+            if (texture && this._bgSprite.texture !== texture) {
+                this._bgSprite.texture = texture
+            }
+            this._bgSprite.width = this.width
+            this._bgSprite.height = this.height
+        }
+        
+        // Text is static, no update needed
+        
+        // Update icon if exists
+        if (this._iconSprite) {
+            // Icon may need repositioning if button size changes
+            const iconSize = min(this.width, this.height) * 0.5
+            const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
+            this._iconSprite.scale.set(scale)
+        }
+    }
 }
 
 
 export class StickButton extends GameObject {
 
-    // checkClick() {
-    //     if (this.disabled) return
-    //     const touch = this.checkHitTouches()
-    //     if (touch && this.startPos === null) {
-    //         this.startPos = {
-    //             x: touch.x,
-    //             y: touch.y,
-    //         }
-    //     }
-    // }
-
     init(kwargs) {
         super.init(kwargs)
-        //this.inputKey = kwargs?.inputKey
         this.disabled = kwargs?.disabled
         this.text = kwargs?.text
         this.icon = kwargs?.icon
@@ -183,30 +231,93 @@ export class StickButton extends GameObject {
         })
         return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
     }
+
+    createPixiObject() {
+        const container = new window.PIXI.Container()
+        
+        // Background sprite
+        const texture = this.getBaseTexture()
+        if (texture) {
+            this._bgSprite = new window.PIXI.Sprite(texture)
+            this._bgSprite.anchor.set(0.5, 0.5)
+            container.addChild(this._bgSprite)
+        }
+        
+        // Text overlay
+        if (this.text) {
+            const style = new window.PIXI.TextStyle({
+                fontFamily: 'serif',
+                fontSize: floor(this.height / 2),
+                fontWeight: 'bold',
+                fill: 'white',
+                align: 'center',
+            })
+            this._textObj = new window.PIXI.Text({ text: this.text, style })
+            this._textObj.anchor.set(0.5, 0.5)
+            container.addChild(this._textObj)
+        }
+        
+        // Icon overlay (if provided)
+        if (this.icon) {
+            const iconTexture = this.icon.getTexture ? this.icon.getTexture() : 
+                               (this.icon instanceof window.PIXI.Texture ? this.icon : null)
+            if (iconTexture) {
+                this._iconSprite = new window.PIXI.Sprite(iconTexture)
+                this._iconSprite.anchor.set(0.5, 0.5)
+                const iconSize = min(this.width, this.height) * 0.5
+                const scale = iconSize / max(this._iconSprite.width, this._iconSprite.height)
+                this._iconSprite.scale.set(scale)
+                container.addChild(this._iconSprite)
+            }
+        }
+        
+        return container
+    }
+
+    syncGraphics() {
+        const container = this._pixiObject
+        if (!container) return
+        
+        container.x = this.x
+        container.y = this.y
+        container.alpha = this.visibility
+        
+        if (this._bgSprite) {
+            const texture = this.getBaseTexture()
+            if (texture && this._bgSprite.texture !== texture) {
+                this._bgSprite.texture = texture
+            }
+            this._bgSprite.width = this.width
+            this._bgSprite.height = this.height
+        }
+        
+        if (this._iconSprite) {
+            const iconSize = min(this.width, this.height) * 0.5
+            const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
+            this._iconSprite.scale.set(scale)
+        }
+    }
 }
 
 
 @Dependencies.add(JoypadButton)
 @Dependencies.init()
-export class JoypadScene {
+export class JoypadScene extends Scene {
 
-    constructor(game) {
-        this.scene = this
-        this.game = game
-        this.x = 0
-        this.y = 0
+    init(kwargs) {
+        super.init(kwargs)
         this.width = 800
         this.height = floor(this.width * 9 / 16)
+        this.z = 100  // Render on top of game scene
         this.syncPosSize()
         this.backgroundColor = "black"
         this.backgroundAlpha = 1
-        if (!this.game.isServerEnv) {
-            this.canvas = document.createElement("canvas")
-            this.canvas.width = this.width
-            this.canvas.height = this.height
-        }
         this.game.initTouches()
         this.buttons = new GameObjectGroup(this)
+        // Update pixiContainer zIndex if already created
+        if (this.pixiContainer) {
+            this.pixiContainer.zIndex = this.z
+        }
     }
 
     isPausable() {
@@ -228,10 +339,12 @@ export class JoypadScene {
         assign(this, { visible, x, y, viewWidth, viewHeight })
     }
 
-    onTouch() {} // TODO: remove
-    // onTouch() {
-    //     this.buttons.forEach(but => but.checkClick())
-    // }
+    syncGraphics() {
+        this.syncBackgroundGraphics()
+        this.buttons.syncGraphics()
+    }
+
+    onTouch() {}
 
     addButton(cls, kwargs) {
         return this.buttons.add(cls, kwargs)
@@ -240,7 +353,6 @@ export class JoypadScene {
     createPauseScene() {
         return new JoypadPauseScene(this.game)
     }
-
 }
 
 
@@ -292,8 +404,8 @@ export class JoypadWaitingScene extends JoypadScene {
 
 class JoypadPauseScene extends JoypadScene {
 
-    constructor(game) {
-        super(game)
+    init(kwargs) {
+        super.init(kwargs)
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
         this.notifs = new GameObjectGroup(this)
@@ -326,10 +438,8 @@ class JoypadPauseScene extends JoypadScene {
         assign(this.restartButton, { x: floor(width / 2), y: floor(height / 2) + 120 })
     }
 
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.notifs.draw(drawer)
-        return res
+    syncGraphics() {
+        super.syncGraphics()
+        this.notifs.syncGraphics()
     }
 }
