@@ -620,6 +620,7 @@ export class Background extends GameObject {
         if(!pixiObj) return
         pixiObj.x = this.x
         pixiObj.y = this.y
+        pixiObj.zIndex = this.z
         pixiObj.width = this.width
         pixiObj.height = this.height
     }

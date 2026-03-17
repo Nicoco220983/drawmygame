@@ -1692,8 +1692,6 @@ export class Scene {
                 obj = Object.create(proto)
                 obj.init(kwargs)
                 obj.key = origKey
-                // Initialize Pixi object since we bypassed constructor
-                if (obj.initPixiObject) obj.initPixiObject()
             } else {
                 obj = new cls(this, kwargs)
                 obj.setState(mapState, true)
