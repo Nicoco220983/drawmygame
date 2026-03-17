@@ -1197,17 +1197,6 @@ export class GameCommon {
         this.pixiApp.stage.sortableChildren = true
     }
 
-    /**
-     * Add a scene's Pixi container to the main stage
-     * @param {Scene} scn - Scene to add
-     */
-    // addScenePixiContainer(scn) {
-    //     const zIndex = options.zIndex ?? 0
-    //     scn.pixiContainer.zIndex = zIndex
-    //     scn.pixiContainer.visible = options.visible !== false
-    //     this.pixiApp.stage.addChild(scn.pixiContainer)
-    // }
-
     initTouches() {
         if(this.touches) return
         this.touches = []
@@ -1219,8 +1208,8 @@ export class GameCommon {
             for(let evtTouch of evtTouches) {
                 this.touches.push({
                     isDown,
-                    x: (evtTouch.clientX - rect.left) * el.width / rect.width,
-                    y: (evtTouch.clientY - rect.top) * el.height / rect.height,
+                    x: (evtTouch.clientX - rect.left) / rect.width * this.width,
+                    y: (evtTouch.clientY - rect.top) / rect.height * this.height,
                 })
             }
             this.onTouch()
