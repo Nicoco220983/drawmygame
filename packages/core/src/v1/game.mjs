@@ -1350,9 +1350,8 @@ export class GameCommon {
     }
 
     updateGameLoop() {
-        const { mode } = this
         this.update()
-        if(mode != MODE_SERVER) this.mayDraw()
+        if(this.hasGraphics) this.syncGraphics()
     }
 
     update() {
@@ -1369,54 +1368,12 @@ export class GameCommon {
         if(joypadPauseScn) joypadPauseScn.update()
     }
 
-    mayDraw() {
-        this._drawing ||= false
-        if(this._drawing) return
-        this._drawing = true
-        window.requestAnimationFrame(() => {
-            this.syncGraphics()
-            this._drawing = false
-        })
-    }
-
     syncGraphics() {
-        // Pixi scenes render automatically to the Pixi stage
-        // We just need to sync scene visibility and position
-        this.syncPixiScenes()
-        const { game: gameScn, joypad: joypadScn } = this.scenes
+        const { game: gameScn, pause: pauseScn, joypad: joypadScn, joypadPause: joypadPauseScn } = this.scenes
         gameScn.syncGraphics()
+        if(pauseScn) pauseScn.syncGraphics()
         if(joypadScn) joypadScn.syncGraphics()
-    }
-
-    /**
-     * Sync Pixi scene containers visibility and position
-     */
-    syncPixiScenes() {
-        if (!this.pixiApp?.renderer) return
-        
-        const { game:gameScn, pause:pauseScn, joypad:joypadScn, joypadPause:joypadPauseScn, draft:draftScn } = this.scenes
-        
-        if (gameScn?.pixiContainer) {
-            gameScn.pixiContainer.visible = gameScn.visible
-            gameScn.pixiContainer.x = gameScn.x
-            gameScn.pixiContainer.y = gameScn.y
-        }
-        if (pauseScn?.pixiContainer) {
-            pauseScn.pixiContainer.visible = pauseScn.visible && pauseScn.paused
-        }
-        if (joypadScn?.pixiContainer) {
-            joypadScn.pixiContainer.visible = joypadScn.visible
-            joypadScn.pixiContainer.x = joypadScn.x
-            joypadScn.pixiContainer.y = joypadScn.y
-        }
-        if (joypadPauseScn?.pixiContainer) {
-            joypadPauseScn.pixiContainer.visible = joypadPauseScn?.visible && joypadPauseScn?.paused
-        }
-        if (draftScn?.pixiContainer) {
-            draftScn.pixiContainer.visible = draftScn.visible
-            draftScn.pixiContainer.x = draftScn.x
-            draftScn.pixiContainer.y = draftScn.y
-        }
+        if(joypadPauseScn) joypadPauseScn.syncGraphics()
     }
 
     syncSize() {
@@ -1532,14 +1489,7 @@ export class GameCommon {
     pause(val) {
         // game
         this.scenes.game.pause(val)
-        if(val) this.scenes.pause ||= this.scenes.game.createPauseScene()
-        else delete this.scenes.pause
-        // joypad
-        if(this.scenes.joypad) {
-            this.scenes.joypad.pause(val)
-            if(val) this.scenes.joypadPause ||= this.scenes.joypad.createPauseScene()
-            else delete this.scenes.joypadPause
-        }
+        this.syncPauseScenes()
         // state
         if(this.mode == MODE_CLIENT) return this.sendGameInstruction(val ? GAME_INSTR_PAUSE : GAME_INSTR_UNPAUSE)
         if(this.mode == MODE_SERVER) this.getAndSendFullState()
@@ -1661,10 +1611,17 @@ export class Scene {
         
         const color = this.backgroundColor
         const alpha = this.backgroundAlpha ?? 1
+        const { viewWidth, viewHeight } = this
 
-        if(color == graphics.baseColor && alpha == graphics.baseAlpha) return
-        graphics.baseColor = color
-        graphics.baseALpha = alpha
+        if(color == graphics._currentBackgroundColor
+            && alpha == graphics._currentBackgroundAlpha
+            && viewWidth == graphics._currentViewWidth
+            && viewHeight == graphics._currentViewHeight
+        ) return
+        graphics._currentBackgroundColor = color
+        graphics._currentBackgroundAlpha = alpha
+        graphics._currentViewWidth = viewWidth
+        graphics._currentViewHeight = viewHeight
         
         if (!color || alpha <= 0) {
             graphics.clear()
@@ -1676,16 +1633,14 @@ export class Scene {
         graphics.visible = true
         
         // Draw background rectangle covering the scene
-        const fillColor = toPixiColor(color)
-        graphics.rect(0, 0, this.viewWidth, this.viewHeight)
-        graphics.fill({ color: fillColor, alpha })
+        graphics.rect(0, 0, viewWidth, viewHeight)
+        graphics.fill({ color: toPixiColor(color), alpha })
     }
 
     removePixiContainer() {
         if(!this.pixiContainer) return
         this.pixiContainer.destroy()
         this.pixiContainer = null
-        this.backgroundPixiGraphics = null
     }
     
     getKey() {
@@ -1720,18 +1675,6 @@ export class Scene {
     }
 
     onAddObject(obj) {}
-
-    // onAddVisual(obj) {
-    //     if(this.game.hasGraphics && obj.initPixiObject) {
-    //         obj.initPixiObject('visuals')
-    //     }
-    // }
-
-    // onAddNotif(obj) {
-    //     if(this.game.hasGraphics && obj.initPixiObject) {
-    //         obj.initPixiObject('notifs')
-    //     }
-    // }
 
     createObjectFromKey(key, kwargs) {
         const { map } = this.game
@@ -1853,6 +1796,9 @@ export class Scene {
      * Update the Pixi container position based on view
      */
     syncGraphicsView() {
+        this.pixiContainer.visible = this.visible
+        this.pixiContainer.x = this.x
+        this.pixiContainer.y = this.y
         this.objectsPixiContainer.x = -this.viewX
         this.objectsPixiContainer.y = -this.viewY
         this.visualsPixiContainer.x = -this.viewX
@@ -1988,7 +1934,9 @@ export class Game extends GameCommon {
             this.scenes.pause ||= gameScn.createPauseScene(this)
             this.scenes.joypadPause ||= joypadScn && joypadScn.createPauseScene(this)
         } else {
+            this.scenes.pause?.remove()
             delete this.scenes.pause
+            this.scenes.joypadPause?.remove()
             delete this.scenes.joypadPause
         }
     }
@@ -2069,12 +2017,6 @@ export class Game extends GameCommon {
             }
             if(this.iteration < targetIteration) this.updateGame()
         }
-    }
-
-    draw() {
-        const drawStartTime = now()
-        super.draw()
-        if(this.isDebugMode) this.pushMetric("drawDur", now() - drawStartTime, this.fps * 5)
     }
 
     async startGame() {

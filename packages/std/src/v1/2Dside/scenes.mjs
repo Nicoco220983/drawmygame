@@ -904,6 +904,7 @@ class PauseScene extends Scene {
 
     init(kwargs) {
         super.init(kwargs)
+        this.z = 1000
         this.backgroundColor = "lightgrey"
         this.backgroundAlpha = .5
         this.pauseText = this.addNotif(Text, {
@@ -922,18 +923,6 @@ class PauseScene extends Scene {
 
     syncTextPos() {
         assign(this.pauseText, { x: this.viewWidth/2, y: this.viewHeight/2 })
-    }
-
-    draw() {
-        const can = this.canvas
-        can.width = this.viewWidth
-        can.height = this.viewHeight
-        const ctx = can.getContext("2d")
-        ctx.reset()
-        const drawer = this.graphicsEngine
-        this.drawBackground(drawer)
-        this.notifs.draw(drawer)
-        return this.canvas
     }
 }
 
@@ -1558,7 +1547,7 @@ export class WaitingScene extends Scene {
 
     init(kwargs) {
         super.init(kwargs)
-        this.backgroundColor = "grey"
+        this.backgroundColor = "black"
         this.playerList = this.addNotif(PlayerList, {})
         this.initTitleText()
         this.initQrcodeImg()

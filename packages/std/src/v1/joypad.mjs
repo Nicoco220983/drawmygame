@@ -340,6 +340,7 @@ export class JoypadScene extends Scene {
     }
 
     syncGraphics() {
+        this.syncGraphicsView()
         this.syncBackgroundGraphics()
         this.buttons.syncGraphics()
     }
