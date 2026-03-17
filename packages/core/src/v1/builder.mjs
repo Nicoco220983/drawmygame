@@ -148,13 +148,9 @@ export class GameBuilder extends GameCommon {
         this.scenes.draft.clearSelection()
     }
 
-    /**
-     * Draws the builder scenes.
-     */
-    draw() {
-        // Pixi rendering is automatic via ticker
-        // Just sync scene visibility
-        this.syncPixiScenes()
+    syncGraphics() {
+        this.scenes.game.syncGraphics()
+        this.scenes.draft.syncGraphics()
     }
 }
 
@@ -170,7 +166,7 @@ class DraftScene extends Scene {
      */
     init(kwargs) {
         super.init(kwargs)
-        this.z = 1
+        this.z = 100
         this.backgroundColor = null
         this.viewSpeed = Infinity
         this.anchor = true
@@ -210,12 +206,12 @@ class DraftScene extends Scene {
             this.setDraftObject(kwargs.key, kwargs)
         }
     }
-/**
- * Sets the draft object using the given key or clears it if no key.
- * @param {string} key - The object key.
- * @param {object} kwargs - Additional arguments.
- */
 
+    /**
+     * Sets the draft object using the given key or clears it if no key.
+     * @param {string} key - The object key.
+     * @param {object} kwargs - Additional arguments.
+     */
     setDraftObject(key, kwargs) {
         
         // Clean up old draft object
@@ -246,11 +242,11 @@ class DraftScene extends Scene {
             pixiObj.alpha = 0.5
         }
     }
-/**
- * Gets the state of the last selected GameObject.
- * @returns {object|undefined}
- */
 
+    /**
+     * Gets the state of the last selected GameObject.
+     * @returns {object|undefined}
+     */
     getSelectedObjectState() {
         const selections = this.selections
         if (selections.length > 0) {
@@ -271,13 +267,13 @@ class DraftScene extends Scene {
         if(mode == "object") this.addPointedObject()
         else if(mode == "wall") this.addPointedWall()
         else if(mode == "cursor") this.cursorUpdate()
-        if(this.game.hasGraphics) this.updateBuilderGraphics()
     }
 
     /**
      * Updates the builder graphics (grid, selections, links)
      */
-    updateBuilderGraphics() {
+    syncGraphics() {
+        super.syncGraphics()
         
         const gridGraphics = this.gridGraphics
         const builderGraphics = this.builderGraphics

@@ -1200,16 +1200,13 @@ export class GameCommon {
     /**
      * Add a scene's Pixi container to the main stage
      * @param {Scene} scn - Scene to add
-     * @param {Object} options - Options (zIndex, visible)
      */
-    addScenePixiContainer(scn, options = {}) {
-
-        const zIndex = options.zIndex ?? 0
-        scn.pixiContainer.zIndex = zIndex
-        scn.pixiContainer.visible = options.visible !== false
-        
-        this.pixiApp.stage.addChild(scn.pixiContainer)
-    }
+    // addScenePixiContainer(scn) {
+    //     const zIndex = options.zIndex ?? 0
+    //     scn.pixiContainer.zIndex = zIndex
+    //     scn.pixiContainer.visible = options.visible !== false
+    //     this.pixiApp.stage.addChild(scn.pixiContainer)
+    // }
 
     initTouches() {
         if(this.touches) return
@@ -1596,7 +1593,9 @@ export class Scene {
         this.pixiContainer.addChild(this.visualsPixiContainer)
         this.pixiContainer.addChild(this.notifsPixiContainer)
 
-        this.game.addScenePixiContainer(this, { zIndex: this.z, visible: true })
+        this.syncGraphicsView()
+
+        this.game.pixiApp.stage.addChild(this.pixiContainer)
         
         // Initial background render
         this.syncBackgroundGraphics()
@@ -1799,6 +1798,7 @@ export class Scene {
         this.pixiContainer.visible = this.visible
         this.pixiContainer.x = this.x
         this.pixiContainer.y = this.y
+        this.pixiContainer.zIndex = this.z
         this.objectsPixiContainer.x = -this.viewX
         this.objectsPixiContainer.y = -this.viewY
         this.visualsPixiContainer.x = -this.viewX
