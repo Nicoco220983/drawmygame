@@ -44,8 +44,10 @@ export class JumpMixin extends Mixin {
     }
 
     canJump() {
-        if((this.scene.iteration - this._jumpLastIt) * this.game.dt < this.jumpPeriod) return
-        let blockAngle = this.initJumpBlockChecker().getBlockedAngle()
+        if((this.scene.iteration - this._jumpLastIt) * this.game.dt < this.jumpPeriod) return false
+        const checker = this._jumpBlockChecker
+        if(!checker) return false
+        let blockAngle = checker.getBlockedAngle()
         if(blockAngle === null) return false
         const { maxJumpBlockAngle } = this
         return isAngleInRange(blockAngle, -90-maxJumpBlockAngle, -90+maxJumpBlockAngle)
@@ -88,6 +90,7 @@ class JumpMixinBlockChecker extends GameObject {
         super.init(kwargs)
         this.lastGetBlockedIteration = -Infinity
         this.sync()
+        this.iteration = 0
     }
     sync() {
         const { owner } = this
@@ -98,16 +101,17 @@ class JumpMixinBlockChecker extends GameObject {
         this.height = owner.height + 2
     }
     getBlockedAngle() {
-        if(this.lastGetBlockedIteration < this.scene.iteration) return null
+        if(this.lastGetBlockedIteration < this.iteration-1) return null
         return this.lastGetBlockedAngle
     }
     onGetBlocked(obj, details) {
         if(obj === this.owner) return
-        this.lastGetBlockedIteration = this.scene.iteration
+        this.lastGetBlockedIteration = this.iteration
         this.lastGetBlockedAngle = details.angle
     }
     update() {
         super.update()
+        this.iteration += 1
         this.sync()
     }
 }

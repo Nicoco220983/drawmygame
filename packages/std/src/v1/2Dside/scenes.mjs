@@ -972,12 +972,9 @@ export class StandardScene extends GameScene {
         this.hud = new HeadsUpDisplay(this)
     }
 
-    loadMap(scnMapId) {
-        super.loadMap(scnMapId)
-        // Initialize Pixi objects
-        if (this.background) {
-            this.background.initGraphics()
-        }
+    initGraphics() {
+        super.initGraphics()
+        this.background.initGraphics()
         this.hud.initGraphics()
     }
 
@@ -1058,11 +1055,13 @@ export class TagScene extends GameScene {
 
     loadMap(map) {
         super.loadMap(map)
-        // Initialize Pixi object for background
-        if (this.background) {
-            this.background.initGraphics()
-        }
         this.addObject(Tag)
+    }
+
+    initGraphics() {
+        super.initGraphics()
+        this.background.initGraphics()
+        this.hud.initGraphics()
     }
 
     onAddObject(obj) {
