@@ -88,8 +88,8 @@ export class Pop extends GameObject {
 
     syncGraphics() {
         super.syncGraphics()
-        const scale = (10 + 100 * (1 - this.remIt / this.duration)) / 10
-        this._graphics.scale.set(scale, scale)
+        const size = (10 + 100 * (1 - this.remIt / this.duration))
+        pixiHelpers.scaleTo(this._graphics, size, size)
     }
 }
 
