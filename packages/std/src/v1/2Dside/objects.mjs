@@ -50,14 +50,6 @@ export class SmokeExplosion extends GameObject {
         const time = this.iteration * this.game.dt
         return SmokeExplosionSpriteSheet.getTexture(floor(time / .5 * 4))
     }
-
-    syncGraphics() {
-        super.syncGraphics()
-        // Scale based on time
-        const time = this.iteration * this.game.dt
-        const scale = 1 + time * 2
-        this._graphics.scale.set(scale, scale)
-    }
 }
 
 
@@ -734,6 +726,13 @@ export class Spiky extends Enemy {
 
     getBaseTexture() {
         return SpikyImg.getTexture()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        const initAngle = this._graphicsInitAngle ||= 2*PI*random()
+        const angle = initAngle + this.scene.iteration / 20 * PI
+        this._graphics.y = this.y + this.height * .05 * cos(angle)
     }
 }
 

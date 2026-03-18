@@ -167,6 +167,12 @@ export class Hero extends GameObject {
         this.scene.syncHero(this)
     }
 
+    syncGraphics() {
+        super.syncGraphics()
+        if(this.getDamagedAge <= 5) pixiHelpers.colorizeSprite(this._graphics, "red")
+        else pixiHelpers.resetSpriteColor(this._graphics) 
+    }
+
     /**
      * Create Pixi container for hero with body sprite
      * @returns {PIXI.Container|null}

@@ -331,9 +331,9 @@ export class AttackMixin extends Mixin {
         const attacker = props?.attacker
         if(this.getHealth() <= 0) {
             this.die(attacker)
-        } else if(attacker) {
-            this.speedY = -200
-            this.speedX = 200 * ((this.x > attacker.x) ? 1 : -1)
+        } else {
+            this.speedX = 0
+            this.speedY = 0
         }
     }
 
