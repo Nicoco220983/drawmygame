@@ -809,10 +809,6 @@ export class BlobEnemy extends Enemy {
         return props
     }
 
-    getBaseTexture() {
-        return BlobImg.getTexture()
-    }
-
     getHitBox() {
         return {
             left: this.x - 10,
@@ -820,6 +816,20 @@ export class BlobEnemy extends Enemy {
             top: this.y - 30,
             height: 60,
         }
+    }
+
+    getBaseTexture() {
+        return BlobImg.getTexture()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        const initAngle = this._graphicsInitAngle ||= 2*PI*random()
+        const angle = initAngle + this.scene.iteration / 20 * PI
+        const cosAngle = cos(angle), sinAngle = sin(angle)
+        this._graphics.x = this.x - this.width * .05 * cosAngle
+        this._graphics.y = this.y - this.height * .05 * sinAngle
+        pixiHelpers.scaleTo(this._graphics, this.width * (1+.1*cosAngle), this.height * (1+.1*sinAngle), this.dirX, this.dirY)
     }
 }
 

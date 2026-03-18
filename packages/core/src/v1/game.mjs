@@ -670,14 +670,14 @@ export class GameObject {
                 pixiObj.texture = newTexture
             }
             
-            if (width !== undefined && pixiObj.texture) {
-                const origWidth = pixiObj.texture.orig?.width || pixiObj.texture.width || 1
-                pixiObj.scale.x = (width / origWidth) * (dirX >= 0 ? 1 : -1)
-            }
-            if (height !== undefined && pixiObj.texture) {
-                const origHeight = pixiObj.texture.orig?.height || pixiObj.texture.height || 1
-                pixiObj.scale.y = (height / origHeight) * (dirY >= 0 ? 1 : -1)
-            }
+            // if (width !== undefined && pixiObj.texture) {
+            //     const origWidth = pixiObj.texture.orig?.width || pixiObj.texture.width || 1
+            //     pixiObj.scale.x = (width / origWidth) * (dirX >= 0 ? 1 : -1)
+            // }
+            // if (height !== undefined && pixiObj.texture) {
+            //     const origHeight = pixiObj.texture.orig?.height || pixiObj.texture.height || 1
+            //     pixiObj.scale.y = (height / origHeight) * (dirY >= 0 ? 1 : -1)
+            // }
         }
         
         // Update graphics-specific properties
@@ -685,13 +685,12 @@ export class GameObject {
             // Clear and redraw if color changed
             pixiObj.clear()
             pixiHelpers.drawRect(pixiObj, 0, 0, width, height, color)
-            pixiObj.x = x
-            pixiObj.y = y
         }
 
-        // Update position
         pixiObj.x = x
         pixiObj.y = y
+
+        pixiHelpers.scaleTo(pixiObj, width, height, dirX, dirY)
 
         if (angle !== undefined) pixiObj.rotation = (angle * Math.PI) / 180
         if (visibility !== undefined) pixiObj.alpha = visibility

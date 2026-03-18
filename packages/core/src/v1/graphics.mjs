@@ -214,6 +214,12 @@ export function drawCircle(graphics, x, y, radius, color = 0xffffff, alpha = 1) 
     graphics.endFill()
 }
 
+function scaleTo(pixiObj, width, height, dirX=1, dirY=1) {
+    const bounds = pixiObj.texture?.orig ?? pixiObj.texture ?? pixiObj.getBounds()
+    pixiObj.scale.x = width / bounds.width * dirX
+    pixiObj.scale.y = height / bounds.height * dirY
+}
+
 // pixiHelpers namespace for backward compatibility
 export const pixiHelpers = {
     createSpriteFromSheet,
@@ -239,4 +245,5 @@ export const pixiHelpers = {
             obj._destroyed = true
         }
     },
+    scaleTo,
 }
