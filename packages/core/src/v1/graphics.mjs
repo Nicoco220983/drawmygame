@@ -110,6 +110,7 @@ export function createSpriteFromSheet(sheet, frameName) {
  * @returns {PIXI.Sprite|null}
  */
 export function createSpriteFromCanvas(source) {
+    if(!source) return null
     // If source is already a texture, use it directly
     if (source instanceof PIXI.Texture) {
         return new PIXI.Sprite(source)

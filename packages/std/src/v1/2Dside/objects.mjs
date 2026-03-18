@@ -1003,7 +1003,12 @@ export class Star extends Extra {
     }
 
     getBaseTexture() {
-        return this.owner ? null : StarImg.getTexture()
+        return StarImg.getTexture()
+    }
+
+    syncGraphics() {
+        this.visibility = !this.owner
+        return super.syncGraphics()
     }
 }
 

@@ -96,9 +96,7 @@ export class Img extends Image {
      */
     getTexture() {
         if (IS_SERVER_ENV || this.unloaded) return null
-        if (!this._texture) {
-            this._createTexture()
-        }
+        if (!this._texture) this._createTexture()
         return this._texture
     }
 }
