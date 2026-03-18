@@ -914,10 +914,6 @@ export class Ghost extends Enemy {
         return obj.constructor.IS_HERO
     }
 
-    getBaseTexture() {
-        return GhostImg.getTexture()
-    }
-
     getHitBox() {
         return {
             left: this.x - 30,
@@ -925,6 +921,17 @@ export class Ghost extends Enemy {
             top: this.y - 10,
             height: 20,
         }
+    }
+
+    getBaseTexture() {
+        return GhostImg.getTexture()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        const initAngle = this._graphicsInitAngle ||= 2*PI*random()
+        const angle = initAngle + this.scene.iteration / 20 * PI
+        this._graphics.y = this.y + this.height * .1 * cos(angle)
     }
 }
 
