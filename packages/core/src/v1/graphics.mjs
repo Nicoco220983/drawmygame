@@ -145,15 +145,7 @@ export function createTextPixi(text, options = {}) {
  * @returns {PIXI.Sprite|null}
  */
 export function colorizeSprite(sprite, color) {
-    // Convert string color to number if needed
-    let tint = color
-    if (typeof color === 'string') {
-        // Remove # if present and parse
-        const hex = color.replace('#', '')
-        tint = parseInt(hex, 16)
-    }
-    
-    sprite.tint = tint
+    sprite.tint = toPixiColor(color)
     return sprite
 }
 
@@ -202,12 +194,7 @@ export function setAnimationFrame(sprite, frameIndex) {
  * @param {number} alpha - Alpha (0-1)
  */
 export function drawRect(graphics, x, y, width, height, color = 0xffffff, alpha = 1) {
-    let fillColor = color
-    if (typeof color === 'string') {
-        fillColor = parseInt(color.replace('#', ''), 16)
-    }
-    
-    graphics.beginFill(fillColor, alpha)
+    graphics.beginFill(toPixiColor(color), alpha)
     graphics.drawRect(x - width / 2, y - height / 2, width, height)
     graphics.endFill()
 }
@@ -222,12 +209,7 @@ export function drawRect(graphics, x, y, width, height, color = 0xffffff, alpha 
  * @param {number} alpha - Alpha (0-1)
  */
 export function drawCircle(graphics, x, y, radius, color = 0xffffff, alpha = 1) {
-    let fillColor = color
-    if (typeof color === 'string') {
-        fillColor = parseInt(color.replace('#', ''), 16)
-    }
-    
-    graphics.beginFill(fillColor, alpha)
+    graphics.beginFill(toPixiColor(color), alpha)
     graphics.drawCircle(x, y, radius)
     graphics.endFill()
 }
