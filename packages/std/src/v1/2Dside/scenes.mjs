@@ -11,6 +11,7 @@ import {
 import {
     ActivableMixin, CollectMixin, OwnerableMixin, BodyMixin, PhysicsMixin, AttackMixin, 
 } from '../mixins.mjs'
+import { ObjectBars } from '../utils.mjs'
 import { Enemy, Wall, Star, HeroSpawnPoint, Ball } from './objects.mjs'
 import { Hero } from './heros.mjs'
 
@@ -1231,87 +1232,15 @@ export class Tag extends GameObject {
 const StarImg = new Img("/static/catalogs/std/v1/2Dside/assets/star.png")
 
 @Dependencies.add(StarImg)
-@OwnerableMixin.add()
-class StarsBar extends GameObject {
+class StarsBar extends ObjectBars {
 
-    static STAR_SIZE = 16
-    static STAR_SPACING = 2
-
-    init(kwargs) {
-        super.init(kwargs)
-        this._lastStarCount = -1
+    getObjectTexture() {
+        return StarImg.getTexture()
     }
 
-    update() {
-        super.update()
+    getObjectCount() {
         const { owner } = this
-        if (owner) {
-            this.x = owner.x
-            this.y = owner.y - owner.height / 2 - 15
-        }
-    }
-
-    createGraphics() {
-        this._container = new window.PIXI.Container()
-        this._starSprites = []
-        return this._container
-    }
-
-    syncGraphics() {
-        const pixiObj = this._container
-        if (!pixiObj) return
-
-        pixiObj.x = this.x
-        pixiObj.y = this.y
-        pixiObj.zIndex = this.z
-        pixiObj.visible = this.visibility
-
-        const { owner } = this
-        if (!owner) {
-            pixiObj.visible = false
-            return
-        }
-
-        const starCount = countStarExtras(owner)
-
-        // Only rebuild sprites if count changed
-        if (starCount !== this._lastStarCount) {
-            this._lastStarCount = starCount
-            this._rebuildStarSprites(starCount)
-        }
-    }
-
-    _rebuildStarSprites(starCount) {
-        const { _container, _starSprites } = this
-        const { STAR_SIZE, STAR_SPACING } = StarsBar
-
-        // Remove excess sprites
-        while (_starSprites.length > starCount) {
-            const sprite = _starSprites.pop()
-            _container.removeChild(sprite)
-            sprite.destroy()
-        }
-
-        // Add new sprites if needed
-        const texture = StarImg.getTexture()
-        if(texture) while (_starSprites.length < starCount) {
-            const sprite = pixiHelpers.createSpriteFromCanvas(texture)
-            sprite.anchor.set(0.5)
-            sprite.width = STAR_SIZE
-            sprite.height = STAR_SIZE
-            _starSprites.push(sprite)
-            _container.addChild(sprite)
-        }
-
-        // Position all sprites in a horizontal bar, centered
-        const totalWidth = starCount * STAR_SIZE + (starCount - 1) * STAR_SPACING
-        let currentX = -totalWidth / 2 + STAR_SIZE / 2
-
-        for (const sprite of _starSprites) {
-            sprite.x = currentX
-            sprite.y = 0
-            currentX += STAR_SIZE + STAR_SPACING
-        }
+        return owner ? countStarExtras(owner) : 0
     }
 
 }
