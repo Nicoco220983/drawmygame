@@ -155,7 +155,7 @@ async function updScene(scnMapId, scnMap) {
     await gameBuilder.loadScenesFromMap(scnMap.key, scnMapId)
 }
 scnsEl.onchange = async () => {
-    const prevScn = gameBuilder?.scenes["0"]
+    const prevScn = gameBuilder?.scenes?.game
     await updScene("0", {
         ...(prevScn ? prevScn.getState(true) : null),
         key: scnsEl.value.key,
