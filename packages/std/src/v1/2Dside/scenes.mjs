@@ -1574,8 +1574,8 @@ export class WaitingScene extends Scene {
 
     update() {
         this.notifs.update()
-        this.playerList.x = this.viewWidth / 2
-        this.playerList.y = this.viewHeight / 3
+        this.playerList.x = this.viewWidth * .1
+        this.playerList.y = this.viewHeight * .3
         this.playerList.setPlayers(this.game.players)
     }
 
@@ -1591,8 +1591,8 @@ export class WaitingScene extends Scene {
         ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
         
         this._qrcodeObj = this.addNotif(QrCodeDisplay, { image: can })
-        this._qrcodeObj.x = this.viewWidth / 2
-        this._qrcodeObj.y = this.viewHeight * 2 / 3
+        this._qrcodeObj.x = this.viewWidth * .75
+        this._qrcodeObj.y = this.viewHeight * .6
     }
 
     async loadJoypadScene() {
