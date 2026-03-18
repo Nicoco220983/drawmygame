@@ -439,12 +439,12 @@ export class Cloud extends Block {
     }
 
     syncGraphics() {
-        super.syncGraphics()
         // Update visibility based on step
         const { step } = this
-        if (step == 0) pixiObj.alpha = 1
-        else if (step == 1) pixiObj.alpha = 0.75
-        else pixiObj.alpha = 0.5
+        if (step == 0) this.visibility = 1
+        else if (step == 1) this.visibility = 0.75
+        else this.visibility = 0.5
+        super.syncGraphics()
     }
 }
 
@@ -531,9 +531,9 @@ export class Trap extends Block {
     }
 
     syncGraphics() {
+        this.angle = this.getAngle()
+        this.visibility = this.canAttack ? 1 : 0
         super.syncGraphics()
-        pixiObj.rotation = (this.getAngle() * Math.PI) / 180
-        pixiObj.alpha = this.canAttack ? 1 : 0
     }
 }
 
