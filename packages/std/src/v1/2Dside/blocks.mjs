@@ -36,7 +36,7 @@ export class Block extends GameObject {
      * Create Pixi sprite for block
      * @returns {PIXI.Sprite|null}
      */
-    createPixiObject() {
+    createGraphics() {
         const img = this.getBaseTexture()
         if (!img) return null
         

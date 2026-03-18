@@ -171,7 +171,7 @@ export class Hero extends GameObject {
      * Create Pixi container for hero with body sprite
      * @returns {PIXI.Container|null}
      */
-    // createPixiObject() {
+    // createGraphics() {
     //     // Create main container
     //     const container = pixiHelpers.createContainer()
     //     if (!container) return null

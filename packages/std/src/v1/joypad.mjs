@@ -86,7 +86,7 @@ export class JoypadButton extends GameObject {
         })
     }
 
-    createPixiObject() {
+    createGraphics() {
         const container = new window.PIXI.Container()
         
         // Background sprite
@@ -131,7 +131,7 @@ export class JoypadButton extends GameObject {
     }
 
     syncGraphics() {
-        const container = this._pixiObject
+        const container = this._graphics
         if (!container) return
         
         // Update container position
@@ -232,7 +232,7 @@ export class StickButton extends GameObject {
         return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
     }
 
-    createPixiObject() {
+    createGraphics() {
         const container = new window.PIXI.Container()
         
         // Background sprite
@@ -275,7 +275,7 @@ export class StickButton extends GameObject {
     }
 
     syncGraphics() {
-        const container = this._pixiObject
+        const container = this._graphics
         if (!container) return
         
         container.x = this.x

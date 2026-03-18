@@ -467,7 +467,7 @@ export class GameObject {
         this.scene = scn
         this.game = scn.game
         this.init(kwargs)
-        this.initPixiObject(kwargs?.pixiContainer)
+        if(this.game.hasGraphics) this.initGraphics(kwargs?.pixiContainer)
     }
 
     init(kwargs) {
@@ -491,13 +491,12 @@ export class GameObject {
     /**
      * Initialize the Pixi object for this game object.
      * Called automatically when object is added to a scene with Pixi support.
-     * Subclasses can override createPixiObject() to customize.
+     * Subclasses can override createGraphics() to customize.
      */
-    initPixiObject(scnPixiContainer) {
-        if(!this.game.hasGraphics) return
-        const pixiObj = this.createPixiObject()
+    initGraphics(scnPixiContainer) {
+        const pixiObj = this.createGraphics()
         if (pixiObj) {
-            this._pixiObject = pixiObj
+            this._graphics = pixiObj
             if(!scnPixiContainer) scnPixiContainer = this.scene.objectsPixiContainer
             scnPixiContainer.addChild(pixiObj)
             this.syncGraphics()
@@ -627,7 +626,7 @@ export class GameObject {
      * Note: This is only called on client, subclasses don't need to check IS_SERVER_ENV.
      * @returns {PIXI.DisplayObject|null} The Pixi object or null for invisible objects
      */
-    createPixiObject() {
+    createGraphics() {
         // Default implementation: create a sprite from base texture or colored rect
         const texture = this.getBaseTexture()
         const { color } = this
@@ -637,7 +636,6 @@ export class GameObject {
             const sprite = pixiHelpers.createSpriteFromCanvas(texture)
             if (sprite) {
                 sprite.anchor.set(0.5, 0.5)
-                this._pixiSprite = sprite
                 return sprite
             }
         }
@@ -647,7 +645,6 @@ export class GameObject {
             const graphics = new PIXI.Graphics()
             if (graphics) {
                 pixiHelpers.drawRect(graphics, 0, 0, this.width, this.height, color)
-                this._pixiGraphics = graphics
                 return graphics
             }
         }
@@ -662,7 +659,7 @@ export class GameObject {
      * Note: This is only called on client.
      */
     syncGraphics() {
-        const pixiObj = this._pixiObject
+        const pixiObj = this._graphics
         if(!pixiObj) return
         const { x, y, z, width, height, dirX, dirY, angle, visibility, color } = this
         
@@ -709,7 +706,7 @@ export class GameObject {
      * @returns {PIXI.DisplayObject|null}
      */
     getPixiObject() {
-        return this._pixiObject || null
+        return this._graphics || null
     }
 
     /**
@@ -717,7 +714,7 @@ export class GameObject {
      * @param {PIXI.DisplayObject|null} obj
      */
     setPixiObject(obj) {
-        this._pixiObject = obj
+        this._graphics = obj
     }
 
     /**
@@ -725,8 +722,8 @@ export class GameObject {
      * Called automatically when object is removed from scene.
      */
     removePixiObject() {
-        this._pixiObject?.destroy()
-        this._pixiObject = null
+        this._graphics?.destroy()
+        this._graphics = null
     }
 }
 
@@ -843,7 +840,7 @@ export class Text extends GameObject {
         this.text = text
     }
 
-    createPixiObject() {
+    createGraphics() {
         const style = new window.PIXI.TextStyle({
             fontFamily: this._fontFamily,
             fontSize: this._fontSize,
@@ -858,7 +855,7 @@ export class Text extends GameObject {
     }
 
     syncGraphics() {
-        const pixiObj = this._pixiObject
+        const pixiObj = this._graphics
         if (!pixiObj) return
         pixiObj.x = this.x
         pixiObj.y = this.y

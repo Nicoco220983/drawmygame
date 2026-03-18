@@ -56,7 +56,7 @@ export class SmokeExplosion extends GameObject {
         // Scale based on time
         const time = this.iteration * this.game.dt
         const scale = 1 + time * 2
-        this._pixiObject.scale.set(scale, scale)
+        this._graphics.scale.set(scale, scale)
     }
 }
 
@@ -89,7 +89,7 @@ export class Pop extends GameObject {
     syncGraphics() {
         super.syncGraphics()
         const scale = (10 + 100 * (1 - this.remIt / this.duration)) / 10
-        this._pixiObject.scale.set(scale, scale)
+        this._graphics.scale.set(scale, scale)
     }
 }
 

@@ -395,7 +395,7 @@ export class HeadsUpDisplay extends GameObject {
         this._playerIds = []
     }
 
-    createPixiObject() {
+    createGraphics() {
         this._container = new window.PIXI.Container()
         return this._container
     }
@@ -555,7 +555,7 @@ class QrCodeDisplay extends GameObject {
         this._height = this._image?.height ?? 100
     }
 
-    createPixiObject() {
+    createGraphics() {
         if (!window.PIXI || !this._image) return null
         const texture = window.PIXI.Texture.from(this._image)
         const sprite = new window.PIXI.Sprite(texture)
@@ -564,7 +564,7 @@ class QrCodeDisplay extends GameObject {
     }
 
     syncGraphics() {
-        const pixiObj = this._pixiObject
+        const pixiObj = this._graphics
         if (!pixiObj) return
         pixiObj.x = this.x
         pixiObj.y = this.y
@@ -599,7 +599,7 @@ export class Background extends GameObject {
         this.y = this.height / 2
     }
 
-    createPixiObject() {
+    createGraphics() {
         const img = this.getBaseTexture()
         if (!img) return null
         
@@ -616,7 +616,7 @@ export class Background extends GameObject {
     }
 
     syncGraphics() {
-        const pixiObj = this._pixiObject
+        const pixiObj = this._graphics
         if(!pixiObj) return
         pixiObj.x = this.x
         pixiObj.y = this.y
@@ -975,9 +975,9 @@ export class StandardScene extends GameScene {
         super.loadMap(scnMapId)
         // Initialize Pixi objects
         if (this.background) {
-            this.background.initPixiObject()
+            this.background.initGraphics()
         }
-        this.hud.initPixiObject()
+        this.hud.initGraphics()
     }
 
     update() {
@@ -1059,7 +1059,7 @@ export class TagScene extends GameScene {
         super.loadMap(map)
         // Initialize Pixi object for background
         if (this.background) {
-            this.background.initPixiObject()
+            this.background.initGraphics()
         }
         this.addObject(Tag)
     }
@@ -1614,7 +1614,7 @@ export class PlayerList extends GameObject {
         this._players = players
     }
 
-    createPixiObject() {
+    createGraphics() {
         this._container = new window.PIXI.Container()
         this._rows = {}
         return this._container
