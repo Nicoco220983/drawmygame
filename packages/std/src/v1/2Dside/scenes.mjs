@@ -22,6 +22,51 @@ const REGISTER_COMMON_ARGS = {
 }
 
 
+// TEAM MARK ////////////////////////////////////
+
+const TeamMarkImg = new Img("/static/catalogs/std/v1/team_mark.png")
+
+@Dependencies.add(TeamMarkImg)
+@OwnerableMixin.add({
+    removedWithOwner: true,
+})
+export class TeamMark extends GameObject {
+
+    init(kwargs) {
+        super.init(kwargs)
+        this.width = 30
+        this.height = 30
+    }
+
+    update() {
+        super.update()
+        this.syncPos()
+    }
+
+    syncPos() {
+        const { owner } = this
+        if (!owner) return
+        this.x = owner.x
+        this.y = owner.y - owner.height / 2 - 20
+        this.z = owner.z + 1
+    }
+
+    getBaseImg() {
+        return TeamMarkImg
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        const { owner, _graphics, scene } = this
+        if (!_graphics || !owner) return
+        const teamColor = scene.teamsManager?.getTeamColor?.(owner.team)
+        if (teamColor) {
+            pixiHelpers.tintSprite(_graphics, teamColor)
+        }
+    }
+}
+
+
 // MANAGERS ///////////////////////////////////////
 
 @StateNumber.undefine("z")
@@ -301,6 +346,9 @@ export class TeamsManager extends Manager {
 
     initHero(hero) {
         this.assignHeroTeam(hero)
+        if (hero.team !== null) {
+            this.scene.addObject(TeamMark, { owner: hero })
+        }
     }
 
     assignHeroTeam(hero) {
@@ -1212,8 +1260,8 @@ const StarImg = new Img("/static/catalogs/std/v1/2Dside/assets/star.png")
 @Dependencies.add(StarImg)
 class StarsBar extends ObjectBars {
 
-    getObjectTexture() {
-        return StarImg.getImg()
+    getObjectImg() {
+        return StarImg
     }
 
     getObjectCount() {

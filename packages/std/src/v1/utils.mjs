@@ -1,12 +1,12 @@
 const { floor } = Math
-import { GameObject } from '../../../core/v1/index.mjs'
+import { GameObject, pixiHelpers } from '../../../core/v1/index.mjs'
 import { OwnerableMixin } from './mixins.mjs'
 
 
 /**
  * Generic class to display a horizontal bar of object icons above an owner.
  * Child classes must provide:
- * - getObjectTexture(): Returns the PIXI.Texture to use for each icon
+ * - getObjectImg(): Returns the PIXI.Texture to use for each icon
  * - getObjectCount(): Returns the number of objects to display
  */
 @OwnerableMixin.add()
@@ -40,8 +40,8 @@ export class ObjectBars extends GameObject {
      * Get the PIXI.Texture for the object icons.
      * Must be implemented by child classes.
      */
-    getObjectTexture() {
-        throw new Error("getObjectTexture() must be implemented by subclass")
+    getObjectImg() {
+        throw new Error("getObjectImg() must be implemented by subclass")
     }
 
     /**
@@ -106,7 +106,7 @@ export class ObjectBars extends GameObject {
         }
 
         // Add new sprites if needed
-        const texture = this.getObjectTexture()
+        const texture = getCachedTexture(this.getObjectImg())
         while (_iconSprites.length < count) {
             const sprite = new window.PIXI.Sprite(texture)
             sprite.anchor.set(0.5)
