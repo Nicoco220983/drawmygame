@@ -1276,23 +1276,42 @@ export class Wall extends GameObject {
         return pol
     }
 
-    getBaseImg() {
-        const { x1, y1, x2, y2 } = this
-        let baseImg = this._baseImg
-        if (baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return baseImg
-        const lineWidth = 5
-        baseImg = newCanvas(abs(x1 - x2) + 2*lineWidth, abs(y1 - y2) + 2*lineWidth)
-        const ctx = baseImg.getContext("2d")
-        ctx.lineWidth = lineWidth
-        ctx.strokeStyle = this.color
-        ctx.beginPath()
-        const minX = min(x1, x2), minY = min(y1, y2)
-        ctx.moveTo(lineWidth + x1 - minX, lineWidth + y1 - minY)
-        ctx.lineTo(lineWidth + x2 - minX, lineWidth + y2 - minY)
-        ctx.stroke()
-        assign(baseImg, { x1, y1, x2, y2 })
-        this._baseImg = baseImg
-        return baseImg
+    syncGraphics() {
+        const container = this._graphics
+        if (!container) return
+        
+        const { x1, y1, x2, y2, color, visibility, z } = this
+        
+        // Update container properties (Wall doesn't use x,y,width,height like regular objects)
+        if (visibility !== undefined) container.alpha = visibility
+        if (z !== undefined) container.zIndex = z
+        
+        // Get or create the graphics child
+        let graphics = container._wallGraphics
+        if (!graphics) {
+            graphics = container._wallGraphics = new window.PIXI.Graphics()
+            container.addChild(graphics)
+        }
+        
+        // Check if we need to redraw
+        if (graphics._wallX1 === x1 && graphics._wallY1 === y1 && 
+            graphics._wallX2 === x2 && graphics._wallY2 === y2 &&
+            graphics._wallColor === color) {
+            return
+        }
+        
+        // Clear and redraw the wall line
+        graphics.clear()
+        graphics.moveTo(x1, y1)
+        graphics.lineTo(x2, y2)
+        graphics.stroke({ width: 5, color: pixiHelpers.toPixiColor(color) })
+        
+        // Cache current state
+        graphics._wallX1 = x1
+        graphics._wallY1 = y1
+        graphics._wallX2 = x2
+        graphics._wallY2 = y2
+        graphics._wallColor = color
     }
 
     getState(isInitState = false) {

@@ -231,6 +231,7 @@ export const pixiHelpers = {
     setAnimationFrame,
     drawRect,
     drawCircle,
+    toPixiColor,
     
     // Aliases for compatibility
     createSprite: createSpriteFromCanvas,

@@ -213,6 +213,7 @@ class DraftScene extends Scene {
      * @param {object} kwargs - Additional arguments.
      */
     setDraftObject(key, kwargs) {
+        const { mode } = this.game
         
         // Clean up old draft object
         if(this.draftObject) {
@@ -222,10 +223,7 @@ class DraftScene extends Scene {
         
         if(key) {
             this.draftObject = this.createObjectFromKey(key, kwargs)
-            // Pixi object is created automatically by constructor
-            // Set semi-transparent alpha
-            const pixiObj = this.draftObject.getPixiObject?.()
-            if (pixiObj) pixiObj.alpha = 0.5
+            this.draftObject.visibility = (mode == "wall") ? 0 : .5
         }
     }
 
@@ -566,6 +564,7 @@ class DraftScene extends Scene {
             }
             this.draftObject.x1 = pos.x - gameScn.viewX
             this.draftObject.y1 = pos.y - gameScn.viewY
+            this.draftObject.visibility = .5
             this.prevPos = pos
         }
     }
