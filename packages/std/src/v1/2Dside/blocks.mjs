@@ -31,46 +31,6 @@ export class Block extends GameObject {
         super.init(kwargs)
         this.width = this.height = floor(this.scene.gridSize)
     }
-
-    /**
-     * Create Pixi sprite for block
-     * @returns {PIXI.Sprite|null}
-     */
-    createGraphics() {
-        const img = this.getBaseTexture()
-        if (!img) return null
-        
-        const sprite = pixiHelpers.createSpriteFromCanvas(img)
-        if (!sprite) return null
-        
-        // Center anchor
-        sprite.anchor.set(0.5, 0.5)
-        
-        // Set initial position and size
-        sprite.x = this.x
-        sprite.y = this.y
-        sprite.width = this.width
-        sprite.height = this.height
-        
-        // Apply color tint if set
-        if (this.color) {
-            pixiHelpers.colorizeSprite(sprite, this.color)
-        }
-        
-        return sprite
-    }
-
-    // syncGraphics() {
-    //     // Update position
-    //     pixiHelpers.setPosition(pixiObj, this.x, this.y)
-        
-    //     // Update size
-    //     pixiObj.width = this.width
-    //     pixiObj.height = this.height
-        
-    //     // Update visibility
-    //     pixiHelpers.setSpriteAlpha(pixiObj, this.visibility ?? 1)
-    // }
 }
 
 @Category.append("background")
@@ -97,21 +57,16 @@ const DirtImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/dirt.png")
 @Dependencies.add(DirtImg)
 @StateString.define("color", { showInBuilder: true })
 export class DirtBlock extends Block {
-    getBaseTexture() {
+
+    getBaseImg() {
         let img = DirtImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#6f911b")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics() {
-    //     super.syncGraphics()
-    //     // Apply color tint in Pixi (more efficient than colorizing canvas)
-    //     pixiHelpers.colorizeSprite(pixiObj, this.color)
-    // }
 }
 
 
@@ -126,22 +81,15 @@ const StoneImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/stone.png
 @Dependencies.add(StoneImg)
 @StateString.define("color", { showInBuilder: true })
 export class StoneBlock extends Block {
-    getBaseTexture() {
+    getBaseImg() {
         let img = StoneImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -155,22 +103,15 @@ const BackgroundStoneImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks
 @Dependencies.add(BackgroundStoneImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundStoneBlock extends BackgroundBlock {
-    getBaseTexture() {
+    getBaseImg() {
         let img = BackgroundStoneImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -185,22 +126,15 @@ const BricksImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/bricks.p
 @Dependencies.add(BricksImg)
 @StateString.define("color", { showInBuilder: true })
 export class BricksBlock extends Block {
-    getBaseTexture() {
+    getBaseImg() {
         let img = BricksImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -215,22 +149,15 @@ const BackgroundBricksImg = new Img("/static/catalogs/std/v1/2Dside/assets/block
 @Dependencies.add(BackgroundBricksImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundBricksBlock extends BackgroundBlock {
-    getBaseTexture() {
+    getBaseImg() {
         let img = BackgroundBricksImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -245,22 +172,15 @@ const WoodImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/wood.png")
 @Dependencies.add(WoodImg)
 @StateString.define("color", { showInBuilder: true })
 export class WoodBlock extends Block {
-    getBaseTexture() {
+    getBaseImg() {
         let img = WoodImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -275,22 +195,15 @@ const BackgroundWoodImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/
 @Dependencies.add(BackgroundWoodImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundWoodBlock extends BackgroundBlock {
-    getBaseTexture() {
+    getBaseImg() {
         let img = BackgroundWoodImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -325,22 +238,16 @@ export class PlatformBlock extends Block {
         )
         return pol
     }
-    getBaseTexture() {
+
+    getBaseImg() {
         let img = PlatformImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
-
-    // syncGraphics(pixiObj, dt) {
-    //     super.syncGraphics(pixiObj, dt)
-    //     if (!IS_SERVER_ENV && pixiObj && this.color) {
-    //         pixiHelpers.colorizeSprite(pixiObj, this.color)
-    //     }
-    // }
 }
 
 
@@ -382,8 +289,8 @@ export class Door extends Block {
         this.lastBlockIt = this.scene.iteration
     }
 
-    getBaseTexture() {
-        return DoorSpriteSheet.getTexture(this.closed ? 0 : 1)
+    getBaseImg() {
+        return DoorSpriteSheet.getImg(this.closed ? 0 : 1)
     }
 }
 
@@ -434,8 +341,8 @@ export class Cloud extends Block {
         this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
     }
 
-    getBaseTexture() {
-        return CloudImg.getTexture()
+    getBaseImg() {
+        return CloudImg
     }
 
     syncGraphics() {
@@ -555,8 +462,8 @@ export class BoxingTrap extends Trap {
         this.attackKnockback = 1000
     }
 
-    getBaseTexture() {
-        return BoxingGloveImg.getTexture()
+    getBaseImg() {
+        return BoxingGloveImg
     }
 }
 
@@ -577,8 +484,8 @@ export class BouncingBlock extends Block {
         this.physicsBounciness = 1
     }
 
-    getBaseTexture() {
-        return BouncingBlockImg.getTexture()
+    getBaseImg() {
+        return BouncingBlockImg
     }
 }
 
@@ -600,8 +507,8 @@ export class IceBlock extends Block {
         this.physicsDynamicFriction = 0
     }
 
-    getBaseTexture() {
-        return IceBlockImg.getTexture()
+    getBaseImg() {
+        return IceBlockImg
     }
 }
 
@@ -631,7 +538,7 @@ export class SpiderWebBlock extends Block {
         if(abs(obj.speedY) > targetMaxSpeed) obj.speedY = sign(obj.speedY) * targetMaxSpeed
     }
 
-    getBaseTexture() {
-        return SpiderWebBlockImg.getTexture()
+    getBaseImg() {
+        return SpiderWebBlockImg
     }
 }

@@ -46,9 +46,9 @@ export class SmokeExplosion extends GameObject {
         if (time > .5) { this.remove(); return }
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const time = this.iteration * this.game.dt
-        return SmokeExplosionSpriteSheet.getTexture(floor(time / .5 * 4))
+        return SmokeExplosionSpriteSheet.getImg(floor(time / .5 * 4))
     }
 }
 
@@ -65,6 +65,7 @@ export class Pop extends GameObject {
         this.duration = floor(this.game.fps * .25)
         this.remIt = this.duration
     }
+
     update() {
         if (!this._soundPlayed) {
             this.game.audio.playSound(PopAud)
@@ -74,8 +75,9 @@ export class Pop extends GameObject {
         this.remIt -= 1
         if (this.remIt <= 0) this.remove()
     }
-    getBaseTexture() {
-        return PopImg.getTexture()
+
+    getBaseImg() {
+        return PopImg
     }
 
     syncGraphics() {
@@ -300,12 +302,12 @@ export class Sword extends Weapon {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if (ratioSinceLastAttack <= 1) {
-            return SwordSlashSpriteSheet.getTexture(floor(6 * ratioSinceLastAttack))
+            return SwordSlashSpriteSheet.getImg(floor(6 * ratioSinceLastAttack))
         } else {
-            return SwordImg.getTexture()
+            return SwordImg
         }
     }
 }
@@ -383,8 +385,8 @@ export class BoxingGlove extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseTexture() {
-        return BoxingGloveImg.getTexture()
+    getBaseImg() {
+        return BoxingGloveImg
     }
 }
 
@@ -425,8 +427,8 @@ export class Shuriken extends Projectile {
         if (this.itToLive <= 0) this.remove()
     }
 
-    getBaseTexture() {
-        return ShurikenImg.getTexture()
+    getBaseImg() {
+        return ShurikenImg
     }
 }
 
@@ -482,8 +484,8 @@ export class ShurikenPack extends Extra {
         if (this.actRemIt > 0) this.actRemIt -= 1
     }
 
-    getBaseTexture() {
-        return ShurikenImg.getTexture()
+    getBaseImg() {
+        return ShurikenImg
     }
 }
 
@@ -525,8 +527,8 @@ export class Explosion extends GameObject {
         this.iteration += 1
     }
 
-    getBaseTexture() {
-        return ExplosionSpriteSheet.getTexture(floor(
+    getBaseImg() {
+        return ExplosionSpriteSheet.getImg(floor(
             this.iteration / this.game.fps * 15
         ))
     }
@@ -593,10 +595,10 @@ export class Bomb extends Extra {
         this.itToLive = this.countdown * this.game.fps
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const { itToLive, countdown } = this
-        if (itToLive === null) return BombSpriteSheet.getTexture(0)
-        return BombSpriteSheet.getTexture(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
+        if (itToLive === null) return BombSpriteSheet.getImg(0)
+        return BombSpriteSheet.getImg(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
     }
 }
 
@@ -670,8 +672,8 @@ export class JetPack extends Extra {
         this.y = owner.y + 10
     }
 
-    getBaseTexture() {
-        return JetPackSpriteSheet.getTexture(this.isFlying() ? 1 : 0)
+    getBaseImg() {
+        return JetPackSpriteSheet.getImg(this.isFlying() ? 1 : 0)
     }
 
     remove() {
@@ -724,8 +726,8 @@ export class Spiky extends Enemy {
         return obj.constructor.IS_HERO
     }
 
-    getBaseTexture() {
-        return SpikyImg.getTexture()
+    getBaseImg() {
+        return SpikyImg
     }
 
     syncGraphics() {
@@ -817,8 +819,8 @@ export class BlobEnemy extends Enemy {
         }
     }
 
-    getBaseTexture() {
-        return BlobImg.getTexture()
+    getBaseImg() {
+        return BlobImg
     }
 
     syncGraphics() {
@@ -922,8 +924,8 @@ export class Ghost extends Enemy {
         }
     }
 
-    getBaseTexture() {
-        return GhostImg.getTexture()
+    getBaseImg() {
+        return GhostImg
     }
 
     syncGraphics() {
@@ -965,8 +967,8 @@ export class Heart extends GameObject {
         hero.damages = 0
     }
 
-    getBaseTexture() {
-        return HeartImg.getTexture()
+    getBaseImg() {
+        return HeartImg
     }
 }
 
@@ -1018,8 +1020,8 @@ export class Star extends Extra {
         else if (speedY < 0 && this.y < 0) this.speedY *= -1
     }
 
-    getBaseTexture() {
-        return StarImg.getTexture()
+    getBaseImg() {
+        return StarImg
     }
 
     syncGraphics() {
@@ -1052,8 +1054,8 @@ export class Checkpoint extends GameObject {
         this.scene.herosSpawnY = this.y
     }
 
-    getBaseTexture() {
-        return CheckpointImg.getTexture()
+    getBaseImg() {
+        return CheckpointImg
     }
 }
 
@@ -1099,8 +1101,8 @@ export class Portal extends GameObject {
         this.game.audio.playSound(PortalJumpAud)
     }
 
-    getBaseTexture() {
-        return PortalImg.getTexture()
+    getBaseImg() {
+        return PortalImg
     }
 }
 
@@ -1130,8 +1132,8 @@ const BallImg = new Img("/static/catalogs/std/v1/2Dside/assets/ball.png")
 })
 export class Ball extends GameObject {
 
-    getBaseTexture() {
-        return BallImg.getTexture()
+    getBaseImg() {
+        return BallImg
     }
 }
 
@@ -1151,8 +1153,8 @@ export class HeroSpawnPoint extends GameObject {
         this.width = this.height = 50
     }
 
-    getBaseTexture() {
-        return this.game.isBuilder ? PopImg.getTexture() : null
+    getBaseImg() {
+        return this.game.isBuilder ? PopImg : null
     }
 }
 
@@ -1235,8 +1237,8 @@ export class ObjectSpawner extends GameObject {
         return obj
     }
 
-    getBaseTexture() {
-        return PopImg.getTexture()
+    getBaseImg() {
+        return PopImg
     }
 }
 
@@ -1274,12 +1276,12 @@ export class Wall extends GameObject {
         return pol
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const { x1, y1, x2, y2 } = this
-        let baseTexture = this._baseTexture
-        if (baseTexture && baseTexture.x1 == x1 && baseTexture.y1 == y1 && baseTexture.x2 == x2 && baseTexture.y2 == y2) return baseTexture
+        let baseImg = this._baseImg
+        if (baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return baseImg
         const lineWidth = 5
-        const baseImg = newCanvas(abs(x1 - x2) + 2*lineWidth, abs(y1 - y2) + 2*lineWidth)
+        baseImg = newCanvas(abs(x1 - x2) + 2*lineWidth, abs(y1 - y2) + 2*lineWidth)
         const ctx = baseImg.getContext("2d")
         ctx.lineWidth = lineWidth
         ctx.strokeStyle = this.color
@@ -1288,9 +1290,9 @@ export class Wall extends GameObject {
         ctx.moveTo(lineWidth + x1 - minX, lineWidth + y1 - minY)
         ctx.lineTo(lineWidth + x2 - minX, lineWidth + y2 - minY)
         ctx.stroke()
-        baseTexture = this._baseTexture = window.PIXI.Texture.from(baseImg)
-        assign(baseTexture, { x1, y1, x2, y2 })
-        return baseTexture
+        assign(baseImg, { x1, y1, x2, y2 })
+        this._baseImg = baseImg
+        return baseImg
     }
 
     getState(isInitState = false) {

@@ -396,11 +396,6 @@ export class HeadsUpDisplay extends GameObject {
         this._playerIds = []
     }
 
-    createGraphics() {
-        this._container = new window.PIXI.Container()
-        return this._container
-    }
-
     update() {
         this._syncRows()
         this._updateRows()
@@ -409,7 +404,7 @@ export class HeadsUpDisplay extends GameObject {
     _syncRows() {
         const { game, showHerosHealths, showPlayersScores } = this
         const { players } = game
-        const container = this._container
+        const container = this._graphics
         if (!container) return
 
         // Add rows for new players
@@ -539,10 +534,11 @@ export class HeadsUpDisplay extends GameObject {
     }
 
     syncGraphics() {
-        if (this._container) {
-            this._container.x = this.x
-            this._container.y = this.y
-        }
+        // Ensure rows are synced (creates row containers if needed)
+        this._syncRows()
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 }
 
@@ -556,19 +552,22 @@ class QrCodeDisplay extends GameObject {
         this._height = this._image?.height ?? 100
     }
 
-    createGraphics() {
-        if (!window.PIXI || !this._image) return null
-        const texture = window.PIXI.Texture.from(this._image)
-        const sprite = pixiHelpers.createSpriteFromCanvas(texture)
-        sprite.anchor.set(0.5)
-        return sprite
-    }
-
     syncGraphics() {
-        const pixiObj = this._graphics
-        if (!pixiObj) return
-        pixiObj.x = this.x
-        pixiObj.y = this.y
+        const container = this._graphics
+        if (!container) return
+        
+        // Lazy-create sprite if needed (at local origin, container handles position)
+        let sprite = this._qrSprite
+        if (!sprite && this._image) {
+            const texture = window.PIXI.Texture.from(this._image)
+            sprite = pixiHelpers.createSpriteFromCanvas(texture)
+            sprite.anchor.set(0.5)
+            container.addChild(sprite)
+            this._qrSprite = sprite
+        }
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 }
 
@@ -599,32 +598,6 @@ export class Background extends GameObject {
         this.x = this.width / 2
         this.y = this.height / 2
     }
-
-    createGraphics() {
-        const img = this.getBaseTexture()
-        if (!img) return null
-        
-        const sprite = pixiHelpers.createSpriteFromCanvas(img)
-        if (!sprite) return null
-        
-        sprite.anchor.set(0.5, 0.5)
-        sprite.x = this.x
-        sprite.y = this.y
-        sprite.width = this.width
-        sprite.height = this.height
-        
-        return sprite
-    }
-
-    syncGraphics() {
-        const pixiObj = this._graphics
-        if(!pixiObj) return
-        pixiObj.x = this.x
-        pixiObj.y = this.y
-        pixiObj.zIndex = this.z
-        pixiObj.width = this.width
-        pixiObj.height = this.height
-    }
 }
 
 
@@ -636,8 +609,8 @@ const GreenLandscapeImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgro
 })
 @Dependencies.add(GreenLandscapeImg)
 export class GreenLandscapeBackground extends Background {
-    getBaseTexture() {
-        return GreenLandscapeImg.getTexture()
+    getBaseImg() {
+        return GreenLandscapeImg
     }
 }
 
@@ -650,8 +623,8 @@ const RockMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(RockMountainsImg)
 export class RockMountainsBackground extends Background {
-    getBaseTexture() {
-        return RockMountainsImg.getTexture()
+    getBaseImg() {
+        return RockMountainsImg
     }
 }
 
@@ -664,8 +637,8 @@ const SnowMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(SnowMountainsImg)
 export class SnowMountainsBackground extends Background {
-    getBaseTexture() {
-        return SnowMountainsImg.getTexture()
+    getBaseImg() {
+        return SnowMountainsImg
     }
 }
 
@@ -678,8 +651,8 @@ const DarkForestImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds
 })
 @Dependencies.add(DarkForestImg)
 export class DarkForestBackground extends Background {
-    getBaseTexture() {
-        return DarkForestImg.getTexture()
+    getBaseImg() {
+        return DarkForestImg
     }
 }
 
@@ -692,8 +665,8 @@ const DarkCityImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/d
 })
 @Dependencies.add(DarkCityImg)
 export class DarkCityBackground extends Background {
-    getBaseTexture() {
-        return DarkCityImg.getTexture()
+    getBaseImg() {
+        return DarkCityImg
     }
 }
 
@@ -978,6 +951,12 @@ export class StandardScene extends GameScene {
         this.hud.initGraphics()
     }
 
+    syncGraphics() {
+        super.syncGraphics()
+        this.background.syncGraphics()
+        this.hud.syncGraphics()
+    }
+
     update() {
         super.update()
         this.background.update()
@@ -1217,8 +1196,8 @@ export class Tag extends GameObject {
         this.y = owner.y - 50
     }
 
-    getBaseTexture() {
-        return TagImg.getTexture()
+    getBaseImg() {
+        return TagImg
     }
 
     syncGraphics() {
@@ -1234,7 +1213,7 @@ const StarImg = new Img("/static/catalogs/std/v1/2Dside/assets/star.png")
 class StarsBar extends ObjectBars {
 
     getObjectTexture() {
-        return StarImg.getTexture()
+        return StarImg.getImg()
     }
 
     getObjectCount() {
@@ -1618,15 +1597,12 @@ export class PlayerList extends GameObject {
         this._players = players
     }
 
-    createGraphics() {
-        this._container = new window.PIXI.Container()
-        this._rows = {}
-        return this._container
-    }
-
     syncGraphics() {
-        const container = this._container
+        const container = this._graphics
         if (!container) return
+        
+        // Ensure _rows is initialized
+        if (!this._rows) this._rows = {}
         container.x = this.x
         container.y = this.y
 
@@ -1692,13 +1668,13 @@ export class ScoresBoard extends GameObject {
         this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const baseImg = this._baseImg ||= document.createElement("canvas")
         baseImg.width = this.width
         baseImg.height = this.height
         this.drawBackground(baseImg)
         this.drawScores(baseImg)
-        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
+        return baseImg
     }
 
     drawBackground(can) {

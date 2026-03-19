@@ -169,8 +169,7 @@ export class Hero extends GameObject {
 
     syncGraphics() {
         super.syncGraphics()
-        if(this.getDamagedAge <= 5) pixiHelpers.colorizeSprite(this._graphics, "red")
-        else pixiHelpers.resetSpriteColor(this._graphics) 
+        pixiHelpers.tintSprite(this._graphics, (this.getDamagedAge <= 5) ? "red" : null)
     }
 
     /**
@@ -321,8 +320,8 @@ class NicoHand extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseTexture() {
-        return HandImg.getTexture()
+    getBaseImg() {
+        return HandImg
     }
 }
 
@@ -444,7 +443,7 @@ export class Nico extends Hero {
             this.game.setInputKey("ArrowRight", (pos && pos.x > 10))
             this.game.setInputKey("ArrowLeft", (pos && pos.x < -10))
         }
-        joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", x: width * .85, y: height * .27, size, icon: ArrowsSpriteSheet.getTexture(0) })
+        joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", x: width * .85, y: height * .27, size, icon: ArrowsSpriteSheet.getImg(0) })
         this.actionButton = joypadScn.addButton(JoypadButton, { inputKey: " ", x: width * .7, y: height * .73, size, icon: HandImg })
         this.syncJoypadActionButton()
     }
@@ -453,7 +452,7 @@ export class Nico extends Hero {
         const { actionButton } = this
         if(!actionButton) return
         const actionExtra = this.getActionExtra()
-        actionButton.icon = actionExtra ? actionExtra.getBaseTexture() : HandImg
+        actionButton.icon = actionExtra ? actionExtra.getBaseImg() : HandImg
     }
 
     addExtra(extra) {
@@ -471,15 +470,17 @@ export class Nico extends Hero {
         return actionExtra
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const { iteration } = this.scene
         const { dt, players } = this.game
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        if (iteration > 0 && (this.handRemIt || !this.canJump())) return spriteSheet.getTexture(1)
-        else if (this.speedX == 0) return spriteSheet.getTexture(0)
-        else return spriteSheet.getTexture(1 + floor((iteration * dt * 6) % 3))
+        // For animated sprites using SpriteSheet, we return the texture directly
+        // since SpriteSheet manages its own textures
+        if (iteration > 0 && (this.handRemIt || !this.canJump())) return spriteSheet.getImg(1)
+        else if (this.speedX == 0) return spriteSheet.getImg(0)
+        else return spriteSheet.getImg(1 + floor((iteration * dt * 6) % 3))
     }
 
     /**

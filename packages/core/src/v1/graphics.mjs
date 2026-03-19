@@ -1,4 +1,4 @@
-const { round, PI } = Math
+const { abs, round, PI } = Math
 const { assign } = Object
 import * as utils from './utils.mjs'
 const { IS_SERVER_ENV, urlAbsPath, checkHit, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, addNewDomEl, importJs } = utils
@@ -34,6 +34,13 @@ export async function initPixiApp(parentEl, options = {}) {
     
     return pixiApp
 }
+
+
+export function getCachedTexture(img) {
+    const texture = img._pixiTexture ||= PIXI.Texture.from(img)
+    return texture
+}
+
 
 /**
  * Converts a color string to PIXI color number
@@ -144,17 +151,9 @@ export function createTextPixi(text, options = {}) {
  * @param {string|number} color - Color (hex string or number)
  * @returns {PIXI.Sprite|null}
  */
-export function colorizeSprite(sprite, color) {
-    sprite.tint = toPixiColor(color)
+export function tintSprite(sprite, color) {
+    sprite.tint = color ? toPixiColor(color) : 0xffffff
     return sprite
-}
-
-/**
- * Reset sprite tint to white (no colorization)
- * @param {PIXI.Sprite} sprite - The sprite to reset
- */
-export function resetSpriteColor(sprite) {
-    sprite.tint = 0xffffff
 }
 
 /**
@@ -215,18 +214,19 @@ export function drawCircle(graphics, x, y, radius, color = 0xffffff, alpha = 1) 
 }
 
 function scaleTo(pixiObj, width, height, dirX=1, dirY=1) {
-    const bounds = pixiObj.texture?.orig ?? pixiObj.texture ?? pixiObj.getBounds()
-    pixiObj.scale.x = width / bounds.width * dirX
-    pixiObj.scale.y = height / bounds.height * dirY
+    const bounds = pixiObj.getBounds()
+    pixiObj.scale.x = width / bounds.width * abs(pixiObj.scale.x) * dirX
+    pixiObj.scale.y = height / bounds.height * abs(pixiObj.scale.y) * dirY
 }
 
 // pixiHelpers namespace for backward compatibility
 export const pixiHelpers = {
+    getCachedTexture,
+
     createSpriteFromSheet,
     createSpriteFromCanvas,
     createTextPixi,
-    colorizeSprite,
-    resetSpriteColor,
+    tintSprite,
     createAnimatedSprite,
     setAnimationFrame,
     drawRect,

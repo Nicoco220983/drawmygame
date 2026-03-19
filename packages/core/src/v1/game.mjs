@@ -5,7 +5,7 @@ const { IS_SERVER_ENV, now, sumTo, newDomEl, addNewDomEl, importJs, hasKeys, nbK
 import { CATALOG } from './catalog.mjs'
 import { StateProperty, StateBool, StateNumber, StateEnum, StateIntEnum, StateString, StateObjectRef } from './stateproperty.mjs'
 import { AudioEngine } from './audio.mjs'
-import { pixiHelpers, toPixiColor } from './graphics.mjs'
+import { pixiHelpers, toPixiColor, getCachedTexture } from './graphics.mjs'
 // TODO import only if necessary
 import { gzip, ungzip } from '../deps/pako.mjs'
 
@@ -73,31 +73,11 @@ export class Img extends Image {
             this.src = this._src
             this.onload = () => { 
                 this.unloaded = false
-                this._createTexture()
                 ok() 
             }
             this.onerror = () => { this.unloaded = false; ko() }
         })
         return await this._loadPrm
-    }
-
-    /**
-     * Creates a Pixi texture from this image.
-     * @private
-     */
-    _createTexture() {
-        this._texture = window.PIXI.Texture.from(this)
-    }
-
-    /**
-     * Gets the Pixi texture for this image.
-     * Creates the texture if it doesn't exist.
-     * @returns {PIXI.Texture|null} The Pixi texture
-     */
-    getTexture() {
-        if (IS_SERVER_ENV || this.unloaded) return null
-        if (!this._texture) this._createTexture()
-        return this._texture
     }
 }
 
@@ -264,56 +244,51 @@ export class SpriteSheet {
     }
 
     /**
-     * Initializes the textures of the sprite sheet.
+     * Initializes the frame images of the sprite sheet.
      */
-    _initTextures() {
-        if(this._textures) return
+    _initFrames() {
+        if(this._frames) return
         // Handle both Img instances (with unloaded property) and raw canvas/image
-        const isImg = this.img.getTexture !== undefined
+        const isImg = this.img instanceof Img
         if (isImg && this.img.unloaded) return
 
         const { img, nbRows, nbCols } = this
         const frameWidth = floor(img.width / nbCols)
         const frameHeight = floor(img.height / nbRows)
         
-        // Get texture source - either from Img's cached texture or create from raw canvas/image
-        const textureSource = isImg 
-            ? img.getTexture().source  // Img instance - use cached texture
-            : window.PIXI.Texture.from(img).source  // Raw canvas/image
-        
-        this._textures = []
+        this._frames = []
         for (let j = 0; j < nbRows; ++j) {
             for (let i = 0; i < nbCols; ++i) {
-                const frame = new window.PIXI.Rectangle(
-                    i * frameWidth, 
-                    j * frameHeight, 
-                    frameWidth, 
-                    frameHeight
+                // Create a canvas for each frame
+                const frameCanvas = document.createElement("canvas")
+                frameCanvas.width = frameWidth
+                frameCanvas.height = frameHeight
+                const ctx = frameCanvas.getContext("2d")
+                ctx.drawImage(
+                    img,
+                    i * frameWidth, j * frameHeight, frameWidth, frameHeight,  // source
+                    0, 0, frameWidth, frameHeight  // destination
                 )
-                // Create texture from the same source with a frame
-                const texture = new window.PIXI.Texture({
-                    source: textureSource,
-                    frame: frame
-                })
-                this._textures[i + j * nbCols] = texture
+                this._frames[i + j * nbCols] = frameCanvas
             }
         }
         this.unloaded = false
     }
 
     /**
-     * Returns a texture from the sprite sheet.
+     * Returns a frame image (canvas) from the sprite sheet.
+     * This returns an image that can be used with getCachedTexture().
      * @param {number} num The number of the frame.
      * @param {boolean} loop Whether to loop.
-     * @returns {PIXI.Texture|null} The texture.
+     * @returns {HTMLCanvasElement|null} The frame image.
      */
-    getTexture(num, loop = false) {
-        this._initTextures()
-        const { _textures } = this, nbTextures = _textures?.length ?? 0
-        if(nbTextures == 0) return null
-        if(loop) num = num % nbTextures
-        else if(num >= nbTextures) return null
-        return _textures[num]
+    getImg(num, loop = false) {
+        this._initFrames()
+        const { _frames } = this, nbFrames = _frames?.length ?? 0
+        if(nbFrames == 0) return null
+        if(loop) num = num % nbFrames
+        else if(num >= nbFrames) return null
+        return _frames[num]
     }
 }
 
@@ -479,7 +454,8 @@ export class GameObject {
             if(kwargs.height !== undefined) this.height = kwargs.height
             if(kwargs.dirX !== undefined) this.dirX = kwargs.dirX
             if(kwargs.dirY !== undefined) this.dirY = kwargs.dirY
-            if(kwargs.color !== undefined) this.color = kwargs.color
+            if(kwargs.backgroundColor !== undefined) this.backgroundColor = kwargs.backgroundColor
+            if(kwargs.tint !== undefined) this.tint = kwargs.tint
             if(kwargs.visibility !== undefined) this.visibility = kwargs.visibility
         }
         this.constructor.STATE_PROPS.forEach(prop => prop.initObject(this, kwargs))
@@ -487,18 +463,15 @@ export class GameObject {
     }
 
     /**
-     * Initialize the Pixi object for this game object.
+     * Initialize the Pixi container for this game object.
      * Called automatically when object is added to a scene with Pixi support.
-     * Subclasses can override createGraphics() to customize.
+     * Creates a root PIXI.Container and adds it to the scene.
+     * Subclasses should override syncGraphics() to add and update content.
      */
     initGraphics(scnPixiContainer) {
-        const pixiObj = this.createGraphics()
-        if (pixiObj) {
-            this._graphics = pixiObj
-            if(!scnPixiContainer) scnPixiContainer = this.scene.objectsPixiContainer
-            scnPixiContainer.addChild(pixiObj)
-            this.syncGraphics()
-        }
+        this._graphics = new window.PIXI.Container()
+        if(!scnPixiContainer) scnPixiContainer = this.scene.objectsPixiContainer
+        scnPixiContainer.addChild(this._graphics)
     }
     
     getKey() {
@@ -610,92 +583,78 @@ export class GameObject {
     }
 
     /**
-     * Returns the base texture for this game object.
-     * Override to provide a custom texture (e.g., from Img or SpriteSheet).
-     * @returns {PIXI.Texture|null} The base texture or null
+     * Returns the base image for this game object.
+     * Override to provide a custom image (e.g., from Img or SpriteSheet).
+     * @returns {Img|HTMLImageElement|HTMLCanvasElement|null} The base image or null
      */
-    getBaseTexture() {
-        return null
-    }
-
-    /**
-     * Create a PixiJS display object for this game object.
-     * Override this method to customize the visual representation.
-     * Note: This is only called on client, subclasses don't need to check IS_SERVER_ENV.
-     * @returns {PIXI.DisplayObject|null} The Pixi object or null for invisible objects
-     */
-    createGraphics() {
-        // Default implementation: create a sprite from base texture or colored rect
-        const texture = this.getBaseTexture()
-        const { color } = this
-        
-        if (texture) {
-            if(!(texture instanceof window.PIXI.Texture)) throw Error("Not a texture")
-            const sprite = pixiHelpers.createSpriteFromCanvas(texture)
-            if (sprite) {
-                sprite.anchor.set(0.5, 0.5)
-                return sprite
-            }
-        }
-        
-        if (color) {
-            // Create a colored rectangle as fallback
-            const graphics = new PIXI.Graphics()
-            if (graphics) {
-                pixiHelpers.drawRect(graphics, 0, 0, this.width, this.height, color)
-                return graphics
-            }
-        }
-        
+    getBaseImg() {
         return null
     }
 
     /**
      * Update the PixiJS display object based on current game object state.
      * Override this method for custom update logic.
-     * Supports texture swapping via getBaseTexture().
+     * Creates and manages graphics content in the root container (_graphics).
      * Note: This is only called on client.
      */
     syncGraphics() {
-        const pixiObj = this._graphics
-        if(!pixiObj) return
-        const { x, y, z, width, height, dirX, dirY, angle, visibility, color } = this
+        const container = this._graphics
+        if(!container) return
+        const { x, y, z, width, height, dirX, dirY, angle, visibility, tint } = this
+        
+        // Lazy-create content sprite if needed
+        let contentSprite = this._contentSprite
+        if (!contentSprite) {
+            const img = this.getBaseImg()
+            const texture = img ? getCachedTexture(img) : null
+            if (texture) {
+                if(!(texture instanceof window.PIXI.Texture)) throw Error("Not a texture")
+                contentSprite = pixiHelpers.createSpriteFromCanvas(texture)
+                if (contentSprite) {
+                    contentSprite.anchor.set(0.5, 0.5)
+                    container.addChild(contentSprite)
+                    this._contentSprite = contentSprite
+                }
+            } else if(this.backgroundColor) {
+                // Create a white rectangle as fallback
+                const graphics = new window.PIXI.Graphics()
+                pixiHelpers.drawRect(graphics, 0, 0, width, height, this.backgroundColor)
+                container.addChild(graphics)
+                this._contentSprite = graphics
+            }
+        }
         
         // Update sprite-specific properties
-        if (pixiObj instanceof window.PIXI?.Sprite) {
+        if (contentSprite instanceof window.PIXI?.Sprite) {
             // Check for texture swap
-            const newTexture = this.getBaseTexture()
-            if (newTexture && pixiObj.texture !== newTexture) {
+            const newImg = this.getBaseImg()
+            const newTexture = newImg ? getCachedTexture(newImg) : null
+            if (newTexture && contentSprite.texture !== newTexture) {
                 if(!(newTexture instanceof window.PIXI.Texture)) throw Error("Not a texture")
-                pixiObj.texture = newTexture
+                contentSprite.texture = newTexture
             }
-            
-            // if (width !== undefined && pixiObj.texture) {
-            //     const origWidth = pixiObj.texture.orig?.width || pixiObj.texture.width || 1
-            //     pixiObj.scale.x = (width / origWidth) * (dirX >= 0 ? 1 : -1)
-            // }
-            // if (height !== undefined && pixiObj.texture) {
-            //     const origHeight = pixiObj.texture.orig?.height || pixiObj.texture.height || 1
-            //     pixiObj.scale.y = (height / origHeight) * (dirY >= 0 ? 1 : -1)
-            // }
         }
         
-        // Update graphics-specific properties
-        if (pixiObj instanceof window.PIXI?.Graphics && this.color) {
-            // Clear and redraw if color changed
-            pixiObj.clear()
-            pixiHelpers.drawRect(pixiObj, 0, 0, width, height, color)
+        // Update graphics-specific properties (only redraw if dimensions or color changed)
+        if (contentSprite instanceof window.PIXI?.Graphics) {
+            const cache = contentSprite._drawCache
+            if (!cache || cache.width !== width || cache.height !== height || cache.backgroundColor !== this.backgroundColor) {
+                contentSprite.clear()
+                pixiHelpers.drawRect(contentSprite, 0, 0, width, height, this.backgroundColor)
+                contentSprite._drawCache = { width, height, backgroundColor: this.backgroundColor }
+            }
         }
 
-        pixiObj.x = x
-        pixiObj.y = y
+        // Update container transform
+        container.x = x
+        container.y = y
 
-        pixiHelpers.scaleTo(pixiObj, width, height, dirX, dirY)
+        pixiHelpers.scaleTo(container, width, height, dirX, dirY)
 
-        if (angle !== undefined) pixiObj.rotation = (angle * Math.PI) / 180
-        if (visibility !== undefined) pixiObj.alpha = visibility
-        if (color) pixiHelpers.colorizeSprite(pixiObj, color)
-        if (z !== undefined) pixiObj.zIndex = z
+        if (angle !== undefined) container.rotation = (angle * Math.PI) / 180
+        if (visibility !== undefined) container.alpha = visibility
+        if (tint && contentSprite) pixiHelpers.tintSprite(contentSprite, tint)
+        if (z !== undefined) container.zIndex = z
     }
 
     /**
@@ -837,26 +796,32 @@ export class Text extends GameObject {
         this.text = text
     }
 
-    createGraphics() {
-        const style = new window.PIXI.TextStyle({
-            fontFamily: this._fontFamily,
-            fontSize: this._fontSize,
-            fontStyle: this._fontStyle,
-            fontWeight: this._fontWeight,
-            fill: this._fill,
-            align: 'center',
-        })
-        const text = new window.PIXI.Text({ text: this.text, style })
-        text.anchor.set(0.5)
-        return text
-    }
-
     syncGraphics() {
-        const pixiObj = this._graphics
-        if (!pixiObj) return
-        pixiObj.x = this.x
-        pixiObj.y = this.y
-        pixiObj.text = this.text
+        const container = this._graphics
+        if (!container) return
+        
+        // Lazy-create text object if needed (at local origin, container handles position)
+        let textObj = this._textObj
+        if (!textObj) {
+            const style = new window.PIXI.TextStyle({
+                fontFamily: this._fontFamily,
+                fontSize: this._fontSize,
+                fontStyle: this._fontStyle,
+                fontWeight: this._fontWeight,
+                fill: this._fill,
+                align: 'center',
+            })
+            textObj = new window.PIXI.Text({ text: this.text, style })
+            textObj.anchor.set(0.5)
+            container.addChild(textObj)
+            this._textObj = textObj
+        }
+        
+        // Update text content only (position handled by container)
+        textObj.text = this.text
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 }
 

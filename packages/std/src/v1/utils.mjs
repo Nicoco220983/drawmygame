@@ -66,24 +66,16 @@ export class ObjectBars extends GameObject {
         return this.constructor.ICON_SPACING
     }
 
-    createGraphics() {
-        this._container = new window.PIXI.Container()
-        this._iconSprites = []
-        return this._container
-    }
-
     syncGraphics() {
-        const pixiObj = this._container
-        if (!pixiObj) return
-
-        pixiObj.x = this.x
-        pixiObj.y = this.y
-        pixiObj.zIndex = this.z
-        pixiObj.visible = this.visibility
+        const container = this._graphics
+        if (!container) return
+        
+        // Ensure _iconSprites is initialized
+        if (!this._iconSprites) this._iconSprites = []
 
         const { owner } = this
         if (!owner) {
-            pixiObj.visible = false
+            container.visible = false
             return
         }
 
@@ -94,17 +86,22 @@ export class ObjectBars extends GameObject {
             this._lastCount = count
             this._rebuildIconSprites(count)
         }
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 
     _rebuildIconSprites(count) {
-        const { _container, _iconSprites } = this
+        const container = this._graphics
+        if (!container) return
+        const { _iconSprites } = this
         const iconSize = this.getIconSize()
         const iconSpacing = this.getIconSpacing()
 
         // Remove excess sprites
         while (_iconSprites.length > count) {
             const sprite = _iconSprites.pop()
-            _container.removeChild(sprite)
+            container.removeChild(sprite)
             sprite.destroy()
         }
 
@@ -116,7 +113,7 @@ export class ObjectBars extends GameObject {
             sprite.width = iconSize
             sprite.height = iconSize
             _iconSprites.push(sprite)
-            _container.addChild(sprite)
+            container.addChild(sprite)
         }
 
         // Position all sprites in a horizontal bar, centered

@@ -4,6 +4,7 @@ const { assign } = Object
 import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
     Dependencies, GameObject, Text, GameObjectGroup, Img, Scene,
+    getCachedTexture,
 } from "../../../core/v1/index.mjs"
 
 
@@ -44,7 +45,7 @@ export class JoypadButton extends GameObject {
         if (this.inputKey) this.game.setInputKey(this.inputKey, false)
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
         let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
@@ -75,7 +76,7 @@ export class JoypadButton extends GameObject {
             for (let x = iw2; x < rw - iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
             return res
         })
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
 
     createTextImg(text) {
@@ -86,19 +87,23 @@ export class JoypadButton extends GameObject {
         })
     }
 
-    createGraphics() {
-        const container = new window.PIXI.Container()
+    syncGraphics() {
+        const container = this._graphics
+        if (!container) return
         
-        // Background sprite
-        const texture = this.getBaseTexture()
-        if (texture) {
-            this._bgSprite = new window.PIXI.Sprite(texture)
-            this._bgSprite.anchor.set(0.5, 0.5)
-            container.addChild(this._bgSprite)
+        // Lazy-create background sprite if needed
+        if (!this._bgSprite) {
+            const img = this.getBaseImg()
+            const texture = img ? getCachedTexture(img) : null
+            if (texture) {
+                this._bgSprite = new window.PIXI.Sprite(texture)
+                this._bgSprite.anchor.set(0.5, 0.5)
+                container.addChild(this._bgSprite)
+            }
         }
         
-        // Text overlay
-        if (this.text) {
+        // Lazy-create text overlay if needed
+        if (!this._textObj && this.text) {
             const style = new window.PIXI.TextStyle({
                 fontFamily: 'serif',
                 fontSize: floor(this.height / 2),
@@ -111,53 +116,37 @@ export class JoypadButton extends GameObject {
             container.addChild(this._textObj)
         }
         
-        // Icon overlay (if provided)
-        if (this.icon) {
-            // Icon could be a texture or an Img instance
-            const iconTexture = this.icon.getTexture ? this.icon.getTexture() : 
-                               (this.icon instanceof window.PIXI.Texture ? this.icon : null)
+        // Lazy-create icon overlay if needed
+        if (!this._iconSprite && this.icon) {
+            const iconImg = this.icon.getBaseImg ? this.icon.getBaseImg() : this.icon
+            const iconTexture = iconImg ? getCachedTexture(iconImg) : null
             if (iconTexture) {
                 this._iconSprite = new window.PIXI.Sprite(iconTexture)
                 this._iconSprite.anchor.set(0.5, 0.5)
-                // Scale icon to fit within button
-                const iconSize = min(this.width, this.height) * 0.5
-                const scale = iconSize / max(this._iconSprite.width, this._iconSprite.height)
-                this._iconSprite.scale.set(scale)
                 container.addChild(this._iconSprite)
             }
         }
         
-        return container
-    }
-
-    syncGraphics() {
-        const container = this._graphics
-        if (!container) return
-        
-        // Update container position
-        container.x = this.x
-        container.y = this.y
-        container.alpha = this.visibility
-        
         // Update background sprite
         if (this._bgSprite) {
-            const texture = this.getBaseTexture()
-            if (texture && this._bgSprite.texture !== texture) {
-                this._bgSprite.texture = texture
+            const newImg = this.getBaseImg()
+            const newTexture = newImg ? getCachedTexture(newImg) : null
+            if (newTexture && this._bgSprite.texture !== newTexture) {
+                this._bgSprite.texture = newTexture
             }
             this._bgSprite.width = this.width
             this._bgSprite.height = this.height
         }
         
-        // Text is static, no update needed
-        
         // Update icon if exists
         if (this._iconSprite) {
-            // Icon may need repositioning if button size changes
             const iconSize = min(this.width, this.height) * 0.5
             const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
             this._iconSprite.scale.set(scale)
         }
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 }
 
@@ -198,7 +187,7 @@ export class StickButton extends GameObject {
         this.prevInput = input
     }
 
-    getBaseTexture() {
+    getBaseImg() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
         let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
@@ -229,22 +218,26 @@ export class StickButton extends GameObject {
             for (let x = iw2; x < rw - iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
             return res
         })
-        return img.getTexture ? img.getTexture() : window.PIXI.Texture.from(img)
+        return img
     }
 
-    createGraphics() {
-        const container = new window.PIXI.Container()
+    syncGraphics() {
+        const container = this._graphics
+        if (!container) return
         
-        // Background sprite
-        const texture = this.getBaseTexture()
-        if (texture) {
-            this._bgSprite = new window.PIXI.Sprite(texture)
-            this._bgSprite.anchor.set(0.5, 0.5)
-            container.addChild(this._bgSprite)
+        // Lazy-create background sprite if needed
+        if (!this._bgSprite) {
+            const img = this.getBaseImg()
+            const texture = img ? getCachedTexture(img) : null
+            if (texture) {
+                this._bgSprite = new window.PIXI.Sprite(texture)
+                this._bgSprite.anchor.set(0.5, 0.5)
+                container.addChild(this._bgSprite)
+            }
         }
         
-        // Text overlay
-        if (this.text) {
+        // Lazy-create text overlay if needed
+        if (!this._textObj && this.text) {
             const style = new window.PIXI.TextStyle({
                 fontFamily: 'serif',
                 fontSize: floor(this.height / 2),
@@ -257,35 +250,22 @@ export class StickButton extends GameObject {
             container.addChild(this._textObj)
         }
         
-        // Icon overlay (if provided)
-        if (this.icon) {
-            const iconTexture = this.icon.getTexture ? this.icon.getTexture() : 
-                               (this.icon instanceof window.PIXI.Texture ? this.icon : null)
+        // Lazy-create icon overlay if needed
+        if (!this._iconSprite && this.icon) {
+            const iconImg = this.icon.getBaseImg ? this.icon.getBaseImg() : this.icon
+            const iconTexture = iconImg ? getCachedTexture(iconImg) : null
             if (iconTexture) {
                 this._iconSprite = new window.PIXI.Sprite(iconTexture)
                 this._iconSprite.anchor.set(0.5, 0.5)
-                const iconSize = min(this.width, this.height) * 0.5
-                const scale = iconSize / max(this._iconSprite.width, this._iconSprite.height)
-                this._iconSprite.scale.set(scale)
                 container.addChild(this._iconSprite)
             }
         }
         
-        return container
-    }
-
-    syncGraphics() {
-        const container = this._graphics
-        if (!container) return
-        
-        container.x = this.x
-        container.y = this.y
-        container.alpha = this.visibility
-        
         if (this._bgSprite) {
-            const texture = this.getBaseTexture()
-            if (texture && this._bgSprite.texture !== texture) {
-                this._bgSprite.texture = texture
+            const newImg = this.getBaseImg()
+            const newTexture = newImg ? getCachedTexture(newImg) : null
+            if (newTexture && this._bgSprite.texture !== newTexture) {
+                this._bgSprite.texture = newTexture
             }
             this._bgSprite.width = this.width
             this._bgSprite.height = this.height
@@ -296,6 +276,9 @@ export class StickButton extends GameObject {
             const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
             this._iconSprite.scale.set(scale)
         }
+        
+        // Let base class handle container transform
+        super.syncGraphics()
     }
 }
 
