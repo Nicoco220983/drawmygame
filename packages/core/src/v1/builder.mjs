@@ -230,20 +230,6 @@ class DraftScene extends Scene {
     }
 
     /**
-     * Updates the draft preview position and transform
-     */
-    updateDraftPreview() {
-        if (!this.draftObject) return
-        
-        // Update the Pixi object transform directly
-        const pixiObj = this.draftObject.getPixiObject?.()
-        if (pixiObj && this.draftObject.syncGraphics) {
-            this.draftObject.syncGraphics(pixiObj, this.game.dt)
-            pixiObj.alpha = 0.5
-        }
-    }
-
-    /**
      * Gets the state of the last selected GameObject.
      * @returns {object|undefined}
      */
@@ -529,10 +515,11 @@ class DraftScene extends Scene {
                 this.draftObject.x2 = draftPos.x - gameScn.viewX
                 this.draftObject.y2 = draftPos.y - gameScn.viewY
             }
+            this.draftObject.syncGraphics()
         }
         
         // Update draft preview position and transform
-        this.updateDraftPreview()
+        //this.updateDraftPreview()
     }
 
     /**

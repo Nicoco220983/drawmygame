@@ -1255,10 +1255,10 @@ export class ObjectSpawner extends GameObject {
 export class Wall extends GameObject {
 
     init(kwargs) {
-        if (kwargs?.x1 !== undefined) this.x1 = kwargs.x1
-        if (kwargs?.y1 !== undefined) this.y1 = kwargs.y1
-        if (kwargs?.x2 !== undefined) this.x2 = kwargs.x2
-        if (kwargs?.y2 !== undefined) this.y2 = kwargs.y2
+        this.x1 = kwargs?.x1 ?? 0
+        this.y1 = kwargs?.y1 ?? 0
+        this.x2 = kwargs?.x2 ?? 0
+        this.y2 = kwargs?.y2 ?? 0
         if (kwargs?.visibility !== undefined) this.visibility = kwargs.visibility
         this.color = "black"
     }
@@ -1276,11 +1276,10 @@ export class Wall extends GameObject {
 
     getBaseTexture() {
         const { x1, y1, x2, y2 } = this
-        let baseImg = this._baseImg
-        if (baseImg && baseImg.x1 == x1 && baseImg.y1 == y1 && baseImg.x2 == x2 && baseImg.y2 == y2) return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
+        let baseTexture = this._baseTexture
+        if (baseTexture && baseTexture.x1 == x1 && baseTexture.y1 == y1 && baseTexture.x2 == x2 && baseTexture.y2 == y2) return baseTexture
         const lineWidth = 5
-        baseImg = this._baseImg = newCanvas(abs(x1 - x2) + 2 * lineWidth, abs(y1 - y2) + 2 * lineWidth)
-        assign(baseImg, { x1, y1, x2, y2 })
+        const baseImg = newCanvas(abs(x1 - x2) + 2*lineWidth, abs(y1 - y2) + 2*lineWidth)
         const ctx = baseImg.getContext("2d")
         ctx.lineWidth = lineWidth
         ctx.strokeStyle = this.color
@@ -1289,7 +1288,9 @@ export class Wall extends GameObject {
         ctx.moveTo(lineWidth + x1 - minX, lineWidth + y1 - minY)
         ctx.lineTo(lineWidth + x2 - minX, lineWidth + y2 - minY)
         ctx.stroke()
-        return window.PIXI ? window.PIXI.Texture.from(baseImg) : null
+        baseTexture = this._baseTexture = window.PIXI.Texture.from(baseImg)
+        assign(baseTexture, { x1, y1, x2, y2 })
+        return baseTexture
     }
 
     getState(isInitState = false) {
