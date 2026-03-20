@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypo
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
     CATALOG, IS_SERVER_ENV,
-    StateProperty, StateBool, StateNumber,
+    StateProperty, StateBool, StateNumber, StateString,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
     pixiHelpers,
 } from '../../../../core/v1/index.mjs'
@@ -1072,6 +1072,7 @@ const PortalJumpAud = new Aud("/static/catalogs/std/v1/2Dside/assets/portal_jump
 @ActivableMixin.add()
 @StateBool.define("isOutput", { default: true, showInBuilder: true })
 @StateBool.define("isInput", { default: true, showInBuilder: true })
+@StateString.define("color", { default: "blue", showInBuilder: true })
 export class Portal extends GameObject {
 
     init(kwargs) {
@@ -1093,7 +1094,7 @@ export class Portal extends GameObject {
     teleport(obj) {
         const { scene } = this
         const portals = scene.filterObjects("portals", obj => obj instanceof Portal)
-        const candidates = portals.filter(port => port != this && port.activated && port.isOutput)
+        const candidates = portals.filter(port => port != this && port.activated && port.isOutput && port.color === this.color)
         if (candidates.length == 0) return
         let targetPortal = candidates[floor(scene.rand("teleport") * candidates.length)]
         obj.x = targetPortal.x + (this.x - obj.x)
@@ -1102,7 +1103,13 @@ export class Portal extends GameObject {
     }
 
     getBaseImg() {
-        return PortalImg
+        let img = PortalImg
+        if (this.color && this.color !== "blue") {
+            img = cachedTransform(img, this.color, () => {
+                return colorizeCanvas(cloneCanvas(img), this.color, "#006dbe")
+            })
+        }
+        return img
     }
 }
 

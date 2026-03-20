@@ -648,13 +648,14 @@ export class GameObject {
         // Update container transform
         container.x = x
         container.y = y
+        if (z !== undefined) container.zIndex = z
 
         pixiHelpers.scaleTo(container, width, height, dirX, dirY)
 
         if (angle !== undefined) container.rotation = (angle * Math.PI) / 180
+
         if (visibility !== undefined) container.alpha = visibility
         if (tint && contentSprite) pixiHelpers.tintSprite(contentSprite, tint)
-        if (z !== undefined) container.zIndex = z
     }
 
     /**
@@ -820,8 +821,15 @@ export class Text extends GameObject {
         // Update text content only (position handled by container)
         textObj.text = this.text
         
-        // Let base class handle container transform
-        super.syncGraphics()
+        const { x, y, z, angle, visibility, tint } = this
+        container.x = x
+        container.y = y
+        if (z !== undefined) container.zIndex = this.z
+
+        if (angle !== undefined) container.rotation = (angle * Math.PI) / 180
+
+        if (visibility !== undefined) container.alpha = visibility
+        if (tint && contentSprite) pixiHelpers.tintSprite(contentSprite, tint)
     }
 }
 
