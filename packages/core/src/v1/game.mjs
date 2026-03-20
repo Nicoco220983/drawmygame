@@ -317,7 +317,12 @@ export class Dependencies {
         return target => {
             target.load = async function(perspective, versions, initState) {
                 if(!this.DEPENDENCIES) return
-                await Promise.all(this.DEPENDENCIES.map(dep => dep.load()))
+                await Promise.all(this.DEPENDENCIES.map(dep => dep.load(perspective, versions)))
+                if(this.STATE_PROPS) {
+                    const propDeps = []
+                    this.STATE_PROPS.forEach((prop, key) => propDeps.push(prop.load(perspective, versions, initState?.[key])))
+                    await Promise.all(propDeps)
+                }
             }
         }
     }
@@ -692,6 +697,11 @@ GameObject.StateProperty = class extends StateProperty {
     constructor(key, kwargs) {
         super(key, kwargs)
         this.filter = kwargs?.filter
+    }
+    async load(perspective, versions, valState) {
+        const state = valState ?? this.defaultStateValue
+        const cls = CATALOG.getObject(perspective, versions, state.key).cls
+        if(cls.load) await cls.load(perspective, versions, state)
     }
     getObjectPropState(obj) {
         const val = obj[this.key]

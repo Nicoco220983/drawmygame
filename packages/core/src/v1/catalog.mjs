@@ -62,7 +62,7 @@ export class Catalog {
         const scnCats = initStates.map(state => this.getScene(perspective, versions, state.key))
         const paths = new Set(IS_SERVER_ENV ? scnCats.map(c => c.filePath) : scnCats.map(c => getUrlFromPath(c.urlPath)))
         await Promise.all(Array.from(paths).map(p => import(p)))
-        await Promise.all(initStates.map(state => this.getScene(perspective, versions, state.key).cls.load(state)))
+        await Promise.all(initStates.map(state => this.getScene(perspective, versions, state.key).cls.load(perspective, versions, state)))
     }
 
     async loadObjects(perspective, versions, initStates) {

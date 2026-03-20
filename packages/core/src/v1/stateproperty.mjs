@@ -83,6 +83,7 @@ export class StateProperty {
     initObjectClassProp(cls) {
         this.setObjectPropFromState(cls.prototype, this.defaultStateValue)
     }
+    async load(perspective, versions, valState) {}
     initObject(obj, kwargs) {}
     // state
     getObjectPropState(obj) {

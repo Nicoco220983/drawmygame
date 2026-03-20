@@ -1161,6 +1161,7 @@ export class HeroSpawnPoint extends GameObject {
     }
 
     getBaseImg() {
+        return PopImg // TODO: remove when "empty base img" position bug is fixed
         return this.game.isBuilder ? PopImg : null
     }
 }

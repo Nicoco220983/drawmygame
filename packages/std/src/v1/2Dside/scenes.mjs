@@ -24,7 +24,7 @@ const REGISTER_COMMON_ARGS = {
 
 // TEAM MARK ////////////////////////////////////
 
-const TeamMarkImg = new Img("/static/catalogs/std/v1/team_mark.png")
+const TeamMarkImg = new Img("/static/catalogs/std/v1/assets/team_mark.png")
 
 @Dependencies.add(TeamMarkImg)
 @OwnerableMixin.add({
@@ -34,8 +34,8 @@ export class TeamMark extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
-        this.width = 30
-        this.height = 30
+        this.width = 20
+        this.height = 20
     }
 
     update() {
@@ -47,8 +47,8 @@ export class TeamMark extends GameObject {
         const { owner } = this
         if (!owner) return
         this.x = owner.x
-        this.y = owner.y - owner.height / 2 - 20
-        this.z = owner.z + 1
+        this.y = owner.y - owner.height / 2 - 15
+        this.z = owner.z
     }
 
     getBaseImg() {
@@ -329,6 +329,7 @@ const DEFAULT_TEAMS_COLOR = ["blue", "red", "yellow", "green", "purple", "orange
     label: "Attack",
 })
 @Category.append("teams")
+@Dependencies.add(TeamMark)
 @StateNumber.define("nbTeams", { default: 1, nullableWith: 1 })
 export class TeamsManager extends Manager {
 
@@ -339,12 +340,12 @@ export class TeamsManager extends Manager {
         const { scene } = this
         hackMethod(scene, "onAddObject", -1, evt => {
             const obj = evt.inputArgs[0]
-            if (obj instanceof Hero) this.initHero(obj)
-            if (obj instanceof HeroSpawnPoint) this.initHeroSpawnPoint(obj)
+            if (obj instanceof Hero) this.hackHero(obj)
+            if (obj instanceof HeroSpawnPoint) this.hackHeroSpawnPoint(obj)
         })
     }
 
-    initHero(hero) {
+    hackHero(hero) {
         this.assignHeroTeam(hero)
         if (hero.team !== null) this.scene.addObject(TeamMark, { owner: hero })
     }
@@ -352,7 +353,7 @@ export class TeamsManager extends Manager {
     assignHeroTeam(hero) {
         if(hero.team !== null) return
         const { nbTeams } = this
-        if(nbTeams == 1 || nbTeams === Infinity) return
+        if(nbTeams < 2 || nbTeams === Infinity) return
         const nbHerosByTeams = new Map()
         this.scene.heros.forEach(hero2 => {
             const { team } = hero2
@@ -370,14 +371,14 @@ export class TeamsManager extends Manager {
         hero.team = (lowestTeam === null) ? 1 : lowestTeam
     }
 
-    initHeroSpawnPoint(point) {
+    hackHeroSpawnPoint(point) {
         this.assignHeroSpawnPointTeam(point)
     }
 
     assignHeroSpawnPointTeam(point) {
         if(point.team !== null) return
         const { nbTeams } = this
-        if(this.nbTeams === Infinity) return
+        if(nbTeams < 2 || nbTeams === Infinity) return
         const nbPointsByTeams = new Map()
         const spawnPoints = this.scene.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
         spawnPoints.forEach(point2 => {
@@ -1442,23 +1443,53 @@ export class BallScene extends GameScene {
     }
 
     hackHeroSpawnPoint(point) {
-        const goalsSize = this.goalsSize
-        point.getGoalImg = function() {
-            if(point.team===null) return
-            if(!this._goalImg) {
-                const scn = this.scene
-                const color = scn.teamsManager.getTeamColor(this.team)
-                this._goalImg = newCanvas(goalsSize, goalsSize)
-                const ctx = this._goalImg.getContext("2d")
-                ctx.beginPath()
-                ctx.arc(goalsSize/2, goalsSize/2, goalsSize/2, 0, 2*Math.PI)
-                ctx.lineWidth = 1
-                ctx.strokeStyle = color
-                ctx.setLineDash([5, 5])
-                ctx.stroke()
+        const scene = this
+        point.initGoalSprite = function() {
+            if(this.team===null) return
+            const teamColor = scene.teamsManager?.getTeamColor?.(this.team) ?? "white"
+            const goalsSize = scene.goalsSize
+            
+            // Check if rebuild is needed
+            const needsRebuild = !this._goalSprite || 
+                                 this._goalSpriteTeamColor !== teamColor ||
+                                 this._goalSpriteGoalsSize !== goalsSize
+            
+            if(!needsRebuild) return
+            
+            // Remove old sprite if exists
+            if(this._goalSprite) {
+                this._graphics.removeChild(this._goalSprite)
+                this._goalSprite.destroy()
+                this._goalSprite = null
             }
-            return this._goalImg
+            
+            // Create new dashed circle
+            const goalSprite = new window.PIXI.Graphics()
+            const radius = goalsSize / 2
+            const dashCount = 16
+            const dashAngle = (2 * PI) / dashCount
+            
+            goalSprite.stroke({ color: teamColor, width: 2 })
+            
+            for (let i = 0; i < dashCount; i += 2) {
+                const startAngle = i * dashAngle
+                const endAngle = (i + 1) * dashAngle
+                goalSprite.arc(0, 0, radius, startAngle, endAngle)
+                goalSprite.stroke({ color: teamColor, width: 2 })
+            }
+            
+            this._graphics.addChild(goalSprite)
+            this._goalSprite = goalSprite
+            this._goalSpriteTeamColor = teamColor
+            this._goalSpriteGoalsSize = goalsSize
         }
+        hackMethod(point, "syncGraphics", -1, evt => {
+            if(point._graphics) {
+                point.initGoalSprite()
+                pixiHelpers.scaleTo(point._graphics, this.goalsSize, this.goalsSize)
+                console.log("TMP HeroSpawnPoint.syncGraphics", point._graphics.x, point._graphics.y)
+            }
+        })
     }
 
     update() {
