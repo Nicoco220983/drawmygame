@@ -124,8 +124,8 @@ export function createSpriteFromCanvas(source) {
         return new PIXI.Sprite(source)
     }
     // Convert canvas/image to texture
-    const texture = PIXI.Texture.from(source)
-    return new PIXI.Sprite(texture)
+    const texture = getCachedTexture(source)
+    return texture ? new PIXI.Sprite(texture) : null
 }
 
 /**

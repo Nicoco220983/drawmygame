@@ -1162,7 +1162,7 @@ export class HeroSpawnPoint extends GameObject {
 
     getBaseImg() {
         return PopImg // TODO: remove when "empty base img" position bug is fixed
-        return this.game.isBuilder ? PopImg : null
+        //return this.game.isBuilder ? PopImg : null
     }
 }
 
@@ -1200,12 +1200,12 @@ export class HeroSpawnPoint extends GameObject {
 })
 export class ObjectSpawner extends GameObject {
 
-    static async load(perspective, versions, initState) {
-        const loads = []
-        loads.push(super.load(initState))
-        if(initState.model) loads.push(CATALOG.loadObjects(perspective, versions, [initState.model]))
-        await Promise.all(loads)
-    }
+    // static async load(perspective, versions, initState) {
+    //     const loads = []
+    //     loads.push(super.load(initState))
+    //     if(initState.model) loads.push(CATALOG.loadObjects(perspective, versions, [initState.model]))
+    //     await Promise.all(loads)
+    // }
 
     update() {
         super.update()
@@ -1246,7 +1246,36 @@ export class ObjectSpawner extends GameObject {
     }
 
     getBaseImg() {
-        return PopImg
+        return this.game.isBuilder ? PopImg : null
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        this.syncObjectGraphics()
+    }
+
+    syncObjectGraphics() {
+        // TODO: make it work
+        if(!this.game.isBuilder) return
+        const objCat = this.model ? CATALOG.getObject(this.game.map.perspective, this.game.map.versions, this.model.getKey()) : null
+        if(!objCat?.icon) {
+            if(this._modelIconSprite) {
+                this._modelIconSprite.destroy()
+                this._modelIconSprite = null
+            }
+            return
+        }
+        if (this._modelIconSprite?._objCatIcon == objCat.icon) return
+        this._modelIconSprite?.destroy()
+        console.log("TMP objCat.icon", objCat.icon)
+        const sprite = PIXI.Sprite.from(objCat.icon)
+        sprite.anchor.set(0.5, 0.5)
+        //sprite.width = this.width
+        //sprite.height = this.height
+        //sprite.visibility = 1
+        this._graphics.addChild(sprite)
+        sprite._objCatIcon = objCat.icon
+        this._modelIconSprite = sprite
     }
 }
 
@@ -1381,7 +1410,7 @@ export class GlidingWall extends Wall {
 
     init(kwargs) {
         super.init(kwargs)
-        this.color = "lightblue"
+        this.color = "blue"
         this.physicsStaticFriction = 0
         this.physicsDynamicFriction = 0
     }

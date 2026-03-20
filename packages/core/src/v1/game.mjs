@@ -433,8 +433,8 @@ export class GameObject {
 
     static {
         assign(this.prototype, {
-            width: 10,
-            height: 10,
+            width: 100,
+            height: 100,
             color: null,
             visibility: 1,
             removed: false,
@@ -699,9 +699,11 @@ GameObject.StateProperty = class extends StateProperty {
         this.filter = kwargs?.filter
     }
     async load(perspective, versions, valState) {
-        const state = valState ?? this.defaultStateValue
-        const cls = CATALOG.getObject(perspective, versions, state.key).cls
-        if(cls.load) await cls.load(perspective, versions, state)
+        const objState = valState ?? this.defaultStateValue
+        const objKey = objState?.key
+        if(!objKey) return
+        const cls = CATALOG.getObject(perspective, versions, objKey).cls
+        if(cls.load) await cls.load(perspective, versions, objState)
     }
     getObjectPropState(obj) {
         const val = obj[this.key]
