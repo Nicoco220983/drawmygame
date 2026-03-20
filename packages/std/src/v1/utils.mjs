@@ -87,8 +87,10 @@ export class ObjectBars extends GameObject {
             this._rebuildIconSprites(count)
         }
         
-        // Let base class handle container transform
-        super.syncGraphics()
+        // Update container position
+        container.x = this.x
+        container.y = this.y
+        container.visible = true
     }
 
     _rebuildIconSprites(count) {
@@ -106,7 +108,9 @@ export class ObjectBars extends GameObject {
         }
 
         // Add new sprites if needed
-        const texture = getCachedTexture(this.getObjectImg())
+        const texture = pixiHelpers.getCachedTexture(this.getObjectImg())
+        if(!texture) return
+        
         while (_iconSprites.length < count) {
             const sprite = new window.PIXI.Sprite(texture)
             sprite.anchor.set(0.5)

@@ -606,7 +606,7 @@ export class GameObject {
         let contentSprite = this._contentSprite
         if (!contentSprite) {
             const img = this.getBaseImg()
-            const texture = img ? getCachedTexture(img) : null
+            const texture = getCachedTexture(img)
             if (texture) {
                 if(!(texture instanceof window.PIXI.Texture)) throw Error("Not a texture")
                 contentSprite = pixiHelpers.createSpriteFromCanvas(texture)
@@ -628,7 +628,7 @@ export class GameObject {
         if (contentSprite instanceof window.PIXI?.Sprite) {
             // Check for texture swap
             const newImg = this.getBaseImg()
-            const newTexture = newImg ? getCachedTexture(newImg) : null
+            const newTexture = getCachedTexture(newImg)
             if (newTexture && contentSprite.texture !== newTexture) {
                 if(!(newTexture instanceof window.PIXI.Texture)) throw Error("Not a texture")
                 contentSprite.texture = newTexture

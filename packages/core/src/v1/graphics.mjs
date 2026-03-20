@@ -37,6 +37,7 @@ export async function initPixiApp(parentEl, options = {}) {
 
 
 export function getCachedTexture(img) {
+    if(!img || img.unloaded) return null
     const texture = img._pixiTexture ||= PIXI.Texture.from(img)
     return texture
 }

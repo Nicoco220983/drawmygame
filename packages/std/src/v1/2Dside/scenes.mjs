@@ -346,15 +346,13 @@ export class TeamsManager extends Manager {
 
     initHero(hero) {
         this.assignHeroTeam(hero)
-        if (hero.team !== null) {
-            this.scene.addObject(TeamMark, { owner: hero })
-        }
+        if (hero.team !== null) this.scene.addObject(TeamMark, { owner: hero })
     }
 
     assignHeroTeam(hero) {
         if(hero.team !== null) return
         const { nbTeams } = this
-        if(this.nbTeams === Infinity) return
+        if(nbTeams == 1 || nbTeams === Infinity) return
         const nbHerosByTeams = new Map()
         this.scene.heros.forEach(hero2 => {
             const { team } = hero2
@@ -857,18 +855,6 @@ export class GameScene extends Scene {
         )
     }
 
-    // initHerosSpawnPos() {
-    //     const points = this.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
-    //     if (points.length == 0) return
-    //     const firstPoint = points[0]
-    //     this.setHerosSpawnPos(firstPoint.x, firstPoint.y)
-    // }
-
-    // setHerosSpawnPos(x, y) {
-    //     this.herosSpawnX = floor(x)
-    //     this.herosSpawnY = floor(y)
-    // }
-
     getState(isInitState=false) {
         const state = super.getState(isInitState)
         if(isInitState) {
@@ -1033,14 +1019,6 @@ export class StandardScene extends GameScene {
         await JoypadGameScene.load()
         return new JoypadGameScene(this.game)
     }
-
-    draw() {
-        return super.draw()
-    }
-
-    drawBackground(drawer) {
-        this.background.draw(drawer)
-    }
 }
 
 
@@ -1089,6 +1067,12 @@ export class TagScene extends GameScene {
         super.initGraphics()
         this.background.initGraphics()
         this.hud.initGraphics()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        this.background.syncGraphics()
+        this.hud.syncGraphics()
     }
 
     onAddObject(obj) {
@@ -1198,17 +1182,6 @@ export class TagScene extends GameScene {
         await JoypadGameScene.load()
         return new JoypadGameScene(this.game)
     }
-
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.hud.draw(drawer)
-        return res
-    }
-
-    drawBackground(drawer) {
-        this.background.draw(drawer)
-    }
 }
 
 
@@ -1317,6 +1290,18 @@ export class StealTreasures extends GameScene {
         })
     }
 
+    initGraphics() {
+        super.initGraphics()
+        this.background.initGraphics()
+        this.hud.initGraphics()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        this.background.syncGraphics()
+        this.hud.syncGraphics()
+    }
+
     onAddObject(obj) {
         super.onAddObject(obj)
         if (obj instanceof Hero) this.hackHero(obj)
@@ -1377,17 +1362,6 @@ export class StealTreasures extends GameScene {
         await JoypadGameScene.load()
         return new JoypadGameScene(this.game)
     }
-
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.hud.draw(drawer)
-        return res
-    }
-
-    drawBackground(drawer) {
-        this.background.draw(drawer)
-    }
 }
 
 
@@ -1428,6 +1402,18 @@ export class BallScene extends GameScene {
         })
     }
 
+    initGraphics() {
+        super.initGraphics()
+        this.background.initGraphics()
+        this.hud.initGraphics()
+    }
+
+    syncGraphics() {
+        super.syncGraphics()
+        this.background.syncGraphics()
+        this.hud.syncGraphics()
+    }
+
     onAddObject(obj) {
         super.onAddObject(obj)
         if (obj instanceof Ball) this.hackBall(obj)
@@ -1458,7 +1444,6 @@ export class BallScene extends GameScene {
             return this._goalImg
         }
     }
-
 
     update() {
         super.update()
@@ -1554,17 +1539,6 @@ export class BallScene extends GameScene {
         const { JoypadGameScene } = await import("/static/catalogs/std/v1/joypad.mjs")
         await JoypadGameScene.load()
         return new JoypadGameScene(this.game)
-    }
-
-    draw() {
-        const res = super.draw()
-        const drawer = this.graphicsEngine
-        this.hud.draw(drawer)
-        return res
-    }
-
-    drawBackground(drawer) {
-        this.background.draw(drawer)
     }
 }
 
