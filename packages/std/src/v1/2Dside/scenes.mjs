@@ -428,10 +428,10 @@ export class HeadsUpDisplay extends GameObject {
 
     static MARGIN = 5
     static BAR_WIDTH = 100
-    static BAR_HEIGHT = 20
-    static ICON_SIZE = 20
-    static ROW_HEIGHT = 25
-    static FONT_SIZE = 20
+    static BAR_HEIGHT = 10
+    static ICON_SIZE = 15
+    static ROW_HEIGHT = 20
+    static FONT_SIZE = 15
 
     init(kwargs) {
         super.init(kwargs)
@@ -583,8 +583,11 @@ export class HeadsUpDisplay extends GameObject {
         // Ensure rows are synced (creates row containers if needed)
         this._syncRows()
         
-        // Let base class handle container transform
-        super.syncGraphics()
+        const container = this._graphics
+        if (!container) return
+        container.x = this.x
+        container.y = this.y
+        container.zIndex = this.z
     }
 }
 
