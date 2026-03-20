@@ -1265,10 +1265,10 @@ export class ObjectSpawner extends GameObject {
 export class Wall extends GameObject {
 
     init(kwargs) {
-        this.x1 = kwargs?.x1 ?? 0
-        this.y1 = kwargs?.y1 ?? 0
-        this.x2 = kwargs?.x2 ?? 0
-        this.y2 = kwargs?.y2 ?? 0
+        if(kwargs?.x1 !== undefined) this.x1 = kwargs.x1
+        if(kwargs?.y1 !== undefined) this.y1 = kwargs.y1
+        if(kwargs?.x2 !== undefined) this.x2 = kwargs.x2
+        if(kwargs?.y2 !== undefined) this.y2 = kwargs.y2
         if (kwargs?.visibility !== undefined) this.visibility = kwargs.visibility
         this.color = "black"
     }
