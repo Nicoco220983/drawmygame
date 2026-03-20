@@ -589,23 +589,36 @@ export class HeadsUpDisplay extends GameObject {
 }
 
 
-class QrCodeDisplay extends GameObject {
+class QrCode extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
-        this._image = kwargs?.image
-        this._width = this._image?.width ?? 100
-        this._height = this._image?.height ?? 100
+        this.width = 200
+        this.height = 200
+        this._qrcodeImg = null
+        this.initQrcodeImg()
+    }
+
+    async initQrcodeImg() {
+        const qrcodeImg = await this.game.initQrcodeImg()
+        const can = newCanvas(ceil(qrcodeImg.width * 1.2), ceil(qrcodeImg.height * 1.2))
+        const ctx = can.getContext("2d")
+        ctx.fillStyle = "white"
+        ctx.fillRect(0, 0, can.width, can.height)
+        ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
+        this._qrcodeImg = qrcodeImg
     }
 
     syncGraphics() {
         const container = this._graphics
         if (!container) return
+        const qrcodeImg = this._qrcodeImg
+        if (!qrcodeImg) return
         
         // Lazy-create sprite if needed (at local origin, container handles position)
         let sprite = this._qrSprite
-        if (!sprite && this._image) {
-            const texture = window.PIXI.Texture.from(this._image)
+        if (!sprite) {
+            const texture = window.PIXI.Texture.from(qrcodeImg)
             sprite = pixiHelpers.createSpriteFromCanvas(texture)
             sprite.anchor.set(0.5)
             container.addChild(sprite)
@@ -1580,18 +1593,10 @@ export class WaitingScene extends Scene {
         this.playerList.setPlayers(this.game.players)
     }
 
-    async initQrcodeImg() {
+    initQrcodeImg() {
         if (!this.game.hasGraphics) return
         if (this._qrcodeObj) return
-        
-        const qrcodeImg = await this.game.initQrcodeImg()
-        const can = newCanvas(ceil(qrcodeImg.width * 1.2), ceil(qrcodeImg.height * 1.2))
-        const ctx = can.getContext("2d")
-        ctx.fillStyle = "white"
-        ctx.fillRect(0, 0, can.width, can.height)
-        ctx.drawImage(qrcodeImg, floor((can.width - qrcodeImg.width) / 2), floor((can.height - qrcodeImg.height) / 2))
-        
-        this._qrcodeObj = this.addNotif(QrCodeDisplay, { image: can })
+        this._qrcodeObj = this.addNotif(QrCode)
         this._qrcodeObj.x = this.viewWidth * .75
         this._qrcodeObj.y = this.viewHeight * .6
     }
