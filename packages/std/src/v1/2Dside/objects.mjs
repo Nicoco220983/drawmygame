@@ -82,8 +82,8 @@ export class Pop extends GameObject {
 
     syncGraphics() {
         super.syncGraphics()
-        const size = (10 + 100 * (1 - this.remIt / this.duration))
-        pixiHelpers.scaleTo(this._graphics, size, size)
+        const scale = (.5 + 1 * (1 - this.remIt / this.duration))
+        this._graphics.scale.x = this._graphics.scale.y = scale
     }
 }
 
@@ -830,7 +830,7 @@ export class BlobEnemy extends Enemy {
         const cosAngle = cos(angle), sinAngle = sin(angle)
         this._graphics.x = this.x - this.width * .05 * cosAngle
         this._graphics.y = this.y - this.height * .05 * sinAngle
-        pixiHelpers.scaleTo(this._graphics, this.width * (1+.1*cosAngle), this.height * (1+.1*sinAngle), this.dirX, this.dirY)
+        pixiHelpers.scaleSpriteTo(this._baseImgSprite, this.width * (1+.1*cosAngle), this.height * (1+.1*sinAngle), this.dirX, this.dirY)
     }
 }
 

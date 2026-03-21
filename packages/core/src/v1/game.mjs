@@ -606,47 +606,43 @@ export class GameObject {
         const container = this._graphics
         if(!container) return
         const { x, y, z, width, height, dirX, dirY, angle, visibility, tint } = this
-        
-        // Lazy-create content sprite if needed
-        let contentSprite = this._contentSprite
-        if (!contentSprite) {
-            const img = this.getBaseImg()
-            const texture = getCachedTexture(img)
-            if (texture) {
-                if(!(texture instanceof window.PIXI.Texture)) throw Error("Not a texture")
-                contentSprite = pixiHelpers.createSpriteFromCanvas(texture)
-                if (contentSprite) {
-                    contentSprite.anchor.set(0.5, 0.5)
-                    container.addChild(contentSprite)
-                    this._contentSprite = contentSprite
-                }
-            } else if(this.backgroundColor) {
-                // Create a white rectangle as fallback
-                const graphics = new window.PIXI.Graphics()
-                pixiHelpers.drawRect(graphics, 0, 0, width, height, this.backgroundColor)
-                container.addChild(graphics)
-                this._contentSprite = graphics
+
+        // Lazy-create background graphics if needed
+        const backgroundColor = this.backgroundColor, backgroundColorGraphics = this._backgroundColorGraphics
+        if(!backgroundColor) {
+            if(backgroundColorGraphics) {
+                backgroundColorGraphics.destroy()
+                this._backgroundColorGraphics = null
+            }
+        } else {
+            if(!backgroundColorGraphics || backgroundColorGraphics._width !== width || backgroundColorGraphics._height !== height || backgroundColorGraphics._backgroundColor !== backgroundColor) {
+                if(backgroundColorGraphics) backgroundColorGraphics.destroy()
+                backgroundColorGraphics = this._backgroundColorGraphics = new window.PIXI.Graphics()
+                backgroundColorGraphics._width = width
+                backgroundColorGraphics._height = height
+                backgroundColorGraphics._backgroundColor = backgroundColor
+                pixiHelpers.drawRect(backgroundColorGraphics, 0, 0, width, height, backgroundColor)
+                container.addChild(backgroundColorGraphics)
             }
         }
         
-        // Update sprite-specific properties
-        if (contentSprite instanceof window.PIXI?.Sprite) {
-            // Check for texture swap
-            const newImg = this.getBaseImg()
-            const newTexture = getCachedTexture(newImg)
-            if (newTexture && contentSprite.texture !== newTexture) {
-                if(!(newTexture instanceof window.PIXI.Texture)) throw Error("Not a texture")
-                contentSprite.texture = newTexture
+        // Lazy-create base img sprite if needed
+        let baseImg = this.getBaseImg(), baseImgSprite = this._baseImgSprite
+        if(!baseImg) {
+            if(baseImgSprite) {
+                baseImgSprite.destroy()
+                this._baseImgSprite = null
+            } 
+        } else {
+            if(!baseImgSprite || baseImgSprite._baseImg !== baseImg) {
+                if(baseImgSprite) baseImgSprite.destroy()
+                baseImgSprite = this._baseImgSprite = pixiHelpers.createSprite(baseImg)
+                baseImgSprite._baseImg = baseImg
+                baseImgSprite.anchor.set(0.5, 0.5)
+                container.addChild(baseImgSprite)
             }
-        }
-        
-        // Update graphics-specific properties (only redraw if dimensions or color changed)
-        if (contentSprite instanceof window.PIXI?.Graphics) {
-            const cache = contentSprite._drawCache
-            if (!cache || cache.width !== width || cache.height !== height || cache.backgroundColor !== this.backgroundColor) {
-                contentSprite.clear()
-                pixiHelpers.drawRect(contentSprite, 0, 0, width, height, this.backgroundColor)
-                contentSprite._drawCache = { width, height, backgroundColor: this.backgroundColor }
+            if(baseImgSprite) {
+                pixiHelpers.scaleSpriteTo(baseImgSprite, width, height, dirX, dirY)
             }
         }
 
@@ -654,8 +650,6 @@ export class GameObject {
         container.x = x
         container.y = y
         if (z !== undefined) container.zIndex = z
-
-        pixiHelpers.scaleTo(container, width, height, dirX, dirY)
 
         if (angle !== undefined) container.rotation = (angle * Math.PI) / 180
 

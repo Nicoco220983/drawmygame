@@ -113,19 +113,15 @@ export function createSpriteFromSheet(sheet, frameName) {
 }
 
 /**
- * Create a sprite from a canvas or image element
- * @param {HTMLCanvasElement|HTMLImageElement} source - Source element
+ * Create a sprite from img, canvas or texture
+ * @param {HTMLCanvasElement|HTMLImageElement|PIXI.TExture} source - Source element
  * @returns {PIXI.Sprite|null}
  */
-export function createSpriteFromCanvas(source) {
-    if(!source) return null
-    // If source is already a texture, use it directly
-    if (source instanceof PIXI.Texture) {
-        return new PIXI.Sprite(source)
-    }
-    // Convert canvas/image to texture
-    const texture = getCachedTexture(source)
-    return texture ? new PIXI.Sprite(texture) : null
+export function createSprite(source) {
+    if(!source || source.unloaded) return null
+    const texture = (source instanceof PIXI.Texture) ? source : getCachedTexture(source)
+    if(!texture) return null
+    return new PIXI.Sprite(texture)
 }
 
 /**
@@ -220,12 +216,22 @@ function scaleTo(pixiObj, width, height, dirX=1, dirY=1) {
     pixiObj.scale.y = height / bounds.height * abs(pixiObj.scale.y) * dirY
 }
 
+function scaleSpriteTo(sprite, width, height, dirX=1, dirY=1) {
+    if (!sprite) return
+    const texture = sprite.texture
+    if (!texture) return
+    const texWidth = texture.orig.width
+    const texHeight = texture.orig.height
+    if (texWidth === 0 || texHeight === 0) return
+    sprite.scale.x = width / texWidth * dirX
+    sprite.scale.y = height / texHeight * dirY
+}
+
 // pixiHelpers namespace for backward compatibility
 export const pixiHelpers = {
     getCachedTexture,
 
     createSpriteFromSheet,
-    createSpriteFromCanvas,
     createTextPixi,
     tintSprite,
     createAnimatedSprite,
@@ -235,7 +241,7 @@ export const pixiHelpers = {
     toPixiColor,
     
     // Aliases for compatibility
-    createSprite: createSpriteFromCanvas,
+    createSprite: createSprite,
     setPosition: (obj, x, y) => { if (obj) { obj.x = x; obj.y = y } },
     setAnchor: (sprite, x, y) => { if (sprite?.anchor) sprite.anchor.set(x, y) },
     setScale: (sprite, x, y) => { if (sprite?.scale) sprite.scale.set(x, y ?? x) },
@@ -248,4 +254,5 @@ export const pixiHelpers = {
         }
     },
     scaleTo,
+    scaleSpriteTo,
 }

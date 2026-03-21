@@ -622,8 +622,7 @@ class QrCode extends GameObject {
         // Lazy-create sprite if needed (at local origin, container handles position)
         let sprite = this._qrSprite
         if (!sprite) {
-            const texture = window.PIXI.Texture.from(qrcodeImg)
-            sprite = pixiHelpers.createSpriteFromCanvas(texture)
+            sprite = pixiHelpers.createSprite(qrcodeImg)
             sprite.anchor.set(0.5)
             container.addChild(sprite)
             this._qrSprite = sprite
@@ -1486,8 +1485,6 @@ export class BallScene extends GameScene {
         hackMethod(point, "syncGraphics", -1, evt => {
             if(point._graphics) {
                 point.initGoalSprite()
-                pixiHelpers.scaleTo(point._graphics, this.goalsSize, this.goalsSize)
-                console.log("TMP HeroSpawnPoint.syncGraphics", point._graphics.x, point._graphics.y)
             }
         })
     }
