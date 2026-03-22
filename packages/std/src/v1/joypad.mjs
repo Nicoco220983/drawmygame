@@ -4,7 +4,7 @@ const { assign } = Object
 import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
     Dependencies, GameObject, Text, GameObjectGroup, Img, Scene,
-    getCachedTexture,
+    getCachedTexture, pixiHelpers,
 } from "../../../core/v1/index.mjs"
 
 
@@ -92,13 +92,12 @@ export class JoypadButton extends GameObject {
         if (!container) return
         
         // Lazy-create background sprite if needed
-        if (!this._bgSprite) {
-            const img = this.getBaseImg()
-            const texture = img ? getCachedTexture(img) : null
-            if (texture) {
-                this._bgSprite = new window.PIXI.Sprite(texture)
-                this._bgSprite.anchor.set(0.5, 0.5)
-                container.addChild(this._bgSprite)
+        if (!this._baseImgSprite) {
+            const baseImg = this.getBaseImg()
+            const baseImgSprite = this._baseImgSprite = pixiHelpers.createSprite(baseImg)
+            if(baseImgSprite) {
+                baseImgSprite.anchor.set(0.5, 0.5)
+                container.addChild(baseImgSprite)
             }
         }
         
@@ -113,29 +112,30 @@ export class JoypadButton extends GameObject {
             })
             this._textObj = new window.PIXI.Text({ text: this.text, style })
             this._textObj.anchor.set(0.5, 0.5)
+            this._textObj.zIndex = 1
             container.addChild(this._textObj)
         }
         
         // Lazy-create icon overlay if needed
         if (!this._iconSprite && this.icon) {
             const iconImg = this.icon.getBaseImg ? this.icon.getBaseImg() : this.icon
-            const iconTexture = iconImg ? getCachedTexture(iconImg) : null
-            if (iconTexture) {
-                this._iconSprite = new window.PIXI.Sprite(iconTexture)
-                this._iconSprite.anchor.set(0.5, 0.5)
-                container.addChild(this._iconSprite)
+            const iconSprite = this._iconSprite = pixiHelpers.createSprite(iconImg)
+            if (iconSprite) {
+                iconSprite.anchor.set(0.5, 0.5)
+                iconSprite.zIndex = 1
+                container.addChild(iconSprite)
             }
         }
         
-        // Update background sprite
-        if (this._bgSprite) {
+        // Update base img sprite
+        if (this._baseImgSprite) {
             const newImg = this.getBaseImg()
             const newTexture = newImg ? getCachedTexture(newImg) : null
-            if (newTexture && this._bgSprite.texture !== newTexture) {
-                this._bgSprite.texture = newTexture
+            if (newTexture && this._baseImgSprite.texture !== newTexture) {
+                this._baseImgSprite.texture = newTexture
             }
-            this._bgSprite.width = this.width
-            this._bgSprite.height = this.height
+            this._baseImgSprite.width = this.width
+            this._baseImgSprite.height = this.height
         }
         
         // Update icon if exists
