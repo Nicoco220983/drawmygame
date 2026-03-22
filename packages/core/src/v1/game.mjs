@@ -637,9 +637,11 @@ export class GameObject {
             if(!baseImgSprite || baseImgSprite._baseImg !== baseImg) {
                 if(baseImgSprite) baseImgSprite.destroy()
                 baseImgSprite = this._baseImgSprite = pixiHelpers.createSprite(baseImg)
-                baseImgSprite._baseImg = baseImg
-                baseImgSprite.anchor.set(0.5, 0.5)
-                container.addChild(baseImgSprite)
+                if(baseImgSprite) {
+                    baseImgSprite._baseImg = baseImg
+                    baseImgSprite.anchor.set(0.5, 0.5)
+                    container.addChild(baseImgSprite)
+                }
             }
             if(baseImgSprite) {
                 pixiHelpers.scaleSpriteTo(baseImgSprite, width, height, dirX, dirY)
