@@ -51,17 +51,14 @@ export class TeamMark extends GameObject {
         this.z = owner.z
     }
 
-    getBaseImg() {
-        return TeamMarkImg
-    }
-
     syncGraphics() {
+        this.setSprite(TeamMarkImg)
         super.syncGraphics()
         const { owner, _graphics, scene } = this
         if (!_graphics || !owner) return
         const teamColor = scene.teamsManager?.getTeamColor?.(owner.team)
         if (teamColor) {
-            pixiHelpers.tintSprite(_graphics, teamColor)
+            pixiHelpers.tintSprite(this._sprite, teamColor)
         }
     }
 }
@@ -671,8 +668,9 @@ const GreenLandscapeImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgro
 })
 @Dependencies.add(GreenLandscapeImg)
 export class GreenLandscapeBackground extends Background {
-    getBaseImg() {
-        return GreenLandscapeImg
+    syncGraphics() {
+        this.setSprite(GreenLandscapeImg)
+        super.syncGraphics()
     }
 }
 
@@ -685,8 +683,9 @@ const RockMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(RockMountainsImg)
 export class RockMountainsBackground extends Background {
-    getBaseImg() {
-        return RockMountainsImg
+    syncGraphics() {
+        this.setSprite(RockMountainsImg)
+        super.syncGraphics()
     }
 }
 
@@ -699,8 +698,9 @@ const SnowMountainsImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrou
 })
 @Dependencies.add(SnowMountainsImg)
 export class SnowMountainsBackground extends Background {
-    getBaseImg() {
-        return SnowMountainsImg
+    syncGraphics() {
+        this.setSprite(SnowMountainsImg)
+        super.syncGraphics()
     }
 }
 
@@ -713,8 +713,9 @@ const DarkForestImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds
 })
 @Dependencies.add(DarkForestImg)
 export class DarkForestBackground extends Background {
-    getBaseImg() {
-        return DarkForestImg
+    syncGraphics() {
+        this.setSprite(DarkForestImg)
+        super.syncGraphics()
     }
 }
 
@@ -727,8 +728,9 @@ const DarkCityImg = new Img("/static/catalogs/std/v1/2Dside/assets/backgrounds/d
 })
 @Dependencies.add(DarkCityImg)
 export class DarkCityBackground extends Background {
-    getBaseImg() {
-        return DarkCityImg
+    syncGraphics() {
+        this.setSprite(DarkCityImg)
+        super.syncGraphics()
     }
 }
 
@@ -1233,11 +1235,8 @@ export class Tag extends GameObject {
         this.y = owner.y - 50
     }
 
-    getBaseImg() {
-        return TagImg
-    }
-
     syncGraphics() {
+        this.setSprite(TagImg)
         this.visibility = Boolean(this.owner)
         super.syncGraphics()
     }
@@ -1726,13 +1725,14 @@ export class ScoresBoard extends GameObject {
         this.height = this.headerHeight + nbKeys(this.game.players) * this.lineHeight
     }
 
-    getBaseImg() {
+    syncGraphics() {
         const baseImg = this._baseImg ||= document.createElement("canvas")
         baseImg.width = this.width
         baseImg.height = this.height
         this.drawBackground(baseImg)
         this.drawScores(baseImg)
-        return baseImg
+        this.setSprite(baseImg)
+        super.syncGraphics()
     }
 
     drawBackground(can) {

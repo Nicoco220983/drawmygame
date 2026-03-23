@@ -426,6 +426,7 @@ export class ObjectLink {
 @Dependencies.init()
 export class GameObject {
 
+    static ICON_IMG = null
     // static STATE_PROPS = new Map()  // already done by x/y/z/... state props
     // static LINK_TRIGGERS = new Map()  // already done by isRemoved/reactRemove links
     // static LINK_REACTIONS = new Map()  // same...
@@ -588,15 +589,6 @@ export class GameObject {
     }
 
     /**
-     * Returns the base image for this game object.
-     * Override to provide a custom image (e.g., from Img or SpriteSheet).
-     * @returns {Img|HTMLImageElement|HTMLCanvasElement|null} The base image or null
-     */
-    getBaseImg() {
-        return null
-    }
-
-    /**
      * Update the PixiJS display object based on current game object state.
      * Override this method for custom update logic.
      * Creates and manages graphics content in the root container (_graphics).
@@ -607,48 +599,6 @@ export class GameObject {
         if(!container) return
         const { x, y, z, width, height, dirX, dirY, angle, visibility, tint } = this
 
-        // Lazy-create background graphics if needed
-        const backgroundColor = this.backgroundColor, backgroundColorGraphics = this._backgroundColorGraphics
-        if(!backgroundColor) {
-            if(backgroundColorGraphics) {
-                backgroundColorGraphics.destroy()
-                this._backgroundColorGraphics = null
-            }
-        } else {
-            if(!backgroundColorGraphics || backgroundColorGraphics._width !== width || backgroundColorGraphics._height !== height || backgroundColorGraphics._backgroundColor !== backgroundColor) {
-                if(backgroundColorGraphics) backgroundColorGraphics.destroy()
-                backgroundColorGraphics = this._backgroundColorGraphics = new window.PIXI.Graphics()
-                backgroundColorGraphics._width = width
-                backgroundColorGraphics._height = height
-                backgroundColorGraphics._backgroundColor = backgroundColor
-                pixiHelpers.drawRect(backgroundColorGraphics, 0, 0, width, height, backgroundColor)
-                container.addChild(backgroundColorGraphics)
-            }
-        }
-        
-        // Lazy-create base img sprite if needed
-        let baseImg = this.getBaseImg(), baseImgSprite = this._baseImgSprite
-        if(!baseImg) {
-            if(baseImgSprite) {
-                baseImgSprite.destroy()
-                this._baseImgSprite = null
-            } 
-        } else {
-            if(!baseImgSprite || baseImgSprite._baseImg !== baseImg) {
-                if(baseImgSprite) baseImgSprite.destroy()
-                baseImgSprite = this._baseImgSprite = pixiHelpers.createSprite(baseImg)
-                if(baseImgSprite) {
-                    baseImgSprite._baseImg = baseImg
-                    baseImgSprite.anchor.set(0.5, 0.5)
-                    container.addChild(baseImgSprite)
-                }
-            }
-            if(baseImgSprite) {
-                pixiHelpers.scaleSpriteTo(baseImgSprite, width, height, dirX, dirY)
-            }
-        }
-
-        // Update container transform
         container.x = x
         container.y = y
         if (z !== undefined) container.zIndex = z
@@ -657,6 +607,27 @@ export class GameObject {
 
         if (visibility !== undefined) container.alpha = visibility
         if (tint && contentSprite) pixiHelpers.tintSprite(contentSprite, tint)
+
+        if(this._sprite) {
+            pixiHelpers.scaleSpriteTo(this._sprite, width, height, dirX, dirY)
+        }
+    }
+
+    setSprite(source) {
+        const sprite = this._sprite ||= pixiHelpers.addNewSpriteTo(this._graphics)
+        sprite.texture = pixiHelpers.getCachedTexture(source)
+        return sprite
+    }
+
+    setBackground(color) {
+        const backgroundGraphics = this._backgroundGraphics ||= this._graphics.addChild(new window.PIXI.Graphics())
+        backgroundGraphics.zIndex = -1
+        if(backgroundGraphics.width !== width || backgroundGraphics.height !== height || backgroundGraphics._color !== color) {
+            backgroundGraphics.clear()
+            pixiHelpers.drawRect(backgroundGraphics, 0, 0, width, height, color)
+            backgroundGraphics._color = color
+        }
+        return backgroundGraphics
     }
 
     /**
@@ -682,6 +653,10 @@ export class GameObject {
     removePixiObject() {
         this._graphics?.destroy()
         this._graphics = null
+    }
+
+    static getIconImg() {
+        return this.ICON_IMG
     }
 }
 

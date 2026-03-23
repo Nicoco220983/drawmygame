@@ -77,17 +77,8 @@ export class Hero extends GameObject {
 
     update() {
         super.update()
-        //this.initTeam()
         this.updateSpawnEffect()
     }
-
-    // initTeam() {
-    //     if(this._initTeamDone) return
-    //     this._initTeamDone = true
-    //     if(this.scene.teamsManager) {
-    //         this.scene.teamsManager.assignHeroTeam(this)
-    //     }
-    // }
 
     updateSpawnEffect() {
         const { lastSpawnIt } = this
@@ -171,109 +162,6 @@ export class Hero extends GameObject {
         super.syncGraphics()
         pixiHelpers.tintSprite(this._graphics, (this.getDamagedAge <= 5) ? "red" : null)
     }
-
-    /**
-     * Create Pixi container for hero with body sprite
-     * @returns {PIXI.Container|null}
-     */
-    // createGraphics() {
-    //     // Create main container
-    //     const container = pixiHelpers.createContainer()
-    //     if (!container) return null
-        
-    //     // Create body sprite container
-    //     container.bodyContainer = pixiHelpers.createContainer()
-    //     pixiHelpers.addChild(container, container.bodyContainer)
-        
-    //     // Create extras container for attached items
-    //     container.extrasContainer = pixiHelpers.createContainer()
-    //     pixiHelpers.addChild(container, container.extrasContainer)
-        
-    //     // Create initial body sprite
-    //     this.updateHeroBodySprite(container)
-        
-    //     return container
-    // }
-
-    /**
-     * Update the hero's body sprite based on current state
-     * @param {PIXI.Container} container
-     */
-    // updateHeroBodySprite(container) {
-    //     if (!container?.bodyContainer) return
-        
-    //     const img = this.getBaseTexture()
-    //     if (!img) return
-        
-    //     // Create new sprite
-    //     const sprite = pixiHelpers.createSpriteFromCanvas(img)
-    //     if (!sprite) return
-        
-    //     pixiHelpers.setAnchor(sprite, 0.5, 0.5)
-        
-    //     // Clear old sprites and add new one
-    //     const bodyContainer = container.bodyContainer
-    //     while (bodyContainer.children[0]) {
-    //         pixiHelpers.safeDestroy(bodyContainer.children[0], false)
-    //         bodyContainer.removeChild(bodyContainer.children[0])
-    //     }
-        
-    //     pixiHelpers.addChild(bodyContainer, sprite)
-    //     container.bodySprite = sprite
-        
-    //     // Apply player color tint
-    //     const player = this.game.players?.[this.playerId]
-    //     if (player?.color) {
-    //         pixiHelpers.colorizeSprite(sprite, player.color)
-    //     }
-    // }
-
-    // syncGraphics() {
-    //     // Update container position
-    //     pixiHelpers.setPosition(pixiObj, this.x, this.y)
-        
-    //     // Update body sprite
-    //     const bodySprite = pixiObj.bodySprite
-    //     if (bodySprite) {
-    //         // Update size
-    //         bodySprite.width = this.width
-    //         bodySprite.height = this.height
-            
-    //         // Handle direction flipping
-    //         const scaleX = Math.abs(bodySprite.scale.x) * (this.dirX >= 0 ? 1 : -1)
-    //         bodySprite.scale.x = scaleX
-            
-    //         // Update visibility
-    //         pixiHelpers.setSpriteAlpha(bodySprite, this.visibility ?? 1)
-            
-    //         // Check if we need to update the texture (animation frame changed)
-    //         // This is a simple check - subclasses can override for more complex animations
-    //         this.updateHeroAnimation(bodySprite, pixiObj)
-    //     }
-        
-    //     // Update z-index
-    //     if (this.z !== undefined) {
-    //         pixiHelpers.setZIndex(pixiObj, this.z)
-    //     }
-    // }
-
-    /**
-     * Update hero animation frame
-     * @param {PIXI.Sprite} bodySprite
-     * @param {PIXI.Container} container
-     */
-    // updateHeroAnimation(bodySprite, container) {
-    //     // Override in subclasses for sprite sheet animation
-    //     // This base implementation just updates the texture if the image changed
-    //     const currentImg = this.getBaseTexture()
-    //     if (currentImg && bodySprite.texture && window.PIXI) {
-    //         // Only update if image source changed
-    //         const currentSource = bodySprite.texture.baseTexture?.resource?.source
-    //         if (currentSource !== currentImg) {
-    //             this.updateHeroBodySprite(container)
-    //         }
-    //     }
-    // }
 }
 
 
@@ -320,8 +208,9 @@ class NicoHand extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseImg() {
-        return HandImg
+    syncGraphics() {
+        this.setSprite(HandImg)
+        super.syncGraphics()
     }
 }
 
@@ -452,7 +341,7 @@ export class Nico extends Hero {
         const { actionButton } = this
         if(!actionButton) return
         const actionExtra = this.getActionExtra()
-        actionButton.icon = actionExtra ? actionExtra.getBaseImg() : HandImg
+        actionButton.icon = actionExtra ? actionExtra.constructor.getIconImg() : HandImg
     }
 
     addExtra(extra) {
@@ -470,60 +359,19 @@ export class Nico extends Hero {
         return actionExtra
     }
 
-    getBaseImg() {
+    syncGraphics() {
         const { iteration } = this.scene
         const { dt, players } = this.game
         const player = players && players[this.playerId]
         const color = player && player.color
         const spriteSheet = NicoSpriteSheets.get(color)
-        // For animated sprites using SpriteSheet, we return the texture directly
-        // since SpriteSheet manages its own textures
-        if (iteration > 0 && (this.handRemIt || !this.canJump())) return spriteSheet.getImg(1)
-        else if (this.speedX == 0) return spriteSheet.getImg(0)
-        else return spriteSheet.getImg(1 + floor((iteration * dt * 6) % 3))
+        let img
+        if (iteration > 0 && (this.handRemIt || !this.canJump())) img = spriteSheet.getImg(1)
+        else if (this.speedX == 0) img = spriteSheet.getImg(0)
+        else img = spriteSheet.getImg(1 + floor((iteration * dt * 6) % 3))
+        this.setSprite(img)
+        super.syncGraphics()
     }
-
-    /**
-     * Get current animation frame index for Nico
-     * @returns {number}
-     */
-    // getAnimationFrame() {
-    //     const { iteration } = this.scene
-    //     const { dt } = this.game
-    //     if (iteration > 0 && (this.handRemIt || !this.canJump())) return 1
-    //     else if (this.speedX == 0) return 0
-    //     else return 1 + floor((iteration * dt * 6) % 3)
-    // }
-
-    /**
-     * Update hero animation - optimized for Nico's sprite sheet
-     * @param {PIXI.Sprite} bodySprite
-     * @param {PIXI.Container} container
-     */
-    // updateHeroAnimation(bodySprite, container) {
-    //     if (!bodySprite) return
-        
-    //     const player = this.game.players?.[this.playerId]
-    //     const color = player?.color
-    //     const frameIndex = this.getAnimationFrame()
-        
-    //     // Get the correct sprite sheet frame
-    //     const spriteSheet = NicoSpriteSheets.get(color)
-    //     const newImg = spriteSheet.get(frameIndex)
-        
-    //     if (newImg && window.PIXI) {
-    //         // Only update texture if it changed
-    //         const currentSource = bodySprite.texture?.baseTexture?.resource?.source
-    //         if (currentSource !== newImg) {
-    //             bodySprite.texture = window.PIXI.Texture.from(newImg)
-    //         }
-    //     }
-        
-    //     // Apply color tint if player has a color
-    //     if (player?.color && !color) {
-    //         pixiHelpers.colorizeSprite(bodySprite, player.color)
-    //     }
-    // }
 
     getInputState() {
         const { game } = this

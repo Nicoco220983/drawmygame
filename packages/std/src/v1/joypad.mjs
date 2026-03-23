@@ -11,8 +11,9 @@ import {
 const ButtonSpriteSheetImg = new Img("/static/catalogs/std/v1/2Dside/assets/button_spritesheet.png")
 const ButtonColorableSpriteSheetImg = new Img("/static/catalogs/std/v1/2Dside/assets/button_colorable.png")
 
+
 @Dependencies.add(ButtonSpriteSheetImg, ButtonColorableSpriteSheetImg)
-export class JoypadButton extends GameObject {
+export class BaseJoypadButton extends GameObject {
 
     init(kwargs) {
         super.init(kwargs)
@@ -20,32 +21,9 @@ export class JoypadButton extends GameObject {
         this.disabled = kwargs?.disabled
         this.text = kwargs?.text
         this.icon = kwargs?.icon
-        this.isDown = false
     }
 
-    update() {
-        super.update()
-        if (this.disabled) return
-        const isDown = Boolean(this.checkHitTouches())
-        if (isDown != this.isDown) {
-            this.isDown = isDown
-            if (isDown) {
-                if(this.onClickDown) this.onClickDown()
-            } else {
-                if(this.onClickUp) this.onClickUp()
-            }
-        }
-    }
-
-    onClickDown() {
-        if (this.inputKey) this.game.setInputKey(this.inputKey, true)
-    }
-
-    onClickUp() {
-        if (this.inputKey) this.game.setInputKey(this.inputKey, false)
-    }
-
-    getBaseImg() {
+    getButtonImg() {
         const { game } = this
         if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
         let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
@@ -79,85 +57,88 @@ export class JoypadButton extends GameObject {
         return img
     }
 
-    createTextImg(text) {
-        const fontSize = floor(this.height / 2)
-        return newTextCanvas(text, {
-            fillStyle: "white",
-            font: `bold ${fontSize}px serif`,
-        })
-    }
-
     syncGraphics() {
         const container = this._graphics
         if (!container) return
         
-        // Lazy-create background sprite if needed
-        if (!this._baseImgSprite) {
-            const baseImg = this.getBaseImg()
-            const baseImgSprite = this._baseImgSprite = pixiHelpers.createSprite(baseImg)
-            if(baseImgSprite) {
-                baseImgSprite.anchor.set(0.5, 0.5)
-                container.addChild(baseImgSprite)
-            }
-        }
+        // Lazy-create button sprite if needed
+        const buttonImg = this.getButtonImg()
+        if(buttonImg) {
+            const buttonSprite = this._buttonSprite ||= pixiHelpers.addNewSpriteTo(container)
+            buttonSprite.texture = pixiHelpers.getCachedTexture(buttonImg)
+            buttonSprite.width = this.width
+            buttonSprite.height = this.height
+        } else if(this._buttonSprite) this._buttonSprite.texture = null
         
         // Lazy-create text overlay if needed
-        if (!this._textObj && this.text) {
-            const style = new window.PIXI.TextStyle({
-                fontFamily: 'serif',
-                fontSize: floor(this.height / 2),
-                fontWeight: 'bold',
-                fill: 'white',
-                align: 'center',
-            })
-            this._textObj = new window.PIXI.Text({ text: this.text, style })
-            this._textObj.anchor.set(0.5, 0.5)
-            this._textObj.zIndex = 1
-            container.addChild(this._textObj)
-        }
+        if(this.text) {
+            const textSprite = this._textSprite ||= container.addChild(new window.PIXI.Text({
+                style: new window.PIXI.TextStyle({
+                    fontFamily: 'serif',
+                    fontSize: floor(this.height / 2),
+                    fontWeight: 'bold',
+                    fill: 'white',
+                    align: 'center',
+                })
+            }))
+            textSprite.anchor.set(0.5, 0.5)
+            textSprite.zIndex = 1
+            textSprite.text = this.text
+        } else if(this._textSprite) this._textSprite.text = ""
         
         // Lazy-create icon overlay if needed
-        if (!this._iconSprite && this.icon) {
-            const iconImg = this.icon.getBaseImg ? this.icon.getBaseImg() : this.icon
-            const iconSprite = this._iconSprite = pixiHelpers.createSprite(iconImg)
-            if (iconSprite) {
-                iconSprite.anchor.set(0.5, 0.5)
-                iconSprite.zIndex = 1
-                container.addChild(iconSprite)
-            }
-        }
-        
-        // Update base img sprite
-        if (this._baseImgSprite) {
-            const newImg = this.getBaseImg()
-            const newTexture = newImg ? getCachedTexture(newImg) : null
-            if (newTexture && this._baseImgSprite.texture !== newTexture) {
-                this._baseImgSprite.texture = newTexture
-            }
-            this._baseImgSprite.width = this.width
-            this._baseImgSprite.height = this.height
-        }
-        
-        // Update icon if exists
-        if (this._iconSprite) {
+        if (this.icon) {
+            const iconSprite = this._iconSprite ||= pixiHelpers.addNewSpriteTo(container)
+            iconSprite.texture = pixiHelpers.getCachedTexture(this.icon)
+            iconSprite.visibility = 1
+            iconSprite.zIndex = 1
             const iconSize = min(this.width, this.height) * 0.5
-            const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
-            this._iconSprite.scale.set(scale)
-        }
+            pixiHelpers.scaleSpriteTo(iconSprite, iconSize, iconSize)
+        } else if(this._iconSprite) this._iconSprite.texture = null
         
         // Let base class handle container transform
-        super.syncGraphics()
+        container.x = this.x
+        container.y = this.y
+        container.zIndex = this.z
     }
 }
 
 
-export class StickButton extends GameObject {
+export class JoypadButton extends BaseJoypadButton {
 
     init(kwargs) {
         super.init(kwargs)
-        this.disabled = kwargs?.disabled
-        this.text = kwargs?.text
-        this.icon = kwargs?.icon
+        this.isDown = false
+    }
+
+    update() {
+        super.update()
+        if (this.disabled) return
+        const isDown = Boolean(this.checkHitTouches())
+        if (isDown != this.isDown) {
+            this.isDown = isDown
+            if (isDown) {
+                if(this.onClickDown) this.onClickDown()
+            } else {
+                if(this.onClickUp) this.onClickUp()
+            }
+        }
+    }
+
+    onClickDown() {
+        if (this.inputKey) this.game.setInputKey(this.inputKey, true)
+    }
+
+    onClickUp() {
+        if (this.inputKey) this.game.setInputKey(this.inputKey, false)
+    }
+}
+
+
+export class StickButton extends BaseJoypadButton {
+
+    init(kwargs) {
+        super.init(kwargs)
         this.startPos = null
         this.prevInput = null
     }
@@ -185,100 +166,6 @@ export class StickButton extends GameObject {
             if(this.onInput) this.onInput(input)
         }
         this.prevInput = input
-    }
-
-    getBaseImg() {
-        const { game } = this
-        if (ButtonSpriteSheetImg.unloaded || ButtonColorableSpriteSheetImg.unloaded) return
-        let img = ButtonSpriteSheetImg, colorImg = ButtonColorableSpriteSheetImg
-        const localPlayer = game.players[game.localPlayerId]
-        const color = localPlayer ? localPlayer.color : null
-        const numCol = this.isDown ? 1 : 0
-        colorImg = cachedTransform(colorImg, numCol, () => {
-            return cloneCanvas(colorImg, { col: [numCol, 2] })
-        })
-        colorImg = cachedTransform(colorImg, color, () => {
-            const res = cloneCanvas(colorImg)
-            return color ? colorizeCanvas(res, color) : res
-        })
-        img = cachedTransform(img, numCol, () => {
-            const res = cloneCanvas(img, { col: [numCol, 2] })
-            const ctx = res.getContext("2d")
-            ctx.drawImage(colorImg, 0, 0, res.width, res.height)
-            return res
-        })
-        const sizeRatio = this.width / this.height
-        img = cachedTransform(img, sizeRatio, () => {
-            if (sizeRatio == 1) return cloneCanvas(img)
-            const { width: iw, height: ih } = img, iw2 = ceil(iw / 2)
-            const rw = ceil(ih * sizeRatio), rh = ih
-            const res = newCanvas(rw, rh), ctx = res.getContext("2d")
-            ctx.drawImage(img, 0, 0, iw2, ih, 0, 0, iw2, ih)
-            ctx.drawImage(img, iw2, 0, iw2, ih, rw - iw2, 0, iw2, ih)
-            for (let x = iw2; x < rw - iw2; ++x) ctx.drawImage(img, iw2, 0, 1, ih, x, 0, 1, ih)
-            return res
-        })
-        return img
-    }
-
-    syncGraphics() {
-        const container = this._graphics
-        if (!container) return
-        
-        // Lazy-create background sprite if needed
-        if (!this._bgSprite) {
-            const img = this.getBaseImg()
-            const texture = img ? getCachedTexture(img) : null
-            if (texture) {
-                this._bgSprite = new window.PIXI.Sprite(texture)
-                this._bgSprite.anchor.set(0.5, 0.5)
-                container.addChild(this._bgSprite)
-            }
-        }
-        
-        // Lazy-create text overlay if needed
-        if (!this._textObj && this.text) {
-            const style = new window.PIXI.TextStyle({
-                fontFamily: 'serif',
-                fontSize: floor(this.height / 2),
-                fontWeight: 'bold',
-                fill: 'white',
-                align: 'center',
-            })
-            this._textObj = new window.PIXI.Text({ text: this.text, style })
-            this._textObj.anchor.set(0.5, 0.5)
-            container.addChild(this._textObj)
-        }
-        
-        // Lazy-create icon overlay if needed
-        if (!this._iconSprite && this.icon) {
-            const iconImg = this.icon.getBaseImg ? this.icon.getBaseImg() : this.icon
-            const iconTexture = iconImg ? getCachedTexture(iconImg) : null
-            if (iconTexture) {
-                this._iconSprite = new window.PIXI.Sprite(iconTexture)
-                this._iconSprite.anchor.set(0.5, 0.5)
-                container.addChild(this._iconSprite)
-            }
-        }
-        
-        if (this._bgSprite) {
-            const newImg = this.getBaseImg()
-            const newTexture = newImg ? getCachedTexture(newImg) : null
-            if (newTexture && this._bgSprite.texture !== newTexture) {
-                this._bgSprite.texture = newTexture
-            }
-            this._bgSprite.width = this.width
-            this._bgSprite.height = this.height
-        }
-        
-        if (this._iconSprite) {
-            const iconSize = min(this.width, this.height) * 0.5
-            const scale = iconSize / max(this._iconSprite.texture.orig.width, this._iconSprite.texture.orig.height)
-            this._iconSprite.scale.set(scale)
-        }
-        
-        // Let base class handle container transform
-        super.syncGraphics()
     }
 }
 

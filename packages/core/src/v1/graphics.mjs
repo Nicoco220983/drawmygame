@@ -124,6 +124,13 @@ export function createSprite(source) {
     return new PIXI.Sprite(texture)
 }
 
+export function addNewSpriteTo(container) {
+    const sprite = new PIXI.Sprite()
+    sprite.anchor.set(0.5)
+    container.addChild(sprite)
+    return sprite
+}
+
 /**
  * Create text with standard styling
  * @param {string} text - Text content
@@ -151,32 +158,6 @@ export function createTextPixi(text, options = {}) {
 export function tintSprite(sprite, color) {
     sprite.tint = color ? toPixiColor(color) : 0xffffff
     return sprite
-}
-
-/**
- * Create an animated sprite from a sprite sheet
- * @param {PIXI.Spritesheet} sheet - Sprite sheet with animations
- * @param {string} animationName - Name of the animation
- * @returns {PIXI.AnimatedSprite|null}
- */
-export function createAnimatedSprite(sheet, animationName) {
-    const animations = sheet.animations
-    if (!animations || !animations[animationName]) return null
-    
-    const sprite = new PIXI.AnimatedSprite(animations[animationName])
-    sprite.anchor.set(0.5)
-    return sprite
-}
-
-/**
- * Update animated sprite frame based on time
- * @param {PIXI.AnimatedSprite} sprite - The animated sprite
- * @param {number} frameIndex - Frame index to show
- */
-export function setAnimationFrame(sprite, frameIndex) {
-    if (sprite.totalFrames > 0) {
-        sprite.gotoAndStop(frameIndex % sprite.totalFrames)
-    }
 }
 
 /**
@@ -233,9 +214,8 @@ export const pixiHelpers = {
 
     createSpriteFromSheet,
     createTextPixi,
+    addNewSpriteTo,
     tintSprite,
-    createAnimatedSprite,
-    setAnimationFrame,
     drawRect,
     drawCircle,
     toPixiColor,

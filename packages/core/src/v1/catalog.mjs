@@ -220,6 +220,7 @@ export class Catalog {
             objCat.category = target.CATEGORY
             objCat.label = kwargs?.label ?? key
             objCat.icon = kwargs?.icon ?? null
+            target.ICON_IMG = objCat.icon
             if (objCat.icon?._src !== undefined) objCat.icon = objCat.icon._src
             objCat.showInBuilder = (kwargs?.showInBuilder == false) ? false : true
             objCat.isHero = target.IS_HERO == true

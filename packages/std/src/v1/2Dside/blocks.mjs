@@ -58,14 +58,15 @@ const DirtImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/dirt.png")
 @StateString.define("color", { showInBuilder: true })
 export class DirtBlock extends Block {
 
-    getBaseImg() {
+    syncGraphics() {
         let img = DirtImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#6f911b")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -81,14 +82,15 @@ const StoneImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/stone.png
 @Dependencies.add(StoneImg)
 @StateString.define("color", { showInBuilder: true })
 export class StoneBlock extends Block {
-    getBaseImg() {
+    syncGraphics() {
         let img = StoneImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -103,14 +105,15 @@ const BackgroundStoneImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks
 @Dependencies.add(BackgroundStoneImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundStoneBlock extends BackgroundBlock {
-    getBaseImg() {
+    syncGraphics() {
         let img = BackgroundStoneImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#877d71")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -126,14 +129,15 @@ const BricksImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/bricks.p
 @Dependencies.add(BricksImg)
 @StateString.define("color", { showInBuilder: true })
 export class BricksBlock extends Block {
-    getBaseImg() {
+    syncGraphics() {
         let img = BricksImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -149,14 +153,15 @@ const BackgroundBricksImg = new Img("/static/catalogs/std/v1/2Dside/assets/block
 @Dependencies.add(BackgroundBricksImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundBricksBlock extends BackgroundBlock {
-    getBaseImg() {
+    syncGraphics() {
         let img = BackgroundBricksImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#b6a88e")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -172,14 +177,15 @@ const WoodImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/wood.png")
 @Dependencies.add(WoodImg)
 @StateString.define("color", { showInBuilder: true })
 export class WoodBlock extends Block {
-    getBaseImg() {
+    syncGraphics() {
         let img = WoodImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -195,14 +201,15 @@ const BackgroundWoodImg = new Img("/static/catalogs/std/v1/2Dside/assets/blocks/
 @Dependencies.add(BackgroundWoodImg)
 @StateString.define("color", { showInBuilder: true })
 export class BackgroundWoodBlock extends BackgroundBlock {
-    getBaseImg() {
+    syncGraphics() {
         let img = BackgroundWoodImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -239,14 +246,15 @@ export class PlatformBlock extends Block {
         return pol
     }
 
-    getBaseImg() {
+    syncGraphics() {
         let img = PlatformImg
         if (this.color) {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#9b5f21")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -289,8 +297,10 @@ export class Door extends Block {
         this.lastBlockIt = this.scene.iteration
     }
 
-    getBaseImg() {
-        return DoorSpriteSheet.getImg(this.closed ? 0 : 1)
+    syncGraphics() {
+        const img = DoorSpriteSheet.getImg(this.closed ? 0 : 1)
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -341,11 +351,8 @@ export class Cloud extends Block {
         this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
     }
 
-    getBaseImg() {
-        return CloudImg
-    }
-
     syncGraphics() {
+        this.setSprite(CloudImg)
         // Update visibility based on step
         const { step } = this
         if (step == 0) this.visibility = 1
@@ -462,8 +469,9 @@ export class BoxingTrap extends Trap {
         this.attackKnockback = 1000
     }
 
-    getBaseImg() {
-        return BoxingGloveImg
+    syncGraphics() {
+        this.setSprite(BoxingGloveImg)
+        super.syncGraphics()
     }
 }
 
@@ -484,8 +492,9 @@ export class BouncingBlock extends Block {
         this.physicsBounciness = 1
     }
 
-    getBaseImg() {
-        return BouncingBlockImg
+    syncGraphics() {
+        this.setSprite(BouncingBlockImg)
+        super.syncGraphics()
     }
 }
 
@@ -507,8 +516,9 @@ export class IceBlock extends Block {
         this.physicsDynamicFriction = 0
     }
 
-    getBaseImg() {
-        return IceBlockImg
+    syncGraphics() {
+        this.setSprite(IceBlockImg)
+        super.syncGraphics()
     }
 }
 
@@ -538,7 +548,8 @@ export class SpiderWebBlock extends Block {
         if(abs(obj.speedY) > targetMaxSpeed) obj.speedY = sign(obj.speedY) * targetMaxSpeed
     }
 
-    getBaseImg() {
-        return SpiderWebBlockImg
+    syncGraphics() {
+        this.setSprite(SpiderWebBlockImg)
+        super.syncGraphics()
     }
 }

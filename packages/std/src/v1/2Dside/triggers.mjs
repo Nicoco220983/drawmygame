@@ -78,8 +78,10 @@ export class Button extends Trigger {
         this.triggerValue = this.pushed ? 1 : 0
     }
 
-    getBaseImg() {
-        return ButtonSpriteSheet.getImg(this.pushed ? 1 : 0)
+    syncGraphics() {
+        const img = ButtonSpriteSheet.getImg(this.pushed ? 1 : 0)
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -112,8 +114,11 @@ export class Clock extends Trigger {
         this.iteration += 1
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? ClockImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(ClockImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -148,8 +153,11 @@ export class Viewer extends Trigger {
         }
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? WatcherImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(WatcherImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -181,8 +189,11 @@ export class InverterTrigger extends Trigger {
         this.triggerValue = 1 - this.lastMsg.value
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? InvertTriggerImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(InvertTriggerImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -246,8 +257,11 @@ export class MinTrigger extends AggregatorTrigger {
         return min(...vals)
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? MinTriggerImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(MinTriggerImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -272,8 +286,11 @@ export class MaxTrigger extends AggregatorTrigger {
         return max(...vals)
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? MaxTriggerImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(MaxTriggerImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -300,8 +317,11 @@ export class XorTrigger extends AggregatorTrigger {
         return aggVal
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? XorTriggerImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(XorTriggerImg)
+        }
+        super.syncGraphics()
     }
 }
 
@@ -368,7 +388,10 @@ export class DelayTrigger extends Trigger {
         this.triggerValue = value
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? DelayTriggerImg : null
+    syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(DelayTriggerImg)
+        }
+        super.syncGraphics()
     }
 }

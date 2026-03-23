@@ -46,9 +46,11 @@ export class SmokeExplosion extends GameObject {
         if (time > .5) { this.remove(); return }
     }
 
-    getBaseImg() {
+    syncGraphics() {
         const time = this.iteration * this.game.dt
-        return SmokeExplosionSpriteSheet.getImg(floor(time / .5 * 4))
+        const img = SmokeExplosionSpriteSheet.getImg(floor(time / .5 * 4))
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -76,11 +78,8 @@ export class Pop extends GameObject {
         if (this.remIt <= 0) this.remove()
     }
 
-    getBaseImg() {
-        return PopImg
-    }
-
     syncGraphics() {
+        this.setSprite(PopImg)
         super.syncGraphics()
         const scale = (.5 + 1 * (1 - this.remIt / this.duration))
         this._graphics.scale.x = this._graphics.scale.y = scale
@@ -302,13 +301,15 @@ export class Sword extends Weapon {
         return this.lastAttackAge < (SWORD_ATTACK_PERIOD * this.game.fps)
     }
 
-    getBaseImg() {
+    syncGraphics() {
         const ratioSinceLastAttack = this.lastAttackAge / (SWORD_ATTACK_PERIOD * this.game.fps)
         if (ratioSinceLastAttack <= 1) {
-            return SwordSlashSpriteSheet.getImg(floor(6 * ratioSinceLastAttack))
+            const img = SwordSlashSpriteSheet.getImg(floor(6 * ratioSinceLastAttack))
+            this.setSprite(img)
         } else {
-            return SwordImg
+            this.setSprite(SwordImg)
         }
+        super.syncGraphics()
     }
 }
 
@@ -385,8 +386,9 @@ export class BoxingGlove extends Weapon {
         this.game.audio.playSound(HandHitAud)
     }
 
-    getBaseImg() {
-        return BoxingGloveImg
+    syncGraphics() {
+        this.setSprite(BoxingGloveImg)
+        super.syncGraphics()
     }
 }
 
@@ -427,8 +429,9 @@ export class Shuriken extends Projectile {
         if (this.itToLive <= 0) this.remove()
     }
 
-    getBaseImg() {
-        return ShurikenImg
+    syncGraphics() {
+        this.setSprite(ShurikenImg)
+        super.syncGraphics()
     }
 }
 
@@ -484,8 +487,9 @@ export class ShurikenPack extends Extra {
         if (this.actRemIt > 0) this.actRemIt -= 1
     }
 
-    getBaseImg() {
-        return ShurikenImg
+    syncGraphics() {
+        this.setSprite(ShurikenImg)
+        super.syncGraphics()
     }
 }
 
@@ -527,10 +531,9 @@ export class Explosion extends GameObject {
         this.iteration += 1
     }
 
-    getBaseImg() {
-        return ExplosionSpriteSheet.getImg(floor(
-            this.iteration / this.game.fps * 15
-        ))
+    syncGraphics() {
+        this.setSprite(ExplosionSpriteSheet.getImg(floor(this.iteration / this.game.fps * 15)))
+        super.syncGraphics()
     }
 }
 
@@ -595,10 +598,16 @@ export class Bomb extends Extra {
         this.itToLive = this.countdown * this.game.fps
     }
 
-    getBaseImg() {
+    syncGraphics() {
         const { itToLive, countdown } = this
-        if (itToLive === null) return BombSpriteSheet.getImg(0)
-        return BombSpriteSheet.getImg(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
+        let img
+        if (itToLive === null) {
+            img = BombSpriteSheet.getImg(0)
+        } else {
+            img = BombSpriteSheet.getImg(floor(pow(3 * (1 - (itToLive / this.game.fps) / countdown), 2) * 2) % 2)
+        }
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -672,8 +681,10 @@ export class JetPack extends Extra {
         this.y = owner.y + 10
     }
 
-    getBaseImg() {
-        return JetPackSpriteSheet.getImg(this.isFlying() ? 1 : 0)
+    syncGraphics() {
+        const img = JetPackSpriteSheet.getImg(this.isFlying() ? 1 : 0)
+        this.setSprite(img)
+        super.syncGraphics()
     }
 
     remove() {
@@ -726,11 +737,8 @@ export class Spiky extends Enemy {
         return obj.constructor.IS_HERO
     }
 
-    getBaseImg() {
-        return SpikyImg
-    }
-
     syncGraphics() {
+        this.setSprite(SpikyImg)
         super.syncGraphics()
         const initAngle = this._graphicsInitAngle ||= 2*PI*random()
         const angle = initAngle + this.scene.iteration / 20 * PI
@@ -819,18 +827,15 @@ export class BlobEnemy extends Enemy {
         }
     }
 
-    getBaseImg() {
-        return BlobImg
-    }
-
     syncGraphics() {
+        this.setSprite(BlobImg)
         super.syncGraphics()
         const initAngle = this._graphicsInitAngle ||= 2*PI*random()
         const angle = initAngle + this.scene.iteration / 20 * PI
         const cosAngle = cos(angle), sinAngle = sin(angle)
         this._graphics.x = this.x - this.width * .05 * cosAngle
         this._graphics.y = this.y - this.height * .05 * sinAngle
-        pixiHelpers.scaleSpriteTo(this._baseImgSprite, this.width * (1+.1*cosAngle), this.height * (1+.1*sinAngle), this.dirX, this.dirY)
+        pixiHelpers.scaleSpriteTo(this._sprite, this.width * (1+.1*cosAngle), this.height * (1+.1*sinAngle), this.dirX, this.dirY)
     }
 }
 
@@ -924,11 +929,8 @@ export class Ghost extends Enemy {
         }
     }
 
-    getBaseImg() {
-        return GhostImg
-    }
-
     syncGraphics() {
+        this.setSprite(GhostImg)
         super.syncGraphics()
         const initAngle = this._graphicsInitAngle ||= 2*PI*random()
         const angle = initAngle + this.scene.iteration / 20 * PI
@@ -967,8 +969,9 @@ export class Heart extends GameObject {
         hero.damages = 0
     }
 
-    getBaseImg() {
-        return HeartImg
+    syncGraphics() {
+        this.setSprite(HeartImg)
+        super.syncGraphics()
     }
 }
 
@@ -1020,11 +1023,8 @@ export class Star extends Extra {
         else if (speedY < 0 && this.y < 0) this.speedY *= -1
     }
 
-    getBaseImg() {
-        return StarImg
-    }
-
     syncGraphics() {
+        this.setSprite(StarImg)
         this.visibility = !this.owner
         return super.syncGraphics()
     }
@@ -1054,8 +1054,9 @@ export class Checkpoint extends GameObject {
         this.scene.herosSpawnY = this.y
     }
 
-    getBaseImg() {
-        return CheckpointImg
+    syncGraphics() {
+        this.setSprite(CheckpointImg)
+        super.syncGraphics()
     }
 }
 
@@ -1102,14 +1103,15 @@ export class Portal extends GameObject {
         this.game.audio.playSound(PortalJumpAud)
     }
 
-    getBaseImg() {
+    syncGraphics() {
         let img = PortalImg
         if (this.color && this.color !== "blue") {
             img = cachedTransform(img, this.color, () => {
                 return colorizeCanvas(cloneCanvas(img), this.color, "#006dbe")
             })
         }
-        return img
+        this.setSprite(img)
+        super.syncGraphics()
     }
 }
 
@@ -1139,8 +1141,9 @@ const BallImg = new Img("/static/catalogs/std/v1/2Dside/assets/ball.png")
 })
 export class Ball extends GameObject {
 
-    getBaseImg() {
-        return BallImg
+    syncGraphics() {
+        this.setSprite(BallImg)
+        super.syncGraphics()
     }
 }
 
@@ -1160,9 +1163,10 @@ export class HeroSpawnPoint extends GameObject {
         this.width = this.height = 50
     }
 
-    getBaseImg() {
-        return PopImg // TODO: remove when "empty base img" position bug is fixed
-        //return this.game.isBuilder ? PopImg : null
+    syncGraphics() {
+        // TODO: remove when "empty base img" position bug is fixed
+        this.setSprite(PopImg)
+        super.syncGraphics()
     }
 }
 
@@ -1245,11 +1249,10 @@ export class ObjectSpawner extends GameObject {
         return obj
     }
 
-    getBaseImg() {
-        return this.game.isBuilder ? PopImg : null
-    }
-
     syncGraphics() {
+        if (this.game.isBuilder) {
+            this.setSprite(PopImg)
+        }
         super.syncGraphics()
         this.syncObjectGraphics()
     }
