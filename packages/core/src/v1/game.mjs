@@ -1242,8 +1242,7 @@ export class GameCommon {
             CATALOG.fetchObjects(perspective, versions, Array.from(objKeysSet)),
         ])
         await Promise.all([
-            // TODO: refactor this to inject state here
-            CATALOG.loadScenes(perspective, versions, [{key:scnKey}]),
+            CATALOG.loadScenes(perspective, versions, [scnMap ?? {key:scnKey}]),
             CATALOG.loadObjects(perspective, versions, objInitStates),
         ])
         await this.loadScenes(scnKey, scnMapId, scnId)
