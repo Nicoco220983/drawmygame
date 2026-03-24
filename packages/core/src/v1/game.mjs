@@ -1886,6 +1886,7 @@ export class Game extends GameCommon {
 
     update() {
         // TODO solve code duplication with GameCommon
+        const updStartTime = now()
         const { mode } = this
         const { game: gameScn, joypad: joypadScn } = this.scenes
         if(mode == MODE_LOCAL) this.updateGame()
@@ -1899,7 +1900,6 @@ export class Game extends GameCommon {
         if(joypadPauseScn) joypadPauseScn.update()
         // debug
         if(this.debugScene) this.debugScene.update()
-        const updStartTime = now()
         if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
         if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
     }

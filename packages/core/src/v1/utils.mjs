@@ -8,7 +8,7 @@ export const IS_SERVER_ENV = (typeof window === 'undefined')
  * @returns {number} The current time in seconds.
  */
 export function now() {
-    return Date.now() / 1000
+    return performance.now() / 1000
 }
 
 /**
