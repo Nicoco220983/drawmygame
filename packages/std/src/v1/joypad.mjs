@@ -5,6 +5,7 @@ import {
     cachedTransform, newCanvas, cloneCanvas, colorizeCanvas, newTextCanvas,
     Dependencies, GameObject, Text, GameObjectGroup, Img, Scene,
     getCachedTexture, pixiHelpers,
+    dist2,
 } from "../../../core/v1/index.mjs"
 
 
@@ -22,6 +23,8 @@ export class BaseJoypadButton extends GameObject {
         this.text = kwargs?.text
         this.icon = kwargs?.icon
     }
+
+    syncHitTouches(hitTouches) {}
 
     getButtonImg() {
         const { game } = this
@@ -66,8 +69,9 @@ export class BaseJoypadButton extends GameObject {
         if(buttonImg) {
             const buttonSprite = this._buttonSprite ||= pixiHelpers.addNewSpriteTo(container)
             buttonSprite.texture = pixiHelpers.getCachedTexture(buttonImg)
-            buttonSprite.width = this.width
-            buttonSprite.height = this.height
+            //const size = floor(min(this.width, this.height) * .8)
+            buttonSprite.width = this.spriteWidth ?? this.width
+            buttonSprite.height = this.spriteHeight ?? this.height
         } else if(this._buttonSprite) this._buttonSprite.texture = null
         
         // Lazy-create text overlay if needed
@@ -111,27 +115,15 @@ export class JoypadButton extends BaseJoypadButton {
         this.isDown = false
     }
 
-    update() {
-        super.update()
-        if (this.disabled) return
-        const isDown = Boolean(this.checkHitTouches())
-        if (isDown != this.isDown) {
-            this.isDown = isDown
-            if (isDown) {
-                if(this.onClickDown) this.onClickDown()
-            } else {
-                if(this.onClickUp) this.onClickUp()
-            }
-        }
+    syncHitTouches(hitTouches) {
+        const { inputKey, disabled } = this
+        const isDown = !disabled && hitTouches.length>0
+        if(isDown && !this.isDown) this.onClick()
+        this.isDown = isDown
+        if(inputKey) this.game.setInputKey(inputKey, !disabled && hitTouches.length>0)
     }
 
-    onClickDown() {
-        if (this.inputKey) this.game.setInputKey(this.inputKey, true)
-    }
-
-    onClickUp() {
-        if (this.inputKey) this.game.setInputKey(this.inputKey, false)
-    }
+    onClick() {}
 }
 
 
@@ -143,11 +135,10 @@ export class StickButton extends BaseJoypadButton {
         this.prevInput = null
     }
 
-    update() {
-        super.update()
+    syncHitTouches(hitTouches) {
         let input = null
+        const touch = hitTouches.length>0 ? hitTouches[0] : null
         if(!this.disabled) {
-            const touch = this.checkHitTouches()
             if(this.startPos === null) {
                 if(touch) this.startPos = {
                     x: touch.x,
@@ -202,11 +193,39 @@ export class JoypadScene extends Scene {
     update() {
         this.syncPosSize()
         this.buttons.update()
+        this.checkHitTouches()
     }
 
     syncPosSize() {
         const { visible, x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.joypad
         assign(this, { visible, x, y, viewWidth, viewHeight })
+    }
+
+    checkHitTouches() {
+        this.buttons.forEach(but => {
+            but._hitTouches ||= []
+            but._hitTouches.length = 0
+        })
+        for(let touch of this.game.touches) {
+            let { isDown, x: touchX, y: touchY } = touch
+            if(!isDown) continue
+            touchX -= this.x
+            touchY -= this.y
+            let bestButton = null, destDist2 = Infinity
+            this.buttons.forEach(but => {
+                if(but.disabled) return
+                let { left, width, top, height } = but.getHitBox()
+                if(left<=touchX && left+width>touchX && top<=touchY && top+height>touchY) {
+                    const d2 = dist2(touchX-but.x,touchY-but.y)
+                    if(!bestButton || but.z > bestButton.z || d2 < destDist2) {
+                        bestButton = but
+                        destDist2 = d2
+                    }
+                }
+            })
+            if(bestButton) bestButton._hitTouches.push(touch)
+        }
+        this.buttons.forEach(but => but.syncHitTouches(but._hitTouches))
     }
 
     syncGraphics() {
@@ -238,17 +257,27 @@ export class JoypadGameScene extends JoypadScene {
 
     syncLocalPlayerButtons() {
         const hero = this.game.scenes.game.getHero(this.game.localPlayerId)
-        if (hero && hero == this._lastHeroSynced) return
-        this.buttons.clear()
+        if (hero != this._lastHeroSynced) {
+            this.buttons.clear()
+            this._lastHeroSynced = hero
+            if (!hero) return
+            this.addPauseButton()
+            hero.initJoypadButtons(this)
+        }
         if (!hero) return
-        this.addPauseButton()
-        hero.initJoypadButtons(this)
-        this._lastHeroSynced = hero
+        hero.syncJoypadButtons(this)
     }
 
     addPauseButton() {
-        this.pauseButton = this.addButton(JoypadButton, { x: this.width / 2, y: 40, width: 200, height: 60, text: "PAUSE" })
-        this.pauseButton.onClickUp = () => this.game.pause(true)
+        this.pauseButton = this.addButton(JoypadButton, {
+            x: this.width / 2,
+            y: 40,
+            width: 200,
+            height: 60,
+            text: "PAUSE",
+        })
+        this.pauseButton.z = 1
+        this.pauseButton.onClick = () => this.game.pause(true)
     }
 
     newPauseScene() {
@@ -268,7 +297,7 @@ export class JoypadWaitingScene extends JoypadScene {
         const { game, width, height } = this, { localPlayerId } = game
         if (!localPlayerId || !game.players[localPlayerId] || this.startButton) return
         this.startButton = this.addButton(JoypadButton, { x: width / 2, y: height / 2, width: 300, height: 100, text: "START" })
-        this.startButton.onClickUp = () => this.game.startGame()
+        this.startButton.onClick = () => this.game.startGame()
     }
 }
 
@@ -292,9 +321,9 @@ class JoypadPauseScene extends JoypadScene {
 
     initButtons() {
         this.resumeButton = this.addButton(JoypadButton, { width: 300, height: 100, text: "RESUME" })
-        this.resumeButton.onClickUp = () => this.game.pause(false)
+        this.resumeButton.onClick = () => this.game.pause(false)
         this.restartButton = this.addButton(JoypadButton, { width: 300, height: 100, text: "RESTART" })
-        this.restartButton.onClickUp = () => this.game.restartGame()
+        this.restartButton.onClick = () => this.game.restartGame()
     }
 
     update() {

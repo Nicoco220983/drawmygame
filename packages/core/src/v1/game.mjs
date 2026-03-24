@@ -434,6 +434,7 @@ export class GameObject {
 
     static {
         assign(this.prototype, {
+            z: 0,
             width: 100,
             height: 100,
             color: null,
@@ -1329,7 +1330,14 @@ export class GameCommon {
             joypadPS.x = 0
             joypadPS.y = gameVisible ? gamePS.viewHeight : 0
             joypadPS.viewWidth = gamePS.viewWidth
-            joypadPS.viewHeight = floor(gamePS.viewWidth * 9 / 16)
+            if(gameVisible || !HAS_TOUCH) {
+                joypadPS.viewHeight = floor(gamePS.viewWidth * 9 / 16)
+            } else {
+                // case pure smartphone joypad : totally fill the screen
+                const minSize = min(window.screen.width, window.screen.height)
+                const maxSize = max(window.screen.width, window.screen.height)
+                joypadPS.viewHeight = floor(joypadPS.viewWidth * minSize / maxSize)
+            }
         }
         // game
         const width = gamePS.viewWidth

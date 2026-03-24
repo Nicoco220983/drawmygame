@@ -137,7 +137,8 @@ export class Hero extends GameObject {
         this._isStateToSend = true
     }
 
-    initJoypadButtons(joypadScn) { }
+    initJoypadButtons(joypadScn) {}
+    syncJoypadButtons(joypadScn) {}
 
     spawn(x, y) {
         this.x = x + floor((this.scene.rand("spawn") - .5) * 50)
@@ -323,30 +324,46 @@ export class Nico extends Hero {
     }
 
     initJoypadButtons(joypadScn) {
-        const { width, height } = joypadScn
-        const size = height * .45
-        //joypadScn.addButton(JoypadButton, { inputKey: "ArrowLeft", x: width * .15, y: height * .27, size, icon: ArrowsSpriteSheet.get(3) })
-        //joypadScn.addButton(JoypadButton, { inputKey: "ArrowRight", x: width * .3, y: height * .73, size, icon: ArrowsSpriteSheet.get(1) })
-        const walkButton = joypadScn.addButton(StickButton, { x: width * .25, y: height * .5, size: height * .8 })
-        walkButton.onInput = pos => {
+        this.walkButton = joypadScn.addButton(StickButton)
+        this.walkButton.onInput = pos => {
             this.game.setInputKey("ArrowRight", (pos && pos.x > 10))
             this.game.setInputKey("ArrowLeft", (pos && pos.x < -10))
         }
-        joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", x: width * .85, y: height * .27, size, icon: ArrowsSpriteSheet.getImg(0) })
-        this.actionButton = joypadScn.addButton(JoypadButton, { inputKey: " ", x: width * .7, y: height * .73, size, icon: HandImg })
-        this.syncJoypadActionButton()
+        this.jumpButton = joypadScn.addButton(JoypadButton, { inputKey: "ArrowUp", icon: ArrowsSpriteSheet.getImg(0) })
+        this.actionButton = joypadScn.addButton(JoypadButton, { inputKey: " ", icon: HandImg })
+        this.syncJoypadButtons(joypadScn)
     }
 
-    syncJoypadActionButton() {
-        const { actionButton } = this
-        if(!actionButton) return
-        const actionExtra = this.getActionExtra()
-        actionButton.icon = actionExtra ? actionExtra.constructor.getIconImg() : HandImg
-    }
-
-    addExtra(extra) {
-        super.addExtra(extra)
-        if (extra.isActionExtra) this.syncJoypadActionButton()
+    syncJoypadButtons(joypadScn) {
+        const { width, height } = joypadScn
+        const { walkButton, jumpButton, actionButton } = this
+        const setSpriteSize = but => {
+            const spriteSize = floor(min(but.width, but.height) * .8)
+            but.spriteWidth = but.spriteHeight = spriteSize
+        }
+        if(walkButton) {
+            walkButton.x = width * .25
+            walkButton.y = height * .5
+            walkButton.width = width * .5
+            walkButton.height = height
+            setSpriteSize(walkButton)
+        }
+        if(jumpButton) {
+            jumpButton.x = width * 5/6
+            jumpButton.y = height * 1/3
+            jumpButton.width = width * 1/3
+            jumpButton.height = height * 2/3
+            setSpriteSize(jumpButton)
+        }
+        if(actionButton) {
+            actionButton.x = width * 4/6
+            actionButton.y = height * 2/3
+            actionButton.width = width * 1/3
+            actionButton.height = height * 2/3
+            setSpriteSize(actionButton)
+            const actionExtra = this.getActionExtra()
+            actionButton.icon = actionExtra ? actionExtra.constructor.getIconImg() : HandImg
+        }
     }
 
     getActionExtra() {

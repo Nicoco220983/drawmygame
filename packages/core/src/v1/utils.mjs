@@ -394,3 +394,7 @@ export function normAngle(val) {
 export function isAngleInRange(angle, min, max) {
   return normAngle(angle - min) <= normAngle(max - min)
 }
+
+export function dist2(dx, dy) {
+    return dx*dx + dy*dy
+}
