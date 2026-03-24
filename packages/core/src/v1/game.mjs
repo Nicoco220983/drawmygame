@@ -1119,7 +1119,7 @@ export class GameCommon {
         }
 
         this.game = this
-        this.gameLoop = null
+        this.ticker = null
         this.iteration = -1
         this.time = 0
         this.fps = FPS
@@ -1185,7 +1185,7 @@ export class GameCommon {
     }
 
     run() {
-        if(this.gameLoop) return
+        if(this.ticker) return
         this.initTicker()
     }
 
@@ -1196,12 +1196,12 @@ export class GameCommon {
     initTicker() {
         const dt = this.dt
         this.nextTickTime = now()
-        this.gameLoop = setInterval(() => {
+        this.ticker = setInterval(() => {
             try {
                 if(now() >= this.nextTickTime) {
                     this.update()
                     if (this.hasGraphics) this.syncGraphics()
-                    this.nextTickTime = max(this.nextTickTime + dt, now())
+                    this.nextTickTime = this.nextTickTime + dt
                 }
             } catch(err) {
                 console.error(err)
@@ -1211,9 +1211,9 @@ export class GameCommon {
     }
 
     stop() {
-        if(this.gameLoop === null) return
-        clearInterval(this.gameLoop)
-        this.gameLoop = null
+        if(this.ticker === null) return
+        clearInterval(this.ticker)
+        this.ticker = null
         this.onStop()
     }
 
@@ -1885,22 +1885,22 @@ export class Game extends GameCommon {
     }
 
     update() {
-        const { mode } = this
-
         // TODO solve code duplication with GameCommon
+        const { mode } = this
         const { game: gameScn, joypad: joypadScn } = this.scenes
         if(mode == MODE_LOCAL) this.updateGame()
         else this.updateGameApplyingReceivedStates()
+        if(mode != MODE_LOCAL) this.getAndMaySendStates()
+        // pause
         if(joypadScn && !gameScn.paused) joypadScn.update()
         this.syncPauseScenes()
         const { pause: pauseScn, joypadPause: joypadPauseScn } = this.scenes
         if(pauseScn) pauseScn.update()
         if(joypadPauseScn) joypadPauseScn.update()
+        // debug
         if(this.debugScene) this.debugScene.update()
-
         const updStartTime = now()
         if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
-        if(mode != MODE_LOCAL) this.getAndMaySendStates()
         if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
     }
 
