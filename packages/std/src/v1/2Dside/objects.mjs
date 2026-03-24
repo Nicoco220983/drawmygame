@@ -1270,7 +1270,6 @@ export class ObjectSpawner extends GameObject {
         }
         if (this._modelIconSprite?._objCatIcon == objCat.icon) return
         this._modelIconSprite?.destroy()
-        console.log("TMP objCat.icon", objCat.icon)
         const sprite = PIXI.Sprite.from(objCat.icon)
         sprite.anchor.set(0.5, 0.5)
         //sprite.width = this.width

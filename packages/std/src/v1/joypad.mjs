@@ -131,7 +131,7 @@ export class StickButton extends BaseJoypadButton {
 
     init(kwargs) {
         super.init(kwargs)
-        this.startPos = null
+        this.refTouch = null
         this.prevInput = null
     }
 
@@ -139,24 +139,31 @@ export class StickButton extends BaseJoypadButton {
         let input = null
         const touch = hitTouches.length>0 ? hitTouches[0] : null
         if(!this.disabled) {
-            if(this.startPos === null) {
-                if(touch) this.startPos = {
-                    x: touch.x,
-                    y: touch.y,
-                }
+            if(this.refTouch === null) {
+                if(touch) this.setRefTouch(touch)
             } else {
-                if(!touch) this.startPos = null
+                if(!touch) this.refTouch = null
             }
             if(touch === null) input = null
             else input = {
-                x: touch.x - this.startPos.x,
-                y: touch.y - this.startPos.y,
+                x: touch.x - this.refTouch.x,
+                y: touch.y - this.refTouch.y,
             }
         }
         if(input || this.prevInput) {
             if(this.onInput) this.onInput(input)
         }
         this.prevInput = input
+    }
+
+    setRefTouch(touch) {
+        const dx = this.width/4, dy = this.height/4
+        const minX = this.x - dx, maxX = this.x + dx
+        const minY = this.y - dy, maxY = this.y + dy
+        this.refTouch = {
+            x: min(maxX, max(minX, touch.x)),
+            y: min(maxY, max(minY, touch.y)),
+        }
     }
 }
 
@@ -223,7 +230,7 @@ export class JoypadScene extends Scene {
                     }
                 }
             })
-            if(bestButton) bestButton._hitTouches.push(touch)
+            if(bestButton) bestButton._hitTouches.push({ x: touchX, y: touchY })
         }
         this.buttons.forEach(but => but.syncHitTouches(but._hitTouches))
     }
