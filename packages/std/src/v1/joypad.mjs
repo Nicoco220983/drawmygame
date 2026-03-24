@@ -206,6 +206,8 @@ export class JoypadScene extends Scene {
     syncPosSize() {
         const { visible, x, y, viewWidth, viewHeight } = this.game.scenesPosSizes.joypad
         assign(this, { visible, x, y, viewWidth, viewHeight })
+        this.width = this.viewWidth
+        this.height = this.viewHeight
     }
 
     checkHitTouches() {
