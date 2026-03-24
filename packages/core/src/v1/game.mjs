@@ -1186,35 +1186,33 @@ export class GameCommon {
 
     run() {
         if(this.gameLoop) return
-        this.startTime = this.nextFrameTime = now()
         this.initTicker()
     }
 
     /**
-     * Initialize the game loop using setTimeout (works in both browser and Node.js)
+     * Initialize the game loop using setInterval (works in both browser and Node.js)
+     * Uses a 1ms interval and calculates expected frames from wall clock time.
      */
     initTicker() {
-        const schedule = () => {
-            const currentTime = now()
-            const delay = max(0, (this.nextFrameTime - currentTime) * 1000)
-            this.gameLoop = setTimeout(() => {
-                try {
-                    this.updateGameLoop()
-                    this.nextFrameTime = max(now(), this.nextFrameTime + 1/this.fps)
-                } catch(err) {
-                    console.error(err)
-                    this.stop()
-                    return
+        const dt = this.dt
+        this.nextTickTime = now()
+        this.gameLoop = setInterval(() => {
+            try {
+                if(now() >= this.nextTickTime) {
+                    this.update()
+                    if (this.hasGraphics) this.syncGraphics()
+                    this.nextTickTime = max(this.nextTickTime + dt, now())
                 }
-                if(this.gameLoop !== null) schedule()
-            }, delay)
-        }
-        schedule()
+            } catch(err) {
+                console.error(err)
+                this.stop()
+            }
+        }, 1)
     }
 
     stop() {
         if(this.gameLoop === null) return
-        clearTimeout(this.gameLoop)
+        clearInterval(this.gameLoop)
         this.gameLoop = null
         this.onStop()
     }
@@ -1284,11 +1282,6 @@ export class GameCommon {
         const scn = new cls(this, kwargs)
         this._nextSceneId += 1
         return scn
-    }
-
-    updateGameLoop() {
-        this.update()
-        if(this.hasGraphics) this.syncGraphics()
     }
 
     update() {
@@ -1448,7 +1441,7 @@ export class GameCommon {
 
     // TODO: remove me
     log(...args) {
-        console.log(this.iteration, (((now() - this.startTime) / this.dt) - this.iteration).toFixed(1), ...args)
+        console.log(this.iteration, ...args)
         if(this.onLog) this.onLog(...args)
     }
 
@@ -1891,19 +1884,12 @@ export class Game extends GameCommon {
         this.removeKeyListeners()
     }
 
-    updateGameLoop() {
-        super.updateGameLoop()
-        const { mode } = this
-        const updStartTime = now()
-        if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
-        if(mode != MODE_LOCAL) this.getAndMaySendStates()
-        if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
-    }
-
     update() {
+        const { mode } = this
+
         // TODO solve code duplication with GameCommon
         const { game: gameScn, joypad: joypadScn } = this.scenes
-        if(this.mode == MODE_LOCAL) this.updateGame()
+        if(mode == MODE_LOCAL) this.updateGame()
         else this.updateGameApplyingReceivedStates()
         if(joypadScn && !gameScn.paused) joypadScn.update()
         this.syncPauseScenes()
@@ -1911,6 +1897,11 @@ export class Game extends GameCommon {
         if(pauseScn) pauseScn.update()
         if(joypadPauseScn) joypadPauseScn.update()
         if(this.debugScene) this.debugScene.update()
+
+        const updStartTime = now()
+        if(this.isDebugMode) this.pushMetric("updateDur", now() - updStartTime, this.fps * 5)
+        if(mode != MODE_LOCAL) this.getAndMaySendStates()
+        if(this.isDebugMode && mode == MODE_CLIENT) this.maySendPing()
     }
 
     updateGame() {
