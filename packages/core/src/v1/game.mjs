@@ -17,7 +17,10 @@ const unpackr = new unpackLib.Unpackr({ useRecords: true })
 export function pack(val) { return packr.pack(val)}
 export function unpack(val) { return unpackr.unpack(val) }
 
-export const FPS = 30
+export const FPS = 30 // TODO: remove it
+export const TICK_RATE = 30
+export const DT = 1/TICK_RATE
+
 const CANVAS_MAX_WIDTH = 800
 const CANVAS_MAX_HEIGHT = 600
 const MAP_DEFAULT_WIDTH = 800
@@ -1808,6 +1811,7 @@ export class Game extends GameCommon {
             this.receivedStates = []
             this.receivedAppliedStates = []
         }
+        this.desiredReceivedStatesLatency = (this.mode == MODE_CLIENT) ? 2*DT : 0
 
         this.initKeyListeners()
         if(this.isDebugMode) this.setDebugSceneVisibility(true)
@@ -1923,13 +1927,16 @@ export class Game extends GameCommon {
     updateGameApplyingReceivedStates() {
         const { receivedStates, receivedAppliedStates } = this
         let targetIteration = this.iteration + 1
+        const maxDesiredReceivedTime = now() - this.desiredReceivedStatesLatency
         // full state
         let lastReceivedFullState = null
         for(let i=receivedStates.length-1; i>=0; i--) {
             const state = receivedStates[i]
+            if(state.receivedTime > maxDesiredReceivedTime) continue
             if(state.t == STATE_TYPE_FULL) {
                 lastReceivedFullState = state
                 receivedStates.splice(0, i+1)
+                receivedAppliedStates.length = 0
                 break
             }
         }
@@ -2137,19 +2144,13 @@ export class Game extends GameCommon {
     }
 
     receiveStatesFromLeader(statesBin) {
-        const { receivedStates } = this
-        this._lastFullStateIt ||= 0
         const states = unpack(statesBin)
         if(this.isDebugMode) this.log("receiveStatesFromLeader", states)
+        const _now = now()
         for(let state of states) {
+            state.receivedTime = _now
             this.addReceivedState(state)
-            if(state.t == STATE_TYPE_FULL) {
-                this._lastFullStateIt = state.it
-                for(let state2 of this.receivedAppliedStates) this.addReceivedState(state2)
-                this.receivedAppliedStates.length = 0
-            }
         }
-        receivedStates.splice(0, receivedStates.findLastIndex(s => (s.it < this._lastFullStateIt)) + 1)
     }
 
     addReceivedState(state) {
