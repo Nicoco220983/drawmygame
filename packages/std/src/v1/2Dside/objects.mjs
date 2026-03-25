@@ -138,7 +138,7 @@ export class Extra extends GameObject {
         const { extras } = owner
         if (!extras) return
         extras.forEach(extra2 => {
-            if (extra2.extraKey = extraKey) {
+            if (extra2.extraKey == extraKey) {
                 extra2.drop()
                 extra2.remove()  // TODO rm when infinite drop/collect solved
             }
