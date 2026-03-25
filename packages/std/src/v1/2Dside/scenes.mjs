@@ -327,13 +327,13 @@ const DEFAULT_TEAMS_COLOR = ["blue", "red", "yellow", "green", "purple", "orange
 })
 @Category.append("teams")
 @Dependencies.add(TeamMark)
-@StateNumber.define("nbTeams", { default: 1, nullableWith: 1 })
 export class TeamsManager extends Manager {
 
     init(kwargs) {
         super.init(kwargs)
         this.defaultHerosSpawnX = 50
         this.defaultHerosSpawnY = 50
+        this.teams = new Set()
         const { scene } = this
         hackMethod(scene, "onAddObject", -1, evt => {
             const obj = evt.inputArgs[0]
@@ -349,8 +349,13 @@ export class TeamsManager extends Manager {
 
     assignHeroTeam(hero) {
         if(hero.team !== null) return
-        const { nbTeams } = this
-        if(nbTeams < 2 || nbTeams === Infinity) return
+        const { teams } = this, nbTeams = teams.size
+        if(nbTeams == 0 || nbTeams === Infinity) return
+        hero.team = this.findTeamWithFewestHeros()
+    }
+
+    findTeamWithFewestHeros() {
+        const { teams } = this, nbTeams = teams.size
         const nbHerosByTeams = new Map()
         this.scene.heros.forEach(hero2 => {
             const { team } = hero2
@@ -365,33 +370,11 @@ export class TeamsManager extends Manager {
                 lowestTeam = team
             }
         }
-        hero.team = (lowestTeam === null) ? 1 : lowestTeam
+        return (lowestTeam === null) ? 1 : lowestTeam
     }
 
     hackHeroSpawnPoint(point) {
-        this.assignHeroSpawnPointTeam(point)
-    }
-
-    assignHeroSpawnPointTeam(point) {
-        if(point.team !== null) return
-        const { nbTeams } = this
-        if(nbTeams < 2 || nbTeams === Infinity) return
-        const nbPointsByTeams = new Map()
-        const spawnPoints = this.scene.filterObjects("heroSpawnPoints", obj => obj instanceof HeroSpawnPoint)
-        spawnPoints.forEach(point2 => {
-            const { team } = point2
-            if(team === null) return
-            nbPointsByTeams.set(team, (nbPointsByTeams.get(team) ?? 0) + 1)
-        })
-        let lowestNb = Infinity, lowestTeam = null
-        for(let team=1; team<=nbTeams; ++team) {
-            const nb = nbPointsByTeams.get(team) ?? 0
-            if(nb < lowestNb) {
-                lowestNb = nb
-                lowestTeam = team
-            }
-        }
-        point.team = (lowestTeam === null) ? 1 : lowestTeam
+        if(point.team) this.teams.add(point.team)
     }
 
     spawnHero(hero) {
@@ -831,7 +814,7 @@ export class GameScene extends Scene {
 
     filterObjects(key, filter) {
         const objsCache = this._filteredObjectsCache ||= new Map()
-        if(objsCache.iteration !== this.iteration) {
+        if(this.game.isBuilder || objsCache.iteration !== this.iteration) {
             objsCache.clear()
             objsCache.iteration = this.iteration
         }

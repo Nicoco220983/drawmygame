@@ -1155,7 +1155,7 @@ export class Ball extends GameObject {
     label: "Hero",
     icon: PopImg,
 })
-@StateNumber.define("team", { default: null, nullableWith: null })
+@StateNumber.define("team", { default: null, nullableWith: null, showInBuilder:true })
 export class HeroSpawnPoint extends GameObject {
 
     init(kwargs) {
