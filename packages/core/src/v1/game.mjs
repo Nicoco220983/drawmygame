@@ -1352,9 +1352,11 @@ export class GameCommon {
     }
 
     syncCanvasAspectRatio() {
+        const canvas = this.pixiApp?.canvas
+        if(!canvas) return
         const { width, height } = this
         const gameIsMoreLandscapeThanScreen = ((width / window.innerWidth) / (height / window.innerHeight)) >= 1
-        assign(this.pixiApp.canvas.style, {
+        assign(canvas.style, {
             width: gameIsMoreLandscapeThanScreen ? "100%" : null,
             height: gameIsMoreLandscapeThanScreen ? null : "100%",
             aspectRatio: width / height,
@@ -1419,11 +1421,13 @@ export class GameCommon {
     }
 
     focus() {
-        this.pixiApp.canvas.focus()
+        const canvas = this.pixiApp?.canvas
+        if(!canvas) return
+        canvas.focus()
     }
 
     hasFocus() {
-        return document.activeElement === this.pixiApp.canvas
+        return document.activeElement === this.pixiApp?.canvas
     }
 
     pause(val) {
