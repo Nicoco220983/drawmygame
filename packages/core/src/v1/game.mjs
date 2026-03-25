@@ -929,18 +929,18 @@ export class GameObjectGroup {
 
     cleanChunk(chunkId, chunk) {
         const { objMap } = this
-        let idx = 0, nbEnts = chunk.length
-        while(idx < nbEnts) {
+        let idx = 0, nbObjs = chunk.length
+        while(idx < nbObjs) {
             const obj = chunk[idx]
             if(obj.removed) {
                 // case: removed obj
-                chunk.splice(idx, 1); nbEnts -= 1
+                chunk.splice(idx, 1); nbObjs -= 1
                 objMap.delete(obj.id)
             } else {
                 const newChunkId = this.getChunkId(obj)
                 if(chunkId != newChunkId) {
                     // case: obj changed chunk
-                    chunk.splice(idx, 1); nbEnts -= 1
+                    chunk.splice(idx, 1); nbObjs -= 1
                     this.getChunk(newChunkId).push(obj)
                 } else {
                     // case: default
@@ -988,11 +988,11 @@ export class GameObjectGroup {
             let prevStatefullObjIds = new Set()
             state.forEach((_, chunkId) => {
                 const chunk = this.getChunk(chunkId)
-                let idx = 0, nbEnts = chunk.length
-                while(idx < nbEnts) {
+                let idx = 0, nbObjs = chunk.length
+                while(idx < nbObjs) {
                     const obj = chunk[idx]
                     if(obj.constructor.STATEFUL) {
-                        chunk.splice(idx, 1); nbEnts -= 1
+                        chunk.splice(idx, 1); nbObjs -= 1
                         prevStatefullObjIds.add(obj.id)
                     } else {
                         idx += 1
@@ -1946,7 +1946,7 @@ export class Game extends GameCommon {
         }
         if(lastReceivedFullState !== null) {
             this.setState(lastReceivedFullState)
-            const newTargetIteration = max(this.iteration, targetIteration - 1)
+            const newTargetIteration = this.iteration
             if(newTargetIteration != targetIteration) {
                 if(this.isDebugMode) this.log("Fix iteration", targetIteration, "=>", newTargetIteration)
                 targetIteration = newTargetIteration
@@ -1958,6 +1958,7 @@ export class Game extends GameCommon {
             while(receivedStates.length > 0) {
                 const state = receivedStates[0]
                 if(state.it >= targetIteration) break
+                if(state.t == STATE_TYPE_FULL) break
                 if(state.t == STATE_TYPE_INPUT) this.inputStates.push(state)
                 receivedAppliedStates.push(state)
                 receivedStates.shift()
