@@ -385,10 +385,13 @@ export class Debouncer {
     }
 }
 
-
+/**
+ * Return angle in this range ]-180, 180]
+ * @param {number} val
+ * @returns {number}
+ */
 export function normAngle(val) {
-    const res = ((val - 540) % 360) + 180
-    return res
+    return ((val - 540) % 360) + 180
 }
 
 export function isAngleInRange(angle, min, max) {

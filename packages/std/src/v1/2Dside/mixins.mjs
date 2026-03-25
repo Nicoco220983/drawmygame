@@ -1,4 +1,4 @@
-const { min, max, cos, sin, PI } = Math
+const { abs, min, max, cos, sin, PI } = Math
 
 import {
     sign, normAngle, isAngleInRange,
@@ -29,25 +29,25 @@ export class JumpMixin extends Mixin {
         proto.initJumpBlockChecker = this.initJumpBlockChecker
         proto.canJump = this.canJump
         proto.mayJump = this.mayJump
+        proto.getBlockAngle = this.getBlockAngle
         proto.jump = this.jump
+        const protoOnGetBlocked = proto.onGetBlocked, mixinOnGetBlocked = this.onGetBlocked
+        proto.onGetBlocked = function(obj, details) {
+            if(protoOnGetBlocked) protoOnGetBlocked.call(this, obj, details)
+            mixinOnGetBlocked.call(this, obj, details)
+        }
 
         proto._jumpLastIt = -Infinity
+        proto._lastGetBlockedIteration = -Infinity
     }
 
-    initJumpBlockChecker() {
-        const checker = this._jumpBlockChecker ||= this.scene.addObject(JumpMixinBlockChecker, { owner: this })
-        return checker
-    }
-
-    update() {
-        this.initJumpBlockChecker()
+    init() {
+        if(!this.game.isBuilder) this._jumpBlockChecker = this.scene.addObject(JumpMixinBlockChecker, { owner: this })
     }
 
     canJump() {
         if((this.scene.iteration - this._jumpLastIt) * this.game.dt < this.jumpPeriod) return false
-        const checker = this._jumpBlockChecker
-        if(!checker) return false
-        let blockAngle = checker.getBlockedAngle()
+        let blockAngle = this.getBlockAngle()
         if(blockAngle === null) return false
         const { maxJumpBlockAngle } = this
         return isAngleInRange(blockAngle, -90-maxJumpBlockAngle, -90+maxJumpBlockAngle)
@@ -61,11 +61,27 @@ export class JumpMixin extends Mixin {
         return false
     }
 
+    getBlockAngle() {
+        let blockAngle = (this._lastGetBlockedIteration < this.scene.iteration-1) ? null : this._lastGetBlockedAngle
+        const checkerBlockedAngle = this._jumpBlockChecker.getBlockedAngle()
+        if(checkerBlockedAngle !== null) {
+            // chose angle closest to -90
+            if(blockAngle === null || abs(checkerBlockedAngle + 90) < abs(blockAngle + 90)) blockAngle = checkerBlockedAngle
+        }
+        return blockAngle
+    }
+
+    onGetBlocked(obj, details) {
+        this._lastGetBlockedIteration = this.scene.iteration
+        this._lastGetBlockedAngle = details.angle
+    }
+
     jump() {
         const { jumpSpeed, nullJumpSpeed } = this
-        const blockAngle = this.initJumpBlockChecker().getBlockedAngle()
+        const blockAngle = this.getBlockAngle()
+        if(blockAngle === null) return
         const jumpAngle = -90 - normAngle(-90 - blockAngle) / 2
-        if (jumpAngle != -90) {
+        if(jumpAngle != -90) {
             const jumpSpeedX = jumpSpeed * cos(jumpAngle * PI / 180)
             if(jumpSpeedX > 0) this.speedX = min(this.speedX + jumpSpeedX, jumpSpeedX)
             else this.speedX = max(this.speedX + jumpSpeedX, jumpSpeedX)
@@ -86,12 +102,14 @@ export class JumpMixin extends Mixin {
 })
 @BodyMixin.add()
 class JumpMixinBlockChecker extends GameObject {
+
     init(kwargs) {
         super.init(kwargs)
         this.lastGetBlockedIteration = -Infinity
         this.sync()
         this.iteration = 0
     }
+
     sync() {
         const { owner } = this
         if(!owner) return
@@ -100,15 +118,18 @@ class JumpMixinBlockChecker extends GameObject {
         this.width = owner.width + 2
         this.height = owner.height + 2
     }
+
     getBlockedAngle() {
         if(this.lastGetBlockedIteration < this.iteration-1) return null
         return this.lastGetBlockedAngle
     }
+
     onGetBlocked(obj, details) {
         if(obj === this.owner) return
         this.lastGetBlockedIteration = this.iteration
         this.lastGetBlockedAngle = details.angle
     }
+
     update() {
         super.update()
         this.iteration += 1
