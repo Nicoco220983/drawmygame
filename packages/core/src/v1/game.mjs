@@ -1926,7 +1926,7 @@ export class Game extends GameCommon {
         // full state
         let lastReceivedFullState = null
         for(let i=receivedStates.length-1; i>=0; i--) {
-            const state = receivedStates[0]
+            const state = receivedStates[i]
             if(state.t == STATE_TYPE_FULL) {
                 lastReceivedFullState = state
                 receivedStates.splice(0, i+1)
