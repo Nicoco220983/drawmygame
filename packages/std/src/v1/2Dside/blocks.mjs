@@ -494,11 +494,24 @@ export class BouncingBlock extends Block {
     init(kwargs) {
         super.init(kwargs)
         this.physicsBounciness = 1
+        this.onBlockIt = -Infinity
+    }
+
+    onBlock() {
+        this.onBlockIt = this.scene.iteration
     }
 
     syncGraphics() {
-        this.setSprite(BouncingBlockImg)
+        const { width, height } = this
+        const { fps } = this.game
+        const sprite = this.setSprite(BouncingBlockImg)
         super.syncGraphics()
+        if(this.scene.iteration > this.onBlockIt + fps*.4) {
+            pixiHelpers.scaleSpriteTo(sprite, width, height)
+        } else {
+            const angle = this.scene.iteration * 1
+            pixiHelpers.scaleSpriteTo(sprite, (1 + .2 * cos(angle)) * width, (1 + .2 * sin(angle)) * height)
+        }
     }
 }
 
