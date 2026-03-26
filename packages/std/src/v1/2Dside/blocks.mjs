@@ -323,6 +323,7 @@ export class Cloud extends Block {
         super.init(kwargs)
         this.step = 0
         this.lastBlockIt = -Infinity
+        if(!this.game.isBuilder) this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
     }
 
     onBlock(obj, details) {
@@ -334,31 +335,34 @@ export class Cloud extends Block {
     update() {
         const { blockAge, timeToDisappear, timeToReappear } = this
         const { fps } = this.game
-        this.initBlockChecker()
-        if (blockAge === Infinity) this.step = 0
-        else if (blockAge < (timeToDisappear * fps)) this.step = 1
-        else if (blockAge < ((timeToDisappear + timeToReappear) * fps)) {
-            this.step = 2
-        } else if (this.lastBlockIt < this.scene.iteration) {
-            this.step = 0
-            this.blockAge = Infinity
-        }
-        this.canBlock = (this.step < 2)
+        this.syncCanBlock()
         this.blockAge += 1
     }
 
-    initBlockChecker() {
-        this._blockChecker ||= this.scene.addObject(CloudBlockChecker, { owner: this })
+    syncCanBlock() {
+        const { blockAge, timeToDisappear, timeToReappear } = this
+        const { fps } = this.game
+        const timeToDisappearIt = timeToDisappear * fps, timeToReappearIt = timeToReappear * fps
+        this.canBlock = blockAge < timeToDisappearIt || blockAge >= (timeToDisappearIt + timeToReappearIt)
+        if(blockAge >= timeToReappearIt) this.blockAge = Infinity
     }
 
     syncGraphics() {
-        this.setSprite(CloudImg)
-        // Update visibility based on step
-        const { step } = this
-        if (step == 0) this.visibility = 1
-        else if (step == 1) this.visibility = 0.75
-        else this.visibility = 0.5
+        const sprite = this.setSprite(CloudImg)
         super.syncGraphics()
+        // Update visibility based on step
+        const { width, height, canBlock, blockAge } = this
+        if(!canBlock) {
+            this.visibility = .3
+        } else {
+            this.visibility = 1
+            if(blockAge == Infinity) {
+                pixiHelpers.scaleSpriteTo(sprite, width, height)
+            } else {
+                const angle = this.scene.iteration * 1
+                pixiHelpers.scaleSpriteTo(sprite, (cos(angle) * .05 + 1) * width, (sin(angle) * .05 + 1) * height)
+            }
+        }
     }
 }
 
