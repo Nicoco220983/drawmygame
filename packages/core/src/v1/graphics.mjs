@@ -124,9 +124,10 @@ export function createSprite(source) {
     return new PIXI.Sprite(texture)
 }
 
-export function addNewSpriteTo(container) {
+export function addNewSpriteTo(container, img) {
     const sprite = new PIXI.Sprite()
     sprite.anchor.set(0.5)
+    if(img) sprite.texture = getCachedTexture(img)
     container.addChild(sprite)
     return sprite
 }
