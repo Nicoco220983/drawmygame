@@ -3,6 +3,65 @@ const { min, max } = Math
 
 export const IS_SERVER_ENV = (typeof window === 'undefined')
 
+class None {}
+const Image = (!IS_SERVER_ENV && window.Image) || None
+
+/**
+ * Represents an image that can be loaded.
+ * @param {string} src The source of the image.
+ */
+export class Img extends Image {
+    constructor(src, doLoad=false) {
+        super()
+        this._src = src
+        this.unloaded = true
+        this._texture = null
+        if(doLoad) this.load()
+    }
+
+    /**
+     * Loads the image.
+     * @returns {Promise<void>}
+     */
+    async load() {
+        if(IS_SERVER_ENV) return
+        this._loadPrm ||= new Promise((ok, ko) => {
+            this.src = this._src
+            this.onload = () => { 
+                this.unloaded = false
+                ok() 
+            }
+            this.onerror = () => { this.unloaded = false; ko() }
+        })
+        return await this._loadPrm
+    }
+}
+
+/**
+ * Represents an audio that can be loaded.
+ * @param {string} src The source of the audio.
+ */
+export class Aud {
+    constructor(src) {
+        this.src = src
+        this.unloaded = true
+    }
+    /**
+     * Loads the audio.
+     * @returns {Promise<void>}
+     */
+    async load() {
+        if(IS_SERVER_ENV) return
+        const loadPrm = this._loadPrm ||= new Promise(async (ok, ko) => {
+            const res = await fetch(this.src, { cache: 'force-cache' })
+            this.raw = await res.arrayBuffer()
+            this.unloaded = false
+            ok()
+        })
+        return await loadPrm
+    }
+}
+
 /**
  * Returns the current time in seconds.
  * @returns {number} The current time in seconds.

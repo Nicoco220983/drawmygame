@@ -1,7 +1,7 @@
 const { values, assign, getPrototypeOf } = Object
 const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypot } = Math
 import * as utils from './utils.mjs'
-const { IS_SERVER_ENV, now, sumTo, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys } = utils
+const { IS_SERVER_ENV, now, sumTo, newDomEl, addNewDomEl, importJs, hasKeys, nbKeys, Img, Aud } = utils
 import { CATALOG } from './catalog.mjs'
 import { StateProperty, StateBool, StateNumber, StateEnum, StateIntEnum, StateString, StateObjectRef } from './stateproperty.mjs'
 import { AudioEngine } from './audio.mjs'
@@ -49,66 +49,6 @@ export const HAS_TOUCH = (!IS_SERVER_ENV) && (('ontouchstart' in window) || (nav
 const SEND_PING_PERIOD = 3
 const SEND_STATE_PERIOD = 1
 const RESEND_INPUT_STATE_PERIOD = .5
-
-class None {}
-const Image = (!IS_SERVER_ENV && window.Image) || None
-
-/**
- * Represents an image that can be loaded.
- * @param {string} src The source of the image.
- */
-export class Img extends Image {
-    constructor(src, doLoad=false) {
-        super()
-        this._src = src
-        this.unloaded = true
-        this._texture = null
-        if(doLoad) this.load()
-    }
-
-    /**
-     * Loads the image.
-     * @returns {Promise<void>}
-     */
-    async load() {
-        if(IS_SERVER_ENV) return
-        this._loadPrm ||= new Promise((ok, ko) => {
-            this.src = this._src
-            this.onload = () => { 
-                this.unloaded = false
-                ok() 
-            }
-            this.onerror = () => { this.unloaded = false; ko() }
-        })
-        return await this._loadPrm
-    }
-}
-
-/**
- * Represents an audio that can be loaded.
- * @param {string} src The source of the audio.
- */
-export class Aud {
-    constructor(src) {
-        this.src = src
-        this.unloaded = true
-    }
-    /**
-     * Loads the audio.
-     * @returns {Promise<void>}
-     */
-    async load() {
-        if(IS_SERVER_ENV) return
-        const loadPrm = this._loadPrm ||= new Promise(async (ok, ko) => {
-            const res = await fetch(this.src, { cache: 'force-cache' })
-            this.raw = await res.arrayBuffer()
-            this.unloaded = false
-            ok()
-        })
-        return await loadPrm
-    }
-}
-
 
 // MAP
 

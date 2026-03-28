@@ -72,7 +72,7 @@
             </flexrow>
             <div class="section_title">Game:</div>
             <flexcol>
-                <flexrow>Heros: <dmg-object-selector id="heros"></dmg-object-selector></flexrow>
+                <flexrow>Heros: <dmg-multi-line id="heros"><dmg-object-selector></dmg-object-selector></dmg-multi-line></flexrow>
             </flexcol>
             <div class="section_title">Scene:</div>
             <flexcol>
@@ -135,8 +135,11 @@ const scnsEl = document.getElementById("scenes")
 const scnStateEl = document.getElementById("scene")
 async function initInputEls() {
     scnsEl.init("scene", defaultPerspective, defaultVersions, true)
-    herosEl.init("object", defaultPerspective, defaultVersions, true, { category: "hero" })
-    herosEl.setSelectedObject(defaultHeroKey)
+    herosEl.getLines().forEach(objSel => {
+        objSel.init("object", defaultPerspective, defaultVersions, true, { category: "hero" })
+        objSel.setSelectedObject(defaultHeroKey)
+    })
+    herosEl.onAddLine = objSel => objSel.init("object", defaultPerspective, defaultVersions, true, { category: "hero" })
     objectsEl.init("object", defaultPerspective, defaultVersions, true, {
         not: {
             or: [
@@ -312,7 +315,7 @@ function stopBuilder() {
 }
 
 function syncMap() {
-    map.heros = [{ key: herosEl.value.key }]
+    map.heros = herosEl.getLines().map(heroSel => ({ key: heroSel.value.key }))
     gameBuilder.syncMap()
 }
 

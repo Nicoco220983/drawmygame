@@ -3,7 +3,7 @@ const { abs, floor, ceil, min, max, pow, sqrt, cos, sin, atan2, PI, random, hypo
 import {
     sign, sumTo, newCanvas, addCanvas, cloneCanvas, colorizeCanvas, newDomEl, importJs, cachedTransform, hasKeys,
     CATALOG, IS_SERVER_ENV,
-    StateProperty, StateBool, StateNumber,
+    StateProperty, StateBool, StateNumber, StateEnum,
     GameObject, Category, Dependencies, LinkTrigger, LinkReaction, Mixin, Img, SpriteSheet, Aud, ObjectRefs, now, hackMethod,
     pixiHelpers,
 } from '../../../../core/v1/index.mjs'
@@ -256,7 +256,6 @@ const NicoSpriteSheets = {
     height: 45,
 })
 @StateNumber.define("handRemIt", { nullableWith: null, default: null })
-@StateProperty.modify("dirX", { showInBuilder: true })
 export class Nico extends Hero {
 
     init(kwargs) {
@@ -410,13 +409,14 @@ export class Nico extends Hero {
 
 
 const BoySkeletonImg = new Img("/static/catalogs/std/v1/2Dside/assets/boy_skeleton.png")
+const CatSkeletonImg = new Img("/static/catalogs/std/v1/2Dside/assets/cat_skeleton.png")
 
 
 @CATALOG.registerObject({
     ...REGISTER_COMMON_ARGS,
     label: "StdHero",
 })
-@Dependencies.add(BoySkeletonImg, OuchAud, ArrowsSpriteSheetImg, NicoHand)
+@Dependencies.add(BoySkeletonImg, CatSkeletonImg, OuchAud, ArrowsSpriteSheetImg, NicoHand)
 @JumpMixin.add({
     jumpSpeed: 500,
     nullJumpSpeed: 800,
@@ -431,7 +431,10 @@ const BoySkeletonImg = new Img("/static/catalogs/std/v1/2Dside/assets/boy_skelet
     height: 45,
 })
 @StateNumber.define("handRemIt", { nullableWith: null, default: null })
-@StateProperty.modify("dirX", { showInBuilder: true })
+@StateEnum.define("variant", { default: "boy", showInBuilder: true, options: {
+    "boy": "Boy",
+    "cat": "Cat"
+}})
 export class StandardHero extends Hero {
 
     init(kwargs) {
@@ -579,9 +582,14 @@ export class StandardHero extends Hero {
         this.initBodyParts()
     }
 
+    getBaseImg() {
+        if(this.variant == "boy") return BoySkeletonImg
+        else if(this.variant == "cat") return CatSkeletonImg
+    }
+
     initBodyParts() {
         if(this.bodySprite) return
-        const img = BoySkeletonImg
+        const img = this.getBaseImg()
         img.parts ||= {}
         const imgToObjFactor = .2
         const headWidth = 200, headHeight = 160, headAnchorX = 100, headAnchorY = 140, headDy = -20 + 50
